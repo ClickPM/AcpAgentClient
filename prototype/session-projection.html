@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ACP 会话投影原型 · AcpAgent Client</title>
+<link rel="stylesheet" href="assets/projection.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <strong>ACP 会话投影原型</strong>
+    <span class="warn-tag">非设计稿 · 样式不作数</span>
+  </div>
+  <div class="agent">
+    <span id="agent-name">未连接</span>
+    <small id="agent-sub">等待 initialize</small>
+  </div>
+  <div class="topright">
+    <span class="muted">停止原因</span> <code id="stop-reason">—</code>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- 左：会话级状态 -->
+  <aside class="side">
+    <section class="panel">
+      <h2>会话</h2>
+      <div id="session-title" class="session-title">(未命名会话)</div>
+      <div id="session-meta" class="session-meta"></div>
+      <p class="hint">标题来自 <code>session_info_update</code>，不是我们自己起的。</p>
+    </section>
+
+    <section class="panel">
+      <h2>Agent 能力</h2>
+      <div id="agent-caps" class="chips"></div>
+      <p class="hint">UI 的可用动作应由这些能力位驱动，不按 agent 名字特判。</p>
+    </section>
+
+    <section class="panel">
+      <h2>配置选项</h2>
+      <div id="config-options"></div>
+      <div id="modes-note" class="modes-note"></div>
+      <p class="hint">规范：agent 同时给 <code>configOptions</code> 与 <code>modes</code> 时，客户端只用前者。</p>
+    </section>
+
+    <section class="panel">
+      <h2>上下文用量</h2>
+      <div id="usage"></div>
+    </section>
+
+    <section class="panel">
+      <h2>斜杠命令</h2>
+      <div id="commands" class="commands"></div>
+    </section>
+
+    <section class="panel">
+      <h2>环境回调</h2>
+      <div id="env-calls" class="env-calls"></div>
+      <p class="hint"><code>fs/*</code> 与 <code>terminal/*</code> 不进转录，只在这里与流量面板露面。</p>
+    </section>
+  </aside>
+
+  <!-- 中：转录 -->
+  <main class="center">
+    <div id="transcript" class="transcript"></div>
+    <div class="composer">
+      <input type="text" placeholder="原型不接真 agent，输入框只是占位" disabled>
+      <button class="btn" disabled>发送</button>
+    </div>
+  </main>
+
+  <!-- 右：流量与覆盖 -->
+  <aside class="right">
+    <section class="panel">
+      <h2>已投影变体 <small>15 个</small></h2>
+      <div id="coverage" class="coverage"></div>
+    </section>
+
+    <section class="panel danger-panel">
+      <h2>丢弃 <small id="dropped-count">0</small></h2>
+      <div id="dropped" class="dropped"></div>
+      <p class="hint">未知变体在 Rust 侧整条反序列化失败，sdk 只记日志。转录里什么都不会出现 —— 这就是为什么流量面板是硬需求。</p>
+    </section>
+
+    <section class="panel grow">
+      <h2>线上流量 <small id="traffic-count">0</small></h2>
+      <div id="traffic" class="traffic"></div>
+    </section>
+  </aside>
+</div>
+
+<footer class="controls">
+  <button id="btn-play" class="btn primary">播放</button>
+  <button id="btn-pause" class="btn">暂停</button>
+  <button id="btn-step" class="btn">单步</button>
+  <button id="btn-reset" class="btn">重置</button>
+  <span class="sep"></span>
+  <label class="speed-label">速度
+    <select id="speed">
+      <option value="0.5">0.5×</option>
+      <option value="1" selected>1×</option>
+      <option value="2">2×</option>
+      <option value="4">4×</option>
+      <option value="8">8×</option>
+    </select>
+  </label>
+  <span class="sep"></span>
+  <button id="btn-cancel" class="btn danger">取消本轮</button>
+  <span class="hint">取消会把未完成的工具卡标成 cancelled —— 协议里没有这个状态，是客户端本地态。</span>
+  <span class="spacer"></span>
+  <span id="play-status" class="status">已暂停</span>
+  <code id="progress">0 / 0</code>
+</footer>
+
+<script src="assets/fixtures.js"></script>
+<script src="assets/projection.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

@@ -12,7 +12,7 @@ This file provides guidance to Claude Code when working in this repository.
 **AcpAgent Client**：Tauri 桌面客户端，Rust 核心用官方 `agent-client-protocol` rust-sdk v2 以 ACP 接入多个 agent（Claude Agent、Codex、Cursor、pi、DeepSeek Harness，以及以 sidecar 形式接入的 Zed 内置 agent），registry 里的 agent 像 Zed 一样安装即用；前端 React 19，完全按 Claude Design 设计稿实现。开源、不商用，许可证拟为 GPL-3.0-or-later（因复用 Zed 源码）。
 
 - **功能范围的唯一边界是设计稿**：[`design/`](design/)（当前为空；首轮出稿后建立 `design/README.md` 画板索引，画板编号只增不改）。设计稿没有的功能一律不做，想到的进 `rounds/BACKLOG.md` 等所有者裁定。
-- 诉求与非目标：[`docs/requirements.md`](docs/requirements.md)；架构与既定决策：[`docs/design.md`](docs/design.md)；研究依据：[`docs/research.md`](docs/research.md)；背景：[`docs/background.md`](docs/background.md)。
+- 诉求与非目标：[`docs/requirements.md`](docs/requirements.md)；架构与既定决策：[`docs/design.md`](docs/design.md)；研究依据：[`docs/research.md`](docs/research.md)；**可投影内容清单**：[`docs/acp-projection.md`](docs/acp-projection.md)；背景：[`docs/background.md`](docs/background.md)。
 
 **用户回复默认中文**；代码、命令、路径、技术术语保持英文。
 
@@ -22,7 +22,7 @@ This file provides guidance to Claude Code when working in this repository.
 AcpAgentClient/
 ├── CLAUDE.md / AGENTS.md / README.md      约定、审查者指针、简介
 ├── ROUNDS.md                              轮次总览与 roadmap（首轮拆解时建立）
-├── docs/                                  background / requirements / research / design / review-workflow
+├── docs/                                  background / requirements / research / design / acp-projection / review-workflow
 ├── design/                                设计稿与提示词：design/round-NN/{design-prompt.md, *.dc.html}
 │                                          + design/README.md 画板索引（首轮出稿后建立）
 ├── rounds/                                README（目录约定）/ TEMPLATE（任务卡模板）/ BACKLOG

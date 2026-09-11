@@ -36,6 +36,7 @@ macOS 的 headless `run()` 仍然调用 `CFRunLoopRun()` 并把前台任务投�
 - `AcpAgentConfig` / `AcpAgent` 是自带的子进程启动器（command / args / env / `spawn_process`），并带 `claude_agent()`、`codex()` 预设。
 - 角色：Client、Agent、Proxy、Conductor（`agent-client-protocol-conductor` 可把一串代理串成一个上游端点，本项目暂不需要）。
 - feature：`unstable` 打开 `unstable_end_turn_token_usage`、`unstable_llm_providers`、`unstable_mcp_over_acp`、`unstable_plan_operations`、`unstable_session_compaction`、`unstable_session_fork`、`unstable_tool_call_name`；`unstable_protocol_v2` 是协议 v2 草案。
+- **两个 `unstable` 伞不是同一个集合**：类型 crate `agent-client-protocol-schema`（sdk 2.1.0 依赖 `=1.7.0`，对应 JSON Schema v1 发布版本 1.21.0）自己的 `unstable` 还含 `unstable_nes` 与 `unstable_session_notices`，sdk 的 `unstable` **不转发**这两个。后果（`SessionUpdate::Notice` 编译不出、收到即静默丢弃）见 [`acp-projection.md`](acp-projection.md) § 1 与 § 8.1。
 - Zed 钉 `=2.0.0` + `unstable`，并且自建了一条 foreground dispatch channel 把 Send 回调桥回 gpui 的 !Send 线程。本项目在 tokio 里不需要这层桥。
 - **版本澄清：** 线上协议是 v1（`protocolVersion` 协商），SDK crate 版本 2.x 与协议版本无关；协议 v2 仍是草案。
 

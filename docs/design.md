@@ -40,6 +40,8 @@ Tauri 主进程
 
 ## 3. 核心与前端的契约（严格 ACP 投影）
 
+> 可投影内容的完整清单（15 个 `session/update` 变体、能力门总表、协议不给必须自造的 7 项、容错与丢失风险）见 [`acp-projection.md`](acp-projection.md)；本节只定契约形状。
+
 **事件（核心 → 前端）**
 
 | 事件 | payload |
@@ -67,6 +69,15 @@ Tauri 主进程
 ## 4. initialize 能力声明
 
 照 Zed 的 `client_capabilities_for_agent`：`fs.readTextFile`、`fs.writeTextFile`、`terminal`、`auth.terminal`、`session.configOptions.boolean`、`elicitation.form`、`elicitation.url`；`_meta` 里 `terminal_output: true`、`terminal-auth: true`。对 Cursor 追加参数化模型选择器键。**这是允许的 `_meta` 键的全部清单**，增加新键要改本节并进所有者裁定。
+
+比 Zed 多声明两个 unstable 客户端能力（所有者裁定 2026-09-11，依据「多数 agent 已支持 plan 与压缩」）：
+
+- `plan: {}` → 打开 `plan_update` / `plan_removed`（多计划、可增量、支持 items / file / markdown 三种载荷；codex-acp 已在发）；稳定的 `plan` 整份替换继续兼容。
+- `session.compaction: {}` → 打开 `compaction_update` / `compaction_summary_chunk`（上下文压缩过程与保留摘要可见）。
+
+两者都在 rust-sdk `unstable` 伞内（`unstable_plan_operations`、`unstable_session_compaction`），不改 feature 集，不触发规则 4 / 10。会话流可投影内容的完整清单见 [`acp-projection.md`](acp-projection.md)。
+
+**`notice` 的处置（所有者裁定 2026-09-11）**：sdk 的 `unstable` 不转发 `unstable_session_notices`，`SessionUpdate::Notice` 编译不出来，收到即反序列化失败。不为它改 feature 集；核心侧对反序列化失败的 `session/update` 计数并经 `acp/agent_state` 上抛告警，原文落 `acp/traffic` 供排查。R1 用 dsh 实测一次后复议。
 
 ## 5. 认证流程
 
