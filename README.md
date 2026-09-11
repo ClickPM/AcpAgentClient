@@ -16,7 +16,7 @@ Agent 一律经 [Agent Client Protocol（ACP）](https://agentclientprotocol.com
 | [`docs/requirements.md`](docs/requirements.md) | 必须 / 不做 / 依赖白名单 / 五个一等 agent |
 | [`docs/research.md`](docs/research.md) | 源码级研究结论：Zed 的 ACP 代码、rust-sdk v2、registry、五个 agent、sidecar 接入点、被排除的路线 |
 | [`docs/design.md`](docs/design.md) | 进程模型、分层来源、核心与前端契约、认证、registry、终端与 fs、sidecar、前端（React 19）、阶段草案 |
-| [`docs/review-workflow.md`](docs/review-workflow.md) | 独立审查怎么发起、取回、降级（cursor CLI + grok 4.6 high） |
+| [`docs/review-workflow.md`](docs/review-workflow.md) | 独立审查：cursor CLI + grok 4.6 high 首选，硬失败回落 Claude Code 子代理；发起、取回与回落条件 |
 | [`CLAUDE.md`](CLAUDE.md) | 开发约定、轮次流程与硬性规则（`AGENTS.md` 是给审查者的指针） |
 
 ## 架构一图

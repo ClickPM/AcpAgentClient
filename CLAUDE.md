@@ -40,8 +40,10 @@ AcpAgentClient/
 ## 开发模式与轮次流程
 
 **Claude Code solo 开发，独立审查做缺陷门禁**；不做视觉 review（规则 3 管住样式即可），有 UI 的轮次按设计稿逐画板对照。
-**审查执行器 = cursor CLI（`cursor-agent`）+ 模型 `cursor-grok-4.6-high`**（所有者裁定 2026-09-11：codex 不可用，与 agent-xray 一致）。
-发起命令、结果取回与坑清单在 [`docs/review-workflow.md`](docs/review-workflow.md)。
+**审查执行器两级**（所有者裁定 2026-09-11，与 agent-xray 一致）：
+① **cursor CLI（`cursor-agent`）+ 模型 `cursor-grok-4.6-high`**，首选；
+② cursor 硬失败 → **主会话委派 Claude Code 子代理**做只读审查，读同一份任务书 `.claude/cursor-review-prompt.md`。
+回落原因写进任务卡；同一轮审查只用一个执行器，不混两份 findings。发起命令、结果取回与坑清单在 [`docs/review-workflow.md`](docs/review-workflow.md)。
 
 ```
 设计轮（有 UI 变动时先做）：design/round-NN/design-prompt.md → Claude Design 出稿 → .dc.html 入库 → 更新 design/README.md
@@ -63,7 +65,7 @@ AcpAgentClient/
   - 代价要认：整改 diff 之外的问题这几轮不会再被扫到。所以**前两轮必须是全量**，那是覆盖面的来源；第 3 轮起是门禁，不是覆盖。
 - **复审收口标准**：审查 / 复审循环不得带**阻塞性问题或明显 bug / 漏洞类 findings**（high 级，或任何会丢数据、漏凭据、泄资源、逻辑错误、让 agent 挂起的问题）收口，继续「整改 → 复审」直到此类 findings 清零才允许合并 `main`；低危改进项可写明理由记 `rounds/BACKLOG.md` 后放行。禁止以「spike 会被替换」「概率低」为由跳过整改。
 - **审查边界**：**严禁以审查代替设计**，审查是缺陷门禁，不负责长出方案；findings 若指向设计缺陷，停下回任务卡 / 所有者层面重定方案。**非严重阻塞性 findings 严禁新增机制类修复**（新队列 / 新协议 / 新抽象 / 新配置 / 新导出面）：只允许最小改动（改判断、改文案、删代码）或写明理由记 BACKLOG；机制类修复仅限严重阻塞性 bug / 漏洞。
-- 降级到 Claude Code 自带 `/code-review` 只认硬失败（`cursor-agent` 未安装 / 未登录 / 启动失败 / 限流），降级原因写进任务卡；「等得久」「改动小」不是理由。
+- **回落只认硬失败**（`cursor-agent` 未安装 / 未登录 / 启动失败 / 限流 / 后台进程已死而 `.out` 仍空），「等得久」「改动小」不是理由；回落原因写进任务卡。回落 = 主会话用 Agent 工具委派一个只读子代理，提示词是「读 `.claude/cursor-review-prompt.md`，把 `{{RANGE}}` 当作 `<范围>`、`{{NOTE}}` 当作 `<要点>` 执行，只输出结论不改文件」；范围口径不变（前两轮 `main...HEAD`，第 3 轮起 `<上一轮已审提交>..HEAD`）。
 - 同一验收项针对性整改后连续 2 次仍不过 → 写 `rounds/round-NN/BLOCKED.md` 停下呼人，禁止放宽验收（rounds/README.md）。
 - 分支：每轮在 `round-NN` 分支开发，审查通过后合并 `main`；纯文档与微修可直接 `main`。
 - 跨轮次发现的问题写 `rounds/BACKLOG.md`，不当场顺手改。
