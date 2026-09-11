@@ -1,6 +1,6 @@
 # AcpAgent Client
 
-> 一个好看的多 agent ACP 桌面客户端。Tauri 壳，Rust 核心，前端按 Claude Design 设计稿实现。
+> 一个好看的多 agent ACP 桌面客户端。Tauri 壳，Rust 核心，React 19 前端按 Claude Design 设计稿实现。
 
 Agent 一律经 [Agent Client Protocol（ACP）](https://agentclientprotocol.com/) 接入：Claude Agent、Codex、Cursor、pi、DeepSeek Harness，以及以独立 sidecar 形式接入的 Zed 内置 agent。官方 registry 里的 agent 像 Zed 一样安装即用。
 
@@ -15,8 +15,9 @@ Agent 一律经 [Agent Client Protocol（ACP）](https://agentclientprotocol.com
 | [`docs/background.md`](docs/background.md) | 为什么做：前作、为什么是 ACP、为什么是 Tauri |
 | [`docs/requirements.md`](docs/requirements.md) | 必须 / 不做 / 依赖白名单 / 五个一等 agent |
 | [`docs/research.md`](docs/research.md) | 源码级研究结论：Zed 的 ACP 代码、rust-sdk v2、registry、五个 agent、sidecar 接入点、被排除的路线 |
-| [`docs/design.md`](docs/design.md) | 进程模型、分层来源、核心与前端契约、认证、registry、终端与 fs、sidecar、阶段草案 |
-| [`CLAUDE.md`](CLAUDE.md) | 开发约定与硬性规则（`AGENTS.md` 是指向它的指针） |
+| [`docs/design.md`](docs/design.md) | 进程模型、分层来源、核心与前端契约、认证、registry、终端与 fs、sidecar、前端（React 19）、阶段草案 |
+| [`docs/review-workflow.md`](docs/review-workflow.md) | 独立审查怎么发起、取回、降级（cursor CLI + grok 4.6 high） |
+| [`CLAUDE.md`](CLAUDE.md) | 开发约定、轮次流程与硬性规则（`AGENTS.md` 是给审查者的指针） |
 
 ## 架构一图
 

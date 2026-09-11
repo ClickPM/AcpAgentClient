@@ -22,3 +22,6 @@ dist/
 !.env.example
 *.pem
 *.key
+
+# Claude Code local permissions
+.claude/settings.local.json

@@ -100,7 +100,10 @@ Tauri 主进程
 
 ## 9. 前端
 
-- TypeScript；框架在 R0 裁定（React 或 Solid），样式按设计稿。
+- **React 19 + Vite + TypeScript**（所有者裁定 2026-09-11；`create-tauri-app` 默认模板）。选它的依据：设计稿产物是纯 HTML 加内联样式，与框架无关，翻成组件的工作量在哪个框架都一样；React 是 Claude Code 与 Claude Design 写得最稳的，agent-xray 已用它验证过「接线不改样式」的流程；react-markdown、@tanstack/virtual 现成。
+- 流式更新的性能靠三件事：状态 store 放在 React 之外、组件用 `useSyncExternalStore` 选择性订阅；`session/update` 按帧批量合并；转录列表虚拟化。
+- 通用库允许清单见 CLAUDE.md 规则 1；**不引 UI 组件库**（shadcn / antd / MUI 会与画板的内联样式打架），组件全部从画板手写；样式用从画板提炼的 CSS 变量，不上 Tailwind，除非设计提示词本身要求。
+- ACP 投影的状态层自己写，约五百行，是唯一不允许第三方替代的部分。
 - 设计稿存 `design/`：每轮一个子目录，含 `design-prompt.md` 与 `.dc.html`；`design/README.md` 是画板索引，画板编号只增不改。
 - 页面：会话工作台（消息、思考、工具卡、计划、用量、权限与 elicitation）；agent 管理（registry、custom、认证状态）；文件面板；设置；ACP 流量调试。
 - 接后端只换数据源，不改样式。

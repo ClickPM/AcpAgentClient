@@ -31,7 +31,7 @@
    - `zed-industries/zed`
    - 五个 agent：`claude-agent-acp`、`codex-acp`、Cursor CLI ACP（仅文档）、`svkozak/pi-acp`、`ClickPM/dsh-acp-interactive`
 
-   **界定：** 白名单约束的是「ACP 客户端逻辑、agent 状态模型、会话 UI」这类实现来源。语言级基础库与工具（tokio、serde、reqwest、sha2、portable-pty、notify、tauri 及其官方插件、构建期的 schema 代码生成器）属于工具，不受白名单限制；任何实现了 ACP 客户端、agent 会话状态或会话 UI 的第三方库（例如 acp-components、acp-ui、pi-web）一律不引入。
+   **界定：** 白名单约束的是「ACP 客户端逻辑、agent 状态模型、会话 UI」这类实现来源。语言级基础库与工具（Rust 侧 tokio、serde、reqwest、sha2、portable-pty、notify、tauri 及其官方插件；前端 React 19、react-dom、@tauri-apps/api、react-markdown + remark-gfm、@tanstack/react-virtual、@xterm/xterm、一个 diff 库；构建期的 schema 代码生成器）属于工具，不受白名单限制，清单之外的新增要在任务卡写明理由；任何实现了 ACP 客户端、agent 会话状态或会话 UI 的第三方库（例如 acp-components、acp-ui、pi-web）一律不引入，UI 组件库（shadcn / antd / MUI 及同类）同样不引入。
 9. **平台。** Windows 首发；macOS 随后；Linux 尽量。
 
 ## 不做
