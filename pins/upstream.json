@@ -1,0 +1,78 @@
+{
+  "pinned_at": "2026-09-11",
+  "notes": "Development-time pins (frozen for v1). vendor/upstream/ is gitignored; run scripts/fetch-upstream.sh or .ps1 to populate and pass --check / -Check to verify. To move a pin: edit this file first, then update docs/research.md, then re-run fetch.",
+  "upstream": [
+    {
+      "name": "agent-client-protocol",
+      "url": "https://github.com/agentclientprotocol/agent-client-protocol.git",
+      "branch": "main",
+      "commit": "1ce24ea67a6f0598b0f5aff637993d9836306a28",
+      "license": "Apache-2.0",
+      "role": "ACP specification and schema/v1 JSON Schema; the frontend TypeScript types are generated from it"
+    },
+    {
+      "name": "rust-sdk",
+      "url": "https://github.com/agentclientprotocol/rust-sdk.git",
+      "branch": "main",
+      "commit": "3a6d0ae88dbaa09fcb74e26761e3643a75b2015e",
+      "license": "Apache-2.0",
+      "role": "agent-client-protocol crate (2.1.0): client role in the Rust core, agent role in the zed-agent-acp sidecar"
+    },
+    {
+      "name": "registry",
+      "url": "https://github.com/agentclientprotocol/registry.git",
+      "branch": "main",
+      "commit": "26773d16ae9237aef9906e6df1fab98c946d0e28",
+      "license": "Apache-2.0",
+      "role": "official agent registry: agent.schema.json, registry.schema.json, one directory per agent (agent.json + icon.svg); CDN registry.json is its build output"
+    },
+    {
+      "name": "zed",
+      "url": "https://github.com/zed-industries/zed.git",
+      "branch": "main",
+      "commit": "d9e1c024f393832765a03f4de204d6c8cd9abcb2",
+      "license": "GPL-3.0-or-later (gpui, util, collections: Apache-2.0)",
+      "role": "reuse pool: crates/project/src/agent_registry_store.rs + agent_server_store.rs (copy), crates/agent_servers/src/acp.rs (transcribe), crates/acp_thread/src/terminal.rs (transcribe), crates/agent + crates/eval_cli (sidecar); node_runtime / http_client / reqwest_client / paths / util are gpui-free and linkable"
+    },
+    {
+      "name": "claude-agent-acp",
+      "url": "https://github.com/agentclientprotocol/claude-agent-acp.git",
+      "branch": "main",
+      "commit": "6b7473b1afb48fbf0cb3b463d576a89a73ddf7a3",
+      "license": "Apache-2.0",
+      "role": "first-class agent: npx @agentclientprotocol/claude-agent-acp"
+    },
+    {
+      "name": "codex-acp",
+      "url": "https://github.com/agentclientprotocol/codex-acp.git",
+      "branch": "main",
+      "commit": "51d6247ac7448485bfcf534b813196fafc26df59",
+      "license": "Apache-2.0",
+      "role": "first-class agent: npx @agentclientprotocol/codex-acp (URL elicitation login)"
+    },
+    {
+      "name": "pi-acp",
+      "url": "https://github.com/svkozak/pi-acp.git",
+      "branch": "main",
+      "commit": "d1cffc047ab37a096ee70ca39cfc1de463db8d12",
+      "license": "MIT",
+      "role": "first-class agent: npx pi-acp (no fs/terminal delegation, terminal auth)"
+    },
+    {
+      "name": "dsh-acp-interactive",
+      "url": "https://github.com/ClickPM/dsh-acp-interactive.git",
+      "branch": "main",
+      "commit": "0b10058dd75d1fdddc6cd455471d748cb010247d",
+      "license": "MIT",
+      "role": "first-class agent (own project): reference agent for round 1, widest capability surface"
+    }
+  ],
+  "docs_only": [
+    {
+      "name": "cursor-cli-acp",
+      "url": "https://cursor.com/docs/cli/acp",
+      "pin": "registry entry cursor/agent.json version 2026.09.02 (binary distribution, command `agent acp`)",
+      "note": "no source repository; proprietary binary"
+    }
+  ]
+}
