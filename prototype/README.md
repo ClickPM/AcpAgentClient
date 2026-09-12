@@ -47,4 +47,4 @@ prototype/
     └── app.js              播放器与渲染
 ```
 
-`projection.js` 刻意不碰 DOM：它只吃线上 JSON、吐状态。R0/R1 往 Rust + React 搬的时候，搬的是它的规则，不是它的代码。
+`projection.js` 刻意不碰 DOM：它只吃线上 JSON、吐状态。R0/R1 往 Rust + Dart（`lib/projection/`）搬的时候，搬的是它的规则，不是它的代码。

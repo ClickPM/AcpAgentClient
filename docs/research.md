@@ -1,6 +1,6 @@
 # 研究概要
 
-> 2026-09-11 三轮可行性分析的沉淀。所有数字来自当日 main 分支源码（commit 见 `pins/upstream.json`）。源码在本仓库 `vendor/upstream/`；分析期的临时克隆在 `D:/variFlight_work/_references/`（含已被排除的 codex、pi-web-0.8.9、acp-components，仅历史参考）。改动钉版本时本文相应段落要重核。
+> 2026-09-11 三轮可行性分析的沉淀；§ 9、§ 10 是 2026-09-12 技术栈调整（Tauri → Flutter、Claude Design → Figma Make）的依据。所有数字来自当日 main 分支源码（commit 见 `pins/upstream.json`）。源码在本仓库 `vendor/upstream/`；分析期的临时克隆在 `D:/variFlight_work/_references/`（含已被排除的 codex、pi-web-0.8.9、acp-components，仅历史参考）。改动钉版本时本文相应段落要重核。
 
 ## 1. Zed 的 ACP 相关代码
 
@@ -26,9 +26,9 @@ Zed 当前 main 里没有 `crates/acp`，也没有 `crates/assistant2`（后者�
 - **许可证。** gpui、util、collections 是 Apache-2.0，其余上表 crate 都是 GPL-3.0-or-later。本项目开源且接受 GPL，因此可以复制。
 - **内置 agent 没有 ACP 服务端。** 全仓库没有 `AgentSideConnection`。`NativeAgentConnection` 只是进程内 `acp_thread::AgentConnection` trait 的实现；它用的类型是 `agent_client_protocol::schema::v1`。
 
-### 1.3 gpui 进不了 Tauri 主进程
+### 1.3 gpui 进不了主进程
 
-macOS 的 headless `run()` 仍然调用 `CFRunLoopRun()` 并把前台任务投到 GCD 主队列；Windows 的 headless `run()` 仍然自己跑 Win32 `GetMessageW` 循环。两者都与 Tauri（tao）的事件循环抢同一个线程。凡是需要 gpui 的东西只能放独立进程。
+macOS 的 headless `run()` 仍然调用 `CFRunLoopRun()` 并把前台任务投到 GCD 主队列；Windows 的 headless `run()` 仍然自己跑 Win32 `GetMessageW` 循环。两者都与宿主 GUI 框架的事件循环抢同一个线程（Tauri 的 tao 如此，Flutter 的 Windows runner / macOS `NSApplication` 同样如此）。凡是需要 gpui 的东西只能放独立进程。2026-09-12 壳从 Tauri 改为 Flutter，这一结论不变。
 
 ## 2. 官方 rust-sdk v2
 
@@ -80,11 +80,15 @@ macOS 的 headless `run()` 仍然调用 `CFRunLoopRun()` 并把前台任务投�
 
 | 路线 | 排除原因 |
 |---|---|
-| 把 Zed 的 acp_thread / agent_servers / agent 链接进 Tauri 主进程 | § 1.3 的事件循环冲突；acp_thread 是 Zed 的投影不是线上协议，违反严格 ACP 投影 |
+| 把 Zed 的 acp_thread / agent_servers / agent 链接进主进程 | § 1.3 的事件循环冲突；acp_thread 是 Zed 的投影不是线上协议，违反严格 ACP 投影 |
 | 参考 Codex 桌面端前端 | 闭源，2026-07 并入 ChatGPT 桌面端；`openai/codex` 只有 CLI / TUI / app-server |
 | 复用 pi-web 的文件管理与会话组件 | MIT 但传输层是 pi 私有 RPC；所有者裁定前端全部自研 |
 | acp-components / acp-ui / Jockey 等第三方 ACP 客户端与组件库 | 所有者裁定白名单之外一律不引入 |
 | 前端跑官方 TypeScript SDK | `typescript-sdk` 不在白名单；协议层落 Rust 核心 |
+| Tauri 2 + WebView2 + React 19（2026-09-11 原方案） | 2026-09-12 所有者改为 Flutter：设计源换 Figma Make 后「设计稿是 HTML」的绑定消失；见 § 9 |
+| Rust 核心作为独立进程 `acp-host.exe` 经 stdio 与 Flutter 通信（方案 B） | 所有者裁定 2026-09-12 取进程内 cdylib（方案 A）；契约是 JSON 字符串，日后要改传输层 Dart 侧不动 |
+| Rinf（Rust 持有状态、消息传递） | 不支持带返回值的调用，`session_new` 这类请求 / 响应要自己配对；frb v2 更直接 |
+| Dart 侧 PTY（`kyroon_pty` / `flutter_pty` / `pty2`） | PTY 语义要转写 Zed `acp_thread/terminal.rs` 且是 `terminal/*` 回调的实现方，必须留在 Rust；Dart 只渲染 |
 
 ## 8. 待验证的假设（进首轮任务卡）
 
@@ -92,3 +96,48 @@ macOS 的 headless `run()` 仍然调用 `CFRunLoopRun()` 并把前台任务投�
 - 无系统 Node 时复用 Zed `node_runtime` 下载受管 Node 的路径在中文用户名下是否可用。
 - sidecar 与运行中的 Zed 同时打开 `threads.db` 的行为。
 - `unstable` 特性集与五个 agent 的对齐（usage、compaction、session fork）。
+- Flutter 构建链（CMake → cargokit → cargo）在含中文与全角括号的用户名路径下能否完成 Windows release 构建（§ 9.3）。
+- Flutter Windows 桌面的中文 IME 组合窗行为；`SelectionArea` 包住惰性列表后跨消息选择的表现。
+
+## 9. Flutter + Rust 桥接（2026-09-12 技术栈调整依据）
+
+### 9.1 为什么改
+
+2026-09-11 选 Tauri + React 的核心依据是「Claude Design 出的是纯 HTML + 内联样式，Web 栈与它距离最近」。设计源改为 Figma Make 后，Make 出的仍是 Web 原型，但本项目只拿它当**视觉基准**（PNG 快照入库），不复用其代码；前端框架因此不再被设计工具绑定。Flutter 的收益：不依赖 WebView2；列表惰性构建、动效、字体渲染是原生能力；单一 Dart 工具链。代价见 § 9.4。
+
+### 9.2 frb v2 与 Rinf
+
+| | flutter_rust_bridge v2 | Rinf |
+|---|---|---|
+| 调用模型 | Dart 直接调 Rust `async fn`，有返回值；Rust → Dart 用 `StreamSink<T>` | 纯消息传递（signals），无返回值 |
+| 类型 | 自动镜像 Rust 类型，也可 opaque | serde 结构体双端生成 |
+| 构建 | cargokit 挂进 Flutter 各平台的 CMake / Xcode | 同样挂 CMake，不改敏感构建文件 |
+| 与本项目契约的匹配 | § 3 的命令是请求 / 响应，事件是流，一一对应 | 请求 / 响应要自己配 id |
+
+裁定 frb v2（所有者 2026-09-12）。本项目**只跨边界传 `String`（JSON）**，frb 的类型镜像能力基本不用，绑定面是：十来个 `async fn(...) -> Result<String>` 命令 + 5 个 `StreamSink<String>` 事件流 + 一个 `init(data_dir)`。这样 Rust 侧的 ACP 类型不需要 Dart 镜像，schema → Dart 生成物只服务 Dart 投影层的可读性，与桥无关。
+
+### 9.3 Windows 构建链的已知坑
+
+- frb 用 cargokit 在 Flutter 的 CMake 里调 `cargo build`，中间目录经过 `%LOCALAPPDATA%` 或项目路径；本机用户名含中文与全角括号，8.3 短名与 UTF-8 路径在 CMake ↔ cargo 间传递可能出错。对策：`CARGO_TARGET_DIR` 指到纯 ASCII 路径，R0 第一项验收就是在本机跑通 `flutter build windows --release`。
+- Flutter Windows 前置：VS 2022「使用 C++ 的桌面开发」工作负载 + CMake（随 VS 装）+ Windows 10 SDK；与 Zed sidecar 的前置重叠，不额外增加机器要求。
+- frb codegen 需要 `cargo expand`（依赖 nightly rustfmt 或 `cargo-expand` 二进制），要写进本地开发前置。
+- Rust panic 跨 FFI 边界是 UB 级问题；frb 默认在边界 `catch_unwind` 转 Dart 异常，核心 API 层仍应统一返回 `Result`，不依赖这层兜底。
+
+### 9.4 Flutter 侧能力对照与缺口
+
+| 需求 | Web 栈原方案 | Flutter 方案 | 结论 |
+|---|---|---|---|
+| 终端渲染 | `@xterm/xterm` | `xterm`（pub.dev，TerminalStudio 维护） | 成熟；PTY 留在 Rust |
+| Markdown（流式、GFM、代码高亮） | `react-markdown` + `remark-gfm` | 官方 `flutter_markdown` 已停维（2025）；候选 `markdown_widget`、`gpt_markdown`、基于 `package:markdown` 自写 | **缺口**，R1.5 spike 后进白名单 |
+| 长列表 | `@tanstack/react-virtual` | `ListView.builder` | 原生更好 |
+| diff 渲染 | 一个 diff 库 | Dart `diff_match_patch` 或同类 | 等价 |
+| 文件对话框 / 打开 URL | Tauri 插件 | `file_selector` / `url_launcher`（Flutter 官方） | 等价 |
+| 跨消息文本选择 | 浏览器免费 | `SelectionArea`，与惰性列表配合有边界情况 | 弱于 Web，实测记录 |
+| 打包 | Tauri bundler + `externalBin` | Flutter Windows CMake install + Inno Setup / MSIX；sidecar 用 CMake install 规则 | 等价，多写几行 CMake |
+
+## 10. Figma Make 交付链路
+
+- **Make 与 Claude Design 的同构性**：都是「提示词 → Web 原型」，产物在 Figma 云端（`figma.com/make/:key`）而非仓库。本项目把它当视觉基准而不是代码来源：每个画板导出 PNG 入库，`design/README.md` 记编号、名称、Make URL、PNG 路径；画板编号只增不改。PNG 是审查与验收的锚，Make 文件后续改动不影响已开工轮次。
+- **MCP 可用面**：本环境的 Figma MCP 能解析 Make URL，`get_screenshot` 可拉画板图、`get_design_context` 可拉结构与样式（默认吐 React + Tailwind，对 Flutter 只作结构参考）、`get_variable_defs` 可拉 token。**组件仍全部从画板手写**，MCP 输出不直接入库。
+- **Code Connect 不适用**：官方只支持 React / HTML / SwiftUI / Compose，Flutter 只能走框架无关 template API；本项目组件全手写、规模小，不引入。
+- **token 提炼**：从 Make 产物（CSS 变量 / Tailwind 配置）提炼颜色、字号、间距、圆角、动效时长到 `lib/theme/tokens.dart`，作为样式唯一来源；规则 3 的「样式零改动」在 Flutter 下的判据就是接线轮里 `tokens.dart` 与画板 widget 文件零 diff。

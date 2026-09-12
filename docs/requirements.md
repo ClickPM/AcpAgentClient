@@ -4,7 +4,7 @@
 
 ## 一句话
 
-一个好看的、多 agent 的 ACP 桌面客户端：Tauri 壳，Rust 核心，前端按 Claude Design 设计稿实现；agent 一律经 ACP 接入，registry 里的 agent 像 Zed 一样安装即用，Zed 内置 agent 也能用。
+一个好看的、多 agent 的 ACP 桌面客户端：Flutter 壳，Rust 核心（进程内 cdylib，经 flutter_rust_bridge 桥接），前端按 Figma Make 设计稿实现；agent 一律经 ACP 接入，registry 里的 agent 像 Zed 一样安装即用，Zed 内置 agent 也能用。
 
 ## 必须
 
@@ -21,7 +21,7 @@
    | dsh-acp-interactive | custom 命令 | terminal auth `--setup`；`session/new` 回 `auth_required` | 读 `_meta.terminal_output`、`elicitation.form`、`session.configOptions.boolean`；权限预设是 config option |
 
 4. **Zed 内置 agent 可用。** 以独立 sidecar `zed-agent-acp` 经 ACP stdio 接入，与其他 agent 走同一条路。
-5. **前端完全自研。** Claude Design 设计稿是功能边界：设计稿没有的功能不做，设计稿有的逐画板对照实现。
+5. **前端完全自研。** Figma Make 设计稿是功能边界：设计稿没有的功能不做，设计稿有的逐画板对照实现；每个画板的 PNG 快照入库作为验收基准（见 `design/README.md`）。
 6. **开源、不商用。** 因复用 Zed 源码，许可证拟为 GPL-3.0-or-later。
 7. **尽量复用，少造轮子。** 白名单内能复用的都复用，方式分三级：直接链接 crate、复制文件后改写、只作参考转写。每一处复用在文件头标注来源仓库、路径与 commit。
 8. **依赖白名单。** 实现层只允许来自下列来源（钉版本见 `pins/upstream.json`）：
@@ -31,7 +31,7 @@
    - `zed-industries/zed`
    - 五个 agent：`claude-agent-acp`、`codex-acp`、Cursor CLI ACP（仅文档）、`svkozak/pi-acp`、`ClickPM/dsh-acp-interactive`
 
-   **界定：** 白名单约束的是「ACP 客户端逻辑、agent 状态模型、会话 UI」这类实现来源。语言级基础库与工具（Rust 侧 tokio、serde、reqwest、sha2、portable-pty、notify、tauri 及其官方插件；前端 React 19、react-dom、@tauri-apps/api、react-markdown + remark-gfm、@tanstack/react-virtual、@xterm/xterm、一个 diff 库；构建期的 schema 代码生成器）属于工具，不受白名单限制，清单之外的新增要在任务卡写明理由；任何实现了 ACP 客户端、agent 会话状态或会话 UI 的第三方库（例如 acp-components、acp-ui、pi-web）一律不引入，UI 组件库（shadcn / antd / MUI 及同类）同样不引入。
+   **界定：** 白名单约束的是「ACP 客户端逻辑、agent 状态模型、会话 UI」这类实现来源。语言级基础库与工具（Rust 侧 tokio、serde、serde_json、reqwest、sha2、portable-pty、notify、flutter_rust_bridge；Dart 侧 Flutter SDK 自带的 Material / Cupertino、flutter_rust_bridge、xterm、url_launcher、file_selector、一个 diff 库、一个 Markdown 渲染库（所有者裁定 2026-09-12：**spike 选型后再进白名单**，spike 之前不得引入）；构建期的 schema 代码生成器与 frb codegen）属于工具，不受白名单限制，清单之外的新增要在任务卡写明理由；任何实现了 ACP 客户端、agent 会话状态或会话 UI 的第三方库（例如 acp-components、acp-ui、pi-web）一律不引入，第三方 UI 组件库（shadcn_ui、GetWidget、fluent_ui 及同类）与状态管理库（riverpod、bloc、getx 及同类）同样不引入。
 9. **平台。** Windows 首发；macOS 随后；Linux 尽量。
 
 ## 不做

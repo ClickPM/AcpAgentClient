@@ -19,14 +19,16 @@
 
 - 已成事实标准：官方 registry 收录 50 个 agent；客户端侧有 Zed、JetBrains、Neovim、Emacs、Obsidian 以及多个桌面端。
 - 自己写的 agent 天然可接，不需要为客户端做任何私有适配。
-- 官方 Rust SDK v2（`agent-client-protocol` 2.1.0，2026-09-04）已 Send 化，直接跑在 tokio 上，与 Tauri 同一运行时。
+- 官方 Rust SDK v2（`agent-client-protocol` 2.1.0，2026-09-04）已 Send 化，直接跑在 tokio 上，可以作为 cdylib 在任何宿主进程里起自己的 runtime。
 
-## 为什么是 Tauri，而不是 GPUI 或 Electron
+## 为什么是 Flutter + Rust，而不是 Tauri、GPUI 或 Electron
 
-- 前端要用 Claude Design 出设计稿并 1:1 实现。设计稿产物是 `.dc.html`，Web 技术栈是与它距离最近的实现载体；GPUI-Pi 已经证明原生绘制复刻 UI 的成本。
-- Rust 后端可以直接使用官方 rust-sdk，并在 GPL-3.0 下复用 Zed 源码。
-- 避开 Electron 的体积与双运行时问题。
+- **Rust 核心是不变量**：直接使用官方 rust-sdk，并在 GPL-3.0 下复用 Zed 源码；壳只负责渲染，核心与壳之间只传 ACP 原样 JSON。壳可以换，核心不动。
+- **2026-09-11 选 Tauri** 的理由是「Claude Design 出的是 `.dc.html`，Web 栈离它最近」。**2026-09-12 改 Flutter**：设计源换成 Figma Make，其产物只作视觉基准（PNG 入库）不复用代码，前端框架不再被设计工具绑定；Flutter 不依赖 WebView2，列表、动效、字体是原生能力；Rust 以 cdylib 经 flutter_rust_bridge 进程内加载，单进程。取舍见 `research.md` § 9。
+- 不选 GPUI：GPUI-Pi 已经证明原生绘制手工复刻 UI 的成本，且 gpui 与任何宿主事件循环冲突（`research.md` § 1.3）。
+- 不选 Electron：体积与双运行时。
 
 ## 时间线
 
 - 2026-09-11：三轮可行性分析（源码级核对 Zed、rust-sdk、registry 与五个 agent），结论收敛为「Rust 核心 + 严格 ACP 投影 + Zed agent 独立 sidecar」，建仓。
+- 2026-09-12：技术栈调整（编码尚未开始）：壳 Tauri → Flutter（frb v2，进程内 cdylib），设计 Claude Design → Figma Make；Rust 核心与 ACP 契约不变。Markdown 渲染库待 spike 后进白名单。

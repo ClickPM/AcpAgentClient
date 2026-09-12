@@ -8,7 +8,7 @@
       "branch": "main",
       "commit": "1ce24ea67a6f0598b0f5aff637993d9836306a28",
       "license": "Apache-2.0",
-      "role": "ACP specification and schema/v1 JSON Schema; the frontend TypeScript types are generated from it"
+      "role": "ACP specification and schema/v1 JSON Schema; the frontend Dart types are generated from it"
     },
     {
       "name": "rust-sdk",

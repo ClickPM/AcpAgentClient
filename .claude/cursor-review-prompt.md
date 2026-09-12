@@ -26,20 +26,20 @@
 
 ## 3. 判据清单（命中即报，并注明是哪一条）
 
-1. **规则 1 依赖白名单**：`Cargo.toml` / `package.json` 出现实现了 ACP 客户端、agent 会话状态或会话 UI 的第三方库（acp-components、acp-ui、pi-web 及同类），判**阻断级**。
-   通用库允许清单：Rust 侧 tokio、serde、serde_json、reqwest、sha2、portable-pty、notify、tauri 及官方插件；前端 react、react-dom、@tauri-apps/api 及官方插件、react-markdown + remark-gfm、@tanstack/react-virtual、@xterm/xterm、一个 diff 库。
-   清单之外新增的通用库，任务卡没写理由的判 P2；引入 UI 组件库（shadcn / antd / MUI 及同类）判阻断级。
+1. **规则 1 依赖白名单**：`Cargo.toml` / `pubspec.yaml` 出现实现了 ACP 客户端、agent 会话状态或会话 UI 的第三方库（acp-components、acp-ui、pi-web 及同类），判**阻断级**。
+   通用库允许清单：Rust 侧 tokio、serde、serde_json、reqwest、sha2、portable-pty、notify、flutter_rust_bridge；Dart 侧 Flutter SDK 自带的 Material / Cupertino、flutter_rust_bridge、xterm、url_launcher、file_selector、一个 diff 库。
+   清单之外新增的通用库，任务卡没写理由的判 P2；引入第三方 UI 组件库（shadcn_ui / GetWidget / fluent_ui 及同类）或状态管理库（riverpod / bloc / getx 及同类）判阻断级；Markdown 渲染库在所有者裁定进清单之前出现判 P2（对照 CLAUDE.md 规则 1 当前文本）。
 2. **规则 2 严格 ACP 投影**：前端里出现按 agent id 的特判、核心与前端之间出现 ACP 之外的私有消息、`_meta` 出现 `docs/design.md` § 4 清单之外的键，判阻断级。
-3. **规则 3 设计稿边界与样式零改动**：功能范围 = `design/` 的全部画板（清单与计数以 `design/README.md` 为准）。多出来的功能判超范围；接后端只许换数据源，样式 / 布局 / className / design token / 动画参数的 diff 一律质疑，除非任务卡写明理由与影响范围。
+3. **规则 3 设计稿边界与样式零改动**：功能范围 = `design/` 的全部画板（清单与计数以 `design/README.md` 为准）。多出来的功能判超范围；接后端只许换数据源，`lib/theme/tokens.dart`、画板 widget 文件的布局 / widget 树 / token / 动画参数的 diff 一律质疑，除非任务卡写明理由与影响范围；widget 文件里出现样式字面量（颜色、字号、间距、圆角、时长）而非 `tokens.dart` 引用判 P2。
 4. **规则 4 钉版本**：`vendor/upstream/` 内出现改动、`pins/upstream.json` 变了但 `docs/research.md` 对应段没跟，判阻断级。
-5. **规则 5 gpui 不进主进程；复用标来源**：`src-tauri/` 依赖树里出现 gpui 判阻断级；复制或转写自 Zed 的文件缺 `Derived from zed-industries/zed <path> @ <commit>` 头注释判 P2。
+5. **规则 5 gpui 不进主进程；复用标来源**：`rust/` 依赖树里出现 gpui 判阻断级；复制或转写自 Zed 的文件缺 `Derived from zed-industries/zed <path> @ <commit>` 头注释判 P2。
 6. **规则 6 Rust 禁 `unsafe`**：出现即阻断级。
 7. **规则 7 不动用户数据**：对 Zed 的 `threads.db` / `settings.json`、`~/.pi`、各 agent 会话目录的非 temp + rename 写入或删除，判阻断级。
 8. **规则 8 密钥不入库、不入日志**：明文密钥进仓库、进日志、进 ACP 流量调试面板未打码，判阻断级。
 9. **规则 9 Windows 首发**：子进程拉起（`.cmd` 包装、引号、含中文或空格的路径）相关改动没有 Windows 实测记录，判 P2 并要求补测。
 10. **规则 10 协议对齐**：rust-sdk 的 `unstable` 特性集或 `unstable_protocol_v2` 被改动而没有走钉版本流程，判阻断级。
 11. **ACP 协议正确性**：`initialize` 的能力声明与 `docs/design.md` § 4 不符；`tool_call_update` 未按「同 id 覆盖、content 替换」合并；`session/request_permission` 或 `elicitation/create` 有路径不回响应（agent 会永久挂起）；`session/cancel` 之后仍把 update 当正常流处理；`AuthRequired` 未映射到认证流程。
-12. **常规缺陷**：逻辑错误、边界与空值、并发与顺序、资源泄漏（未关闭的流 / 定时器 / 子进程未 kill 或 wait / pty 未 release）、错误被吞、类型谎报（`as` 强转或 `unwrap` 掩盖的运行期形状不符）、在 tokio runtime 线程上做阻塞 IO、子进程 stdout 与 stderr 未并发读取导致管道死锁、测试断言假通过。
+12. **常规缺陷**：逻辑错误、边界与空值、并发与顺序、资源泄漏（未关闭的流 / 定时器 / 子进程未 kill 或 wait / pty 未 release / Dart `StreamSubscription` 未 cancel / `ChangeNotifier` 未 dispose）、错误被吞、类型谎报（`as` 强转或 `unwrap` 掩盖的运行期形状不符；Dart 侧 `jsonDecode` 结果的 `as Map` 强转无守卫）、在 tokio runtime 线程上做阻塞 IO、frb 边界上 Rust panic 未转 `Result`、子进程 stdout 与 stderr 未并发读取导致管道死锁、测试断言假通过。
 
 <!-- ADVERSARIAL-ONLY-START -->
 ## 3b. 本档额外要求（adversarial：质疑设计取舍）
@@ -71,6 +71,6 @@
 ## 6. 禁止
 
 - **不许修改任何文件**、不许 `git add / commit / push / checkout`、不许改分支或暂存区。
-- 不许跑构建、测试、打包类命令（`cargo build / test / run`、`npm run *`、`scripts/validate.ps1`、`tauri *`）；读命令（`git`、`rg`、`cat`）随意。
+- 不许跑构建、测试、打包类命令（`cargo build / test / run`、`flutter *`、`dart *`、`flutter_rust_bridge_codegen *`、`scripts/validate.ps1`）；读命令（`git`、`rg`、`cat`）随意。
 - 不许联网、不许读 `.env*` / `*.pem` / `*.key` / 任何密钥文件的内容。
 - 不许把「等所有者裁定」的事替所有者决定。

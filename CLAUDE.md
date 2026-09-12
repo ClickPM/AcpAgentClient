@@ -9,9 +9,9 @@ This file provides guidance to Claude Code when working in this repository.
 
 ## 项目定位
 
-**AcpAgent Client**：Tauri 桌面客户端，Rust 核心用官方 `agent-client-protocol` rust-sdk v2 以 ACP 接入多个 agent（Claude Agent、Codex、Cursor、pi、DeepSeek Harness，以及以 sidecar 形式接入的 Zed 内置 agent），registry 里的 agent 像 Zed 一样安装即用；前端 React 19，完全按 Claude Design 设计稿实现。开源、不商用，许可证拟为 GPL-3.0-or-later（因复用 Zed 源码）。
+**AcpAgent Client**：Flutter 桌面客户端，Rust 核心（进程内 cdylib，经 flutter_rust_bridge v2 桥接）用官方 `agent-client-protocol` rust-sdk v2 以 ACP 接入多个 agent（Claude Agent、Codex、Cursor、pi、DeepSeek Harness，以及以 sidecar 形式接入的 Zed 内置 agent），registry 里的 agent 像 Zed 一样安装即用；前端 Flutter（Dart），完全按 Figma Make 设计稿实现。开源、不商用，许可证拟为 GPL-3.0-or-later（因复用 Zed 源码）。技术栈于 2026-09-12 由 Tauri + React 调整而来，依据见 `docs/research.md` § 9 / § 10。
 
-- **功能范围的唯一边界是设计稿**：[`design/`](design/)（当前为空；首轮出稿后建立 `design/README.md` 画板索引，画板编号只增不改）。设计稿没有的功能一律不做，想到的进 `rounds/BACKLOG.md` 等所有者裁定。
+- **功能范围的唯一边界是设计稿**：[`design/`](design/)（画板索引 `design/README.md` 已建骨架，首轮出稿后填入；每个画板一张 PNG 快照入库作为验收基准，画板编号只增不改）。设计稿没有的功能一律不做，想到的进 `rounds/BACKLOG.md` 等所有者裁定。
 - 诉求与非目标：[`docs/requirements.md`](docs/requirements.md)；架构与既定决策：[`docs/design.md`](docs/design.md)；研究依据：[`docs/research.md`](docs/research.md)；**可投影内容清单**：[`docs/acp-projection.md`](docs/acp-projection.md)；背景：[`docs/background.md`](docs/background.md)。
 
 **用户回复默认中文**；代码、命令、路径、技术术语保持英文。
@@ -23,8 +23,8 @@ AcpAgentClient/
 ├── CLAUDE.md / AGENTS.md / README.md      约定、审查者指针、简介
 ├── ROUNDS.md                              轮次总览与 roadmap（首轮拆解时建立）
 ├── docs/                                  background / requirements / research / design / acp-projection / review-workflow
-├── design/                                设计稿与提示词：design/round-NN/{design-prompt.md, *.dc.html}
-│                                          + design/README.md 画板索引（首轮出稿后建立）
+├── design/                                设计稿与提示词：design/round-NN/{design-prompt.md, NN-<画板>.png}
+│                                          + design/README.md 画板索引（编号 / 名称 / Figma Make URL / PNG 路径）
 ├── rounds/                                README（目录约定）/ TEMPLATE（任务卡模板）/ BACKLOG
 │                                          + rounds/round-NN/{round-NN.md, BLOCKED.md}
 ├── .claude/                               cursor-review.ps1（审查启动脚本）+ cursor-review-prompt.md（任务书契约，入库）
@@ -32,8 +32,10 @@ AcpAgentClient/
 ├── pins/upstream.json                     上游钉版本清单（提交进仓库；改版本先改这里）
 ├── scripts/                               fetch-upstream.ps1 / .sh；R0 起 validate / build
 ├── vendor/upstream/<name>/                钉版本源码（gitignored；fetch 脚本按 pins 填充）
-├── src-tauri/                             （R0）Rust 核心：acp-core / registry / pty / fs / settings
-├── src/                                   （R0）前端：React 19 + Vite + TypeScript
+├── rust/                                  （R0）Rust 核心 workspace：acp-core / registry / pty / fs / settings + bridge（frb cdylib）
+├── lib/                                   （R0）Flutter 前端（Dart）：bridge/（frb 生成物）/ projection/（ACP 投影状态层）/ theme/tokens.dart / 画板 widget
+├── pubspec.yaml / flutter_rust_bridge.yaml（R0）Flutter 项目与 frb codegen 配置
+├── windows/ macos/ linux/                 （R0 / R7）Flutter 平台 runner；sidecar 的 CMake install 规则在这里
 └── sidecar/zed-agent-acp/                 （R6）独立 cargo workspace，path 依赖 vendor/upstream/zed
 ```
 
@@ -46,7 +48,7 @@ AcpAgentClient/
 回落原因写进任务卡；同一轮审查只用一个执行器，不混两份 findings。发起命令、结果取回与坑清单在 [`docs/review-workflow.md`](docs/review-workflow.md)。
 
 ```
-设计轮（有 UI 变动时先做）：design/round-NN/design-prompt.md → Claude Design 出稿 → .dc.html 入库 → 更新 design/README.md
+设计轮（有 UI 变动时先做）：design/round-NN/design-prompt.md → Figma Make 出稿 → 每画板导出 PNG 入库 → 更新 design/README.md（编号 / 名称 / Make URL / PNG）
                                                                               ↓
 开工：cp rounds/TEMPLATE.md rounds/round-NN/round-NN.md，按 ROUNDS.md 该轮拆解填任务卡
   → 每个 worktree 第一步：scripts/fetch-upstream.ps1 且 -Check 全绿（规则 4）
@@ -72,11 +74,11 @@ AcpAgentClient/
 
 ## 硬性规则
 
-1. **依赖白名单。** 实现层只允许来自：官方协议仓库（规范 + `schema/v1`）、官方 `rust-sdk`、官方 `registry`、`zed-industries/zed`、五个 agent（claude-agent-acp、codex-acp、Cursor CLI ACP 文档、pi-acp、dsh-acp-interactive）。**任何实现了 ACP 客户端、agent 会话状态或会话 UI 的第三方库一律不引入**（acp-components、acp-ui、pi-web 等已被裁定排除）。通用库允许清单：Rust 侧 tokio、serde、serde_json、reqwest、sha2、portable-pty、notify、tauri 及官方插件；前端 react、react-dom、@tauri-apps/api 及官方插件、react-markdown + remark-gfm、@tanstack/react-virtual、@xterm/xterm、一个 diff 库。清单之外新增通用库要在任务卡写明理由；**不引 UI 组件库**（shadcn / antd / MUI 及同类），组件全部从画板手写。界定有疑问时按 `docs/requirements.md` 第 8 条，仍有疑问问所有者。
+1. **依赖白名单。** 实现层只允许来自：官方协议仓库（规范 + `schema/v1`）、官方 `rust-sdk`、官方 `registry`、`zed-industries/zed`、五个 agent（claude-agent-acp、codex-acp、Cursor CLI ACP 文档、pi-acp、dsh-acp-interactive）。**任何实现了 ACP 客户端、agent 会话状态或会话 UI 的第三方库一律不引入**（acp-components、acp-ui、pi-web 等已被裁定排除）。通用库允许清单：Rust 侧 tokio、serde、serde_json、reqwest、sha2、portable-pty、notify、flutter_rust_bridge；Dart 侧 Flutter SDK 自带的 Material / Cupertino、flutter_rust_bridge、xterm、url_launcher、file_selector、一个 diff 库；**Markdown 渲染库在 R1.5 spike 选型并经所有者裁定后才进清单**（裁定 2026-09-12），此前不得引入。清单之外新增通用库要在任务卡写明理由；**不引第三方 UI 组件库与状态管理库**（shadcn_ui / GetWidget / fluent_ui、riverpod / bloc / getx 及同类），组件全部从画板手写，状态用 SDK 自带的 `ChangeNotifier` / `Stream`。界定有疑问时按 `docs/requirements.md` 第 8 条，仍有疑问问所有者。
 2. **严格 ACP 投影。** 前端只消费 ACP 线上消息的原样 JSON（契约见 `docs/design.md` § 3）；不自造第二套协议；前端不做任何 agent 特判；`_meta` 只允许 `docs/design.md` § 4 列出的键，增键先改文档再进所有者裁定。
-3. **设计稿是功能边界。** 设计稿没有的功能不做；接后端只换数据源，不改样式、布局、className 与 token。扩边界的唯一正确顺序是「先改设计稿、再进轮次」。
+3. **设计稿是功能边界。** 设计稿（`design/` 里入库的 PNG 与索引）没有的功能不做；样式唯一来源是 `lib/theme/tokens.dart`，widget 文件里不写样式字面量；接后端只换数据源，不改布局、widget 树结构与 token，接线轮里 `tokens.dart` 与画板 widget 文件应零 diff。扩边界的唯一正确顺序是「先改设计稿（更新 PNG 与索引）、再进轮次」。
 4. **钉版本。** `pins/upstream.json` 是上游唯一事实来源，`vendor/upstream/` 永不入库；改版本先改 pins，再改 `docs/research.md` 对应段，再 fetch。禁止在 `vendor/upstream/` 里改代码：要改就复制出来（规则 5）。
-5. **gpui 不进主进程；复用要标来源。** 主进程（`src-tauri/`）不得依赖任何含 gpui 的 crate；需要 gpui 的东西只能放 `sidecar/`。复用 Zed 代码的三种方式（直接链接 crate / 复制后改写 / 参考转写）都要在文件头标注 `// Derived from zed-industries/zed <path> @ <commit> (GPL-3.0-or-later)`。
+5. **gpui 不进主进程；复用要标来源。** 主进程（Flutter 宿主进程及其加载的 `rust/` cdylib）不得依赖任何含 gpui 的 crate；需要 gpui 的东西只能放 `sidecar/`。复用 Zed 代码的三种方式（直接链接 crate / 复制后改写 / 参考转写）都要在文件头标注 `// Derived from zed-industries/zed <path> @ <commit> (GPL-3.0-or-later)`。
 6. **Rust 禁 `unsafe`。** 需要时问所有者，不自行放行。
 7. **不动用户数据。** Zed 的 `threads.db` 与 `settings.json`、`~/.pi`、各 agent 自己的会话目录：能只读就只读，必须写走「临时文件 + rename」；sidecar 同样适用。禁止任何破坏性操作。
 8. **密钥不入库、不入日志。** ACP 流量日志与调试面板对 `Authorization`、`api_key`、`token` 类字段打码；`.env*` 与 `*.pem` 已在 `.gitignore`。
@@ -85,7 +87,7 @@ AcpAgentClient/
 
 ## 本地开发
 
-- **前置**：Rust stable（`rust-toolchain.toml` 在 R0 钉）、Node ≥ 22、Tauri 2 的 Windows 前置（WebView2 Runtime、VS C++ 生成工具）；sidecar 另需 Zed 的构建前置（Windows SDK ≥ 10.0.20348、CMake，见 `vendor/upstream/zed/docs/src/development/windows.md`）。
+- **前置**：Rust stable（`rust-toolchain.toml` 在 R0 钉）、Flutter stable（版本在 `pubspec.yaml` `environment` 钉，R0 定）、`flutter_rust_bridge_codegen`（与 Rust 侧 crate 同版本，另需 `cargo-expand`）、Node ≥ 22（跑 npx 类 agent 用）、Flutter Windows 前置（VS 2022「使用 C++ 的桌面开发」工作负载、CMake、Windows 10 SDK）；sidecar 另需 Zed 的构建前置（Windows SDK ≥ 10.0.20348，见 `vendor/upstream/zed/docs/src/development/windows.md`）。本机路径含中文，R0 起 `CARGO_TARGET_DIR` 指向纯 ASCII 路径（见 `docs/research.md` § 9.3）。
 - **上游源码**：`powershell -File scripts/fetch-upstream.ps1`（首次填充）、`-Check`（验证钉版本）；Git Bash 用 `scripts/fetch-upstream.sh [--check]`。
 - **审查器**：`cursor-agent` 装在 `%LOCALAPPDATA%\cursor-agent\cursor-agent.cmd`（不在 PATH），须先 `cursor-agent login`；脚本按绝对路径找。
 - **本机坑**（沿用全局记忆）：用户名含中文与全角括号，含中文的 `.ps1` 必须 UTF-8 with BOM（`cursor-review.ps1` 已带）；Bash 工具里 `\\` 会塌成 `\`；`%TEMP%` 是 8.3 短名，路径比较要双边规范化。

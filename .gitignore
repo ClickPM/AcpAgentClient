@@ -1,15 +1,22 @@
 # Pinned upstream sources (populated by scripts/fetch-upstream.*; pins live in pins/upstream.json)
 vendor/upstream/
 
-# Rust / Tauri
+# Rust
 target/
-src-tauri/target/
-src-tauri/gen/schemas/
+rust/target/
 
-# Node / frontend
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+windows/flutter/ephemeral/
+macos/Flutter/ephemeral/
+linux/flutter/ephemeral/
+# frb 生成物入库（lib/bridge/、rust/bridge/src/frb_generated.rs），不要在这里忽略
+
+# Node（仅 npx 类 agent 运行期使用，仓库内不应出现）
 node_modules/
-dist/
-.vite/
 
 # Local logs, review outputs, scratch
 .pi/
@@ -25,3 +32,4 @@ dist/
 
 # Claude Code local permissions
 .claude/settings.local.json
+.venv/

@@ -26,7 +26,7 @@
 
 **一处坑**：schema crate 自己的 `unstable` 伞比 sdk 的**多两个**（`unstable_nes`、`unstable_session_notices`）。sdk 不转发，所以 `SessionUpdate::Notice` 在我们这儿根本不存在。`docs/research.md` § 2 列的 7 个 feature 是对的，但没说清这层差异，§ 11 记为待补。
 
-**两份 schema 文件都不等于我们的编译面**：仓库只提供 `schema.json`（纯稳定，11 个变体）与 `schema.unstable.json`（全部 unstable，16 个变体，含 nes / notices / providers / mcp-over-acp）。我们实际编译出的是 15 个。前端 TypeScript 类型的生成源因此要选，见 § 11。
+**两份 schema 文件都不等于我们的编译面**：仓库只提供 `schema.json`（纯稳定，11 个变体）与 `schema.unstable.json`（全部 unstable，16 个变体，含 nes / notices / providers / mcp-over-acp）。我们实际编译出的是 15 个。前端 Dart 类型的生成源因此要选，见 § 11。
 
 ## 2. 投影面 A：会话流 `session/update`
 
@@ -234,7 +234,7 @@ claude-agent-acp 与 codex-acp 都带一层 `_meta.jetbrains.air` 扩展（两�
 
 1. ~~是否声明 `plan` 与 `session.compaction`~~ → **已裁定 2026-09-11：两个都声明**（依据「多数 agent 已支持 plan 与压缩」）。两者都在 sdk `unstable` 伞内，不改 feature 集。design.md § 4 已补；`plan_update` / `plan_removed` / `compaction_update` / `compaction_summary_chunk` 四个变体由此成为**必投影面**，设计稿要为多计划（items / file / markdown 三种载荷）与压缩卡片留画板。
 2. ~~`notice` 怎么办~~ → **已裁定 2026-09-11：取方案 (a)**，不为它改 feature 集；核心侧对反序列化失败的 `session/update` 计数并经 `acp/agent_state` 上抛告警，原文落 `acp/traffic`。R1 用 dsh 实测后复议。
-3. **前端 TypeScript 类型的生成源**。`schema.json`（11 变体）少了我们编译出的 4 个；`schema.unstable.json`（16 变体）多了 nes / notices / providers / mcp-over-acp。建议从 `schema.unstable.json` 生成再按白名单裁剪，把「我们支持的 15 个」写成一份显式清单进仓库。与 `rounds/BACKLOG.md` 已有的「前端类型来源二选一」条目合并考虑。
+3. **前端 Dart 类型的生成源**（2026-09-12 前端改 Flutter，生成目标由 TypeScript 改为 Dart，问题不变）。`schema.json`（11 变体）少了我们编译出的 4 个；`schema.unstable.json`（16 变体）多了 nes / notices / providers / mcp-over-acp。建议从 `schema.unstable.json` 生成再按白名单裁剪，把「我们支持的 15 个」写成一份显式清单进仓库。与 `rounds/BACKLOG.md` 已有的「前端类型来源二选一」条目合并考虑。
 4. **`docs/research.md` § 2 补一句**：schema crate 的 `unstable` 伞与 sdk 的 `unstable` 伞不是同一个集合（多 `unstable_nes`、`unstable_session_notices`），并记 schema crate 版本 `=1.7.0`、JSON Schema 版本 1.21.0。
 5. **`docs/design.md` § 3 建议补三条**：未知 `session/update` 的丢弃与告警口径；elicitation 的 requestScope 场景；工具调用「已取消」是客户端本地态。
 

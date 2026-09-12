@@ -5,9 +5,10 @@
 ## 1. 进程模型
 
 ```
-Tauri 主进程
-├── WebView2 前端（TypeScript；按 design/ 设计稿实现；只消费 ACP 原样 JSON）
-└── Rust 核心
+Flutter 宿主进程（Dart）
+├── Flutter 前端（lib/；按 design/ 设计稿实现；只消费 ACP 原样 JSON）
+│      │ flutter_rust_bridge v2：命令 = async fn 返回 JSON String；事件 = StreamSink<String>
+└── Rust 核心（rust/；cdylib，进程内加载；tokio runtime 由库初始化）
     ├── acp-core    官方 rust-sdk v2 Client 角色；每个 agent 一条 stdio 连接，多会话复用
     ├── registry    registry.json 拉取 / 缓存 / 图标；npx 与 binary 安装；受管 Node
     ├── pty         terminal/* 回调（portable-pty）；terminal auth 用的可见终端
@@ -22,25 +23,30 @@ Tauri 主进程
          └── zed-agent-acp        sidecar（GPL；headless gpui + Zed NativeAgent；随主程序打包）
 ```
 
-规则：主进程里没有 gpui；所有 agent，包括 Zed 内置 agent，都是子进程；前端与核心之间只传 ACP 形状的数据。
+规则：主进程（Flutter 宿主及其加载的 Rust cdylib）里没有 gpui；所有 agent，包括 Zed 内置 agent，都是子进程；前端与核心之间只传 ACP 形状的数据。
+
+**为什么是进程内 cdylib 而不是独立 `acp-host.exe`**（所有者裁定 2026-09-12，方案 A）：单进程、打包简单；§ 3 的 payload 本来就是 JSON 字符串，跨 FFI 边界只传 `String`，frb 绑定面极小（十来个命令 + 5 个事件流），不需要为 ACP 类型做 Dart 镜像。将来若要改独立进程，Dart 侧解析层不动，只换传输。
 
 ## 2. 分层与来源
 
 | 层 | 来源 | 用法 |
 |---|---|---|
 | 协议客户端 | rust-sdk v2 | `Client::builder().on_receive_request(...)` 注册回调；`AcpAgentConfig` 拉起子进程；`unstable` 特性集与 Zed 对齐 |
-| 前端类型 | 协议仓库 `schema/v1/schema.json` | 构建期生成 TypeScript 类型并入库；运行期零协议依赖 |
+| 前端类型 | 协议仓库 `schema/v1/schema.unstable.json` 按 15 变体白名单裁剪 | 构建期生成 Dart 类型（或手写 15 变体薄封装，R0 定）并入库；运行期零协议依赖 |
+| Dart ↔ Rust 桥 | flutter_rust_bridge v2 | Rust 侧 `rust/bridge` crate 暴露 `api.rs`；Dart 侧生成物入库 `lib/bridge/`；payload 一律 JSON `String` |
 | registry 与安装 | Zed `agent_registry_store.rs`、`agent_server_store.rs` | 整体复制；删 remote / collab 路径；`Entity` / `Task` 换 tokio；`fs::Fs` 换 `tokio::fs`；结构体对照官方 `agent.schema.json` |
 | Node 与下载 | Zed `node_runtime`、`http_client`、`reqwest_client`、`paths`、`util` | 直接 git 依赖（不含 gpui） |
 | 连接与认证语义 | Zed `agent_servers/acp.rs` 非测试部分 | 转写：能力声明、AuthRequired 映射、terminal auth、session 控制、config options、elicitation、流量日志 |
 | 终端回调语义 | Zed `acp_thread/terminal.rs` | 转写：输出字节上限、wait_for_exit、kill、release |
 | 文件面板 | 自研 | `std::fs` + `notify`；不做索引服务 |
 | Zed 内置 agent | Zed `agent` + `eval_cli` | sidecar，见 § 8 |
-| UI | Claude Design 设计稿 | 全部自研 |
+| UI | Figma Make 设计稿 | 全部自研；token 提炼到 `lib/theme/tokens.dart`，每个画板一个 widget 文件 |
 
 ## 3. 核心与前端的契约（严格 ACP 投影）
 
 > 可投影内容的完整清单（15 个 `session/update` 变体、能力门总表、协议不给必须自造的 7 项、容错与丢失风险）见 [`acp-projection.md`](acp-projection.md)；本节只定契约形状。
+
+**传输形状**：每个事件是一条 frb `StreamSink<String>`，每个命令是一个 frb `async fn(...) -> Result<String>`；`String` 里是下表的 JSON。Dart 侧 `jsonDecode` 后进投影状态层，不在桥层做任何类型镜像。
 
 **事件（核心 → 前端）**
 
@@ -107,17 +113,19 @@ Tauri 主进程
 - 事件翻译：`ThreadEvent::{UserMessage, AgentText, AgentThinking, ToolCall, ToolCallUpdate, SubagentSpawned, Retry, ContextCompaction*}` → `session/update`；`ToolCallAuthorization` → `session/request_permission`，结果写回 `response`；`Elicitation` → `elicitation/create`；`Stop` → `PromptResponse`。
 - 终端：实现 `ThreadEnvironment::create_terminal`，进程内用 Zed `terminal` crate。
 - 数据：默认与本机 Zed 共用 `threads.db` 与 `settings.json`；是否隔离在 R6 裁定。
-- 打包：作为 Tauri `externalBin` 随主程序分发。
+- 打包：在 `windows/runner/CMakeLists.txt`（macOS / Linux 对应 runner）加 install 规则，把 `zed-agent-acp(.exe)` 放到应用目录旁随主程序分发；核心按可执行文件相对路径定位它。
 
 ## 9. 前端
 
-- **React 19 + Vite + TypeScript**（所有者裁定 2026-09-11；`create-tauri-app` 默认模板）。选它的依据：设计稿产物是纯 HTML 加内联样式，与框架无关，翻成组件的工作量在哪个框架都一样；React 是 Claude Code 与 Claude Design 写得最稳的，agent-xray 已用它验证过「接线不改样式」的流程；react-markdown、@tanstack/virtual 现成。
-- 流式更新的性能靠三件事：状态 store 放在 React 之外、组件用 `useSyncExternalStore` 选择性订阅；`session/update` 按帧批量合并；转录列表虚拟化。
-- 通用库允许清单见 CLAUDE.md 规则 1；**不引 UI 组件库**（shadcn / antd / MUI 会与画板的内联样式打架），组件全部从画板手写；样式用从画板提炼的 CSS 变量，不上 Tailwind，除非设计提示词本身要求。
-- ACP 投影的状态层自己写，约五百行，是唯一不允许第三方替代的部分。
-- 设计稿存 `design/`：每轮一个子目录，含 `design-prompt.md` 与 `.dc.html`；`design/README.md` 是画板索引，画板编号只增不改。
+- **Flutter stable（Dart）+ flutter_rust_bridge v2**（所有者裁定 2026-09-12，替代 2026-09-11 裁定的 Tauri + React 19）。改的原因：设计源换成 Figma Make 后，前端框架不再被「设计稿是 HTML」绑定；Flutter 不依赖 WebView2，渲染与列表虚拟化是原生能力；Rust 核心以 cdylib 进程内加载，契约不变。代价与风险见 § 12。
+- 流式更新的性能靠三件事：投影状态层是纯 Dart 类（不依赖 widget 树），widget 用 `ListenableBuilder` / `StreamBuilder` 选择性订阅；`session/update` 按帧批量合并；转录列表用 `ListView.builder` 惰性构建。
+- 通用库允许清单见 CLAUDE.md 规则 1；**不引第三方 UI 组件库与状态管理库**，组件全部从画板手写，状态用 SDK 自带的 `ChangeNotifier` / `Stream`；样式的唯一来源是从画板提炼的 `lib/theme/tokens.dart`（颜色、字号、间距、圆角、动效时长），widget 文件里不出现字面量。
+- Markdown 渲染：官方 `flutter_markdown` 已停止维护，社区替代对**流式追加**与代码高亮的支持参差。R1 后做一次专门 spike 比较候选（基于 `package:markdown` 自写渲染、`markdown_widget`、`gpt_markdown` 等），选定后才进规则 1 白名单与 R2；spike 之前不引入任何 Markdown 库。
+- 终端渲染用 `xterm`（pub.dev）；PTY 仍在 Rust 侧 portable-pty，`acp/terminal_output` 推字节，Dart 只渲染。文件对话框与打开 URL 用 Flutter 官方 `file_selector` / `url_launcher`，其余系统交互一律走 Rust。
+- ACP 投影的状态层自己写，约五百行，是唯一不允许第三方替代的部分；规则来自 `prototype/assets/projection.js`。
+- 设计稿存 `design/`：每轮一个子目录，含 `design-prompt.md`（喂给 Figma Make 的提示词）与每个画板一张 PNG 快照；`design/README.md` 是画板索引（编号、名称、Make 文件 URL、PNG 路径），画板编号只增不改。PNG 是审查与验收的基准，Make 文件里的后续改动不影响已开工轮次；改设计走「先更新 PNG 与索引，再进轮次」。
 - 页面：会话工作台（消息、思考、工具卡、计划、用量、权限与 elicitation）；agent 管理（registry、custom、认证状态）；文件面板；设置；ACP 流量调试。
-- 接后端只换数据源，不改样式。
+- 接后端只换数据源，不改样式：接线轮里 `lib/theme/tokens.dart` 与画板 widget 文件应零 diff。
 
 ## 10. 数据目录
 
@@ -127,8 +135,9 @@ Windows：`%APPDATA%/AcpAgentClient/{settings.json, registry-cache/, agents/, no
 
 | 轮 | 目标 | 参照 agent |
 |---|---|---|
-| R0 | 脚手架：Tauri 2 + Rust workspace + 前端骨架 + schema→TS 生成 + validate 脚本 | 无 |
+| R0 | 脚手架：Flutter 桌面项目 + `rust/` workspace（cdylib）+ frb v2 接通（一个命令 + 一条事件流往返）+ schema→Dart 生成 + Rust 核心独立 CLI smoke + validate 脚本；**在含中文与全角括号的用户名路径下完成 Windows 构建** | 无 |
 | R1 | 主线：拉起、initialize、terminal auth、prompt、权限、取消 | dsh-acp-interactive |
+| R1.5 | spike：Markdown 渲染选型（流式追加、代码高亮、CJK、选择复制），产出对比记录与所有者裁定，进白名单 | 无 |
 | R2 | 会话工作台按设计稿实现 | dsh-acp-interactive |
 | R3 | fs 与 terminal 回调 | claude-agent-acp |
 | R4 | registry：拉取、npx / binary 安装、受管 Node；URL elicitation 登录 | codex-acp、Cursor |
@@ -143,6 +152,10 @@ Windows：`%APPDATA%/AcpAgentClient/{settings.json, registry-cache/, agents/, no
 | 风险 | 对策 |
 |---|---|
 | Windows 上 npx 类 agent 的 `.cmd` 包装与引号 | R1 第一项验收就是用 dsh 在 Windows 实测；转写 Zed `ShellBuilder` 的处理 |
+| Flutter 构建链（CMake → cargokit → cargo）在含中文与全角括号的用户名路径下失败 | R0 第一项验收；失败则在 `flutter_rust_bridge.yaml` / CMake 里把 `CARGO_TARGET_DIR` 指到纯 ASCII 路径 |
+| Flutter 侧 Markdown 渲染不如 Web 成熟（流式、高亮、选择复制） | R1.5 专门 spike，选定前不进 R2 |
+| Rust panic 会带倒整个 Flutter 进程 | 核心对外 API 边界统一 `catch_unwind` 转 `Result`；agent 子进程崩溃只上报 `acp/agent_state` |
+| Windows 中文 IME 组合窗与转录跨消息文本选择 | R0 / R2 各实测一次记录；设计稿有「复制整段」按钮可绕过大部分选择需求 |
 | `unstable` 特性集漂移 | 钉 rust-sdk commit；改钉先改 `pins/upstream.json` 与 `research.md` |
 | sidecar 与运行中的 Zed 争用 `threads.db` | R6 裁定：只读共用 / 隔离目录二选一 |
 | Zed 构建环境重 | sidecar 独立 workspace，主程序不依赖它也能跑；CI 分开 |
