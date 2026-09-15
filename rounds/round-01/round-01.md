@@ -1,6 +1,6 @@
 # Round 01 — Rust 核心主线（无 UI）
 
-> 状态：进行中
+> 状态：已完成（审查收口 2026-09-15；合并 `main` 见 ROUNDS.md 进度表）
 
 ## 目标
 
@@ -58,8 +58,8 @@
 - 整改提交 2f5c9ef 后：`cargo test -p acp-core -p pty` 全过（scripted 3 含扩展用例）、`cargo clippy --workspace --all-targets -D warnings` 零告警、`validate.ps1 -Quick` 全 PASS。
 - 复审（第 2 轮，全量 `main...HEAD`，**cursor CLI `cursor-grok-4.6-high`，`--mode ask`**，`20260915-134717`，11 分钟，`.out.md` 2.8 KB——本仓库 `--mode ask` 的首次实测，终稿正常落 text 通道）：1 条（high 1 / P2 0 / P3 0）；五条整改逐条复核通过（① 无二次明文路径；② 清标志时机没有把回合内 cancel 清掉；③ abandon 的锁 / drop 顺序与成功路径一致；④ carry 能拼上跨 read 的 `ESC[6` + `n`、只答一次；⑤ 归一化与文档一致）：
   1. [high] `$/cancel_request` 取出挂起请求后把 `Responder` 直接丢掉，不向 agent 回 JSON-RPC 响应；rust-sdk 的 `ResponderDropGuard` 只在 batch 目的地补槽，agent 若还在 `block_task` 等这条请求就永远挂起（判据 11；Zed 对应处回 `RequestCancelled`）→ **采纳**：取出后先 `respond_with_error(Error::request_cancelled())`（`-32800`）再转发通知；`scripted.rs` 新增 `withdraw` 场景：假 agent 发权限请求后立刻 `cancel()`，`block_task` 必须以 `-32800` 返回，前端看到入队 + `$/cancel_request` 通知（`params.requestId` 与队列键同形），队列为空，再回应报 `unknown_request`。
-- 复审（第 3 轮，只审整改 diff）：<!-- 回填 -->
-- 结论：<!-- 复审后回填 -->
+- 复审（第 3 轮，只审整改 diff `fa67dfa..HEAD`，cursor CLI `cursor-grok-4.6-high`，`20260915-141652`，3.5 分钟）：0 条。审查者核对：SDK 在 handler 链之前只置取消标记、不自动回包，非 batch 的 `Responder` drop 也不补响应，`respond_with_error` 不检查该标记仍走 `send_fn` 出站，与 SDK 自测和 Zed `run_until_cancelled` 后 `respond_err` 的做法一致；`withdraw` 测试不是假通过（不回包会挂死、回别的码落到 `other_error:`）。
+- 结论：**整改后 PASS**。3 轮合计 6 条（high 3 / P2 0 / P3 3），全部采纳整改，无遗留；执行器：第 1 轮 Claude Code 子代理（opus，cursor 因 Zed 占配置文件启动失败）、第 2–3 轮 cursor CLI（`--mode ask` 首次实测正常）。低危记 BACKLOG 的三条（ConPTY DSR 分工、dsh 提示不可见、taskkill 收尾）是实测发现，不是审查 findings。
 
 ## 失败处理
 
