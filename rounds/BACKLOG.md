@@ -32,6 +32,7 @@
 - [ ] R1 `notice` 会话更新我们编译不出、收到即静默丢弃 → 所有者裁定 2026-09-11 取「不改 feature 集，计数 + 告警 + 落 `acp/traffic`」；**待办：R1 用 dsh 实测一次未知变体的丢弃路径后复议**；见 `docs/acp-projection.md` § 8.1 (2026-09-11)
 - [ ] 截图验收：逐一验证并截图 Zed Agent 的 20 项 ACP 投影交互卡片样式 (2026-09-14)
 - [ ] R0 cargokit 只认 `rustup run stable`（它的 `toolchain` 选项只有 stable / beta / nightly），`rust-toolchain.toml` 钉的 1.98.1 只约束 `validate.ps1` 里的 cargo；本机 stable 升级后 Flutter 构建会用新版。要么给 cargokit 打补丁读 rust-toolchain.toml，要么接受漂移并在 validate 里比对两者版本 (2026-09-15)
-- [ ] R0 Windows 开发者模式未开启：Flutter 给 pub 插件建符号链接需要它。R0 的 Rust 核心改走 runner CMake 直接 apply_cargokit 绕过；R3 引入 url_launcher / file_selector 前所有者必须开启（设置 → 系统 → 开发者选项） (2026-09-15)
+- [x] R0 Windows 开发者模式未开启：Flutter 给 pub 插件建符号链接需要它。R0 的 Rust 核心改走 runner CMake 直接 apply_cargokit 绕过 → 所有者 2026-09-15 当天已开启并验证（`flutter pub get` 对插件工程通过），R3 无障碍 (2026-09-15)
 - [ ] R0 macOS 构建（R8）要把 cargokit 挂进 Xcode（runner 级脚本阶段或 podspec），与 Windows 的 runner CMake 方式对应；frb 模板的 rust_builder 插件路径已不用 (2026-09-15)
+- [ ] R0 gallery 里画板的内联单线图标目前用 CustomPainter 手描路径（`Radius.elliptical` / `Offset` 几何字面量），`Assert-NoStyleLiteral` 因此没扫这两种写法；R2 起画板图标改用 `flutter_svg` 内联设计稿的 SVG 字符串后，把 `Radius.elliptical(` / `Offset(` 纳入扫描（审查 P3，2026-09-15）
 - [ ] R0 `prototype/assets/fixtures.js` 的 `elicitation/create` 缺必填字段 `message`，被 Rust 侧 fixtures 测试抓出；`test/fixtures/` 已补，原型不改（原型不维护） (2026-09-15)

@@ -39,7 +39,7 @@ Flutter Windows 桌面项目与 `rust/` workspace（cdylib）经 frb v2 打通�
 
 ### 与 ROUNDS.md 拆解的偏离
 
-1. **Rust 核心不走 pub 插件（`rust_builder`）。** frb 标准集成把 cargokit 包在一个 ffi 插件里，`flutter pub get` 要给插件建符号链接，Windows 上需要开发者模式；本机未开启（`AppModelUnlock\AllowDevelopmentWithoutDevLicense` 不存在），`flutter_rust_bridge_codegen create` 的模板工程在本机也因此失败。改为在 `windows/CMakeLists.txt` 直接 `apply_cargokit(acp_bridge_ffi ../rust/bridge acp_bridge "")` 并 `install(FILES …)` 把 `acp_bridge.dll` 放到 runner 旁；Dart 侧 `frb_generated.dart` 按 stem `acp_bridge` 加载。macOS（R8）要在 Xcode 侧另加 cargokit 脚本阶段。R3 起引入 url_launcher / file_selector 时仍需开发者模式，已告知所有者。
+1. **Rust 核心不走 pub 插件（`rust_builder`）。** frb 标准集成把 cargokit 包在一个 ffi 插件里，`flutter pub get` 要给插件建符号链接，Windows 上需要开发者模式；R0 开工时本机未开启（`AppModelUnlock\AllowDevelopmentWithoutDevLicense` 不存在），`flutter_rust_bridge_codegen create` 的模板工程在本机也因此失败；所有者已于 2026-09-15 当天开启（注册表值 = 1，同一模板工程 `flutter pub get` 通过），R0 的 runner 级布局保留不改。改为在 `windows/CMakeLists.txt` 直接 `apply_cargokit(acp_bridge_ffi ../rust/bridge acp_bridge "")` 并 `install(FILES …)` 把 `acp_bridge.dll` 放到 runner 旁；Dart 侧 `frb_generated.dart` 按 stem `acp_bridge` 加载。macOS（R8）要在 Xcode 侧另加 cargokit 脚本阶段。R3 起引入 url_launcher / file_selector 时仍需开发者模式，已告知所有者。
 2. **包名 `acp_bridge`，目录仍是 `rust/bridge`。** frb 与 cargokit 都拿 `[package].name` 当 DLL 名（`bridge.dll` 太泛），`cargo tree -p acp_bridge`。
 3. **`acp/agent_state` 多一个 `core_ready`。** 验收第 2 项要求核心主动推一条事件；R1 前没有 agent 生命周期，`Core::new` 与幂等的 `core_init` 各发一条 `{agentId: null, state: "core_ready", dataDir, coreVersion, droppedUpdates: 0}`，形状对齐 R1 的 payload。已补进 `docs/design.md` § 3。
 4. **`cargokit/cmake/cargokit.cmake` 改了一处**：`CARGO_TARGET_DIR` 环境变量存在时用它作 cargo `--target-dir`（原版固定在 CMake 二进制目录，即项目路径之下，与所有者「纯 ASCII 路径」裁定冲突）。
@@ -100,11 +100,20 @@ Flutter Windows 桌面项目与 `rust/` workspace（cdylib）经 frb v2 打通�
 
 ## 代码审查
 
-- 审查方式：
-- 审查器与模型：
-- 审查范围与基准提交：
-- findings 处理：
-- 结论：
+- 审查方式：`cursor-review.ps1`（默认档）两次硬失败 → 回落主会话委派的 Claude Code 只读子代理（同一份任务书 `.claude/cursor-review-prompt.md`）。
+- cursor 失败原因：两次（`20260915-105111`、`20260915-110026`）进程都在 7–10 分钟后正常退出，`.out.md` 只有一个换行、`.err.log` 0 字节；同一时刻 `cursor-agent -p "Reply with exactly PONG"` 20 秒正常返回，登录态正常。属于文档定义的「后台进程已死而 `.out` 仍空」。
+- 审查器与模型：Claude Code 子代理（general-purpose，Fable 5.1），只读；范围 `main...HEAD`（第 1 轮，全量）。
+- findings：8（high 0 / P2 4 / P3 4），逐条：
+  1. [P2] 五个 `*_stream` 注册与 `core_init` 都是 frb normal 任务，线程池不保证先后，`core_ready` 可能在 sink 就位前发出被丢 → **采纳**：注册函数加 `#[frb(sync)]`，重跑 codegen。
+  2. [P2] `validate.ps1` 的 `_meta` 字面量键检查用 `-notmatch '"_meta"'` 把该查的行整行排除 → **采纳**：先去掉 `"_meta"` 再匹配字面量。
+  3. [P2] `settings` crate 的 `custom` 形状（`command: {path,args,env}`）与钉版本 Zed（`command` 字符串 + 顶层 `args` / `env`）不同，单测按错形状假通过 → **采纳**：按 Zed 扁平形状改，测试改用真实条目并加序列化回写断言。`docs/research.md` § 3 的 `command: {path, args, env}` 写法是错的，一并改。
+  4. [P2] `CLAUDE.md:98` 与本任务卡的路径混入 `\a` / `\b` / `\f` 解码出的控制字符 → **采纳**：脚本写回反斜杠，`grep -P '[[:cntrl:]]'` 复核为 0。
+  5. [P3] `runSmoke` 写报告失败时到不了 `exit`，无头进程常驻 → **采纳**：报告写入进 try，`exit` 放 finally。
+  6. [P3] `fs::ensure_inside` 不拒绝 `..`，词法 `starts_with` 可绕出工作区 → **采纳**：含 `ParentDir` 分量即拒绝，加测试。
+  7. [P3] `Assert-NoStyleLiteral` 漏 `height:` / `width:` / `Border.all(width:)` / `Radius.elliptical(` 等 → **部分采纳**：补 `height|width|min*|max*`、`Border.all(width:)`、`strokeWidth` 三类；`Radius.elliptical` / `Offset` 是 gallery 图标路径几何，R2 画板图标改用 `flutter_svg` 内联 SVG 后再纳入，记 BACKLOG。
+  8. [P3] `SmokeScreen._boot` 在 `await` 后订阅没有 `mounted` 检查 → **采纳**：加 `if (!mounted) return;`。
+- 复审（第 2 轮，全量 `main...HEAD`，同一子代理）：{{REREVIEW}}
+- 结论：{{VERDICT}}
 
 ## 失败处理
 
@@ -117,7 +126,7 @@ Flutter Windows 桌面项目与 `rust/` workspace（cdylib）经 frb v2 打通�
 ### 验收 1 · release 构建（本机 + 含中文与空格的目录）
 
 - `powershell -File scripts/build.ps1 -Smoke`（首次，含 cargokit 冷编译 rust-sdk 依赖）：`Building Windows application... 97.7s`；产物 `build\windows\x64\runner\Release\acp_agent_client.exe`（91,136 B）+ `acp_bridge.dll`（593,408 B）+ `flutter_windows.dll`。cargo 的 target 实际落在 `D:\cargo-target\AcpAgentClient\cargokit\x86_64-pc-windows-msvc\release\`（cargokit 补丁生效，项目目录下没有 `target/`）。
-- 含中文与空格的目录：`robocopy` 到 `D:\测试 目录\AcpAgentClient`（排除 `.git / build / vendor / design / prototype`）后同一命令：第一次在 Flutter 自己的 `flutter_assemble` 步骤失败（`CUSTOMBUILD : error : Unable to read file: D:\锟斤拷锟斤拷 目录\AcpAgentClient\.dart_toollutter_build\…pp.dill`，项目路径被 MSBuild 自定义生成规则按系统代码页转码；此时还没轮到 Rust / cargokit）。针对性整改：`build.ps1` 检测到项目路径含非可打印 ASCII 字符时，在 `CARGO_TARGET_DIR` 下建目录联接 `ascii-root`（`mklink /J`，不需要开发者模式）指向项目根，从联接路径起构建。整改后清空 `build/ .dart_tool/ windows/flutter/ephemeral/` 重建：`Building Windows application... 43.2s`，产物同样是 `acp_agent_client.exe`（91,136 B）+ `acp_bridge.dll`（593,408 B），落在 `D:\测试 目录\AcpAgentClientuild\…\Release\`；`-Smoke` 报告与本机一致（`ok: true`）。中间一次失败是脏状态（首次失败留下的空 `ephemeral/cpp_client_wrapper/`），不是整改本身的问题。结论：**Rust / cargokit 这段对中文路径没问题，Flutter 自己的构建链有，`build.ps1` 已兜住；裸 `flutter build windows` 在中文路径下仍会失败**（写进 CLAUDE.md「本地开发」）。
+- 含中文与空格的目录：`robocopy` 到 `D:\测试 目录\AcpAgentClient`（排除 `.git / build / vendor / design / prototype`）后同一命令：第一次在 Flutter 自己的 `flutter_assemble` 步骤失败（`CUSTOMBUILD : error : Unable to read file: D:\锟斤拷锟斤拷 目录\AcpAgentClient\.dart_tool\flutter_build\…\app.dill`，项目路径被 MSBuild 自定义生成规则按系统代码页转码；此时还没轮到 Rust / cargokit）。针对性整改：`build.ps1` 检测到项目路径含非可打印 ASCII 字符时，在 `CARGO_TARGET_DIR` 下建目录联接 `ascii-root`（`mklink /J`，不需要开发者模式）指向项目根，从联接路径起构建。整改后清空 `build/ .dart_tool/ windows/flutter/ephemeral/` 重建：`Building Windows application... 43.2s`，产物同样是 `acp_agent_client.exe`（91,136 B）+ `acp_bridge.dll`（593,408 B），落在 `D:\测试 目录\AcpAgentClient\build\…\Release\`；`-Smoke` 报告与本机一致（`ok: true`）。中间一次失败是脏状态（首次失败留下的空 `ephemeral/cpp_client_wrapper/`），不是整改本身的问题。结论：**Rust / cargokit 这段对中文路径没问题，Flutter 自己的构建链有，`build.ps1` 已兜住；裸 `flutter build windows` 在中文路径下仍会失败**（写进 CLAUDE.md「本地开发」）。
 - 构建链不需要 Windows 开发者模式（没有 pub 插件，无符号链接）。
 
 ### 验收 2 · ping 往返 + `acp/agent_state` 事件
@@ -143,6 +152,8 @@ Flutter Windows 桌面项目与 `rust/` workspace（cdylib）经 frb v2 打通�
 > cargo run -q -p acp-smoke -- ping --data-dir relative
 core init failed: invalid data dir: relative   (exit 1)
 ```
+
+审查整改（五个 `*_stream` 改 `#[frb(sync)]` 等 8 条）后复验：`validate.ps1` 全量再次 `VALIDATE OK`，release 重建 32.3 s，`acp_bridge.dll` 595,968 B，smoke 报告 `ok: true`。
 
 ### 验收 3 · validate.ps1 与样式字面量拦截
 

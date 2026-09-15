@@ -95,5 +95,5 @@ AcpAgentClient/
 - **审查器**：`cursor-agent` 装在 `%LOCALAPPDATA%\cursor-agent\cursor-agent.cmd`（不在 PATH），须先 `cursor-agent login`；脚本按绝对路径找。
 - **本机坑**（沿用全局记忆）：用户名含中文与全角括号，含中文的 `.ps1` 必须 UTF-8 with BOM（`cursor-review.ps1` 已带）；Bash 工具里 `\\` 会塌成 `\`；`%TEMP%` 是 8.3 短名，路径比较要双边规范化。
 - **命令**：`scripts/validate.ps1`（编译 + 测试 + 契约检查；`-Quick` 只跑静态检查）与 `scripts/build.ps1`（`flutter build windows --release`；`-Smoke` 跑一次无头往返自检）。frb 生成：`flutter_rust_bridge_codegen generate`（改 `rust/bridge/src/api.rs` 后必跑，生成物入库）。
-- **项目路径含中文 / 空格时只用 `scripts/build.ps1`**：Flutter 自己的 Windows 构建链会把非 ASCII 项目路径转码坏（R0 实测），`build.ps1` 检测到后经 `CARGO_TARGET_DIRscii-root` 目录联接构建；裸 `flutter build windows` 会失败。
-- **Windows 开发者模式**：Flutter 为 pub 插件建符号链接需要它；R0 的 Rust 核心不走插件所以不需要，R3 起引入 url_launcher / file_selector 前必须开启（设置 → 系统 → 开发者选项）。
+- **项目路径含中文 / 空格时只用 `scripts/build.ps1`**：Flutter 自己的 Windows 构建链会把非 ASCII 项目路径转码坏（R0 实测），`build.ps1` 检测到后经 `CARGO_TARGET_DIR\ascii-root` 目录联接构建；裸 `flutter build windows` 会失败。
+- **Windows 开发者模式**：Flutter 为 pub 插件建符号链接需要它；R0 的 Rust 核心不走插件所以不依赖，本机已于 2026-09-15 开启（设置 → 系统 → 开发者选项），换机器先看注册表 `AppModelUnlock\AllowDevelopmentWithoutDevLicense`。

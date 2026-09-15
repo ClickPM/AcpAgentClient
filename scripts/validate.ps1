@@ -79,7 +79,7 @@ try {
         $bad = Get-SourceFiles $rust @("*.rs") |
             Where-Object { $_.Name -notin @("meta_keys.rs", "frb_generated.rs") } |
             Select-String -Pattern '_meta' |
-            Where-Object { $_.Line -notmatch '^\s*//' -and $_.Line -match '"[A-Za-z][\w.\-]*"' -and $_.Line -notmatch '"_meta"' }
+            Where-Object { $_.Line -notmatch '^\s*//' -and (($_.Line -replace '"_meta"', '') -match '"[A-Za-z][\w.\-]*"') }
         if ($bad) { throw ("_meta lines with literal keys (use acp_core::meta_keys):`n" + (($bad | ForEach-Object { "$($_.Path):$($_.LineNumber): $($_.Line.Trim())" }) -join "`n")) }
     }
 
@@ -126,10 +126,12 @@ try {
     Step "Assert-NoStyleLiteral (规则 3)" {
         # 扫 lib/ 除 theme/tokens.dart 与 bridge/ 之外的颜色 / 字号 / 字重 / 间距 / 圆角 / 阴影 / 动效时长（毫秒）字面量。
         # 秒级 Duration 是超时逻辑不是样式，不在此列。
+        # 图标路径几何（Radius.elliptical / Offset）暂不扫，R2 画板图标改用 flutter_svg 后纳入（rounds/BACKLOG.md）。
         $patterns = @(
             'Color\(0x', 'Color\.from(RGBO|ARGB)\(', '\bColors\.\w', 'fontSize:\s*\d', 'FontWeight\.w\d', 'letterSpacing:\s*\d',
             'EdgeInsets\.(all|symmetric|only|fromLTRB)\([^)]*(?<![\w.])\d', 'Radius\.circular\(\s*\d', 'BorderRadius\.circular\(\s*\d',
-            'SizedBox\((width|height):\s*\d', 'Duration\(milliseconds:', 'BoxShadow\(', 'blurRadius:\s*\d'
+            'SizedBox\((width|height):\s*\d', 'Duration\(milliseconds:', 'BoxShadow\(', 'blurRadius:\s*\d',
+            '(?<![\w.])(height|width|minHeight|minWidth|maxHeight|maxWidth):\s*\d', 'Border\.all\([^)]*width:\s*\d', 'strokeWidth:\s*\d'
         )
         $files = Get-SourceFiles (Join-Path $root "lib") @("*.dart") |
             Where-Object { $_.FullName -notmatch '[\\/]lib[\\/]bridge[\\/]' -and $_.FullName -notmatch '[\\/]lib[\\/]theme[\\/]tokens\.dart$' }

@@ -31,17 +31,9 @@ impl std::error::Error for SettingsError {}
 
 pub type Result<T> = std::result::Result<T, SettingsError>;
 
-/// 与 Zed 同 schema 的 `command` 块。
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub struct CustomCommand {
-    pub path: String,
-    #[serde(default)]
-    pub args: Vec<String>,
-    #[serde(default)]
-    pub env: BTreeMap<String, String>,
-}
-
-/// `agent_servers` 的一条。
+/// `agent_servers` 的一条，与钉版本 Zed `crates/settings_content/src/agent.rs` 的 `CustomAgentServerSettings` 同形：
+/// `custom` 是扁平的 `command`（程序路径字符串）+ `args` + `env`；Zed 另有 `default_mode` / `default_config_options` 等字段，
+/// R1 / R5 按需补，未知字段 serde 默认忽略。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AgentServer {
@@ -50,8 +42,11 @@ pub enum AgentServer {
         env: BTreeMap<String, String>,
     },
     Custom {
-        command: CustomCommand,
-        #[serde(default)]
+        #[serde(rename = "command")]
+        path: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        args: Vec<String>,
+        #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
         env: BTreeMap<String, String>,
     },
 }
@@ -89,8 +84,22 @@ mod tests {
 
     #[test]
     fn agent_server_schema_matches_zed_shape() {
-        let json = r#"{"agent_servers":{"dsh":{"type":"custom","command":{"path":"dsh-acp","args":["--acp"]}}}}"#;
+        // 形状照 Zed settings.json 的真实条目（command 是字符串，args / env 在顶层，未知字段忽略）。
+        let json = r#"{"agent_servers":{
+            "dsh":{"type":"custom","command":"dsh-acp","args":["--acp"],"env":{"A":"1"},"default_mode":"ask"},
+            "claude":{"type":"registry","env":{}}
+        }}"#;
         let s: Settings = serde_json::from_str(json).expect("parse");
-        assert!(matches!(s.agent_servers.get("dsh"), Some(AgentServer::Custom { .. })));
+        match s.agent_servers.get("dsh") {
+            Some(AgentServer::Custom { path, args, env }) => {
+                assert_eq!(path, "dsh-acp");
+                assert_eq!(args, &vec!["--acp".to_string()]);
+                assert_eq!(env.get("A").map(String::as_str), Some("1"));
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+        assert!(matches!(s.agent_servers.get("claude"), Some(AgentServer::Registry { .. })));
+        let back = serde_json::to_value(&s).expect("serialize");
+        assert_eq!(back["agent_servers"]["dsh"]["command"], "dsh-acp");
     }
 }

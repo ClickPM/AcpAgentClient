@@ -48,16 +48,15 @@ flutter_rust_bridge::frb_generated_default_handler!();
 // Section: wire_funcs
 
 fn wire__crate__api__agent_state_stream_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "agent_state_stream",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -74,26 +73,23 @@ fn wire__crate__api__agent_state_stream_impl(
                     &mut deserializer,
                 );
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, crate::api::BridgeError>((move || {
-                    let output_ok = crate::api::agent_state_stream(api_sink)?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+            transform_result_sse::<_, crate::api::BridgeError>((move || {
+                let output_ok = crate::api::agent_state_stream(api_sink)?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__client_request_stream_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "client_request_stream",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -110,12 +106,10 @@ fn wire__crate__api__client_request_stream_impl(
                     &mut deserializer,
                 );
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, crate::api::BridgeError>((move || {
-                    let output_ok = crate::api::client_request_stream(api_sink)?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+            transform_result_sse::<_, crate::api::BridgeError>((move || {
+                let output_ok = crate::api::client_request_stream(api_sink)?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
@@ -252,16 +246,15 @@ fn wire__crate__api__ping_impl(
     )
 }
 fn wire__crate__api__session_update_stream_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "session_update_stream",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -278,26 +271,23 @@ fn wire__crate__api__session_update_stream_impl(
                     &mut deserializer,
                 );
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, crate::api::BridgeError>((move || {
-                    let output_ok = crate::api::session_update_stream(api_sink)?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+            transform_result_sse::<_, crate::api::BridgeError>((move || {
+                let output_ok = crate::api::session_update_stream(api_sink)?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__terminal_output_stream_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "terminal_output_stream",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -314,26 +304,23 @@ fn wire__crate__api__terminal_output_stream_impl(
                     &mut deserializer,
                 );
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, crate::api::BridgeError>((move || {
-                    let output_ok = crate::api::terminal_output_stream(api_sink)?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+            transform_result_sse::<_, crate::api::BridgeError>((move || {
+                let output_ok = crate::api::terminal_output_stream(api_sink)?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__traffic_stream_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "traffic_stream",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -350,12 +337,10 @@ fn wire__crate__api__traffic_stream_impl(
                     &mut deserializer,
                 );
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, crate::api::BridgeError>((move || {
-                    let output_ok = crate::api::traffic_stream(api_sink)?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+            transform_result_sse::<_, crate::api::BridgeError>((move || {
+                let output_ok = crate::api::traffic_stream(api_sink)?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
@@ -452,14 +437,9 @@ fn pde_ffi_dispatcher_primary_impl(
 ) {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        1 => wire__crate__api__agent_state_stream_impl(port, ptr, rust_vec_len, data_len),
-        2 => wire__crate__api__client_request_stream_impl(port, ptr, rust_vec_len, data_len),
         3 => wire__crate__api__core_init_impl(port, ptr, rust_vec_len, data_len),
         5 => wire__crate__api__init_app_impl(port, ptr, rust_vec_len, data_len),
         6 => wire__crate__api__ping_impl(port, ptr, rust_vec_len, data_len),
-        7 => wire__crate__api__session_update_stream_impl(port, ptr, rust_vec_len, data_len),
-        8 => wire__crate__api__terminal_output_stream_impl(port, ptr, rust_vec_len, data_len),
-        9 => wire__crate__api__traffic_stream_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -472,7 +452,12 @@ fn pde_ffi_dispatcher_sync_impl(
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
+        1 => wire__crate__api__agent_state_stream_impl(ptr, rust_vec_len, data_len),
+        2 => wire__crate__api__client_request_stream_impl(ptr, rust_vec_len, data_len),
         4 => wire__crate__api__dropped_event_count_impl(ptr, rust_vec_len, data_len),
+        7 => wire__crate__api__session_update_stream_impl(ptr, rust_vec_len, data_len),
+        8 => wire__crate__api__terminal_output_stream_impl(ptr, rust_vec_len, data_len),
+        9 => wire__crate__api__traffic_stream_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }

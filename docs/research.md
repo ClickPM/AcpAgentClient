@@ -45,7 +45,7 @@ macOS 的 headless `run()` 仍然调用 `CFRunLoopRun()` 并把前台任务投�
 - 仓库结构：根目录 `agent.schema.json`、`registry.schema.json`，每个 agent 一个目录（`agent.json` + `icon.svg`）。CDN `https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json` 是构建产物，结构为 `{version, agents[], extensions[]}`；JetBrains 另有专用索引与 preview 通道。
 - 分发类型：`binary`（六个平台 target：darwin/linux/windows × aarch64/x86_64，archive 支持 zip / tar.gz / tgz / tar.bz2 / tbz2 / 裸二进制，可带 sha256）、`npx`（`{package, args, env}`）、`uvx`。
 - **收录条件：agent 必须支持 Agent Auth 或 Terminal Auth 之一**，CI 校验 `initialize` 返回的 `authMethods`。
-- Zed 的实现：`RegistryAgent` 只有 `Binary` 与 `Npx` 两个变体（不支持 uvx）；registry 拉取 1 小时节流、磁盘缓存、图标另拉；npx 靠 `node_runtime` 下载受管 Node v24.11.0（`MIN_VERSION` 22）；binary 走 `http_client::github_download` 并校验 sha256。设置 schema：`agent_servers: { "<id>": { "type": "registry", env, default_mode, default_config_options, favorite_config_option_values } | { "type": "custom", command: {path, args, env}, ... } }`。
+- Zed 的实现：`RegistryAgent` 只有 `Binary` 与 `Npx` 两个变体（不支持 uvx）；registry 拉取 1 小时节流、磁盘缓存、图标另拉；npx 靠 `node_runtime` 下载受管 Node v24.11.0（`MIN_VERSION` 22）；binary 走 `http_client::github_download` 并校验 sha256。设置 schema：`agent_servers: { "<id>": { "type": "registry", env, default_mode, default_config_options, favorite_config_option_values } | { "type": "custom", command: "<程序路径>", args, env, default_mode, ... } }`（`custom` 是扁平的：`command` 是字符串，`args` / `env` 在顶层；`crates/settings_content/src/agent.rs` `CustomAgentServerSettings`，R0 审查纠正）。
 
 ## 4. Zed 客户端的能力声明与 agent 特判
 

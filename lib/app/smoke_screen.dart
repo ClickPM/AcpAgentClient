@@ -34,6 +34,7 @@ class _SmokeScreenState extends State<SmokeScreen> {
   Future<void> _boot() async {
     try {
       final bridge = await CoreBridge.load();
+      if (!mounted) return;
       _sub = bridge.events.listen(_onEvent);
       final info = await bridge.init(defaultDataDir());
       if (!mounted) return;

@@ -27,9 +27,13 @@ impl std::error::Error for FsError {}
 
 pub type Result<T> = std::result::Result<T, FsError>;
 
-/// 会话工作目录的边界检查：路径必须是绝对路径且位于 `cwd` 之内。
+/// 会话工作目录的边界检查：路径必须是绝对路径、位于 `cwd` 之内，且不含 `..`
+/// （`starts_with` 是按分量的词法比较，`<cwd>/../other` 也以 `<cwd>` 开头；审查 finding，2026-09-15）。
 pub fn ensure_inside(cwd: &Path, path: &Path) -> Result<()> {
-    if path.is_absolute() && path.starts_with(cwd) {
+    let has_parent = path
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir));
+    if path.is_absolute() && !has_parent && path.starts_with(cwd) {
         Ok(())
     } else {
         Err(FsError::OutsideWorkspace(path.to_path_buf()))
@@ -60,5 +64,7 @@ mod tests {
         assert!(ensure_inside(cwd, Path::new("relative.txt")).is_err());
         let outside = if cfg!(windows) { Path::new(r"D:\other\x.txt") } else { Path::new("/other/x.txt") };
         assert!(ensure_inside(cwd, outside).is_err());
+        let escaped = cwd.join("..").join("other").join("x.txt");
+        assert!(ensure_inside(cwd, &escaped).is_err(), "`..` must not escape the workspace");
     }
 }

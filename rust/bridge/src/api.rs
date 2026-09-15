@@ -92,31 +92,39 @@ pub async fn ping(echo: String) -> Result<String, BridgeError> {
     guarded(|| Ok(core()?.ping(&echo)?.to_string()))
 }
 
+// 五个注册函数都是 `#[frb(sync)]`：frb 的 normal 任务跑在线程池上不保证先后，只有同步注册
+// 才能保证 Dart 调 `core_init` 之前 sink 已就位（审查 finding，2026-09-15）。
+
 /// `acp/session_update`：`{agentId, sessionId, update}`，`update` 是 SessionNotification 原样 JSON。
+#[frb(sync)]
 pub fn session_update_stream(sink: StreamSink<String>) -> Result<(), BridgeError> {
     sinks().register(EventChannel::SessionUpdate, sink);
     Ok(())
 }
 
 /// `acp/client_request`：`{agentId, requestId, method, params}`。
+#[frb(sync)]
 pub fn client_request_stream(sink: StreamSink<String>) -> Result<(), BridgeError> {
     sinks().register(EventChannel::ClientRequest, sink);
     Ok(())
 }
 
 /// `acp/agent_state`：连接生命周期；R0 只有 `core_ready`。
+#[frb(sync)]
 pub fn agent_state_stream(sink: StreamSink<String>) -> Result<(), BridgeError> {
     sinks().register(EventChannel::AgentState, sink);
     Ok(())
 }
 
 /// `acp/terminal_output`：`{terminalId, source, bytes}`（R4 才有内容）。
+#[frb(sync)]
 pub fn terminal_output_stream(sink: StreamSink<String>) -> Result<(), BridgeError> {
     sinks().register(EventChannel::TerminalOutput, sink);
     Ok(())
 }
 
 /// `acp/traffic`：脱敏后的原始 JSON-RPC 行（R1 才有内容）。
+#[frb(sync)]
 pub fn traffic_stream(sink: StreamSink<String>) -> Result<(), BridgeError> {
     sinks().register(EventChannel::Traffic, sink);
     Ok(())
