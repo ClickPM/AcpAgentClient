@@ -103,13 +103,15 @@ std::optional<LRESULT> AcpWindowHandleMessage(HWND window, UINT message,
                                               WPARAM wparam, LPARAM lparam) {
   switch (message) {
     case WM_NCCALCSIZE: {
-      if (wparam == TRUE) {
-        // 返回 0 = 客户区铺满整个窗口（无标题栏、无边框），系统仍保留缩放、Snap 与阴影。
-        NCCALCSIZE_PARAMS* params = reinterpret_cast<NCCALCSIZE_PARAMS*>(lparam);
-        AdjustMaximizedClientRect(window, params->rgrc[0]);
-        return 0;
-      }
-      return std::nullopt;
+      // 返回 0 且不动矩形 = 客户区铺满整个窗口（无标题栏、无边框），系统仍保留缩放、Snap 与阴影。
+      // 两种形态都要接：wParam TRUE 时 lParam 是 NCCALCSIZE_PARAMS（改大小时发），
+      // wParam FALSE 时 lParam 是单个 RECT —— 建窗时的第一次计算走的正是这一支（R3 实测：
+      // 只处理 TRUE 的话标题栏一直在，因为窗口建好后没再改过大小）。
+      RECT* rect = wparam == TRUE
+                       ? &reinterpret_cast<NCCALCSIZE_PARAMS*>(lparam)->rgrc[0]
+                       : reinterpret_cast<RECT*>(lparam);
+      AdjustMaximizedClientRect(window, *rect);
+      return 0;
     }
     case WM_NCHITTEST:
       return HitTest(window, lparam);
