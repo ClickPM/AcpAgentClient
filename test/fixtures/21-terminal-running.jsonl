@@ -1,0 +1,13 @@
+{"dir": "out", "tag": "session/prompt", "turn": "start", "delay": 240, "msg": {"jsonrpc": "2.0", "id": 36, "method": "session/prompt", "params": {"sessionId": "sess_9f3c21a7", "prompt": [{"type": "text", "text": "只跑 NoStyleLiteral 这一项。"}]}}}
+{"dir": "in", "tag": "tool_call", "delay": 180, "msg": {"jsonrpc": "2.0", "method": "session/update", "params": {"sessionId": "sess_9f3c21a7", "update": {"sessionUpdate": "tool_call", "toolCallId": "call_exec_r1", "title": "Run Command", "kind": "execute", "status": "pending", "rawInput": {"command": "powershell -File scripts/validate.ps1 -Only NoStyleLiteral", "cwd": "D:/variFlight_work/AcpAgentClient"}}}}}
+{"dir": "in", "tag": "terminal/create", "delay": 180, "msg": {"jsonrpc": "2.0", "id": 37, "method": "terminal/create", "params": {"sessionId": "sess_9f3c21a7", "command": "powershell", "args": ["-File", "scripts/validate.ps1", "-Only", "NoStyleLiteral"], "cwd": "D:/variFlight_work/AcpAgentClient", "outputByteLimit": 65536}}}
+{"dir": "out", "tag": "terminal/create", "delay": 110, "msg": {"jsonrpc": "2.0", "id": 37, "result": {"terminalId": "term_run"}}}
+{"dir": "in", "tag": "tool_call_update", "delay": 160, "msg": {"jsonrpc": "2.0", "method": "session/update", "params": {"sessionId": "sess_9f3c21a7", "update": {"sessionUpdate": "tool_call_update", "toolCallId": "call_exec_r1", "status": "in_progress", "content": [{"type": "terminal", "terminalId": "term_run"}]}}}}
+{"dir": "local", "delay": 260, "kind": "terminal_output", "terminalId": "term_run", "chunk": "[1/4] 钉版本一致 ... \u001b[32mok\u001b[0m\n"}
+{"dir": "local", "delay": 420, "kind": "terminal_output", "terminalId": "term_run", "chunk": "[2/4] gpui 不进主进程 ... \u001b[32mok\u001b[0m\n"}
+{"dir": "local", "delay": 380, "kind": "terminal_output", "terminalId": "term_run", "chunk": "[3/4] 样式字面量扫描 lib/ ...\n"}
+{"dir": "in", "tag": "terminal/kill", "note": "用户点了停止方块 → terminal/kill（kill 不释放）", "delay": 2600, "msg": {"jsonrpc": "2.0", "id": 38, "method": "terminal/kill", "params": {"sessionId": "sess_9f3c21a7", "terminalId": "term_run"}}}
+{"dir": "out", "tag": "terminal/kill", "delay": 40, "msg": {"jsonrpc": "2.0", "id": 38, "result": {}}}
+{"dir": "local", "delay": 100, "kind": "terminal_exit", "terminalId": "term_run", "exitStatus": {"exitCode": null, "signal": "SIGKILL"}}
+{"dir": "in", "tag": "tool_call_update", "delay": 160, "msg": {"jsonrpc": "2.0", "method": "session/update", "params": {"sessionId": "sess_9f3c21a7", "update": {"sessionUpdate": "tool_call_update", "toolCallId": "call_exec_r1", "status": "failed"}}}}
+{"dir": "in", "tag": "session/prompt", "turn": "end", "delay": 200, "msg": {"jsonrpc": "2.0", "id": 36, "result": {"stopReason": "end_turn"}}}

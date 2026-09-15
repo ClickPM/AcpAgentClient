@@ -128,12 +128,13 @@ try {
     Step "Assert-NoStyleLiteral (规则 3)" {
         # 扫 lib/ 除 theme/tokens.dart 与 bridge/ 之外的颜色 / 字号 / 字重 / 间距 / 圆角 / 阴影 / 动效时长（毫秒）字面量。
         # 秒级 Duration 是超时逻辑不是样式，不在此列。
-        # 图标路径几何（Radius.elliptical / Offset）暂不扫，R2 画板图标改用 flutter_svg 后纳入（rounds/BACKLOG.md）。
+        # 图标路径几何（Radius.elliptical / Offset）R2 起纳入：画板图标全部是 lib/ui/transcript/icons.dart 的内联 SVG（flutter_svg）。
         $patterns = @(
             'Color\(0x', 'Color\.from(RGBO|ARGB)\(', '\bColors\.\w', 'fontSize:\s*\d', 'FontWeight\.w\d', 'letterSpacing:\s*\d',
             'EdgeInsets\.(all|symmetric|only|fromLTRB)\([^)]*(?<![\w.])\d', 'Radius\.circular\(\s*\d', 'BorderRadius\.circular\(\s*\d',
             'SizedBox\((width|height):\s*\d', 'Duration\(milliseconds:', 'BoxShadow\(', 'blurRadius:\s*\d',
-            '(?<![\w.])(height|width|minHeight|minWidth|maxHeight|maxWidth):\s*\d', 'Border\.all\([^)]*width:\s*\d', 'strokeWidth:\s*\d'
+            '(?<![\w.])(height|width|minHeight|minWidth|maxHeight|maxWidth):\s*\d', 'Border\.all\([^)]*width:\s*\d', 'strokeWidth:\s*\d',
+            'Radius\.elliptical\(', '(?<![\w.])Offset\('
         )
         $files = Get-SourceFiles (Join-Path $root "lib") @("*.dart") |
             Where-Object { $_.FullName -notmatch '[\\/]lib[\\/]bridge[\\/]' -and $_.FullName -notmatch '[\\/]lib[\\/]theme[\\/]tokens\.dart$' }

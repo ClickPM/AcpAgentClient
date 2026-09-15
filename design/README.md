@@ -27,31 +27,31 @@
 | 02 | 工作台 · 进行中的一轮 | 会话工作台 | round-design | `design/round-design/02-workbench-running.dc.html` | `design/round-design/02-workbench-running.png` | — | 待实现 | — |
 | 03 | 工作台 · 回合结束 + 右栏展开 | 会话工作台 + 文件面板 | round-design | `design/round-design/03-workbench-done.dc.html` | `design/round-design/03-workbench-done.png` | — | 待实现 | — |
 | 04 | 侧栏与顶栏状态 | 会话工作台 | round-design | `design/round-design/04-sidebar-states.dc.html` | `design/round-design/04-sidebar-states.png` | — | 待实现 | — |
-| 10 | Restore Checkpoint 分隔线 | 转录 | round-design | `design/round-design/10-checkpoint.dc.html` | `design/round-design/10-checkpoint.png` | — | 待实现 | — |
-| 11 | 用户消息气泡 | 转录 | round-design | `design/round-design/11-user-message.dc.html` | `design/round-design/11-user-message.png` | — | 待实现 | — |
-| 12 | 助手富文本正文 | 转录 | round-design | `design/round-design/12-assistant-text.dc.html` | `design/round-design/12-assistant-text.png` | — | 待实现 | — |
-| 13 | 代码块卡片 | 转录 | round-design | `design/round-design/13-code-block.dc.html` | `design/round-design/13-code-block.png` | — | 待实现 | — |
-| 14 | GFM 表格 | 转录 | round-design | `design/round-design/14-gfm-table.dc.html` | `design/round-design/14-gfm-table.png` | — | 待实现 | — |
-| 15 | Mermaid 图 | 转录 | round-design | `design/round-design/15-mermaid.dc.html` | `design/round-design/15-mermaid.png` | — | 待实现 | — |
-| 16 | 数学公式 | 转录 | round-design | `design/round-design/16-math.dc.html` | `design/round-design/16-math.png` | — | 待实现 | — |
-| 17 | 思考折叠块 | 转录 | round-design | `design/round-design/17-thinking.dc.html` | `design/round-design/17-thinking.png` | — | 待实现 | — |
-| 18 | 标准工具调用卡 | 转录 | round-design | `design/round-design/18-tool-call.dc.html` | `design/round-design/18-tool-call.png` | — | 待实现 | — |
-| 19 | 工具调用失败卡 | 转录 | round-design | `design/round-design/19-tool-failed.dc.html` | `design/round-design/19-tool-failed.png` | — | 待实现 | — |
-| 20 | 工具已取消卡 | 转录 | round-design | `design/round-design/20-tool-cancelled.dc.html` | `design/round-design/20-tool-cancelled.png` | — | 待实现 | — |
-| 21 | 文件差异对比卡 | 转录 | round-design | `design/round-design/21-diff-card.dc.html` | `design/round-design/21-diff-card.png` | — | 待实现 | — |
-| 22 | 嵌入式终端控制台卡 | 转录 | round-design | `design/round-design/22-terminal-card.dc.html` | `design/round-design/22-terminal-card.png` | — | 待实现 | — |
-| 23 | 终端进行中卡 | 转录 | round-design | `design/round-design/23-terminal-running.dc.html` | `design/round-design/23-terminal-running.png` | — | 待实现 | — |
-| 24 | 子代理委派卡 | 转录 | round-design | `design/round-design/24-subagent.dc.html` | `design/round-design/24-subagent.png` | — | 待实现 | — |
-| 25 | 权限授权卡 | 转录 | round-design | `design/round-design/25-permission.dc.html` | `design/round-design/25-permission.png` | — | 待实现 | — |
-| 26 | Awaiting Confirmation | 转录 + 输入框上方 | round-design | `design/round-design/26-awaiting.dc.html` | `design/round-design/26-awaiting.png` | — | 待实现 | — |
-| 27 | 表单模式交互卡 | 转录 | round-design | `design/round-design/27-elicitation-form.dc.html` | `design/round-design/27-elicitation-form.png` | — | 待实现 | — |
-| 28 | 链接跳转交互卡 | 转录 | round-design | `design/round-design/28-elicitation-url.dc.html` | `design/round-design/28-elicitation-url.png` | — | 待实现 | — |
-| 29 | 计划卡 | 转录 | round-design | `design/round-design/29-plan.dc.html` | `design/round-design/29-plan.png` | — | 待实现 | — |
-| 30 | 上下文窗口浮窗 | 输入框 | round-design | `design/round-design/30-context-window.dc.html` | `design/round-design/30-context-window.png` | — | 待实现 | — |
-| 31 | 回合态与结束 | 线程头 + 输入框 + 转录 | round-design | `design/round-design/31-turn-state.dc.html` | `design/round-design/31-turn-state.png` | — | 待实现 | — |
-| 32 | 非文本内容块 | 转录 | round-design | `design/round-design/32-content-blocks.dc.html` | `design/round-design/32-content-blocks.png` | — | 待实现 | — |
-| 33 | 上下文压缩卡 | 转录 | round-design | `design/round-design/33-compaction.dc.html` | `design/round-design/33-compaction.png` | — | 待实现 | — |
-| 34 | agent 状态与错误 | 线程头下 / 转录 | round-design | `design/round-design/34-agent-state.dc.html` | `design/round-design/34-agent-state.png` | — | 待实现 | — |
+| 10 | Restore Checkpoint 分隔线 | 转录 | round-design | `design/round-design/10-checkpoint.dc.html` | `design/round-design/10-checkpoint.png` | — | 已实现（R2） | — |
+| 11 | 用户消息气泡 | 转录 | round-design | `design/round-design/11-user-message.dc.html` | `design/round-design/11-user-message.png` | — | 已实现（R2） | — |
+| 12 | 助手富文本正文 | 转录 | round-design | `design/round-design/12-assistant-text.dc.html` | `design/round-design/12-assistant-text.png` | — | 已实现（R2） | — |
+| 13 | 代码块卡片 | 转录 | round-design | `design/round-design/13-code-block.dc.html` | `design/round-design/13-code-block.png` | — | 已实现（R2） | — |
+| 14 | GFM 表格 | 转录 | round-design | `design/round-design/14-gfm-table.dc.html` | `design/round-design/14-gfm-table.png` | — | 已实现（R2） | — |
+| 15 | Mermaid 图 | 转录 | round-design | `design/round-design/15-mermaid.dc.html` | `design/round-design/15-mermaid.png` | — | 已实现（R2） | — |
+| 16 | 数学公式 | 转录 | round-design | `design/round-design/16-math.dc.html` | `design/round-design/16-math.png` | — | 已实现（R2） | — |
+| 17 | 思考折叠块 | 转录 | round-design | `design/round-design/17-thinking.dc.html` | `design/round-design/17-thinking.png` | — | 已实现（R2） | — |
+| 18 | 标准工具调用卡 | 转录 | round-design | `design/round-design/18-tool-call.dc.html` | `design/round-design/18-tool-call.png` | — | 已实现（R2） | — |
+| 19 | 工具调用失败卡 | 转录 | round-design | `design/round-design/19-tool-failed.dc.html` | `design/round-design/19-tool-failed.png` | — | 已实现（R2） | — |
+| 20 | 工具已取消卡 | 转录 | round-design | `design/round-design/20-tool-cancelled.dc.html` | `design/round-design/20-tool-cancelled.png` | — | 已实现（R2） | — |
+| 21 | 文件差异对比卡 | 转录 | round-design | `design/round-design/21-diff-card.dc.html` | `design/round-design/21-diff-card.png` | — | 已实现（R2） | — |
+| 22 | 嵌入式终端控制台卡 | 转录 | round-design | `design/round-design/22-terminal-card.dc.html` | `design/round-design/22-terminal-card.png` | — | 已实现（R2） | — |
+| 23 | 终端进行中卡 | 转录 | round-design | `design/round-design/23-terminal-running.dc.html` | `design/round-design/23-terminal-running.png` | — | 已实现（R2） | — |
+| 24 | 子代理委派卡 | 转录 | round-design | `design/round-design/24-subagent.dc.html` | `design/round-design/24-subagent.png` | — | 已实现（R2） | — |
+| 25 | 权限授权卡 | 转录 | round-design | `design/round-design/25-permission.dc.html` | `design/round-design/25-permission.png` | — | 已实现（R2） | — |
+| 26 | Awaiting Confirmation | 转录 + 输入框上方 | round-design | `design/round-design/26-awaiting.dc.html` | `design/round-design/26-awaiting.png` | — | 已实现（R2） | — |
+| 27 | 表单模式交互卡 | 转录 | round-design | `design/round-design/27-elicitation-form.dc.html` | `design/round-design/27-elicitation-form.png` | — | 已实现（R2） | — |
+| 28 | 链接跳转交互卡 | 转录 | round-design | `design/round-design/28-elicitation-url.dc.html` | `design/round-design/28-elicitation-url.png` | — | 已实现（R2） | — |
+| 29 | 计划卡 | 转录 | round-design | `design/round-design/29-plan.dc.html` | `design/round-design/29-plan.png` | — | 已实现（R2） | — |
+| 30 | 上下文窗口浮窗 | 输入框 | round-design | `design/round-design/30-context-window.dc.html` | `design/round-design/30-context-window.png` | — | 已实现（R2） | — |
+| 31 | 回合态与结束 | 线程头 + 输入框 + 转录 | round-design | `design/round-design/31-turn-state.dc.html` | `design/round-design/31-turn-state.png` | — | 已实现（R2） | — |
+| 32 | 非文本内容块 | 转录 | round-design | `design/round-design/32-content-blocks.dc.html` | `design/round-design/32-content-blocks.png` | — | 已实现（R2） | — |
+| 33 | 上下文压缩卡 | 转录 | round-design | `design/round-design/33-compaction.dc.html` | `design/round-design/33-compaction.png` | — | 已实现（R2） | — |
+| 34 | agent 状态与错误 | 线程头下 / 转录 | round-design | `design/round-design/34-agent-state.dc.html` | `design/round-design/34-agent-state.png` | — | 已实现（R2） | — |
 | 40 | 输入框弹层合集 | 会话工作台 | round-design | `design/round-design/40-composer-popovers.dc.html` | `design/round-design/40-composer-popovers.png` | — | 待实现 | — |
 | 41 | 顶栏与侧栏弹层合集 | 会话工作台 | round-design | `design/round-design/41-topbar-popovers.dc.html` | `design/round-design/41-topbar-popovers.png` | — | 待实现 | — |
 | 42 | 输入框内联菜单 | 会话工作台 | round-design | `design/round-design/42-inline-menus.dc.html` | `design/round-design/42-inline-menus.png` | — | 待实现 | — |

@@ -5,6 +5,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../../theme/tokens.dart' as t;
+import '../../ui/transcript/icons.dart';
 
 // 样板页的示例几何（对应画板里色块 / 示意条的尺寸，不进 tokens）。
 const double _swatchLight = 52;
@@ -18,8 +19,6 @@ const double _toggleTrackWidth = 28;
 const double _toggleKnobInset = 2;
 const double _spacingBarHeight = 16;
 const double _kbdSampleHeight = 16;
-// 文件图标四角的圆弧半径（24 单位视口内的路径几何）。
-const Radius _iconCorner = Radius.elliptical(2, 2);
 
 class TokensBoard extends StatelessWidget {
   const TokensBoard({super.key});
@@ -661,82 +660,6 @@ class _Kbd extends StatelessWidget {
   }
 }
 
-/// 单线 stroke 图标（画板里的内联 SVG：24 视口，stroke 1.5，圆头）。
-class _StrokeIcon extends StatelessWidget {
-  const _StrokeIcon({required this.size, required this.paths});
-
-  final double size;
-
-  /// 24 单位视口里的路径。
-  final List<Path> paths;
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(size: Size.square(size), painter: _StrokePainter(paths));
-  }
-}
-
-class _StrokePainter extends CustomPainter {
-  const _StrokePainter(this.paths);
-
-  final List<Path> paths;
-
-  static const double _viewBox = 24;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = t.IconSizes.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..color = t.Neutral.text;
-    canvas.save();
-    canvas.scale(size.width / _viewBox, size.height / _viewBox);
-    for (final p in paths) {
-      canvas.drawPath(p, paint);
-    }
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(covariant _StrokePainter oldDelegate) => oldDelegate.paths != paths;
-}
-
-List<Path> _searchIcon() => <Path>[
-      Path()..addOval(Rect.fromCircle(center: const Offset(11, 11), radius: 7)),
-      Path()
-        ..moveTo(21, 21)
-        ..lineTo(16.2, 16.2),
-    ];
-
-List<Path> _fileIcon() => <Path>[
-      Path()
-        ..moveTo(13, 2)
-        ..lineTo(6, 2)
-        ..arcToPoint(const Offset(4, 4), radius: _iconCorner)
-        ..lineTo(4, 20)
-        ..arcToPoint(const Offset(6, 22), radius: _iconCorner, clockwise: false)
-        ..lineTo(18, 22)
-        ..arcToPoint(const Offset(20, 20), radius: _iconCorner, clockwise: false)
-        ..lineTo(20, 9)
-        ..close(),
-      Path()
-        ..moveTo(13, 2)
-        ..lineTo(13, 9)
-        ..lineTo(20, 9),
-    ];
-
-List<Path> _terminalIcon() => <Path>[
-      Path()
-        ..moveTo(4, 17)
-        ..lineTo(10, 11)
-        ..lineTo(4, 5),
-      Path()
-        ..moveTo(12, 19)
-        ..lineTo(20, 19),
-    ];
-
 class _IconsKbdMotion extends StatelessWidget {
   const _IconsKbdMotion();
 
@@ -745,15 +668,15 @@ class _IconsKbdMotion extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Row(
+        const Row(
           children: <Widget>[
-            _StrokeIcon(size: t.IconSizes.base, paths: _searchIcon()),
-            const SizedBox(width: t.Spacing.s12),
-            _StrokeIcon(size: t.IconSizes.base, paths: _fileIcon()),
-            const SizedBox(width: t.Spacing.s12),
-            _StrokeIcon(size: t.IconSizes.toolbar, paths: _terminalIcon()),
-            const SizedBox(width: t.Spacing.s12),
-            const Flexible(child: Text('icon 16 / 工具栏 14 · stroke 1.5', style: t.TextStyles.monoMeta)),
+            AcpIcon(AcpIcons.search, color: t.Neutral.text),
+            SizedBox(width: t.Spacing.s12),
+            AcpIcon(AcpIcons.file, color: t.Neutral.text),
+            SizedBox(width: t.Spacing.s12),
+            AcpIcon(AcpIcons.terminal, color: t.Neutral.text, size: t.IconSizes.toolbar),
+            SizedBox(width: t.Spacing.s12),
+            Flexible(child: Text('icon 16 / 工具栏 14 · stroke 1.5', style: t.TextStyles.monoMeta)),
           ],
         ),
         const SizedBox(height: t.Spacing.s8),

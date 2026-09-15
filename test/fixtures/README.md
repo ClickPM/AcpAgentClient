@@ -36,4 +36,30 @@
 | `06-compaction.jsonl` | compaction_update / compaction_summary_chunk、usage_update |
 | `07-tolerance.jsonl` | 凭空建卡（先到的 tool_call_update）、未知 kind 回落 other、content[] 未知项逐项跳过 |
 | `08-end-turn.jsonl` | plan_removed、五种内容块、stderr、回合结束（PromptResponse 带 usage） |
+| `10-cancel.jsonl` | （R2）session/cancel：进行中的工具卡本地 cancelled（§ 7 第 1 条）、挂起权限回 cancelled（§ 3.1）、stopReason cancelled；画板 20 |
+| `11-rich-text.jsonl` | （R2）画板 12–16 的正文：GFM（标题 / 列表 / 任务清单 / 引用 / 分割线 / 删除线 / 文件链接）、powershell 围栏与长行、GFM 表格、mermaid 围栏、行内与块级公式 |
+| `12-thinking.jsonl` | （R2）思考折叠单元（§ 7 第 6 条）：三段 thought chunk 合成一段，agent chunk 到达时关闭；画板 17 |
+| `13-tool-kinds.jsonl` | （R2）画板 18 / 19 / 21：pending / in_progress / completed / failed 四态，read / search / execute / fetch / other / edit / delete / move / think / switch_mode 全部 kind，rawInput / rawOutput / locations；末尾一条 edit 带 diff 内容（+4 −1） |
+| `14-subagent.jsonl` | （R2）画板 24：`_meta.claudeCode.{subagent, parentToolUseId, toolName}` 嵌套（工具行 + 子代理输出）与 `_meta.dsh_subagent`（转录折进 content[]），只按键存在分组 |
+| `15-permission-kinds.jsonl` | （R2）画板 25 / 26：四种 option kind（allow_always ×2 / allow_once / reject_once / reject_always），toolCall 只带 toolCallId + kind + rawInput，用户选 allow_once |
+| `16-elicitation.jsonl` | （R2）画板 27 / 28：form（string oneOf / array anyOf / integer / boolean / 未知 type / required）与 url（elicitationId + url，sessionScope）；用户 accept |
+| `17-plan-payloads.jsonl` | （R2）画板 29：稳定 plan（5 条）、plan_update items / file / markdown、plan_removed |
+| `18-stop-reasons.jsonl` | （R2）画板 31：max_tokens / max_turn_requests / refusal / cancelled 四轮（end_turn 在 08） |
+| `19-usage.jsonl` | （R2）画板 30：1% 无 cost / 带 cost / 78% 高占用 |
+| `20-compaction-states.jsonl` | （R2）画板 33：cmp_41 in_progress → 两条 summary chunk → completed（summary 整份替换）；cmp_42 failed + error |
+| `21-terminal-running.jsonl` | （R2）画板 23：terminal/create → 三行 ANSI 输出（本地流）→ terminal/kill → 退出信号 → failed |
+| `22-content-blocks.jsonl` | （R2）画板 32：真实 base64 PNG 的 image、audio、resource_link（size）、embedded resource text / blob |
+| `23-messages-no-id.jsonl` | （R2）§ 7 第 2 条：无 messageId 的 chunk 按角色连续合并，思考插入后另起一条 |
+| `24-terminal-git-log.jsonl` | （R2）画板 22：git log 的 ANSI 彩色输出（黄 / 绿 / 青）、wait_for_exit、release 后输出留存 |
 | `90-rejected.jsonl` | `notice`（sdk 的 unstable 伞不转发）、假想的未来变体 `artifact_update` —— Rust 侧必须失败 |
+
+R2 起的文件由 `scratchpad` 里的生成脚本一次性产出后入库（脚本不入库）；改动直接改 `.jsonl`。
+
+## 不进 fixtures 的两类数据（R2）
+
+- **`acp/agent_state`**（画板 34）是核心自己的事件，不是 ACP 线上行，`fixtures.rs` 不会去解析；gallery 场景在 Dart 侧按 `docs/design.md` § 3 的 payload 形状构造（`lib/gallery/scenarios.dart`）。
+- **`elicitation/complete`**（画板 28 完成态）是 ACP 通知，但 `fixtures.rs` 的方法表没有它（加表要改 `rust/`，R2 不碰）；gallery 场景在 Dart 侧直接调 `PendingQueue.completeElicitation`。记 `rounds/BACKLOG.md`：R3 接线时给方法表补 `elicitation/complete` / `$/cancel_request`，再把这条收进 fixtures。
+
+## 回放器
+
+`lib/projection/fixture_replay.dart`（Dart 单测与 gallery 共用）按行方向与方法把行喂进 `Sessions`：`out session/prompt` 开一轮、`in session/update` 投影、agent → client 请求入队、`out` 响应行按 `outcome` / `action` 回应队列、`in` 的 prompt 响应结束一轮、`local` 行进终端缓冲、`stderr` 行进 agent 状态。`awaits` 只是回放提示：gallery 想停在「等待中」就把行喂到该行为止。
