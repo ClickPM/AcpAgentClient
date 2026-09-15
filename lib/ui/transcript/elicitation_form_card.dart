@@ -271,11 +271,11 @@ class _ElicitationFormCardState extends State<ElicitationFormCard> {
       final selected = (_values[f.name] as List?)?.map((e) => e.toString()).toSet() ?? <String>{};
       children.add(_optionList(<Widget>[
         for (final (value, title) in multi)
+          // 画板 27：多选的 default 只预勾选（initialValues 已带），不打 Recommended 标签，单选才打。
           _OptionRow(
             selected: selected.contains(value),
             control: _Check(selected: selected.contains(value)),
             title: title,
-            recommended: f.defaultValue is List && (f.defaultValue as List).contains(value) && false,
             onTap: () => setState(() {
               final next = Set<String>.of(selected);
               if (!next.remove(value)) next.add(value);

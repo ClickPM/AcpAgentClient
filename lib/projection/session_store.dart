@@ -149,6 +149,8 @@ class SessionStore extends ChangeNotifier {
         _appendThought(u, meta, now);
       case SessionUpdateKind.toolCall:
       case SessionUpdateKind.toolCallUpdate:
+        final tcId = u.toolCall.toolCallId;
+        final prevParent = tcId == null ? null : toolCalls[tcId]?.parentToolCallId;
         final r = toolCalls.apply(
           u.toolCall,
           isUpdate: kind == SessionUpdateKind.toolCallUpdate,
@@ -162,6 +164,11 @@ class SessionStore extends ChangeNotifier {
         }
         final entry = r.entry!;
         if (r.created) {
+          _ensureParent(entry.parentToolCallId, now);
+          _place(entry, now);
+        } else if (prevParent == null && entry.parentToolCallId != null) {
+          // § 7.4 先凭空建在顶层的卡，分组键随后才到：搬进父卡 children（审查 P2）。
+          entries.remove(entry);
           _ensureParent(entry.parentToolCallId, now);
           _place(entry, now);
         }
@@ -647,18 +654,28 @@ class Sessions extends ChangeNotifier {
     final env = ClientRequestEnvelope(payload);
     final sid = env.isPermission ? env.permission.sessionId : (env.isElicitation ? env.elicitation.sessionId : null);
     if (env.requestId == null) {
-      // 通知：按 elicitationId / requestId 找到队列项，不依赖会话。
+      // 通知：按 elicitationId / requestId 找到队列项，不依赖会话；所属会话的 SessionStore 也要通知，转录卡才会刷新（审查 P2）。
       final now = _clock();
+      TranscriptEntry? touched;
       switch (env.method) {
         case 'elicitation/complete':
           final id = env.params['elicitationId'];
-          if (id is String) pending.completeElicitation(id, now: now);
+          if (id is String) touched = pending.completeElicitation(id, now: now);
         case r'$/cancel_request':
           final id = env.params['requestId'];
-          if (id != null) pending.withdraw(id.toString(), now: now);
+          if (id != null) {
+            touched = pending.byRequestId(id.toString());
+            pending.withdraw(id.toString(), now: now);
+          }
         default:
           return;
       }
+      final owner = switch (touched) {
+        final PermissionEntry p => p.sessionId,
+        final ElicitationEntry el => el.sessionId,
+        _ => null,
+      };
+      if (owner != null) _byId[owner]?._changed();
       notifyListeners();
       return;
     }

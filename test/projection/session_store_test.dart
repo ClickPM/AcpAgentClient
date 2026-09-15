@@ -120,6 +120,61 @@ void main() {
       expect((s.pending.byRequestId('req3')! as ElicitationEntry).status, PendingStatus.completed);
     });
 
+    test('URL elicitation 已 accept 后 Cancel 只本地标 cancelled，没有第二个响应', () {
+      final s = newStore();
+      s.applyClientRequest(const ClientRequestEnvelope(<String, dynamic>{
+        'agentId': 'a',
+        'requestId': 'u2',
+        'method': 'elicitation/create',
+        'params': <String, dynamic>{'mode': 'url', 'message': 'login', 'sessionId': sid, 'elicitationId': 'el9', 'url': 'https://x'},
+      }));
+      s.pending.markOpened('u2');
+      expect(s.answerElicitation('u2', 'accept'), <String, dynamic>{'action': 'accept', 'content': <String, dynamic>{}});
+      expect(s.pending.cancelRequest('u2', now: s.now), isTrue);
+      final el = s.pending.byRequestId('u2')! as ElicitationEntry;
+      expect(el.status, PendingStatus.cancelled);
+      expect(s.answerElicitation('u2', 'cancel'), isNull);
+      // 表单模式已回应的不能本地取消。
+      s.applyClientRequest(const ClientRequestEnvelope(<String, dynamic>{
+        'agentId': 'a',
+        'requestId': 'f2',
+        'method': 'elicitation/create',
+        'params': <String, dynamic>{'mode': 'form', 'message': 'q', 'sessionId': sid, 'requestedSchema': <String, dynamic>{'type': 'object', 'properties': <String, dynamic>{}}},
+      }));
+      s.answerElicitation('f2', 'accept', content: <String, dynamic>{});
+      expect(s.pending.cancelRequest('f2', now: s.now), isFalse);
+    });
+
+    test(r'Sessions 处理 elicitation/complete 与 $/cancel_request 通知时，所属 SessionStore 也通知', () {
+      final sessions = Sessions(clock: FakeClock().call);
+      sessions.applyClientRequestEnvelope(<String, dynamic>{
+        'agentId': 'a',
+        'requestId': 'u1',
+        'method': 'elicitation/create',
+        'params': <String, dynamic>{'mode': 'url', 'message': 'login', 'sessionId': sid, 'elicitationId': 'e9', 'url': 'https://x'},
+      });
+      sessions.applyClientRequestEnvelope(permissionEnvelope('p9', 't1'));
+      final s = sessions.maybe(sid)!;
+      var n = 0;
+      s.addListener(() => n++);
+      sessions.applyClientRequestEnvelope(<String, dynamic>{
+        'agentId': 'a',
+        'requestId': null,
+        'method': 'elicitation/complete',
+        'params': <String, dynamic>{'elicitationId': 'e9'},
+      });
+      expect(n, 1);
+      expect((sessions.pending.byRequestId('u1')! as ElicitationEntry).status, PendingStatus.completed);
+      sessions.applyClientRequestEnvelope(<String, dynamic>{
+        'agentId': 'a',
+        'requestId': null,
+        'method': r'$/cancel_request',
+        'params': <String, dynamic>{'requestId': 'p9'},
+      });
+      expect(n, 2);
+      expect((sessions.pending.byRequestId('p9')! as PermissionEntry).status, PendingStatus.withdrawn);
+    });
+
     test('requestScope 的 elicitation 只进队列不进转录', () {
       final sessions = Sessions(clock: FakeClock().call);
       sessions.applyClientRequestEnvelope(<String, dynamic>{
@@ -391,6 +446,24 @@ void main() {
       expect((task.children[1] as MessageEntry).text, 'child says');
       expect((top[1] as MessageEntry).text, 'parent says');
       expect((top[2] as ToolCallEntry).isSubagent, isTrue);
+    });
+
+    test('先到的 tool_call_update 不带分组键、随后 tool_call 才带：卡从顶层搬进父卡 children', () {
+      final s = newStore();
+      s.applyUpdateJson(tool('c1', status: 'in_progress', update: true));
+      final c1 = s.toolCalls['c1']!;
+      expect(s.entries, contains(same(c1)));
+      s.applyUpdateJson(tool('c1', title: 'Read', kind: 'read', meta: <String, dynamic>{
+        'claudeCode': <String, dynamic>{'parentToolUseId': 'p1'},
+      }));
+      expect(s.entries, isNot(contains(same(c1))));
+      final p1 = s.toolCalls['p1']!;
+      expect(p1.isSubagent, isTrue);
+      expect(p1.children, <TranscriptEntry>[c1]);
+      expect(c1.title, 'Read');
+      // 再来的 update 不会再搬（分组键首见即锁定）。
+      s.applyUpdateJson(tool('c1', status: 'completed', update: true));
+      expect(p1.children, hasLength(1));
     });
 
     test('父卡未到时先凭空建卡，tool_call 到了补标题', () {

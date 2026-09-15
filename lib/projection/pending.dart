@@ -119,14 +119,17 @@ class PendingQueue extends ChangeNotifier {
   /// elicitation 的取消回应载荷。
   static const JsonMap cancelledAction = <String, dynamic>{'action': 'cancel'};
 
-  /// 把一条挂起的请求标成 cancelled（Restore Checkpoint 截断时用；permission 回 [cancelledOutcome]，elicitation 回 [cancelledAction]）。
+  /// 把一条请求标成 cancelled。挂起的（Restore Checkpoint 截断时用）要回应：permission 回 [cancelledOutcome]、
+  /// elicitation 回 [cancelledAction]；已 accept 的 URL elicitation 也可本地标 cancelled（画板 28 已打开后的 Cancel，
+  /// 照 Zed `cancel_accepted_url_elicitations`）——这种没有第二个响应可发，调用方按调用前的 status 区分。
   bool cancelRequest(String requestId, {required DateTime now}) {
     final e = _byRequestId[requestId];
     if (e is PermissionEntry && e.status == PendingStatus.pending) {
       e
         ..status = PendingStatus.cancelled
         ..answeredAt = now;
-    } else if (e is ElicitationEntry && e.status == PendingStatus.pending) {
+    } else if (e is ElicitationEntry &&
+        (e.status == PendingStatus.pending || (e.isUrl && e.status == PendingStatus.answered && e.action == 'accept'))) {
       e
         ..status = PendingStatus.cancelled
         ..action = 'cancel'

@@ -22,7 +22,8 @@ class ElicitationUrlCard extends StatelessWidget {
     final e = entry;
     final who = agentName ?? e.agentId ?? 'agent';
     final completed = e.status == PendingStatus.completed;
-    final opened = e.opened && !completed;
+    final cancelled = e.status == PendingStatus.cancelled; // 已打开后点了 Cancel（本地态，画板 28 之外的收尾）
+    final opened = e.opened && !completed && !cancelled;
     final Widget status = completed
         ? Row(
             mainAxisSize: MainAxisSize.min,
@@ -32,16 +33,18 @@ class ElicitationUrlCard extends StatelessWidget {
               Text('Completed', style: CardText.secondary.copyWith(color: t.Semantic.success)),
             ],
           )
-        : opened
-            ? Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  const Spinner(),
-                  const SizedBox(width: t.Spacing.s4),
-                  Text('Waiting for completion...', style: CardText.secondary),
-                ],
-              )
-            : Text('Waiting for input', style: CardText.secondary);
+        : cancelled
+            ? Text('Cancelled', style: CardText.secondary)
+            : opened
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      const Spinner(),
+                      const SizedBox(width: t.Spacing.s4),
+                      Text('Waiting for completion...', style: CardText.secondary),
+                    ],
+                  )
+                : Text('Waiting for input', style: CardText.secondary);
     return TranscriptCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -61,7 +64,7 @@ class ElicitationUrlCard extends StatelessWidget {
               MonoBlock(text: e.wire.url ?? '', style: CardText.subtitle, softWrap: false),
               Row(
                 children: <Widget>[
-                  AcpButton(label: 'Open in browser', kind: ButtonKind.primary, icon: AcpIcons.externalLink, enabled: !completed, onTap: onOpen),
+                  AcpButton(label: 'Open in browser', kind: ButtonKind.primary, icon: AcpIcons.externalLink, enabled: !completed && !cancelled, onTap: onOpen),
                   const SizedBox(width: t.Spacing.s8),
                   if (completed)
                     Text('已收到 elicitation/complete，登录完成', style: t.TextStyles.body.copyWith(color: t.Semantic.success))

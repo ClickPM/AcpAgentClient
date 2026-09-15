@@ -41,6 +41,15 @@ class TurnEndRow extends TranscriptRow {
   final TurnEntry turn;
 }
 
+/// 用户消息所属的轮：它前面最近的一条检查点（TurnEntry）。画板 11 的 Restore / Regenerate 按这轮截断。
+TurnEntry? turnOf(List<TranscriptEntry> entries, TranscriptEntry e) {
+  for (var i = entries.indexOf(e); i >= 0; i--) {
+    final c = entries[i];
+    if (c is TurnEntry) return c;
+  }
+  return null;
+}
+
 /// 把条目列表展开成行：每个已结束的轮在其最后一个条目之后加一行结束行。
 List<TranscriptRow> buildRows(List<TranscriptEntry> entries) {
   final rows = <TranscriptRow>[];
@@ -65,6 +74,7 @@ class TranscriptList extends StatelessWidget {
     this.onLink,
     this.onGoToFile,
     this.onRestore,
+    this.onRegenerate,
     this.onAnswerPermission,
     this.onAnswerElicitation,
     this.onSelectionChanged,
@@ -79,13 +89,17 @@ class TranscriptList extends StatelessWidget {
   final void Function(String href)? onLink;
   final void Function(String path, int? line)? onGoToFile;
   final void Function(TurnEntry turn)? onRestore;
+
+  /// 画板 11 编辑态的 Regenerate：截断该轮后用新文本同会话重发。
+  final void Function(TurnEntry turn, String text)? onRegenerate;
   final void Function(String requestId, String optionId)? onAnswerPermission;
   final void Function(String requestId, String action, Map<String, dynamic>? content)? onAnswerElicitation;
 
   @override
   Widget build(BuildContext context) {
+    // 队列项的本地态（url 已打开 / 本地 cancelled）只经 PendingQueue 通知，所以两者都听。
     return ListenableBuilder(
-      listenable: store,
+      listenable: Listenable.merge(<Listenable>[store, store.pending]),
       builder: (context, _) {
         final rows = buildRows(store.entries);
         return SelectableRegion(
@@ -116,7 +130,14 @@ class TranscriptList extends StatelessWidget {
       case final TurnEntry turn:
         return CheckpointDivider(turn: turn, onRestore: onRestore == null ? null : () => onRestore!(turn));
       case final MessageEntry m:
-        return m.role == MessageRole.user ? UserMessage(m, onOpenMention: onLink) : AssistantText(m, onLink: onLink);
+        if (m.role != MessageRole.user) return AssistantText(m, onLink: onLink);
+        final turn = turnOf(store.entries, m);
+        return UserMessage(
+          m,
+          onOpenMention: onLink,
+          onRestore: onRestore == null || turn == null ? null : () => onRestore!(turn),
+          onRegenerate: onRegenerate == null || turn == null ? null : (text) => onRegenerate!(turn, text),
+        );
       case final ThoughtEntry th:
         return ThinkingBlock(th);
       case final ToolCallEntry tc:
@@ -137,7 +158,26 @@ class TranscriptList extends StatelessWidget {
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: <Widget>[card, const AwaitingRow()]);
       case final ElicitationEntry el:
         if (el.isUrl) {
-          return ElicitationUrlCard(el, agentName: agentName, onOpen: () => onLink?.call(el.wire.url ?? ''));
+          // 画板 28：Open = 打开浏览器 + 本地记已打开 + 首次回 accept（elicitation/create 是 JSON-RPC 请求，必须回应；
+          // 再点只是再打开，照 Zed）。Cancel 只在已打开后出现：请求已 accept，没有第二个响应可发，照 Zed 本地标 cancelled。
+          return ElicitationUrlCard(
+            el,
+            agentName: agentName,
+            onOpen: () {
+              onLink?.call(el.wire.url ?? '');
+              if (el.status == PendingStatus.pending) {
+                store.pending.markOpened(el.requestId);
+                onAnswerElicitation?.call(el.requestId, 'accept', null);
+              }
+            },
+            onCancel: () {
+              if (el.status == PendingStatus.pending) {
+                onAnswerElicitation?.call(el.requestId, 'cancel', null);
+              } else {
+                store.pending.cancelRequest(el.requestId, now: store.now);
+              }
+            },
+          );
         }
         return ElicitationFormCard(
           el,
