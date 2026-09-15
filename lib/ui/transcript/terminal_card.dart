@@ -76,11 +76,10 @@ class TerminalCard extends StatefulWidget {
 
 class _TerminalCardState extends State<TerminalCard> {
   late bool _expanded = widget.initiallyExpanded;
-  late final xt.Terminal _terminal = xt.Terminal(maxLines: _maxLines);
+  late final xt.Terminal _terminal = xt.Terminal(maxLines: t.Geometry.terminalScrollbackLines);
   int _written = 0;
 
   /// 回滚行数上限（几何，不是样式）。
-  static const int _maxLines = 2000;
 
   /// 只读展示不显示光标（DECTCEM 关）。
   static const String _hideCursor = '[?25l';

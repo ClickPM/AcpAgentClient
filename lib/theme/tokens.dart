@@ -285,3 +285,30 @@ abstract final class Spinner {
   static const Color color = Accent.base;
   static const double strokeWidth = 1.5;
 }
+
+/// 几何（所有者裁定 2026-09-15，R2 审查留下的 7 个局部常量收进来）：它们不是画板 00 的 token，而是画板上量出来的
+/// 单点尺寸；集中在这里是为了「widget 文件里不出现裸数字」。第 6 条是时长不是尺寸，按裁定与其余六条同组收纳。
+abstract final class Geometry {
+  /// 画板 32 image 块的预览区高度。
+  static const double imagePreviewHeight = 220;
+
+  /// 画板 32 audio 块的进度条高度。
+  static const double audioBarHeight = 3;
+
+  /// 画板 25 权限「范围」下拉的宽度。
+  static const double permissionMenuWidth = 330;
+
+  /// 画板 30 上下文窗口浮窗的宽度。
+  static const double contextPopoverWidth = 266;
+
+  /// 画板 22 / 23 终端卡的回滚行数上限（xterm `maxLines`）。
+  static const int terminalScrollbackLines = 2000;
+
+  /// spinner 转一圈的时长：动效 token 里没有「旋转周期」，取 [Motion.base] 的 5 倍（800ms），只是转速。
+  static final Duration spinnerPeriod = Motion.base * 5;
+
+  /// 画板 27 / 40 布尔开关的轨道 28 × 16；`toggleKnobInset` 是滑块与轨道的间隙。
+  static const double toggleTrackWidth = 28;
+  static const double toggleTrackHeight = 16;
+  static const double toggleKnobInset = 2;
+}

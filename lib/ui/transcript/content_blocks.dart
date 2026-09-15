@@ -75,9 +75,6 @@ class ImageBlock extends StatelessWidget {
   final ContentBlockWire block;
   final void Function(String uri)? onOpen;
 
-  /// 预览区高度（画板 32 的示意框），几何不是 token。
-  static const double _previewHeight = 220;
-
   @override
   Widget build(BuildContext context) {
     Uint8List? bytes;
@@ -99,7 +96,7 @@ class ImageBlock extends StatelessWidget {
             GestureDetector(
               onTap: uri == null ? null : () => onOpen?.call(uri),
               child: Container(
-                height: _previewHeight,
+                height: t.Geometry.imagePreviewHeight,
                 decoration: const BoxDecoration(color: t.Neutral.surface, borderRadius: t.Radii.control),
                 clipBehavior: Clip.antiAlias,
                 alignment: Alignment.center,
@@ -156,7 +153,6 @@ class _AudioBlockState extends State<AudioBlock> {
   Duration? _duration;
 
   /// 进度条厚度（几何，不是 token）。
-  static const double _barHeight = 3;
 
   @override
   void initState() {
@@ -228,7 +224,7 @@ class _AudioBlockState extends State<AudioBlock> {
                   ClipRRect(
                     borderRadius: t.Radii.chip,
                     child: SizedBox(
-                      height: _barHeight,
+                      height: t.Geometry.audioBarHeight,
                       child: Stack(
                         children: <Widget>[
                           const Positioned.fill(child: ColoredBox(color: t.Borders.subtle)),

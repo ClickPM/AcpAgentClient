@@ -110,9 +110,6 @@ class ContextPopover extends StatelessWidget {
   final int rulesCount;
   final VoidCallback? onOpenRules;
 
-  /// 弹层宽度（几何，不是样式）。
-  static const double _width = 266;
-
   @override
   Widget build(BuildContext context) {
     final u = usage;
@@ -121,7 +118,7 @@ class ContextPopover extends StatelessWidget {
       radius: t.Radii.card,
       padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s16, vertical: t.Spacing.s12),
       child: SizedBox(
-        width: _width,
+        width: t.Geometry.contextPopoverWidth,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,

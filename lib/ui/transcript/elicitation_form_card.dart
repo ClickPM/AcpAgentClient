@@ -440,9 +440,9 @@ class _Toggle extends StatelessWidget {
 
   final bool on;
 
-  static const double _trackHeight = t.Kbd.lineHeightPx;
-  static const double _trackWidth = t.Controls.standard;
-  static const double _inset = t.Borders.width * 2;
+  static const double _trackHeight = t.Geometry.toggleTrackHeight;
+  static const double _trackWidth = t.Geometry.toggleTrackWidth;
+  static const double _inset = t.Geometry.toggleKnobInset;
 
   @override
   Widget build(BuildContext context) {

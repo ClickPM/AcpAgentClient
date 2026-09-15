@@ -149,10 +149,7 @@ class Spinner extends StatefulWidget {
 }
 
 class _SpinnerState extends State<Spinner> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(vsync: this, duration: _period)..repeat();
-
-  /// 一圈的时长：动效 token 里没有「旋转周期」，取 motion.base 的 5 倍（800ms），只是转速。
-  static final Duration _period = t.Motion.base * 5;
+  late final AnimationController _controller = AnimationController(vsync: this, duration: t.Geometry.spinnerPeriod)..repeat();
 
   @override
   void dispose() {
