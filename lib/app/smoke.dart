@@ -53,7 +53,7 @@ Future<void> runSmoke({required String reportPath}) async {
   // stdout 只是顺带：无控制台的 Windows GUI 进程里句柄无效，写入可能抛异常或 flush 永不完成（R0 实测），
   // 所以既不 await flush、也不让它影响退出码。
   try {
-    stdout.writeln('ACP_SMOKE ${report['ok'] == true ? 'OK' : 'FAIL'} $reportPath');
+    stdout.writeln('ACP_SMOKE ${exitCode == 0 ? 'OK' : 'FAIL'} $reportPath');
   } on Object catch (_) {
     // 忽略：没有控制台。
   }

@@ -115,7 +115,11 @@ Flutter Windows 桌面项目与 `rust/` workspace（cdylib）经 frb v2 打通�
 - 复审（第 2 轮，全量 `main...HEAD`，Claude Code 子代理，**opus**——所有者 2026-09-15 要求回落子代理用 opus、不继承 Fable）：2 条（high 0 / P2 1 / P3 1），八条整改逐条复核通过，其中：
   1. [P2] 第 5 条整改把 stdout 写入并进了报告的 try，stdout 若抛异常会让成功路径也 `exit(1)` → **采纳**：stdout 单独 try/catch、不碰退出码；注释改成「可能抛异常或 flush 永不完成」（实测 smoke 退出码 0，但写法确实脆）。
   2. [P3] `LineHeights.kbd = 16` 是像素、同类里 `body / control` 是倍率，同名同类型易误用 → **采纳**：改名 `kbdPx` / `Kbd.lineHeightPx`，注释标明不是 `height` 倍率。
-- 复审（第 3 轮，只审整改 diff `b60faf2..HEAD`，opus 子代理）：{{REREVIEW3}}
+- 复审（第 3 轮，只审整改 diff `b60faf2..HEAD`，opus 子代理）：3 条（high 0 / P2 0 / P3 3），两条第 2 轮整改复核通过：
+  1. [P3] stdout 标签仍取自 `report['ok']`，报告写失败时会打 `OK` 却 `exit(1)` → **采纳**：标签改按最终 `exitCode`。
+  2. [P3] 任务卡「本轮实测」还写着「try / finally」，与整改后代码不符 → **采纳**：改文案。
+  3. [P3] 第 2 轮整改改了 smoke 的退出路径，卡里没有改后重跑记录 → **采纳**：补记（改后 `build.ps1 -Smoke` 退出码 0、`ok: true`）。
+- 复审（第 4 轮，只审整改 diff `f4d74f4..HEAD`，opus 子代理）：{{REREVIEW4}}
 - 结论：{{VERDICT}}
 
 ## 失败处理
@@ -144,7 +148,7 @@ Flutter Windows 桌面项目与 `rust/` workspace（cdylib）经 frb v2 打通�
   "droppedEvents": 0 }
 ```
 
-坑：无控制台的 Windows GUI 进程里 Dart `stdout` 句柄无效，`stdout.writeln` 抛异常导致第一次 smoke 写完报告后进程不退出（`exit()` 没执行到）；已改成 try / finally，报告文件是唯一正式通道。
+坑：无控制台的 Windows GUI 进程里 Dart `stdout` 句柄无效，第一次 smoke 写完报告后进程不退出（`exit()` 没执行到，`stdout` 写入 / flush 卡住）；现在报告写入与 stdout 各自 try/catch、`exit` 在函数末尾无条件执行，报告文件是唯一正式通道，stdout 只是顺带。
 
 绕过 frb 的同一条路（`acp-smoke`）：
 
@@ -157,6 +161,7 @@ core init failed: invalid data dir: relative   (exit 1)
 ```
 
 审查整改（五个 `*_stream` 改 `#[frb(sync)]` 等 8 条）后复验：`validate.ps1` 全量再次 `VALIDATE OK`，release 重建 32.3 s，`acp_bridge.dll` 595,968 B，smoke 报告 `ok: true`。
+第 2 轮复审整改（smoke 退出路径拆分、`kbdPx` 改名）后再次复验：`validate.ps1` 全量 `VALIDATE OK`，`build.ps1 -Smoke` 退出码 0、报告 `ok: true`（`Start-Process -WindowStyle Hidden` 起的无控制台 GUI 进程正常退出）。第 3 轮整改（stdout 标签按退出码）后第三次复验：`flutter analyze` 无问题、`validate.ps1 -Quick` OK、`build.ps1 -Smoke` 退出码 0、报告 `ok: true`、`droppedEvents: 0`。
 
 ### 验收 3 · validate.ps1 与样式字面量拦截
 
