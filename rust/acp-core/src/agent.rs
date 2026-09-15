@@ -325,7 +325,7 @@ impl Shared {
 
     /// 全部通知走这一个 handler：`session/update` 用 SDK 类型校验后 serde 直出；反序列化失败计数 + 告警
     /// （docs/design.md § 4 `notice` 裁定）；`elicitation/complete` 与 `$/cancel_request` 以 `requestId: null`
-    /// 的 `acp/client_request` 转给前端（是通知，不需回应）。其他通知只留在 traffic。
+    /// 的 `acp/client_request` 转给前端（是通知，不需回应）；被撤回的请求由核心回 `-32800` 收尾。其他通知只留在 traffic。
     fn on_notification(&self, notification: UntypedMessage) {
         let (method, params) = notification.into_parts();
         match method.as_str() {
@@ -346,7 +346,10 @@ impl Shared {
                     let key = serde_json::from_value::<acp::RequestId>(id.clone())
                         .map(|id| id.to_string())
                         .unwrap_or_else(|_| id.to_string());
-                    if self.take_pending(&key).is_some() {
+                    if let Some(pending) = self.take_pending(&key) {
+                        // agent 撤回了自己的请求：仍要给它一个 JSON-RPC 响应（-32800 request cancelled，照 Zed），
+                        // 否则它若还在等这条请求就挂死；SDK 的 drop guard 只在 batch 目的地补槽（第 2 轮审查 finding）。
+                        let _ = pending.responder.respond_with_error(acp::Error::request_cancelled());
                         // `requestId` 归一化成与队列键同形的字符串（协议原样可能是数字），前端直接比对（审查 finding）。
                         let mut params = params;
                         if let Value::Object(map) = &mut params {

@@ -159,6 +159,21 @@ fn spawn_fake_agent(state: Arc<FakeState>, transport: Channel, scenario: &'stati
                             "sessionUpdate": "tool_call", "toolCallId": "call_1", "title": "edit", "kind": "edit", "status": "pending"
                         })))
                         .expect("send");
+                        if scenario == "withdraw" {
+                            // 发了权限请求又撤回（$/cancel_request）：核心必须回 -32800，这里的 block_task 才能返回。
+                            // 放在公共的第一条权限请求之前：这个场景里前端不回应任何请求。
+                            let sent = cx.send_request(permission_request(&session_id, "call_withdrawn"));
+                            sent.cancel().expect("send $/cancel_request");
+                            let outcome = match sent.block_task().await {
+                                Ok(_) => "unexpected_ok".to_string(),
+                                Err(e) if e.code == acp::ErrorCode::RequestCancelled => "request_cancelled".to_string(),
+                                Err(e) => format!("other_error:{}", e.message),
+                            };
+                            state.permission_outcomes.lock().expect("lock").push(outcome);
+                            responder.respond(acp::PromptResponse::new(acp::StopReason::EndTurn)).expect("respond");
+                            return;
+                        }
+
                         let permission = cx.send_request(permission_request(&session_id, "call_1")).block_task().await.expect("permission");
                         let outcome = serde_json::to_value(&permission).expect("json")["outcome"]["outcome"]
                             .as_str()
@@ -429,6 +444,31 @@ async fn cancel_auto_answers_pending_and_late_permission_requests() {
         "second turn's first permission must reach the frontend and be answered, not auto-cancelled"
     );
     assert_eq!(events.client_requests().len(), 2);
+    connection.disconnect().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn withdrawn_request_gets_request_cancelled_response_and_leaves_the_queue() {
+    let (connection, events, state, _agent_task) = connect("withdraw").await;
+    let _ = connection.session_new(std::env::temp_dir()).await.expect_err("auth required");
+    connection.session_new(std::env::temp_dir()).await.expect("session");
+    let prompt = connection
+        .session_prompt("sess_fake", json!([{ "type": "text", "text": "hi" }]))
+        .await
+        .expect("prompt");
+    assert_eq!(prompt["stopReason"], "end_turn");
+    // agent 端：第一次权限请求是它自己撤回的，收到的是 -32800，不是挂死也不是别的错误。
+    assert_eq!(*state.permission_outcomes.lock().expect("lock"), vec!["request_cancelled"]);
+    // 前端：先看到权限请求入队，再看到 $/cancel_request 通知（requestId null、params.requestId 归一化成同形字符串）。
+    let requests = events.client_requests();
+    let permission = requests.iter().find(|r| r["method"] == "session/request_permission").expect("permission request");
+    let withdrawn = requests.iter().find(|r| r["method"] == "$/cancel_request").expect("cancel_request notification");
+    assert!(withdrawn["requestId"].is_null());
+    assert_eq!(withdrawn["params"]["requestId"], permission["requestId"]);
+    assert!(withdrawn["params"]["requestId"].is_string());
+    assert!(connection.shared().pending_request_ids().is_empty());
+    let err = connection.respond(permission["requestId"].as_str().expect("id"), allow_once()).expect_err("already withdrawn");
+    assert!(matches!(err, CoreError::UnknownRequest(_)), "{err:?}");
     connection.disconnect().await;
 }
 

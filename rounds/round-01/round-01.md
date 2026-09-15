@@ -46,7 +46,7 @@
 ## 代码审查
 
 - 审查方式：`cursor-review.ps1`（默认档，`--mode ask`）两次硬失败 → 回落主会话委派的 Claude Code 只读子代理（同一份任务书 `.claude/cursor-review-prompt.md`）。
-- cursor 失败原因（`20260915-132034` 与 `20260915-132138`）：两次进程都在启动瞬间退出，`.out.md` 0 字节、`.err.log` 只有一行 `Error: EPERM: operation not permitted, rename 'C:\Users\Click\.cursor\cli-config.json.<pid>.<uuid>.tmp' -> 'C:\Users\Click\.cursor\cli-config.json'`；同一时刻 `cursor-agent status` 正常（已登录），用 `[System.IO.File]::Open(..., 'None')` 探测 `cli-config.json` 报「正由另一进程使用」——CLI 启动要原子重写自己的配置，文件被本机另一个进程（疑似同机另一个 cursor-agent / Cursor IDE 会话）锁住就起不来。属于文档定义的「启动失败」硬失败；本轮与复审都走子代理（同一轮只用一个执行器）。`--mode ask` 的首次实测顺延到 R1.5 / R2。
+- cursor 失败原因（`20260915-132034` 与 `20260915-132138`）：两次进程都在启动瞬间退出，`.out.md` 0 字节、`.err.log` 只有一行 `Error: EPERM: operation not permitted, rename 'C:\Users\Click\.cursor\cli-config.json.<pid>.<uuid>.tmp' -> 'C:\Users\Click\.cursor\cli-config.json'`；同一时刻 `cursor-agent status` 正常（已登录），用 `[System.IO.File]::Open(..., 'None')` 探测 `cli-config.json` 报「正由另一进程使用」——CLI 启动要原子重写自己的配置，文件被本机另一个进程锁住就起不来——所有者确认是 **Zed** 占着 `cli-config.json`（`docs/review-workflow.md`「容易踩的」第 6 条）。属于文档定义的「启动失败」硬失败，第 1 轮回落子代理；关掉 Zed 后所有者要求第 2 轮起改回 cursor（正在跑的子代理复审已停掉、不采信），所以本轮两级执行器各跑了一轮：第 1 轮子代理、第 2 轮起 cursor。
 - 审查器与模型：Claude Code 子代理（general-purpose，**opus**，所有者裁定 2026-09-15），只读；范围 `main...HEAD`（第 1 轮，全量，基准 b3534a6）。
 - findings：5（high 2 / P2 0 / P3 3），逐条：
   1. [high] agent 的 stderr 尾巴（`push_stderr`）存的是原始字节，随 `exited.stderrTail` 与 `CoreError::Exited` 文案把明文密钥带到前端与日志，而同一行在 traffic 里已打码（规则 8）→ **采纳**：`stderr_task` 先 `redact_line` 再进尾巴、traffic 共用同一份脱敏结果（`emit_traffic_redacted`）。复验：fake agent `--stderr-noise` + 权限挂起时 `--crash-after 800`，`exited{code: 3, stderrTail: "[fake-agent] turn started; token=*** / fake-agent: simulated crash (exit 3)"}`，`session_prompt failed: ... token=***`，日志与 stderr 里 `FAKE-TOKEN` 0 次。
@@ -56,7 +56,9 @@
   5. [P3] `$/cancel_request` 转发的 `params.requestId` 是协议原样（数字），与队列键（Display 字符串）不同形，R3 直接比对会匹配不上 → **采纳**：转发前把 `params.requestId` 归一化成与队列键同形的字符串，`docs/design.md` § 3 同步注明。
   未判 finding 的说明（审查者给出）：规则 1 新依赖只有 `futures`（任务卡有理由）与清单内的 `portable-pty`；规则 6 的 `unsafe` 全在 frb 生成物（R0 已裁定）；规则 3 `lib/` 只有生成物变化；规则 7 settings 走 temp + rename；规则 9 四处 Windows 坑都有实测记录；判据 11 能力声明与 § 4 逐条对齐、handler 返回 `Err` 时 SDK 会替我们回错误响应不会让 agent 挂起。
 - 整改提交 2f5c9ef 后：`cargo test -p acp-core -p pty` 全过（scripted 3 含扩展用例）、`cargo clippy --workspace --all-targets -D warnings` 零告警、`validate.ps1 -Quick` 全 PASS。
-- 复审：<!-- 第 2 轮回填 -->
+- 复审（第 2 轮，全量 `main...HEAD`，**cursor CLI `cursor-grok-4.6-high`，`--mode ask`**，`20260915-134717`，11 分钟，`.out.md` 2.8 KB——本仓库 `--mode ask` 的首次实测，终稿正常落 text 通道）：1 条（high 1 / P2 0 / P3 0）；五条整改逐条复核通过（① 无二次明文路径；② 清标志时机没有把回合内 cancel 清掉；③ abandon 的锁 / drop 顺序与成功路径一致；④ carry 能拼上跨 read 的 `ESC[6` + `n`、只答一次；⑤ 归一化与文档一致）：
+  1. [high] `$/cancel_request` 取出挂起请求后把 `Responder` 直接丢掉，不向 agent 回 JSON-RPC 响应；rust-sdk 的 `ResponderDropGuard` 只在 batch 目的地补槽，agent 若还在 `block_task` 等这条请求就永远挂起（判据 11；Zed 对应处回 `RequestCancelled`）→ **采纳**：取出后先 `respond_with_error(Error::request_cancelled())`（`-32800`）再转发通知；`scripted.rs` 新增 `withdraw` 场景：假 agent 发权限请求后立刻 `cancel()`，`block_task` 必须以 `-32800` 返回，前端看到入队 + `$/cancel_request` 通知（`params.requestId` 与队列键同形），队列为空，再回应报 `unknown_request`。
+- 复审（第 3 轮，只审整改 diff）：<!-- 回填 -->
 - 结论：<!-- 复审后回填 -->
 
 ## 失败处理
