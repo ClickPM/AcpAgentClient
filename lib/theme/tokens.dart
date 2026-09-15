@@ -311,4 +311,45 @@ abstract final class Geometry {
   static const double toggleTrackWidth = 28;
   static const double toggleTrackHeight = 16;
   static const double toggleKnobInset = 2;
+
+  // ---- R3（画板 01–04 / 40 / 41 / 42 / 80 量得的单点尺寸）
+
+  /// 01–04：侧栏宽。
+  static const double sidebarWidth = 280;
+
+  /// 01–04：顶栏 / 线程头 / 侧栏头 / 侧栏底部导航的条高。
+  static const double barHeight = 36;
+
+  /// 01–04：窗口控制三键的格宽（点击热区，图标仍是 [IconSizes.toolbar]）。
+  static const double windowButtonWidth = 44;
+
+  /// 03：右栏展开时的宽度。
+  static const double rightPanelWidth = 580;
+
+  /// 01–03 / 42：输入框与转录内容列的最大宽度。
+  static const double contentMaxWidth = 800;
+
+  /// 01–04 / 41：agent 标记方块（[IconSizes.base] 见方）里的菱形边长。
+  static const double agentMarkDot = 6;
+
+  /// 40 / 41 / 42：弹层分组标题的行高。
+  static const double menuGroupLabelHeight = 22;
+
+  /// 40 / 41 / 42：弹层宽度四档（真实弹层锚在触发控件上，宽度按内容类别取一档）。
+  static const double menuWidthNarrow = 240;
+  static const double menuWidth = 280;
+  static const double menuWidthWide = 320;
+  static const double menuWidthInline = 420;
+
+  /// 80：方法名列宽，也是过滤输入框宽。
+  static const double trafficMethodWidth = 220;
+
+  /// 04：侧栏搜索无结果时的占位区高。
+  static const double sidebarEmptyHeight = 96;
+
+  /// 01：转录空态的文本最大宽度。
+  static const double emptyStateMaxWidth = 520;
+
+  /// 03：输入框里模型下拉的最大宽度（名字长时截断）。
+  static const double composerModelMaxWidth = 170;
 }

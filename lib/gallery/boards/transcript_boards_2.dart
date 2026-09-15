@@ -213,8 +213,8 @@ final List<GalleryBoard> transcriptBoards2 = <GalleryBoard>[
     final a = FixtureReplay.replay(<String>['01-connect', '16-elicitation'], upTo: 4);
     final b = FixtureReplay.replay(<String>['01-connect', '16-elicitation'], upTo: 4);
     b.sessions.pending.markOpened(url(b).requestId);
-    final c = FixtureReplay.replay(<String>['01-connect', '16-elicitation'], upTo: 4);
-    c.sessions.pending.completeElicitation(url(c).wire.elicitationId!, now: c.clock.now);
+    // 完成态由 fixtures 的 `elicitation/complete` 通知驱动（R3 补进方法表与 16-elicitation.jsonl）。
+    final c = FixtureReplay.replay(<String>['01-connect', '16-elicitation'], untilTag: 'elicitation/complete');
     return BoardPage(
       number: '28',
       title: '链接跳转交互卡',

@@ -1,5 +1,5 @@
 // 画板对照（ROUNDS.md § 0 第 5 条）：把 lib/gallery/ 里的每张画板离屏渲染成 build/gallery/<id>.png，
-// 与 design/round-design/<id>.png 并排看。固定 frame 的画板（00）按 frame 尺寸截；画板页（10–34）宽 800、高随内容。
+// 与 design/round-design/<id>.png 并排看。固定 frame 的画板（00、01–03、80）按 frame 尺寸截；画板页（04、10–34、40–42）宽 800、高随内容。
 // 字体 / 图标预热见 gallery_harness.dart。
 
 import 'dart:io';
@@ -34,7 +34,10 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.runAsync(loadGalleryFonts);
+      await tester.runAsync(() async {
+        await loadGalleryFonts();
+        await precacheIcons();
+      });
 
       final key = GlobalKey();
       await tester.pumpWidget(
@@ -46,7 +49,11 @@ void main() {
           ),
         ),
       );
-      await tester.pump();
+      // 图标解码与 Image.memory 经真实异步回来（FakeAsync 等不到）：先让出一段真实时间，再 pump 几帧落地。
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 250)));
+      for (var i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
       expect(tester.takeException(), isNull);
 
       final bytes = await tester.runAsync(() async {

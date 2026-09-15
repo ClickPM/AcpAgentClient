@@ -25,7 +25,7 @@ void main() {
   });
 
   test('every fixture line parses and classifies', () {
-    expect(lines.length, 209); // R0 61 行 + R2 新增 148 行（10–24）
+    expect(lines.length, 214); // R0 61 行 + R2 新增 148 行（10–24）+ R3 新增 5 行（16 补两条通知与被撤回的请求、25 两条 config）
     expect(lines.where((l) => l.dir == FixtureDir.unknown), isEmpty);
     expect(lines.where((l) => l.dir == FixtureDir.local).map((l) => l.localKind).toSet(), {'terminal_output', 'terminal_exit'});
     expect(lines.where((l) => l.dir == FixtureDir.stderr).single.line, contains('turn finished'));
@@ -101,9 +101,15 @@ void main() {
     expect(byKind[SessionUpdateKind.availableCommandsUpdate]!.single.availableCommands.map((c) => c.name), ['review', 'compact', 'plan']);
     expect(byKind[SessionUpdateKind.availableCommandsUpdate]!.single.availableCommands.first.inputHint, '可选：范围');
     expect(byKind[SessionUpdateKind.currentModeUpdate]!.single.currentModeId, 'code');
-    final cfg = byKind[SessionUpdateKind.configOptionUpdate]!.single.configOptions;
+    // 05-elicitation-config 的那条（文件序在 25-config-options 之前）。
+    final cfg = byKind[SessionUpdateKind.configOptionUpdate]!.first.configOptions;
     expect(cfg.map((c) => c.category), ['mode', 'model', null, 'thought_level']);
     expect(cfg.firstWhere((c) => c.type == 'boolean').currentValue, true);
+    // R3 的 25-config-options：未识别 category 原样透出，未识别 type 由投影层整条忽略（这里只看薄封装）。
+    final cfg40 = byKind[SessionUpdateKind.configOptionUpdate]!.last.configOptions;
+    expect(cfg40.map((c) => c.category), containsAll(<String>['model', 'thought_level', 'mode', 'sandbox', '_codex_reasoning']));
+    expect(cfg40.where((c) => c.type == 'boolean').length, 3);
+    expect(cfg40.where((c) => c.type != 'select' && c.type != 'boolean').single.type, 'slider');
     final info = byKind[SessionUpdateKind.sessionInfoUpdate]!.single;
     expect(info.hasTitle && info.hasUpdatedAt, isTrue);
     final usage = byKind[SessionUpdateKind.usageUpdate]!;
