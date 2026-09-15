@@ -167,7 +167,7 @@ core init failed: invalid data dir: relative   (exit 1)
 
 审查整改（五个 `*_stream` 改 `#[frb(sync)]` 等 8 条）后复验：`validate.ps1` 全量再次 `VALIDATE OK`，release 重建 32.3 s，`acp_bridge.dll` 595,968 B，smoke 报告 `ok: true`。
 第 2 轮复审整改（smoke 退出路径拆分、`kbdPx` 改名）后：`validate.ps1` 全量 `VALIDATE OK`（有 `.rustc_info.json` / `unit_test_assets` 11:39 的产物为证）；**但同一条命令链里的 `build.ps1 -Smoke` 没有真正执行**——PowerShell 管道里的 Select-String 出错后上游未跑、`$LASTEXITCODE` 仍是上一步的 0，我把它记成了「退出码 0、ok: true」，第 3 轮整改后的「第三次复验」同样是假的（第 4 轮复审用 `app.so` 11:29:18 与 `smoke-report.json` 11:29:20 的时间戳对照 `smoke.dart` 11:45 的改动时间抓出来的）。
-真实的复验：2026-09-15 11:54 对 `03b9ee1` 版 `smoke.dart` 跑 `powershell -File scripts/build.ps1 -Smoke`（输出整段落 `D:\cargo-target\AcpAgentClient0-smoke-round3.log`）：`Building Windows application... 27.5s`，`acp_agent_client.exe` 91,136 B、`acp_bridge.dll` 595,968 B，`app.so` 11:54:04、`smoke-report.json` 11:54:07 重新生成，`OK smoke round trip`，`build.ps1` 退出码 0，报告 `ok: true`、`droppedEvents: 0`（`Start-Process -WindowStyle Hidden` 起的无控制台 GUI 进程正常退出）。教训：smoke 是否跑过以报告文件的时间戳为准，别信管道尾部的退出码。
+真实的复验：2026-09-15 11:54 对 `03b9ee1` 版 `smoke.dart` 跑 `powershell -File scripts/build.ps1 -Smoke`（输出整段落 `D:\cargo-target\AcpAgentClient\r0-smoke-round3.log`）：`Building Windows application... 27.5s`，`acp_agent_client.exe` 91,136 B、`acp_bridge.dll` 595,968 B，`app.so` 11:54:04、`smoke-report.json` 11:54:07 重新生成，`OK smoke round trip`，`build.ps1` 退出码 0，报告 `ok: true`、`droppedEvents: 0`（`Start-Process -WindowStyle Hidden` 起的无控制台 GUI 进程正常退出）。教训：smoke 是否跑过以报告文件的时间戳为准，别信管道尾部的退出码。
 
 ### 验收 3 · validate.ps1 与样式字面量拦截
 
