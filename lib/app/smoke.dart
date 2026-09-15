@@ -43,15 +43,19 @@ Future<void> runSmoke({required String reportPath}) async {
     report['stack'] = st.toString();
   }
   // 报告文件是唯一正式通道；写不出报告（目录不可写）也必须 exit，否则无头进程常驻、build.ps1 -Smoke 无限等待。
-  // 无控制台的 Windows GUI 进程里 stdout 句柄无效，写它会抛异常，同样不能挡住 exit。
   try {
     final file = File(reportPath);
     await file.parent.create(recursive: true);
     await file.writeAsString(const JsonEncoder.withIndent('  ').convert(report));
-    stdout.writeln('ACP_SMOKE ${report['ok'] == true ? 'OK' : 'FAIL'} $reportPath');
   } on Object catch (_) {
     exitCode = 1;
-  } finally {
-    exit(exitCode);
   }
+  // stdout 只是顺带：无控制台的 Windows GUI 进程里句柄无效，写入可能抛异常或 flush 永不完成（R0 实测），
+  // 所以既不 await flush、也不让它影响退出码。
+  try {
+    stdout.writeln('ACP_SMOKE ${report['ok'] == true ? 'OK' : 'FAIL'} $reportPath');
+  } on Object catch (_) {
+    // 忽略：没有控制台。
+  }
+  exit(exitCode);
 }

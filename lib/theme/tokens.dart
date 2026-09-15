@@ -97,11 +97,11 @@ abstract final class Weights {
   static const List<FontVariation> mediumVariation = <FontVariation>[FontVariation('wght', 500)];
 }
 
-/// 行高：正文 1.5，控件 1.35，kbd 固定 16px。
+/// 行高：正文 1.5，控件 1.35 是 `TextStyle.height` 倍率；kbd 是 16px 的绝对行框高（带 Px 后缀，不能当 `height` 倍率用）。
 abstract final class LineHeights {
   static const double body = 1.5;
   static const double control = 1.35;
-  static const double kbd = 16.0;
+  static const double kbdPx = 16.0;
 }
 
 /// 字阶五档 + mono 12.5（画板 00「字阶（5 档）」）。颜色按画板样例带上，需要时 copyWith。
@@ -201,7 +201,7 @@ abstract final class Spacing {
   /// space.chip 1px 5px：徽章内边距，唯一非 4px 网格例外。
   static const EdgeInsets chip = EdgeInsets.symmetric(vertical: 1, horizontal: 5);
 
-  /// kbd 0 4px（配 [LineHeights.kbd]）。
+  /// kbd 0 4px（配 [LineHeights.kbdPx] 的 16px 行框，不是 `height` 倍率）。
   static const EdgeInsets kbd = EdgeInsets.symmetric(horizontal: 4);
 }
 
@@ -269,7 +269,8 @@ abstract final class Kbd {
   static const EdgeInsets padding = Spacing.kbd;
   static const BorderRadius radius = Radii.chip;
   static const Color border = Borders.base;
-  static const double lineHeight = LineHeights.kbd;
+  /// 行框高 16px（绝对值）。
+  static const double lineHeightPx = LineHeights.kbdPx;
 }
 
 /// 动效：fast 120ms ease-out（hover / 颜色），base 160ms ease-out（展开 / 弹层）。

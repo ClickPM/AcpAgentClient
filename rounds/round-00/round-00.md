@@ -62,7 +62,7 @@ Flutter Windows 桌面项目与 `rust/` workspace（cdylib）经 frb v2 打通�
 | `Shadows.popover` | shadow.popover | `0 4 12 rgba(28,28,35,.10)` |
 | `Fonts.sans / mono / cjkFallback` | helmet 字体声明 | Geist / Geist Mono / Microsoft YaHei UI, PingFang SC |
 | `Weights.regular / medium`（+ `FontVariation`） | 字阶 · 字重 400 / 500 | 400 / 500 |
-| `LineHeights.body / control / kbd` | text.body 注 lh 1.5（控件 1.35）；kbd line-height 16 | 1.5 / 1.35 / 16 |
+| `LineHeights.body / control`（倍率）、`LineHeights.kbdPx`（像素） | text.body 注 lh 1.5（控件 1.35）；kbd line-height 16 | 1.5 / 1.35 / 16px |
 | `TextStyles.display / title / body / secondary / meta` | 字阶（5 档） | 20/500 · 15/500 · 13/400 · 12/400 · 11/400 |
 | `TextStyles.mono` | mono 12.5 · tabular-nums | 12.5，`FontFeature.tabularFigures` |
 | `TextStyles.monoMeta` | 各 token 名 / 注释行（mono 11） | 11 |
@@ -112,7 +112,10 @@ Flutter Windows 桌面项目与 `rust/` workspace（cdylib）经 frb v2 打通�
   6. [P3] `fs::ensure_inside` 不拒绝 `..`，词法 `starts_with` 可绕出工作区 → **采纳**：含 `ParentDir` 分量即拒绝，加测试。
   7. [P3] `Assert-NoStyleLiteral` 漏 `height:` / `width:` / `Border.all(width:)` / `Radius.elliptical(` 等 → **部分采纳**：补 `height|width|min*|max*`、`Border.all(width:)`、`strokeWidth` 三类；`Radius.elliptical` / `Offset` 是 gallery 图标路径几何，R2 画板图标改用 `flutter_svg` 内联 SVG 后再纳入，记 BACKLOG。
   8. [P3] `SmokeScreen._boot` 在 `await` 后订阅没有 `mounted` 检查 → **采纳**：加 `if (!mounted) return;`。
-- 复审（第 2 轮，全量 `main...HEAD`，同一子代理）：{{REREVIEW}}
+- 复审（第 2 轮，全量 `main...HEAD`，Claude Code 子代理，**opus**——所有者 2026-09-15 要求回落子代理用 opus、不继承 Fable）：2 条（high 0 / P2 1 / P3 1），八条整改逐条复核通过，其中：
+  1. [P2] 第 5 条整改把 stdout 写入并进了报告的 try，stdout 若抛异常会让成功路径也 `exit(1)` → **采纳**：stdout 单独 try/catch、不碰退出码；注释改成「可能抛异常或 flush 永不完成」（实测 smoke 退出码 0，但写法确实脆）。
+  2. [P3] `LineHeights.kbd = 16` 是像素、同类里 `body / control` 是倍率，同名同类型易误用 → **采纳**：改名 `kbdPx` / `Kbd.lineHeightPx`，注释标明不是 `height` 倍率。
+- 复审（第 3 轮，只审整改 diff `b60faf2..HEAD`，opus 子代理）：{{REREVIEW3}}
 - 结论：{{VERDICT}}
 
 ## 失败处理
