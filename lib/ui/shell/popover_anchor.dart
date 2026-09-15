@@ -1,0 +1,89 @@
+// 弹层锚点：把触发控件（顶栏的项目名 / 分支名、线程头的 ≡、输入框的 + 与三个下拉…）与画板 40 / 41 / 42 的弹层连起来。
+// 壳的 widget 只负责「把自己包进锚点」并在点击时回调；弹层内容由组合根给（`PopoverHandle.show`），
+// 这样接线阶段不需要改任何 widget 的布局与 token（CLAUDE.md 规则 3）。
+//
+// 用 `OverlayPortal` + `CompositedTransformFollower`：弹层浮在 Overlay 上，位置跟着触发控件走，
+// 点弹层之外的任何地方关闭（画板上弹层都是点外即关的临时表面）。
+
+import 'package:flutter/widgets.dart';
+
+import '../../theme/tokens.dart' as t;
+
+/// 一个弹层的句柄：组合根持有（放在 State 里，别每帧新建），传给壳的 widget 做锚点。
+class PopoverHandle {
+  final LayerLink link = LayerLink();
+  final OverlayPortalController controller = OverlayPortalController();
+
+  /// 弹层内容。组合根在 [show] 时给；`OverlayPortal` 每帧重建 overlay child，
+  /// 所以 builder 要直接读组合根的当前状态（别捕获快照），弹层才会跟着投影层刷新。
+  WidgetBuilder _builder = _empty;
+  Alignment _targetAnchor = Alignment.bottomLeft;
+  Alignment _followerAnchor = Alignment.topLeft;
+  Offset _offset = t.Geometry.popoverBelow;
+
+  bool get isShowing => controller.isShowing;
+
+  void show(
+    WidgetBuilder builder, {
+    Alignment targetAnchor = Alignment.bottomLeft,
+    Alignment followerAnchor = Alignment.topLeft,
+    Offset offset = t.Geometry.popoverBelow,
+  }) {
+    _builder = builder;
+    _targetAnchor = targetAnchor;
+    _followerAnchor = followerAnchor;
+    _offset = offset;
+    controller.show();
+  }
+
+  /// 输入框上方的弹层（`+`、模型 / 思考强度 / 模式、用量）：向上展开。
+  void showAbove(WidgetBuilder builder, {Alignment targetAnchor = Alignment.topLeft, Alignment followerAnchor = Alignment.bottomLeft}) =>
+      show(builder, targetAnchor: targetAnchor, followerAnchor: followerAnchor, offset: t.Geometry.popoverAbove);
+
+  void hide() => controller.hide();
+
+  void toggle(WidgetBuilder builder, {Alignment targetAnchor = Alignment.bottomLeft, Alignment followerAnchor = Alignment.topLeft}) {
+    if (controller.isShowing) {
+      controller.hide();
+    } else {
+      show(builder, targetAnchor: targetAnchor, followerAnchor: followerAnchor);
+    }
+  }
+
+  static Widget _empty(BuildContext context) => const SizedBox.shrink();
+}
+
+/// 把 [child]（触发控件）包成锚点。`handle` 为 null 时原样返回，gallery 里就不需要 Overlay。
+class PopoverAnchor extends StatelessWidget {
+  const PopoverAnchor({super.key, required this.handle, required this.child});
+
+  final PopoverHandle? handle;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final h = handle;
+    if (h == null) return child;
+    return CompositedTransformTarget(
+      link: h.link,
+      child: OverlayPortal(
+        controller: h.controller,
+        overlayChildBuilder: (context) => Stack(
+          children: <Widget>[
+            // 点弹层之外关闭。
+            Positioned.fill(child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: h.hide)),
+            CompositedTransformFollower(
+              link: h.link,
+              targetAnchor: h._targetAnchor,
+              followerAnchor: h._followerAnchor,
+              offset: h._offset,
+              showWhenUnlinked: false,
+              child: Align(alignment: Alignment.topLeft, child: h._builder(context)),
+            ),
+          ],
+        ),
+        child: child,
+      ),
+    );
+  }
+}

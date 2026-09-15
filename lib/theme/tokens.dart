@@ -352,4 +352,8 @@ abstract final class Geometry {
 
   /// 03：输入框里模型下拉的最大宽度（名字长时截断）。
   static const double composerModelMaxWidth = 170;
+
+  /// 弹层与触发控件的间隙（向下 / 向上展开）。
+  static const Offset popoverBelow = Offset(0, Spacing.s4);
+  static const Offset popoverAbove = Offset(0, -Spacing.s4);
 }

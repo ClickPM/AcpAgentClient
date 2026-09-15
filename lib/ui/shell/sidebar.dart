@@ -9,6 +9,7 @@ import 'package:flutter/widgets.dart';
 import '../../theme/tokens.dart' as t;
 import '../transcript/card_chrome.dart';
 import '../transcript/icons.dart';
+import 'popover_anchor.dart';
 import 'shell_common.dart';
 
 /// 侧栏一条会话（本地索引 `sessions.json` 的投影：agentId + sessionId + 标题 + cwd + 时间 + 消息计数）。
@@ -51,6 +52,8 @@ class Sidebar extends StatelessWidget {
     this.onClearSearch,
     this.onSearchChanged,
     this.onTab,
+    this.deleteAnchor,
+    this.confirmingDeleteId,
   });
 
   final List<SidebarSession> sessions;
@@ -71,6 +74,10 @@ class Sidebar extends StatelessWidget {
   final VoidCallback? onClearSearch;
   final ValueChanged<String>? onSearchChanged;
   final ValueChanged<ShellTab>? onTab;
+
+  /// 画板 41 的删除确认弹层锚点：只挂在正在确认的那一行上（内容由组合根给）。
+  final PopoverHandle? deleteAnchor;
+  final String? confirmingDeleteId;
 
   @override
   Widget build(BuildContext context) {
@@ -117,6 +124,7 @@ class Sidebar extends StatelessWidget {
           onDelete: onDelete == null ? null : () => onDelete!(s.id),
           onCommitRename: onCommitRename == null ? null : (text) => onCommitRename!(text),
           onCancelRename: onCancelRename,
+          deleteAnchor: s.id == confirmingDeleteId ? deleteAnchor : null,
         );
       },
     );
@@ -219,6 +227,7 @@ class SidebarSessionRow extends StatelessWidget {
     this.onDelete,
     this.onCommitRename,
     this.onCancelRename,
+    this.deleteAnchor,
   });
 
   final SidebarSession session;
@@ -234,6 +243,9 @@ class SidebarSessionRow extends StatelessWidget {
   final VoidCallback? onDelete;
   final ValueChanged<String>? onCommitRename;
   final VoidCallback? onCancelRename;
+
+  /// 删除确认弹层的锚点（画板 41）。
+  final PopoverHandle? deleteAnchor;
 
   static const double height = t.Controls.input + t.Spacing.s16;
 
@@ -257,7 +269,11 @@ class SidebarSessionRow extends StatelessWidget {
               Expanded(child: inlineEdit ? _renameField() : _titleAndMeta(meta)),
               if (showActions) ...<Widget>[
                 IconButtonGhost(icon: AcpIcons.pencil, size: t.Controls.compact, onTap: onRename),
-                if (session.canDelete) IconButtonGhost(icon: AcpIcons.trash, size: t.Controls.compact, onTap: onDelete),
+                if (session.canDelete)
+                  PopoverAnchor(
+                    handle: deleteAnchor,
+                    child: IconButtonGhost(icon: AcpIcons.trash, size: t.Controls.compact, onTap: onDelete),
+                  ),
               ],
             ],
           ),

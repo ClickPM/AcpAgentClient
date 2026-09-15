@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import '../../theme/tokens.dart' as t;
 import '../transcript/card_chrome.dart';
 import '../transcript/icons.dart';
+import 'popover_anchor.dart';
 import 'shell_common.dart';
 
 class ThreadHeader extends StatelessWidget {
@@ -22,6 +23,8 @@ class ThreadHeader extends StatelessWidget {
     this.onNewSession,
     this.onReload,
     this.onMenu,
+    this.newSessionAnchor,
+    this.menuAnchor,
   });
 
   /// 无会话 / 无 agent 时画板给的是 `No Agent`。
@@ -41,6 +44,10 @@ class ThreadHeader extends StatelessWidget {
   final VoidCallback? onNewSession;
   final VoidCallback? onReload;
   final VoidCallback? onMenu;
+
+  /// 画板 41 的「新建会话 · 选 agent」与 ≡ 菜单的弹层锚点（内容由组合根给；gallery 里为 null）。
+  final PopoverHandle? newSessionAnchor;
+  final PopoverHandle? menuAnchor;
 
   @override
   Widget build(BuildContext context) {
@@ -63,9 +70,9 @@ class ThreadHeader extends StatelessWidget {
           if (running) ...<Widget>[const SizedBox(width: t.Spacing.s8), const Spinner()],
           const Spacer(),
           if (hasAgent && canRename) IconButtonGhost(icon: AcpIcons.pencil, onTap: onRename),
-          IconButtonGhost(icon: AcpIcons.plusSquare, onTap: onNewSession),
+          PopoverAnchor(handle: newSessionAnchor, child: IconButtonGhost(icon: AcpIcons.plusSquare, onTap: onNewSession)),
           if (hasAgent && canReload) IconButtonGhost(icon: AcpIcons.reload, onTap: onReload),
-          _MenuButton(selected: menuSelected, onTap: onMenu),
+          PopoverAnchor(handle: menuAnchor, child: _MenuButton(selected: menuSelected, onTap: onMenu)),
         ],
       ),
     );

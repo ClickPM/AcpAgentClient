@@ -10,6 +10,7 @@ import '../../theme/tokens.dart' as t;
 import '../transcript/card_chrome.dart';
 import '../transcript/context_window.dart';
 import '../transcript/icons.dart';
+import 'popover_anchor.dart';
 import 'shell_common.dart';
 
 class Composer extends StatelessWidget {
@@ -35,6 +36,12 @@ class Composer extends StatelessWidget {
     this.onMode,
     this.onSend,
     this.onStop,
+    this.plusAnchor,
+    this.followAnchor,
+    this.usageAnchor,
+    this.modelAnchor,
+    this.thoughtAnchor,
+    this.modeAnchor,
   });
 
   final TextEditingController controller;
@@ -67,6 +74,14 @@ class Composer extends StatelessWidget {
   final VoidCallback? onMode;
   final VoidCallback? onSend;
   final VoidCallback? onStop;
+
+  /// 画板 40 六个弹层的锚点（内容由组合根给；gallery 里为 null）。
+  final PopoverHandle? plusAnchor;
+  final PopoverHandle? followAnchor;
+  final PopoverHandle? usageAnchor;
+  final PopoverHandle? modelAnchor;
+  final PopoverHandle? thoughtAnchor;
+  final PopoverHandle? modeAnchor;
 
   @override
   Widget build(BuildContext context) {
@@ -124,27 +139,41 @@ class Composer extends StatelessWidget {
 
   Widget _actions() => Row(
         children: <Widget>[
-          IconButtonGhost(
-            icon: AcpIcons.plus,
-            size: t.Controls.compact,
-            color: enabled ? t.Neutral.muted : t.Neutral.border,
-            onTap: enabled ? onPlus : null,
+          PopoverAnchor(
+            handle: plusAnchor,
+            child: IconButtonGhost(
+              icon: AcpIcons.plus,
+              size: t.Controls.compact,
+              color: enabled ? t.Neutral.muted : t.Neutral.border,
+              onTap: enabled ? onPlus : null,
+            ),
           ),
           if (enabled) ...<Widget>[
             const SizedBox(width: t.Spacing.s4),
-            IconButtonGhost(icon: AcpIcons.target, size: t.Controls.compact, onTap: onFollow),
+            PopoverAnchor(
+              handle: followAnchor,
+              child: IconButtonGhost(icon: AcpIcons.target, size: t.Controls.compact, onTap: onFollow),
+            ),
           ],
           if (usage != null) ...<Widget>[
             const SizedBox(width: t.Spacing.s4),
-            Padding(
-              padding: t.Controls.padCompact,
-              child: UsageIndicator(usage: usage, onTap: onUsage),
+            PopoverAnchor(
+              handle: usageAnchor,
+              child: Padding(
+                padding: t.Controls.padCompact,
+                child: UsageIndicator(usage: usage, onTap: onUsage),
+              ),
             ),
           ],
           const Spacer(),
-          if (model != null) ComposerDropdown(label: model!, onTap: onModel, maxWidth: t.Geometry.composerModelMaxWidth),
-          if (thoughtLevel != null) ComposerDropdown(label: thoughtLevel!, onTap: onThoughtLevel),
-          if (mode != null) ComposerDropdown(label: mode!, onTap: onMode),
+          if (model != null)
+            PopoverAnchor(
+              handle: modelAnchor,
+              child: ComposerDropdown(label: model!, onTap: onModel, maxWidth: t.Geometry.composerModelMaxWidth),
+            ),
+          if (thoughtLevel != null)
+            PopoverAnchor(handle: thoughtAnchor, child: ComposerDropdown(label: thoughtLevel!, onTap: onThoughtLevel)),
+          if (mode != null) PopoverAnchor(handle: modeAnchor, child: ComposerDropdown(label: mode!, onTap: onMode)),
           const SizedBox(width: t.Spacing.s4),
           if (running) _StopButton(onTap: onStop) else _SendButton(enabled: enabled, onTap: onSend),
         ],

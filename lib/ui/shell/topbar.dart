@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import '../../theme/tokens.dart' as t;
 import '../transcript/card_chrome.dart';
 import '../transcript/icons.dart';
+import 'popover_anchor.dart';
 import 'shell_common.dart';
 
 /// 顶栏一条（高 [t.Geometry.barHeight]，下边框 subtle）。
@@ -25,6 +26,8 @@ class TopBar extends StatelessWidget {
     this.onClose,
     this.hoverProject = false,
     this.hoverBranch = false,
+    this.projectAnchor,
+    this.branchAnchor,
   });
 
   final String projectName;
@@ -46,6 +49,10 @@ class TopBar extends StatelessWidget {
   final bool hoverProject;
   final bool hoverBranch;
 
+  /// 画板 41 的项目切换 / 分支切换弹层锚点（内容由组合根给；gallery 里为 null）。
+  final PopoverHandle? projectAnchor;
+  final PopoverHandle? branchAnchor;
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -62,29 +69,35 @@ class TopBar extends StatelessWidget {
             child: Row(
               children: <Widget>[
                 Flexible(
-                  child: Hoverable(
-                    onTap: onProject,
-                    forceHover: hoverProject,
-                    builder: (context, hovered) => _chip(
-                      hovered: hovered,
-                      child: Text(projectName, style: CardText.headerTitle.copyWith(color: t.Neutral.strong), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  child: PopoverAnchor(
+                    handle: projectAnchor,
+                    child: Hoverable(
+                      onTap: onProject,
+                      forceHover: hoverProject,
+                      builder: (context, hovered) => _chip(
+                        hovered: hovered,
+                        child: Text(projectName, style: CardText.headerTitle.copyWith(color: t.Neutral.strong), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ),
                     ),
                   ),
                 ),
                 if (branch != null) ...<Widget>[
                   const SizedBox(width: t.Spacing.s4),
-                  Hoverable(
-                    onTap: onBranch,
-                    forceHover: hoverBranch,
-                    builder: (context, hovered) => _chip(
-                      hovered: hovered,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          AcpIcon(AcpIcons.gitBranch, color: hovered ? t.Neutral.text : t.Neutral.muted, size: t.IconSizes.toolbar),
-                          const SizedBox(width: t.Spacing.s4),
-                          Text(branch!, style: CardText.secondary.copyWith(color: hovered ? t.Neutral.text : t.Neutral.muted)),
-                        ],
+                  PopoverAnchor(
+                    handle: branchAnchor,
+                    child: Hoverable(
+                      onTap: onBranch,
+                      forceHover: hoverBranch,
+                      builder: (context, hovered) => _chip(
+                        hovered: hovered,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            AcpIcon(AcpIcons.gitBranch, color: hovered ? t.Neutral.text : t.Neutral.muted, size: t.IconSizes.toolbar),
+                            const SizedBox(width: t.Spacing.s4),
+                            Text(branch!, style: CardText.secondary.copyWith(color: hovered ? t.Neutral.text : t.Neutral.muted)),
+                          ],
+                        ),
                       ),
                     ),
                   ),
