@@ -1,4 +1,4 @@
-#include "acp_window.h"
+﻿#include "acp_window.h"
 
 #include <flutter/method_channel.h>
 #include <flutter/standard_method_codec.h>
@@ -14,7 +14,8 @@ constexpr int kResizeBorder = 8;
 
 std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> g_channel;
 
-bool IsMaximized(HWND window) {
+// 注意不能叫 IsMaximized：winuser.h 把它 #define 成了 IsZoomed，会和系统的重载撞上。
+bool IsWindowMaximized(HWND window) {
   WINDOWPLACEMENT placement{};
   placement.length = sizeof(WINDOWPLACEMENT);
   if (!::GetWindowPlacement(window, &placement)) {
@@ -25,7 +26,7 @@ bool IsMaximized(HWND window) {
 
 // 最大化时客户区会比工作区大出一圈边框，手动缩回去，否则右边与下边会被裁掉。
 void AdjustMaximizedClientRect(HWND window, RECT& rect) {
-  if (!IsMaximized(window)) {
+  if (!IsWindowMaximized(window)) {
     return;
   }
   HMONITOR monitor = ::MonitorFromWindow(window, MONITOR_DEFAULTTONULL);
@@ -47,7 +48,7 @@ LRESULT HitTest(HWND window, LPARAM lparam) {
     return HTCLIENT;
   }
   // 最大化时不给缩放热区（和系统行为一致）。
-  if (IsMaximized(window)) {
+  if (IsWindowMaximized(window)) {
     return HTCLIENT;
   }
   const bool left = cursor.x < rect.left + kResizeBorder;
@@ -80,13 +81,13 @@ void AcpWindowRegisterChannel(flutter::FlutterEngine* engine, HWND window) {
           ::ShowWindow(window, SW_MINIMIZE);
           result->Success();
         } else if (method == "toggleMaximize") {
-          ::ShowWindow(window, IsMaximized(window) ? SW_RESTORE : SW_MAXIMIZE);
-          result->Success(flutter::EncodableValue(IsMaximized(window)));
+          ::ShowWindow(window, IsWindowMaximized(window) ? SW_RESTORE : SW_MAXIMIZE);
+          result->Success(flutter::EncodableValue(IsWindowMaximized(window)));
         } else if (method == "close") {
           ::PostMessage(window, WM_CLOSE, 0, 0);
           result->Success();
         } else if (method == "isMaximized") {
-          result->Success(flutter::EncodableValue(IsMaximized(window)));
+          result->Success(flutter::EncodableValue(IsWindowMaximized(window)));
         } else if (method == "startDragging") {
           // 交回系统拖窗口：和拖标题栏完全一样（含贴边 / 甩动最大化）。
           ::ReleaseCapture();

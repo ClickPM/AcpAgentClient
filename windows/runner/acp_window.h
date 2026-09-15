@@ -1,4 +1,4 @@
-// 无边框窗口与窗口控制的平台通道（docs/design.md § 9 裁定 2026-09-15：runner 自写，不引 window_manager 类库）。
+﻿// 无边框窗口与窗口控制的平台通道（docs/design.md § 9 裁定 2026-09-15：runner 自写，不引 window_manager 类库）。
 //
 // 两件事：
 //   1. 去掉系统标题栏，但保留系统的缩放、贴边（Snap）与阴影：`WM_NCCALCSIZE` 吃掉非客户区，
