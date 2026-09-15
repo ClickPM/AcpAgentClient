@@ -116,7 +116,17 @@
 | 6 | P2 | git 子进程没设 `CREATE_NO_WINDOW`，GUI 宿主里闪控制台 | 采纳。与 agent 拉起同一口径 |
 | 7 | P2 | `list_dir` / `search` 可能跟着 junction / symlink 走出工作区 | 采纳。改用 `DirEntry::file_type`（不跟随），链接一律当文件，既不进目录组也不递归进去 |
 
-- 结论：待第 2 轮复审
+**第 2 轮：2 条（high 0 / P2 2），全部采纳**（范围仍是全量 `main...HEAD`，HEAD = `3abab9c`；
+产物 `.claude/reviews/20260915-210619-review.out.md`；整改提交 `ef493f1`）
+
+第 1 轮两条 high 的整改经复核成立。新出的两条：
+
+| # | 级别 | finding | 处理 |
+|---|---|---|---|
+| 8 | P2 | 第 1 轮第 7 条的整改在 **Windows junction** 上没盖住：目录联接（mount point）的 `is_symlink()` 是 false、`is_dir()` 是 true，`file_type()` 那一版仍会把它当目录列出来并 `read_dir` 跟进去 | 采纳（审查者对）。统一走 `entry_is_dir(&meta)`：Windows 看 `FILE_ATTRIBUTE_REPARSE_POINT`，其他平台看 `is_symlink()`。新增 `#[cfg(windows)]` 回归测试：`mklink /J` 建一个指向工作区外的联接，断言它被当文件、`search` 搜不出外面的文件名、联接本身按名字仍搜得到 |
+| 9 | P2 | `session/prompt` 失败时 `_runTurn` 不 `endTurn`，`currentTurn` 一直挂着：线程头永远转 spinner、发送位永远是停止键，之后的 Restore 还会去操作 agent 侧已不存在的 sessionId | 采纳。try/catch 里无论成败都收轮；失败时 `stopReason` 留空（连接断了本来就没有协议给的结束值，不编一个，规则 2）。新增用例 |
+
+- 结论：待第 3 轮复审
 
 ## 失败处理
 
