@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code when working in this repository.
 
 > **本文只留五块**：项目定位、仓库结构、开发模式与轮次流程、硬性规则、本地开发。
-> 背景 / 诉求 / 研究 / 设计都在 `docs/`，轮次拆解在仓库根 `ROUNDS.md`（首轮拆解时建立），按需读。
+> 背景 / 诉求 / 研究 / 设计都在 `docs/`，轮次拆解在仓库根 `ROUNDS.md`，按需读。
 > **书写约定：硬性规则编号只增不改、不重排**（代码注释会引用「CLAUDE.md 规则 N」）；删掉的规则留「已废弃」占位。
 > `AGENTS.md` 是给**外部审查者**的指针文件（执行器 = cursor CLI），指向本文，无需双份维护。
 
@@ -21,7 +21,7 @@ This file provides guidance to Claude Code when working in this repository.
 ```
 AcpAgentClient/
 ├── CLAUDE.md / AGENTS.md / README.md      约定、审查者指针、简介
-├── ROUNDS.md                              轮次总览与 roadmap（首轮拆解时建立）
+├── ROUNDS.md                              轮次总览与 roadmap：R0–R8 拆解、画板 → 轮次 → widget 文件、裁定门、进度表
 ├── docs/                                  background / requirements / research / design / acp-projection / review-workflow
 ├── design/                                设计稿与简报：design/round-NN/{input/（交给 Claude Design 的简报与附件）, canvas.json, NN-<画板>.dc.html, NN-<画板>.png}
 │                                          + design/README.md 画板索引（编号 / 名称 / .dc.html / PNG / 画布 URL）
@@ -35,8 +35,8 @@ AcpAgentClient/
 ├── rust/                                  （R0）Rust 核心 workspace：acp-core / registry / pty / fs / settings + bridge（frb cdylib）
 ├── lib/                                   （R0）Flutter 前端（Dart）：bridge/（frb 生成物）/ projection/（ACP 投影状态层）/ theme/tokens.dart / 画板 widget
 ├── pubspec.yaml / flutter_rust_bridge.yaml（R0）Flutter 项目与 frb codegen 配置
-├── windows/ macos/ linux/                 （R0 / R7）Flutter 平台 runner；sidecar 的 CMake install 规则在这里
-└── sidecar/zed-agent-acp/                 （R6）独立 cargo workspace，path 依赖 vendor/upstream/zed
+├── windows/ macos/ linux/                 （R0 / R8）Flutter 平台 runner；sidecar 的 CMake install 规则在这里
+└── sidecar/zed-agent-acp/                 （R7）独立 cargo workspace，path 依赖 vendor/upstream/zed
 ```
 
 ## 开发模式与轮次流程
@@ -74,7 +74,7 @@ AcpAgentClient/
 
 ## 硬性规则
 
-1. **依赖白名单。** 实现层只允许来自：官方协议仓库（规范 + `schema/v1`）、官方 `rust-sdk`、官方 `registry`、`zed-industries/zed`、五个 agent（claude-agent-acp、codex-acp、Cursor CLI ACP 文档、pi-acp、dsh-acp-interactive）。**任何实现了 ACP 客户端、agent 会话状态或会话 UI 的第三方库一律不引入**（acp-components、acp-ui、pi-web 等已被裁定排除）。通用库允许清单：Rust 侧 tokio、serde、serde_json、reqwest、sha2、portable-pty、notify、flutter_rust_bridge；Dart 侧 Flutter SDK 自带的 Material / Cupertino、flutter_rust_bridge、xterm、url_launcher、file_selector、一个 diff 库；**Markdown 渲染库在 R1.5 spike 选型并经所有者裁定后才进清单**（裁定 2026-09-12），此前不得引入。清单之外新增通用库要在任务卡写明理由；**不引第三方 UI 组件库与状态管理库**（shadcn_ui / GetWidget / fluent_ui、riverpod / bloc / getx 及同类），组件全部从画板手写，状态用 SDK 自带的 `ChangeNotifier` / `Stream`。界定有疑问时按 `docs/requirements.md` 第 8 条，仍有疑问问所有者。
+1. **依赖白名单。** 实现层只允许来自：官方协议仓库（规范 + `schema/v1`）、官方 `rust-sdk`、官方 `registry`、`zed-industries/zed`、五个 agent（claude-agent-acp、codex-acp、Cursor CLI ACP 文档、pi-acp、dsh-acp-interactive）。**任何实现了 ACP 客户端、agent 会话状态或会话 UI 的第三方库一律不引入**（acp-components、acp-ui、pi-web 等已被裁定排除）。通用库允许清单：Rust 侧 tokio、serde、serde_json、reqwest、sha2、portable-pty、notify、flutter_rust_bridge；Dart 侧 Flutter SDK 自带的 Material / Cupertino、flutter_rust_bridge、xterm、url_launcher、file_selector、flutter_svg（内联图标与 registry `icon.svg`，所有者裁定 2026-09-15）、一个 diff 库；**Markdown 渲染库在 R1.5 spike 选型并经所有者裁定后才进清单**（裁定 2026-09-12），此前不得引入。清单之外新增通用库要在任务卡写明理由；**不引第三方 UI 组件库与状态管理库**（shadcn_ui / GetWidget / fluent_ui、riverpod / bloc / getx 及同类），组件全部从画板手写，状态用 SDK 自带的 `ChangeNotifier` / `Stream`。界定有疑问时按 `docs/requirements.md` 第 8 条，仍有疑问问所有者。
 2. **严格 ACP 投影。** 前端只消费 ACP 线上消息的原样 JSON（契约见 `docs/design.md` § 3）；不自造第二套协议；前端不做任何 agent 特判；`_meta` 只允许 `docs/design.md` § 4 列出的键，增键先改文档再进所有者裁定。
 3. **设计稿是功能边界。** 设计稿（`design/` 里入库的 PNG 与索引）没有的功能不做；样式唯一来源是 `lib/theme/tokens.dart`，widget 文件里不写样式字面量；接后端只换数据源，不改布局、widget 树结构与 token，接线轮里 `tokens.dart` 与画板 widget 文件应零 diff。扩边界的唯一正确顺序是「先改设计稿（更新 PNG 与索引）、再进轮次」。
 4. **钉版本。** `pins/upstream.json` 是上游唯一事实来源，`vendor/upstream/` 永不入库；改版本先改 pins，再改 `docs/research.md` 对应段，再 fetch。禁止在 `vendor/upstream/` 里改代码：要改就复制出来（规则 5）。
@@ -87,7 +87,7 @@ AcpAgentClient/
 
 ## 本地开发
 
-- **前置**：Rust stable（`rust-toolchain.toml` 在 R0 钉）、Flutter stable（版本在 `pubspec.yaml` `environment` 钉，R0 定）、`flutter_rust_bridge_codegen`（与 Rust 侧 crate 同版本，另需 `cargo-expand`）、Node ≥ 22（跑 npx 类 agent 用）、Flutter Windows 前置（VS 2022「使用 C++ 的桌面开发」工作负载、CMake、Windows 10 SDK）；sidecar 另需 Zed 的构建前置（Windows SDK ≥ 10.0.20348，见 `vendor/upstream/zed/docs/src/development/windows.md`）。本机路径含中文，R0 起 `CARGO_TARGET_DIR` 指向纯 ASCII 路径（见 `docs/research.md` § 9.3）。
+- **前置**：Rust stable（`rust-toolchain.toml` 在 R0 钉）、Flutter stable（版本在 `pubspec.yaml` `environment` 钉，R0 定）、`flutter_rust_bridge_codegen`（与 Rust 侧 crate 同版本，另需 `cargo-expand`）、Node ≥ 22（跑 npx 类 agent 用）、Flutter Windows 前置（VS 2022「使用 C++ 的桌面开发」工作负载、CMake、Windows 10 SDK）；sidecar 另需 Zed 的构建前置（Windows SDK ≥ 10.0.20348，见 `vendor/upstream/zed/docs/src/development/windows.md`）。R0 起 `CARGO_TARGET_DIR` 固定为纯 ASCII 路径 `D:\cargo-target\AcpAgentClient`（所有者裁定 2026-09-15；本机用户名已是 ASCII，此项为含中文 / 空格的工作副本兜底，见 `docs/research.md` § 9.3）。
 - **上游源码**：`powershell -File scripts/fetch-upstream.ps1`（首次填充）、`-Check`（验证钉版本）；Git Bash 用 `scripts/fetch-upstream.sh [--check]`。
 - **审查器**：`cursor-agent` 装在 `%LOCALAPPDATA%\cursor-agent\cursor-agent.cmd`（不在 PATH），须先 `cursor-agent login`；脚本按绝对路径找。
 - **本机坑**（沿用全局记忆）：用户名含中文与全角括号，含中文的 `.ps1` 必须 UTF-8 with BOM（`cursor-review.ps1` 已带）；Bash 工具里 `\\` 会塌成 `\`；`%TEMP%` 是 8.3 短名，路径比较要双边规范化。

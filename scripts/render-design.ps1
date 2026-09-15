@@ -24,6 +24,8 @@ $browser = @(
 if (-not $browser) { throw "No Chromium browser found (Edge or Chrome)." }
 
 $files = Get-ChildItem $dir -Filter "*.dc.html" | Sort-Object Name
+# `powershell -File ... -Only 01,25` hands the script one string "01,25"; split it so both call styles work.
+$Only = @($Only | ForEach-Object { $_ -split ',' } | Where-Object { $_ -ne '' })
 if ($Only.Count -gt 0) {
     $files = $files | Where-Object { $n = $_.Name; ($Only | Where-Object { $n.StartsWith($_) }).Count -gt 0 }
 }

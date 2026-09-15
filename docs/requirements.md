@@ -31,7 +31,7 @@
    - `zed-industries/zed`
    - 五个 agent：`claude-agent-acp`、`codex-acp`、Cursor CLI ACP（仅文档）、`svkozak/pi-acp`、`ClickPM/dsh-acp-interactive`
 
-   **界定：** 白名单约束的是「ACP 客户端逻辑、agent 状态模型、会话 UI」这类实现来源。语言级基础库与工具（Rust 侧 tokio、serde、serde_json、reqwest、sha2、portable-pty、notify、flutter_rust_bridge；Dart 侧 Flutter SDK 自带的 Material / Cupertino、flutter_rust_bridge、xterm、url_launcher、file_selector、一个 diff 库、一个 Markdown 渲染库（所有者裁定 2026-09-12：**spike 选型后再进白名单**，spike 之前不得引入）；构建期的 schema 代码生成器与 frb codegen）属于工具，不受白名单限制，清单之外的新增要在任务卡写明理由；任何实现了 ACP 客户端、agent 会话状态或会话 UI 的第三方库（例如 acp-components、acp-ui、pi-web）一律不引入，第三方 UI 组件库（shadcn_ui、GetWidget、fluent_ui 及同类）与状态管理库（riverpod、bloc、getx 及同类）同样不引入。
+   **界定：** 白名单约束的是「ACP 客户端逻辑、agent 状态模型、会话 UI」这类实现来源。语言级基础库与工具（Rust 侧 tokio、serde、serde_json、reqwest、sha2、portable-pty、notify、flutter_rust_bridge；Dart 侧 Flutter SDK 自带的 Material / Cupertino、flutter_rust_bridge、xterm、url_launcher、file_selector、flutter_svg（所有者裁定 2026-09-15）、一个 diff 库、一个 Markdown 渲染库（所有者裁定 2026-09-12：**spike 选型后再进白名单**，spike 之前不得引入）；构建期的 schema 代码生成器与 frb codegen）属于工具，不受白名单限制，清单之外的新增要在任务卡写明理由；任何实现了 ACP 客户端、agent 会话状态或会话 UI 的第三方库（例如 acp-components、acp-ui、pi-web）一律不引入，第三方 UI 组件库（shadcn_ui、GetWidget、fluent_ui 及同类）与状态管理库（riverpod、bloc、getx 及同类）同样不引入。
 9. **平台。** Windows 首发；macOS 随后；Linux 尽量。
 
 ## 不做

@@ -234,9 +234,9 @@ claude-agent-acp 与 codex-acp 都带一层 `_meta.jetbrains.air` 扩展（两�
 
 1. ~~是否声明 `plan` 与 `session.compaction`~~ → **已裁定 2026-09-11：两个都声明**（依据「多数 agent 已支持 plan 与压缩」）。两者都在 sdk `unstable` 伞内，不改 feature 集。design.md § 4 已补；`plan_update` / `plan_removed` / `compaction_update` / `compaction_summary_chunk` 四个变体由此成为**必投影面**，设计稿要为多计划（items / file / markdown 三种载荷）与压缩卡片留画板。
 2. ~~`notice` 怎么办~~ → **已裁定 2026-09-11：取方案 (a)**，不为它改 feature 集；核心侧对反序列化失败的 `session/update` 计数并经 `acp/agent_state` 上抛告警，原文落 `acp/traffic`。R1 用 dsh 实测后复议。
-3. **前端 Dart 类型的生成源**（2026-09-12 前端改 Flutter，生成目标由 TypeScript 改为 Dart，问题不变）。`schema.json`（11 变体）少了我们编译出的 4 个；`schema.unstable.json`（16 变体）多了 nes / notices / providers / mcp-over-acp。建议从 `schema.unstable.json` 生成再按白名单裁剪，把「我们支持的 15 个」写成一份显式清单进仓库。与 `rounds/BACKLOG.md` 已有的「前端类型来源二选一」条目合并考虑。
+3. ~~前端 Dart 类型的生成源~~ → **已裁定 2026-09-15：不生成，手写薄封装** `lib/projection/wire.dart`（15 变体 + 5 种内容块 + 3 种工具卡内容 + 两类请求）；合规性由 Rust 侧用 rust-sdk 类型反序列化 `test/fixtures/` 的测试兜底，「我们支持的 15 个」就是这份 fixtures 与薄封装的显式清单。原问题：`schema.json`（11 变体）少了我们编译出的 4 个；`schema.unstable.json`（16 变体）多了 nes / notices / providers / mcp-over-acp，两份都不能直接生成。
 4. **`docs/research.md` § 2 补一句**：schema crate 的 `unstable` 伞与 sdk 的 `unstable` 伞不是同一个集合（多 `unstable_nes`、`unstable_session_notices`），并记 schema crate 版本 `=1.7.0`、JSON Schema 版本 1.21.0。
-5. **`docs/design.md` § 3 建议补三条**：未知 `session/update` 的丢弃与告警口径；elicitation 的 requestScope 场景；工具调用「已取消」是客户端本地态。
+5. ~~`docs/design.md` § 3 建议补三条~~ → 已补（2026-09-15）：未知 `session/update` 的丢弃计数进 `acp/agent_state`；elicitation 的 requestScope 队列与落点；工具调用「已取消」是客户端本地态。
 
 ---
 

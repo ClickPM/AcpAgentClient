@@ -6,7 +6,7 @@ Agent 一律经 [Agent Client Protocol（ACP）](https://agentclientprotocol.com
 
 ## 状态
 
-2026-09-11 建仓，完成三轮可行性分析；2026-09-12 技术栈调整为 Flutter + Rust（frb v2）；2026-09-14 设计工具改回 Claude Design。尚未开始编码。轮次拆解将建立在 `ROUNDS.md`。
+2026-09-11 建仓，完成三轮可行性分析；2026-09-12 技术栈调整为 Flutter + Rust（frb v2）；2026-09-14 设计工具改回 Claude Design，同日 40 张画板设计稿收口入库；2026-09-15 按设计稿完成轮次拆解（R0–R8，见 [`ROUNDS.md`](ROUNDS.md)）。尚未开始编码。
 
 ## 文档
 
@@ -17,6 +17,8 @@ Agent 一律经 [Agent Client Protocol（ACP）](https://agentclientprotocol.com
 | [`docs/research.md`](docs/research.md) | 源码级研究结论：Zed 的 ACP 代码、rust-sdk v2、registry、五个 agent、sidecar 接入点、被排除的路线、Flutter + Rust 桥接、Claude Design 交付链路 |
 | [`docs/design.md`](docs/design.md) | 进程模型、分层来源、核心与前端契约、认证、registry、终端与 fs、sidecar、前端（Flutter）、阶段草案 |
 | [`docs/review-workflow.md`](docs/review-workflow.md) | 独立审查：cursor CLI + grok 4.6 high 首选，硬失败回落 Claude Code 子代理；发起、取回与回落条件 |
+| [`ROUNDS.md`](ROUNDS.md) | 轮次拆解：R0–R8 各轮目标 / 交付物 / 验收 / 裁定门，画板 → 轮次 → widget 文件对应表，五 agent 全通矩阵，进度表 |
+| [`design/README.md`](design/README.md) | 画板索引：40 张画板的 `.dc.html` 源、PNG 基准与实现状态 |
 | [`CLAUDE.md`](CLAUDE.md) | 开发约定、轮次流程与硬性规则（`AGENTS.md` 是给审查者的指针） |
 
 ## 架构一图

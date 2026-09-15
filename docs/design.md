@@ -1,6 +1,6 @@
 # 整体设计
 
-> 本文是架构与既定决策。范围以 [`requirements.md`](requirements.md) 为准，依据在 [`research.md`](research.md)。轮次拆解在仓库根 `ROUNDS.md`（首轮拆解时建立），本文 § 11 只是草案。
+> 本文是架构与既定决策。范围以 [`requirements.md`](requirements.md) 为准，依据在 [`research.md`](research.md)。轮次拆解在仓库根 [`ROUNDS.md`](../ROUNDS.md)（2026-09-15 按设计稿建立），本文 § 11 已由它取代。
 
 ## 1. 进程模型
 
@@ -32,15 +32,16 @@ Flutter 宿主进程（Dart）
 | 层 | 来源 | 用法 |
 |---|---|---|
 | 协议客户端 | rust-sdk v2 | `Client::builder().on_receive_request(...)` 注册回调；`AcpAgentConfig` 拉起子进程；`unstable` 特性集与 Zed 对齐 |
-| 前端类型 | 协议仓库 `schema/v1/schema.unstable.json` 按 15 变体白名单裁剪 | 构建期生成 Dart 类型（或手写 15 变体薄封装，R0 定）并入库；运行期零协议依赖 |
+| 前端类型 | 手写薄封装 `lib/projection/wire.dart`（15 变体 + 5 种内容块 + 3 种工具卡内容 + 两类请求；所有者裁定 2026-09-15，不做构建期生成） | 只做字段访问与判别；合规性由 Rust 侧用 rust-sdk 类型反序列化 `test/fixtures/` 的测试兜底；运行期零协议依赖 |
 | Dart ↔ Rust 桥 | flutter_rust_bridge v2 | Rust 侧 `rust/bridge` crate 暴露 `api.rs`；Dart 侧生成物入库 `lib/bridge/`；payload 一律 JSON `String` |
 | registry 与安装 | Zed `agent_registry_store.rs`、`agent_server_store.rs` | 整体复制；删 remote / collab 路径；`Entity` / `Task` 换 tokio；`fs::Fs` 换 `tokio::fs`；结构体对照官方 `agent.schema.json` |
 | Node 与下载 | Zed `node_runtime`、`http_client`、`reqwest_client`、`paths`、`util` | 直接 git 依赖（不含 gpui） |
 | 连接与认证语义 | Zed `agent_servers/acp.rs` 非测试部分 | 转写：能力声明、AuthRequired 映射、terminal auth、session 控制、config options、elicitation、流量日志 |
 | 终端回调语义 | Zed `acp_thread/terminal.rs` | 转写：输出字节上限、wait_for_exit、kill、release |
 | 文件面板 | 自研 | `std::fs` + `notify`；不做索引服务 |
+| git（分支列表 / 切换 / 新建、文件树状态徽章、Branch Diff 上下文） | 自研 | `git` CLI 子进程薄封装（放 `rust/fs`），不引 git 库；检测不到 git 或目录不是仓库时相关 UI 隐藏（所有者裁定 2026-09-15） |
 | Zed 内置 agent | Zed `agent` + `eval_cli` | sidecar，见 § 8 |
-| UI | Claude Design 设计稿 | 全部自研；token 提炼到 `lib/theme/tokens.dart`，每个画板一个 widget 文件 |
+| UI | Claude Design 设计稿 | 全部自研；token 提炼到 `lib/theme/tokens.dart`，每个画板一个 widget 文件（同一卡片的状态画板可合一文件，文件头列画板号；画板 → 轮次 → 文件的对应表见 `ROUNDS.md` § 2） |
 
 ## 3. 核心与前端的契约（严格 ACP 投影）
 
@@ -53,17 +54,22 @@ Flutter 宿主进程（Dart）
 | 事件 | payload |
 |---|---|
 | `acp/session_update` | `{agentId, sessionId, update}`；`update` 是 `SessionNotification` 的原样 JSON（SDK 类型 serde 直出） |
-| `acp/client_request` | `{agentId, requestId, method, params}`；用于需要用户参与的客户端请求：`session/request_permission`、`elicitation/create`；前端必须以 `acp_respond` 回应 |
-| `acp/agent_state` | 连接生命周期：spawned / initialized / auth_required(authMethods) / exited(code, stderr tail) |
-| `acp/terminal_output` | terminal auth 与内置终端的输出流（非协议消息，仅用于可见终端） |
+| `acp/client_request` | `{agentId, requestId, method, params}`；用于需要用户参与的客户端请求：`session/request_permission`、`elicitation/create`；`elicitation/create` 可能是 requestScope（无 `sessionId`，认证阶段），前端队列不能只按会话索引，这类落认证页（画板 52）而不是转录；前端必须以 `acp_respond` 回应 |
+| `acp/agent_state` | 连接生命周期：spawned / initialized / auth_required(authMethods) / exited(code, stderrTail)；另带 `droppedUpdates`（反序列化失败的 `session/update` 计数，§ 4）与对应告警（R1） |
+| `acp/terminal_output` | `{terminalId, source, bytes}`；`source` ∈ agent（`terminal/*` 回调建的终端）/ auth（terminal auth 的可见终端）/ local（终端面板的本地 shell）；非协议消息，仅用于渲染（R4） |
 | `acp/traffic` | 原始 JSON-RPC 行（脱敏后），供调试面板 |
+| `registry/progress` | 安装进度 `{agentId, step, done?, total?, error?}`：npx 是 resolve / write_settings / handshake，binary 是 download / verify / extract，另有 node_download（R5） |
 
 **命令（前端 → 核心）**
 
-- 连接与会话：`agent_connect`、`agent_disconnect`、`session_new`、`session_load`、`session_list`、`session_close`、`session_prompt`、`session_cancel`、`session_set_mode`、`session_set_config_option`、`acp_respond`
+- 连接与会话：`agent_connect`、`agent_disconnect`、`session_new`、`session_load`、`session_list`（cursor 分页）、`session_resume`、`session_close`、`session_delete`、`session_prompt`、`session_cancel`、`session_set_mode`、`session_set_config_option`、`acp_respond`
 - 认证：`authenticate`（agent 类型）、`terminal_auth_run`（terminal 类型；完成后核心自动重试 `session/new`）
-- registry 与设置：`registry_refresh`、`registry_list`、`registry_install`、`agent_settings_get/set`、`agent_settings_import_zed`
-- 文件面板：`fs_list_dir`、`fs_read`、`fs_watch`、`fs_search`
+- registry、Node 与设置：`registry_refresh`、`registry_list`、`registry_install`、`registry_cancel_install`、`registry_remove`、`node_status`、`node_download`、`agent_settings_get/set`、`agent_settings_import_zed`
+- 文件面板与 git：`fs_list_dir`、`fs_read`、`fs_watch`、`fs_search`、`git_status`（文件树徽章）、`git_branches`、`git_switch`、`git_create_branch`、`git_diff`（Branch Diff 上下文）
+- 本地 shell（终端面板）：`terminal_open`、`terminal_write`、`terminal_resize`、`terminal_close`；输出走 `acp/terminal_output`
+- 项目与本地索引：`workspace_recent`、`workspace_open`、`session_index_list/upsert/remove`（会话索引：agentId + sessionId + 标题 + cwd + 时间 + 消息计数）
+
+命令名以本节为准，各轮只实现自己那部分（归属见 `ROUNDS.md` § 3 / § 5）；R3–R6 的新增项是 2026-09-15 按画板裁定后一次写入的，不再逐轮改契约。
 
 **前端状态规则**
 
@@ -71,6 +77,11 @@ Flutter 宿主进程（Dart）
 - `user_message_chunk` / `agent_message_chunk` / `agent_thought_chunk` 按顺序追加。
 - 待处理的 permission 与 elicitation 是队列，回应后出队。
 - 不在前端做任何 agent 特判。
+- 待处理队列按 `sessionId` 索引，另有一个无会话的 requestScope 队列（认证阶段的 elicitation）。
+- 工具调用「已取消」是前端本地态（`ToolCallStatus` 没有 cancelled）：发出 `session/cancel` 后把本轮未完成的工具卡标 cancelled，核心不伪造状态。
+- Restore Checkpoint 与用户消息的 Regenerate（画板 10 / 11）= 本地截断其后的投影块并在同一会话重发 prompt；协议没有回滚，agent 侧上下文不回退，这是已知限制（所有者裁定 2026-09-15）。
+- `/` 命令菜单单组渲染：`AvailableCommand` 没有分组与来源字段，不按名字猜分组（所有者裁定 2026-09-15）。
+- 侧栏会话列表以本地索引为准；`session/list` 只用来校对存在性与补标题，agent 有、本地没有的会话不自动出现（所有者裁定 2026-09-15，R6）。
 
 ## 4. initialize 能力声明
 
@@ -84,6 +95,8 @@ Flutter 宿主进程（Dart）
 两者都在 rust-sdk `unstable` 伞内（`unstable_plan_operations`、`unstable_session_compaction`），不改 feature 集，不触发规则 4 / 10。会话流可投影内容的完整清单见 [`acp-projection.md`](acp-projection.md)。
 
 **`notice` 的处置（所有者裁定 2026-09-11）**：sdk 的 `unstable` 不转发 `unstable_session_notices`，`SessionUpdate::Notice` 编译不出来，收到即反序列化失败。不为它改 feature 集；核心侧对反序列化失败的 `session/update` 计数并经 `acp/agent_state` 上抛告警，原文落 `acp/traffic` 供排查。R1 用 dsh 实测一次后复议。
+
+**入站 `_meta` 识别键（所有者裁定 2026-09-15）**：上面的清单是我们**发出**的 `_meta`。前端**读取**的入站 `_meta` 键也只有这一份清单：`claudeCode.parentToolUseId` / `claudeCode.subagent` / `claudeCode.toolName`（claude-agent-acp 的子代理标记）与 `dsh_subagent`（dsh-acp-interactive）。投影层只按「键是否存在」把工具调用归到子代理卡（画板 24）之下，不按 agent 名判；其余入站 `_meta` 原样保留、不解释。增减键改本段并进所有者裁定。
 
 ## 5. 认证流程
 
@@ -112,7 +125,7 @@ Flutter 宿主进程（Dart）
 - 映射：`initialize` → 固定能力；`session/new` / `session/load` / `session/list` → `NativeAgent::open_thread` 与 `ThreadStore`；`session/prompt` → `Thread::send` 得到 `ThreadEvent` 流；`session/cancel` → `Thread` 取消；`session/set_mode` 与 config options → `model_selector` / 权限预设。
 - 事件翻译：`ThreadEvent::{UserMessage, AgentText, AgentThinking, ToolCall, ToolCallUpdate, SubagentSpawned, Retry, ContextCompaction*}` → `session/update`；`ToolCallAuthorization` → `session/request_permission`，结果写回 `response`；`Elicitation` → `elicitation/create`；`Stop` → `PromptResponse`。
 - 终端：实现 `ThreadEnvironment::create_terminal`，进程内用 Zed `terminal` crate。
-- 数据：默认与本机 Zed 共用 `threads.db` 与 `settings.json`；是否隔离在 R6 裁定。
+- 数据：默认与本机 Zed 共用 `threads.db` 与 `settings.json`；是否隔离在 R7 实测后裁定。模型密钥沿用 Zed 的 `settings.json` / 环境变量，不做额外配置页（所有者裁定 2026-09-15）。
 - 打包：在 `windows/runner/CMakeLists.txt`（macOS / Linux 对应 runner）加 install 规则，把 `zed-agent-acp(.exe)` 放到应用目录旁随主程序分发；核心按可执行文件相对路径定位它。
 
 ## 9. 前端
@@ -124,28 +137,24 @@ Flutter 宿主进程（Dart）
 - 终端渲染用 `xterm`（pub.dev）；PTY 仍在 Rust 侧 portable-pty，`acp/terminal_output` 推字节，Dart 只渲染。文件对话框与打开 URL 用 Flutter 官方 `file_selector` / `url_launcher`，其余系统交互一律走 Rust。
 - ACP 投影的状态层自己写，约五百行，是唯一不允许第三方替代的部分；规则来自 `prototype/assets/projection.js`。
 - 设计稿存 `design/`：每轮一个子目录，含 `design-prompt.md`（给 Claude Design 的设计简报）、每个画板一个 `.dc.html` 源、`canvas.json` 布局与每个画板一张 PNG 快照；`design/README.md` 是画板索引（编号、名称、`.dc.html`、PNG、画布 URL），画板编号只增不改。`.dc.html` 是设计的唯一事实来源，PNG 是审查与验收的基准，画布上的后续改动不影响已开工轮次；改设计走「先拉回 `.dc.html`、重导 PNG、更新索引，再进轮次」。
-- 页面：会话工作台（消息、思考、工具卡、计划、用量、权限与 elicitation）；agent 管理（registry、custom、认证状态）；文件面板；设置；ACP 流量调试。
+- 页面：会话工作台（消息、思考、工具卡、计划、用量、权限与 elicitation；顶栏的项目与分支切换）；agent 管理（registry、custom、认证状态）；文件面板（含终端面板）；设置；ACP 流量调试。
+- 画板要求、文档原本没有的几项，所有者 2026-09-15 按 `ROUNDS.md` § 6 的推荐一并裁定：
+  - **项目** = 一个本地目录，作为 `session/new` 的 cwd；顶栏可在已打开项目、最近项目（本地列表）与 `file_selector` 选目录之间切换；不做 Zed 的 worktree 模型。
+  - **分支**：顶栏显示当前分支，弹层列本地分支、可搜索、可切换与新建（`git switch` / `git switch -c`）；非 git 目录整块隐藏。
+  - **窗口控制**（— ☐ ✕ 画在应用顶栏，即无边框窗口）：Windows runner 自写平台通道（`WM_NCHITTEST` 拖拽区 + 最小化 / 最大化 / 关闭三个方法），不引 `window_manager` 类库；macOS 用原生 traffic lights。
+  - **`Rules` 行**（画板 30 / 40 的用量弹层）：当前项目根目录下规则文件的计数（AGENTS.md、CLAUDE.md、`.rules`；清单在 R3 任务卡定），点击在文件面板打开。
+  - **文件树 git 状态徽章**（画板 60）：保留，由 `git status --porcelain` 得出。
+  - **`+` 弹层**只有 Files & Directories / Threads / Image / Branch Diff 四项；原稿的 Symbols 与 Selection 需要 LSP 与编辑器选区，与 `requirements.md`「不做」冲突，已从画板 40 删除。
+  - **终端面板**（画板 61）含本地交互 shell、多标签；复用 `rust/pty` 与 `acp/terminal_output`，命令见 § 3。
 - 接后端只换数据源，不改样式：接线轮里 `lib/theme/tokens.dart` 与画板 widget 文件应零 diff。
 
 ## 10. 数据目录
 
-Windows：`%APPDATA%/AcpAgentClient/{settings.json, registry-cache/, agents/, node/, logs/}`。会话数据归各 agent 自己（claude、codex、pi、dsh 各有自己的存储）；本客户端只存会话索引（agentId + sessionId + 标题 + cwd + 时间）。日志脱敏：`Authorization`、`api_key`、`token` 字段一律打码。
+Windows：`%APPDATA%/AcpAgentClient/{settings.json, sessions.json, projects.json, registry-cache/, agents/, node/, logs/}`。会话数据归各 agent 自己（claude、codex、pi、dsh 各有自己的存储）；本客户端只存会话索引 `sessions.json`（agentId + sessionId + 标题 + cwd + 时间 + 消息计数）与最近项目列表 `projects.json`，两者都走临时文件 + rename。日志脱敏：`Authorization`、`api_key`、`token` 字段一律打码。
 
-## 11. 阶段草案
+## 11. 阶段草案（已取代）
 
-| 轮 | 目标 | 参照 agent |
-|---|---|---|
-| R0 | 脚手架：Flutter 桌面项目 + `rust/` workspace（cdylib）+ frb v2 接通（一个命令 + 一条事件流往返）+ schema→Dart 生成 + Rust 核心独立 CLI smoke + validate 脚本；**在含中文与全角括号的用户名路径下完成 Windows 构建** | 无 |
-| R1 | 主线：拉起、initialize、terminal auth、prompt、权限、取消 | dsh-acp-interactive |
-| R1.5 | spike：Markdown 渲染选型（流式追加、代码高亮、CJK、选择复制），产出对比记录与所有者裁定，进白名单 | 无 |
-| R2 | 会话工作台按设计稿实现 | dsh-acp-interactive |
-| R3 | fs 与 terminal 回调 | claude-agent-acp |
-| R4 | registry：拉取、npx / binary 安装、受管 Node；URL elicitation 登录 | codex-acp、Cursor |
-| R5 | session/list、session/load、modes、config options、Zed 设置导入 | pi-acp、全部 |
-| R6 | zed-agent-acp sidecar | Zed 内置 agent |
-| R7 | 打包：Windows 免安装 zip 与安装器；macOS | 全部 |
-
-设计轮插在实现轮之前：R2 之前先出会话工作台设计稿，R4 之前先出 agent 管理设计稿。
+本节的草案已于 2026-09-15 由仓库根 [`ROUNDS.md`](../ROUNDS.md) 取代：设计稿（40 张画板）收口后，实现拆成 R0–R8（含 R1.5 spike），每张画板归属恰好一轮，各轮的验收、裁定门与契约变更都在那里。本节不再维护，编号沿革只记一句：原草案的 R6（sidecar）与 R7（打包）在 `ROUNDS.md` 里是 R7 与 R8，其余编号含义不变。
 
 ## 12. 风险与对策
 
@@ -157,6 +166,6 @@ Windows：`%APPDATA%/AcpAgentClient/{settings.json, registry-cache/, agents/, no
 | Rust panic 会带倒整个 Flutter 进程 | 核心对外 API 边界统一 `catch_unwind` 转 `Result`；agent 子进程崩溃只上报 `acp/agent_state` |
 | Windows 中文 IME 组合窗与转录跨消息文本选择 | R0 / R2 各实测一次记录；设计稿有「复制整段」按钮可绕过大部分选择需求 |
 | `unstable` 特性集漂移 | 钉 rust-sdk commit；改钉先改 `pins/upstream.json` 与 `research.md` |
-| sidecar 与运行中的 Zed 争用 `threads.db` | R6 裁定：只读共用 / 隔离目录二选一 |
+| sidecar 与运行中的 Zed 争用 `threads.db` | R7 实测后裁定：只读共用 / 隔离目录二选一 |
 | Zed 构建环境重 | sidecar 独立 workspace，主程序不依赖它也能跑；CI 分开 |
 | 设计稿范围蔓延 | 画板编号只增不改；设计稿没有的功能进 BACKLOG |

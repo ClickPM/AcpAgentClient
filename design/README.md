@@ -16,6 +16,7 @@
 - token 提炼：只从 `00-tokens` 画板的 `.dc.html`（`<helmet><style>` 与内联样式）提炼到 `lib/theme/tokens.dart`，不从页面画板反推；该文件是样式唯一来源，每次设计轮结束时同步更新并在下表「token 变更」列记一句。
 - `.dc.html` 是 HTML 加内联样式，**只作设计源，不复用为代码**；组件全部从画板手写（CLAUDE.md 规则 1 / 3）。
 - 画布上 Save 过的改动，先读回仓库覆盖 `design/round-NN/` 里的源文件，再跑 `scripts/render-design.ps1` 重渲染 PNG；不在画布与仓库两边各改一份。
+- 每张画板的实现轮次与 widget 文件见仓库根 `ROUNDS.md` § 2；实现轮收口时把下表「状态」改为 `已实现（R<N>）`。
 
 ## 画板
 
@@ -63,6 +64,11 @@
 | 80 | ACP 流量调试 | ACP 流量调试 | round-design | `design/round-design/80-traffic.dc.html` | `design/round-design/80-traffic.png` | — | 待实现 | — |
 
 状态取值：`待实现` / `已实现（R<N>）` / `已废弃`。
+
+## 变更记录（入库后对 `.dc.html` 的改动，PNG 已用 `scripts/render-design.ps1` 重渲染）
+
+- 2026-09-15 画板 40：`+` 弹层删去 Symbols 与 Selection 两行。需要 LSP 与编辑器选区，与 `docs/requirements.md`「不做」冲突；所有者裁定，见 `ROUNDS.md` § 6。
+- 2026-09-15 画板 42：`/` 命令菜单合并为单组（保留 Commands 标题），去掉 Skills 分组标题与右侧的 built-in / 项目名来源标签；`<path>` 参数提示保留。`AvailableCommand` 只有 name / description / input，没有分组与来源字段；所有者裁定，见 `ROUNDS.md` § 6。
 
 ## 页面与画板的对应
 
