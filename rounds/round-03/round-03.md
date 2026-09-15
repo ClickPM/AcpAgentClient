@@ -2,7 +2,7 @@
 
 <!-- 保存为 rounds/round-03/round-03.md；该轮其他管理产出放同一目录。 -->
 
-> 状态：进行中（实现与实测完成，待独立审查收口）
+> 状态：已完成
 
 ## 目标
 
@@ -126,7 +126,14 @@
 | 8 | P2 | 第 1 轮第 7 条的整改在 **Windows junction** 上没盖住：目录联接（mount point）的 `is_symlink()` 是 false、`is_dir()` 是 true，`file_type()` 那一版仍会把它当目录列出来并 `read_dir` 跟进去 | 采纳（审查者对）。统一走 `entry_is_dir(&meta)`：Windows 看 `FILE_ATTRIBUTE_REPARSE_POINT`，其他平台看 `is_symlink()`。新增 `#[cfg(windows)]` 回归测试：`mklink /J` 建一个指向工作区外的联接，断言它被当文件、`search` 搜不出外面的文件名、联接本身按名字仍搜得到 |
 | 9 | P2 | `session/prompt` 失败时 `_runTurn` 不 `endTurn`，`currentTurn` 一直挂着：线程头永远转 spinner、发送位永远是停止键，之后的 Restore 还会去操作 agent 侧已不存在的 sessionId | 采纳。try/catch 里无论成败都收轮；失败时 `stopReason` 留空（连接断了本来就没有协议给的结束值，不编一个，规则 2）。新增用例 |
 
-- 结论：待第 3 轮复审
+**第 3 轮：0 条**（范围按 CLAUDE.md 第 3 轮起的口径 `-Scope since -Base 3abab9c`，即只审第 2 轮整改的 diff；
+产物 `.claude/reviews/20260915-212544-review.out.md`）。复审逐条核对了第 8 / 9 条的整改，确认没引入新缺陷
+（含 `_turnInFlight` 在失败路径上仍会正常完成、`_saveIndex` 失败时的二次 `endTurn()` 是空操作、
+`TurnEndLine` 对空 `stopReason` 不崩这几处）。
+
+- 结论：**整改后 PASS**。三轮共 9 条 findings（high 2 / P2 7），全部采纳整改，high 清零，第 3 轮 0 条。
+- 代价要认（CLAUDE.md 的口径）：第 3 轮只审整改 diff，第 1 / 2 轮全量范围之外没有再扫一遍；
+  两轮全量是覆盖面的来源。
 
 ## 失败处理
 
