@@ -1,0 +1,759 @@
+//! 一条 agent 连接：拉起子进程、rust-sdk Client 角色、agent → client 的请求队列、`acp/traffic` 行 tap、
+//! 退出监视与 stderr 尾巴（docs/design.md § 3 的事件与命令在这里落地）。
+//! Derived from zed-industries/zed crates/agent_servers/src/acp.rs @ d9e1c024f393832765a03f4de204d6c8cd9abcb2 (GPL-3.0-or-later)
+//! （转写：stdin / stdout 行 tap 与 stderr 单独一路、`initialize` 与进程退出赛跑、`AuthRequired` 映射、cancel 语义、
+//! 退出时带 stderr 尾巴；去掉 gpui 前台桥、AcpThread 与会话实体——本项目只做投影，会话状态在前端。）
+//!
+//! 线程模型：所有 future 跑在 `Core` 的 tokio 多线程 runtime 上；SDK 的 handler 必须 `Send`，
+//! 共享状态全在 [`Shared`]（`Arc` + `Mutex`）。handler 只做「入队 + 发事件」，不阻塞 SDK 的 dispatch 循环。
+
+use std::collections::{HashMap, VecDeque};
+use std::future::Future;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+use agent_client_protocol::schema::ProtocolVersion;
+use agent_client_protocol::schema::v1 as acp;
+use agent_client_protocol::{Agent, Client, ConnectTo, ConnectionTo, Lines, Responder, UntypedMessage, is_incoming_transport_closed};
+use serde_json::{Value, json};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::sync::{oneshot, watch};
+
+use crate::capabilities;
+use crate::command::{self, LaunchSpec};
+use crate::error::{CoreError, Result};
+use crate::events::{EventChannel, EventSink};
+use crate::redact;
+
+/// stderr 尾巴的上限（随 `exited` 事件带出）。
+const STDERR_TAIL_LIMIT: usize = 8 * 1024;
+/// `agent_disconnect` 关掉 stdin 后等 agent 自行退出的时间；超时就结束进程树。
+const DISCONNECT_GRACE: Duration = Duration::from_secs(3);
+/// 进程退出后留给 stderr 读任务收尾的时间。
+const STDERR_SETTLE: Duration = Duration::from_millis(200);
+/// 请求因「传输已关闭」失败时，等退出监视补上退出码与 stderr 尾巴的时间（进程死亡先于 SDK 报错被观察到的窗口）。
+const EXIT_INFO_GRACE: Duration = Duration::from_secs(2);
+
+pub const METHOD_SESSION_UPDATE: &str = "session/update";
+pub const METHOD_REQUEST_PERMISSION: &str = "session/request_permission";
+pub const METHOD_ELICITATION_CREATE: &str = "elicitation/create";
+pub const METHOD_ELICITATION_COMPLETE: &str = "elicitation/complete";
+pub const METHOD_CANCEL_REQUEST: &str = "$/cancel_request";
+
+/// `acp/traffic.direction`。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Direction {
+    /// agent → 客户端（agent 的 stdout）。
+    In,
+    /// 客户端 → agent（agent 的 stdin）。
+    Out,
+    Stderr,
+}
+
+impl Direction {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Direction::In => "in",
+            Direction::Out => "out",
+            Direction::Stderr => "stderr",
+        }
+    }
+}
+
+/// 进程退出信息（`acp/agent_state: exited`）。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ExitInfo {
+    pub code: Option<i32>,
+    pub stderr_tail: String,
+    pub transport_error: Option<String>,
+}
+
+struct Pending {
+    method: String,
+    session_id: Option<String>,
+    responder: Responder<Value>,
+}
+
+#[derive(Debug, Default)]
+struct SessionState {
+    cwd: PathBuf,
+    /// 发出 `session/cancel` 后到本轮 `session/prompt` 返回之前为 true：期间到达的权限请求自动回 `cancelled`。
+    cancel_pending: bool,
+}
+
+/// 连接的共享状态：handler、tap、退出监视与命令侧都持有 `Arc<Shared>`。
+pub struct Shared {
+    agent_id: String,
+    sink: Arc<dyn EventSink>,
+    dropped_updates: AtomicU64,
+    pending: Mutex<HashMap<String, Pending>>,
+    sessions: Mutex<HashMap<String, SessionState>>,
+    auth_methods: Mutex<Vec<acp::AuthMethod>>,
+    stderr_tail: Mutex<VecDeque<u8>>,
+    transport_error: Mutex<Option<String>>,
+    exit: watch::Sender<Option<ExitInfo>>,
+    /// 有子进程时退出由进程监视决定；无子进程（测试传输）时由传输结束决定。
+    has_process: bool,
+}
+
+impl std::fmt::Debug for Shared {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Shared").field("agent_id", &self.agent_id).finish_non_exhaustive()
+    }
+}
+
+fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    match m.lock() {
+        Ok(g) => g,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
+impl Shared {
+    fn new(agent_id: String, sink: Arc<dyn EventSink>, has_process: bool) -> Self {
+        Self {
+            agent_id,
+            sink,
+            dropped_updates: AtomicU64::new(0),
+            pending: Mutex::new(HashMap::new()),
+            sessions: Mutex::new(HashMap::new()),
+            auth_methods: Mutex::new(Vec::new()),
+            stderr_tail: Mutex::new(VecDeque::new()),
+            transport_error: Mutex::new(None),
+            exit: watch::Sender::new(None),
+            has_process,
+        }
+    }
+
+    pub fn agent_id(&self) -> &str {
+        &self.agent_id
+    }
+
+    pub fn dropped_updates(&self) -> u64 {
+        self.dropped_updates.load(Ordering::Relaxed)
+    }
+
+    pub fn auth_methods(&self) -> Vec<acp::AuthMethod> {
+        lock(&self.auth_methods).clone()
+    }
+
+    pub fn exit_info(&self) -> Option<ExitInfo> {
+        self.exit.borrow().clone()
+    }
+
+    pub fn pending_request_ids(&self) -> Vec<String> {
+        lock(&self.pending).keys().cloned().collect()
+    }
+
+    /// 等进程退出（无子进程时 = 传输结束）。
+    pub async fn wait_exit(&self) -> ExitInfo {
+        let mut rx = self.exit.subscribe();
+        match rx.wait_for(|e| e.is_some()).await {
+            Ok(guard) => guard.clone().unwrap_or_default(),
+            Err(_) => ExitInfo::default(),
+        }
+    }
+
+    fn emit(&self, channel: EventChannel, payload: Value) {
+        self.sink.emit(channel, payload.to_string());
+    }
+
+    /// `acp/agent_state`：`{agentId, state, droppedUpdates, ...extra}`。
+    pub(crate) fn emit_state(&self, state: &str, extra: Value) {
+        let mut payload = json!({
+            "agentId": self.agent_id,
+            "state": state,
+            "droppedUpdates": self.dropped_updates(),
+        });
+        if let (Value::Object(target), Value::Object(source)) = (&mut payload, extra) {
+            target.extend(source);
+        }
+        self.emit(EventChannel::AgentState, payload);
+    }
+
+    /// `acp/traffic`：脱敏后的原始行（规则 8）。
+    fn emit_traffic(&self, direction: Direction, line: &str) {
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        self.emit(
+            EventChannel::Traffic,
+            json!({
+                "agentId": self.agent_id,
+                "direction": direction.as_str(),
+                "line": redact::redact_line(line),
+                "ts": ts,
+            }),
+        );
+    }
+
+    fn push_stderr(&self, bytes: &[u8]) {
+        let mut tail = lock(&self.stderr_tail);
+        tail.extend(bytes.iter().copied());
+        tail.push_back(b'\n');
+        while tail.len() > STDERR_TAIL_LIMIT {
+            tail.pop_front();
+        }
+    }
+
+    fn stderr_tail_string(&self) -> String {
+        let mut tail = lock(&self.stderr_tail);
+        String::from_utf8_lossy(tail.make_contiguous()).into_owned()
+    }
+
+    fn record_session(&self, session_id: &str, cwd: PathBuf) {
+        lock(&self.sessions).insert(
+            session_id.to_string(),
+            SessionState {
+                cwd,
+                cancel_pending: false,
+            },
+        );
+    }
+
+    pub fn session_cwd(&self, session_id: &str) -> Option<PathBuf> {
+        lock(&self.sessions).get(session_id).map(|s| s.cwd.clone())
+    }
+
+    fn set_cancel_pending(&self, session_id: &str, value: bool) {
+        if let Some(session) = lock(&self.sessions).get_mut(session_id) {
+            session.cancel_pending = value;
+        }
+    }
+
+    fn is_cancel_pending(&self, session_id: &str) -> bool {
+        lock(&self.sessions).get(session_id).is_some_and(|s| s.cancel_pending)
+    }
+
+    fn take_pending(&self, request_id: &str) -> Option<Pending> {
+        lock(&self.pending).remove(request_id)
+    }
+
+    /// 进程退出（或传输结束）：记状态、清队列（应答不到了）、发 `exited`。只生效一次。
+    fn finish(&self, code: Option<i32>) {
+        let info = ExitInfo {
+            code,
+            stderr_tail: self.stderr_tail_string(),
+            transport_error: lock(&self.transport_error).clone(),
+        };
+        let first = self.exit.send_if_modified(|slot| {
+            if slot.is_some() {
+                return false;
+            }
+            *slot = Some(info.clone());
+            true
+        });
+        if !first {
+            return;
+        }
+        lock(&self.pending).clear();
+        self.emit_state(
+            "exited",
+            json!({
+                "code": info.code,
+                "stderrTail": info.stderr_tail,
+                "transportError": info.transport_error,
+            }),
+        );
+    }
+
+    fn exited_error(&self, info: ExitInfo) -> CoreError {
+        CoreError::Exited {
+            agent_id: self.agent_id.clone(),
+            code: info.code,
+            stderr_tail: info.stderr_tail,
+        }
+    }
+
+    // ---- agent → client 请求（handler 在 SDK dispatch 循环里跑，只入队 + 发事件）
+
+    fn enqueue(&self, method: &str, session_id: Option<String>, params: Value, responder: Responder<Value>) {
+        let request_id = responder.id().to_string();
+        lock(&self.pending).insert(
+            request_id.clone(),
+            Pending {
+                method: method.to_string(),
+                session_id,
+                responder,
+            },
+        );
+        self.emit(
+            EventChannel::ClientRequest,
+            json!({
+                "agentId": self.agent_id,
+                "requestId": request_id,
+                "method": method,
+                "params": params,
+            }),
+        );
+    }
+
+    fn on_permission(
+        &self,
+        request: acp::RequestPermissionRequest,
+        responder: Responder<acp::RequestPermissionResponse>,
+    ) -> std::result::Result<(), acp::Error> {
+        let session_id = request.session_id.0.to_string();
+        if self.is_cancel_pending(&session_id) {
+            // 发出 cancel 后挂起的权限请求 MUST 回 cancelled（docs/acp-projection.md § 3.1）。
+            return responder.respond(acp::RequestPermissionResponse::new(acp::RequestPermissionOutcome::Cancelled));
+        }
+        let params = serde_json::to_value(&request)?;
+        self.enqueue(METHOD_REQUEST_PERMISSION, Some(session_id), params, responder.erase_to_json());
+        Ok(())
+    }
+
+    fn on_elicitation(
+        &self,
+        request: acp::CreateElicitationRequest,
+        responder: Responder<acp::CreateElicitationResponse>,
+    ) -> std::result::Result<(), acp::Error> {
+        let params = serde_json::to_value(&request)?;
+        // sessionScope 带 sessionId；requestScope 没有（认证阶段），队列里 session 为空。
+        let session_id = params.get("sessionId").and_then(Value::as_str).map(str::to_string);
+        self.enqueue(METHOD_ELICITATION_CREATE, session_id, params, responder.erase_to_json());
+        Ok(())
+    }
+
+    /// 全部通知走这一个 handler：`session/update` 用 SDK 类型校验后 serde 直出；反序列化失败计数 + 告警
+    /// （docs/design.md § 4 `notice` 裁定）；`elicitation/complete` 与 `$/cancel_request` 以 `requestId: null`
+    /// 的 `acp/client_request` 转给前端（是通知，不需回应）。其他通知只留在 traffic。
+    fn on_notification(&self, notification: UntypedMessage) {
+        let (method, params) = notification.into_parts();
+        match method.as_str() {
+            METHOD_SESSION_UPDATE => match serde_json::from_value::<acp::SessionNotification>(params) {
+                Ok(parsed) => match serde_json::to_value(&parsed) {
+                    Ok(mut payload) => {
+                        if let Value::Object(map) = &mut payload {
+                            map.insert("agentId".to_string(), Value::String(self.agent_id.clone()));
+                        }
+                        self.emit(EventChannel::SessionUpdate, payload);
+                    }
+                    Err(e) => self.drop_update(&e.to_string()),
+                },
+                Err(e) => self.drop_update(&e.to_string()),
+            },
+            METHOD_CANCEL_REQUEST => {
+                if let Some(id) = params.get("requestId") {
+                    let key = serde_json::from_value::<acp::RequestId>(id.clone())
+                        .map(|id| id.to_string())
+                        .unwrap_or_else(|_| id.to_string());
+                    if self.take_pending(&key).is_some() {
+                        self.forward_notification(&method, params);
+                    }
+                }
+            }
+            METHOD_ELICITATION_COMPLETE => self.forward_notification(&method, params),
+            _ => {}
+        }
+    }
+
+    fn forward_notification(&self, method: &str, params: Value) {
+        self.emit(
+            EventChannel::ClientRequest,
+            json!({
+                "agentId": self.agent_id,
+                "requestId": Value::Null,
+                "method": method,
+                "params": params,
+            }),
+        );
+    }
+
+    fn drop_update(&self, error: &str) {
+        self.dropped_updates.fetch_add(1, Ordering::Relaxed);
+        self.emit_state(
+            "update_dropped",
+            json!({
+                "method": METHOD_SESSION_UPDATE,
+                "error": error,
+            }),
+        );
+    }
+}
+
+/// 一条已完成 `initialize` 的连接。
+pub struct AgentConnection {
+    shared: Arc<Shared>,
+    connection: ConnectionTo<Agent>,
+    shutdown: Mutex<Option<oneshot::Sender<()>>>,
+    kill: Mutex<Option<oneshot::Sender<()>>>,
+    pub launch: LaunchSpec,
+    /// `InitializeResponse` 原样 JSON（agentInfo / agentCapabilities / authMethods）。
+    pub initialize: Value,
+}
+
+impl std::fmt::Debug for AgentConnection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AgentConnection").field("agent_id", &self.shared.agent_id).finish_non_exhaustive()
+    }
+}
+
+impl AgentConnection {
+    /// 拉起子进程并完成 `initialize`。`cwd` 是 agent 进程的工作目录。
+    pub async fn connect(agent_id: String, launch: LaunchSpec, cwd: Option<PathBuf>, sink: Arc<dyn EventSink>) -> Result<Arc<Self>> {
+        let shared = Arc::new(Shared::new(agent_id, sink, true));
+        let mut cmd = command::build_command(&launch, cwd.as_deref());
+        let mut child = cmd.spawn().map_err(|e| CoreError::Spawn(format!("{}: {e}", launch.program)))?;
+        let stdin = child.stdin.take().ok_or_else(|| CoreError::Spawn("stdin not piped".into()))?;
+        let stdout = child.stdout.take().ok_or_else(|| CoreError::Spawn("stdout not piped".into()))?;
+        let stderr = child.stderr.take().ok_or_else(|| CoreError::Spawn("stderr not piped".into()))?;
+        shared.emit_state(
+            "spawned",
+            json!({
+                "pid": child.id(),
+                "program": launch.program,
+                "args": launch.args,
+                "cwd": cwd.as_ref().map(|p| p.to_string_lossy().into_owned()),
+            }),
+        );
+        tokio::spawn(stderr_task(shared.clone(), stderr));
+        let (kill_tx, kill_rx) = oneshot::channel();
+        tokio::spawn(exit_watcher(shared.clone(), child, kill_rx));
+        let transport = Lines::new(
+            Box::pin(outgoing_sink(shared.clone(), stdin)),
+            Box::pin(incoming_stream(shared.clone(), stdout)),
+        );
+        Self::connect_transport(shared, launch, transport, Some(kill_tx)).await
+    }
+
+    /// 测试入口：不拉进程，用任意 `ConnectTo<Client>` 传输（例如 SDK 的 `Channel`）；退出 = 传输结束。
+    pub async fn connect_with_transport(
+        agent_id: String,
+        launch: LaunchSpec,
+        sink: Arc<dyn EventSink>,
+        transport: impl ConnectTo<Client> + 'static,
+    ) -> Result<Arc<Self>> {
+        let shared = Arc::new(Shared::new(agent_id, sink, false));
+        Self::connect_transport(shared, launch, transport, None).await
+    }
+
+    async fn connect_transport(
+        shared: Arc<Shared>,
+        launch: LaunchSpec,
+        transport: impl ConnectTo<Client> + 'static,
+        kill: Option<oneshot::Sender<()>>,
+    ) -> Result<Arc<Self>> {
+        let (conn_tx, conn_rx) = oneshot::channel::<ConnectionTo<Agent>>();
+        let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+        let permission_shared = shared.clone();
+        let elicitation_shared = shared.clone();
+        let notification_shared = shared.clone();
+        let io = Client
+            .builder()
+            .name("acp-agent-client")
+            .on_receive_request(
+                async move |request: acp::RequestPermissionRequest,
+                            responder: Responder<acp::RequestPermissionResponse>,
+                            _cx: ConnectionTo<Agent>| { permission_shared.on_permission(request, responder) },
+                agent_client_protocol::on_receive_request!(),
+            )
+            .on_receive_request(
+                async move |request: acp::CreateElicitationRequest,
+                            responder: Responder<acp::CreateElicitationResponse>,
+                            _cx: ConnectionTo<Agent>| { elicitation_shared.on_elicitation(request, responder) },
+                agent_client_protocol::on_receive_request!(),
+            )
+            .on_receive_notification(
+                async move |notification: UntypedMessage, _cx: ConnectionTo<Agent>| {
+                    notification_shared.on_notification(notification);
+                    Ok(())
+                },
+                agent_client_protocol::on_receive_notification!(),
+            )
+            .connect_with(transport, async move |connection: ConnectionTo<Agent>| {
+                let _ = conn_tx.send(connection);
+                // 连接活到 `agent_disconnect`（或传输自己结束）。
+                let _ = shutdown_rx.await;
+                Ok(())
+            });
+        let io_shared = shared.clone();
+        tokio::spawn(async move {
+            if let Err(e) = io.await {
+                *lock(&io_shared.transport_error) = Some(e.to_string());
+            }
+            if !io_shared.has_process {
+                io_shared.finish(None);
+            }
+        });
+
+        let connection = tokio::select! {
+            handle = conn_rx => handle.map_err(|_| CoreError::Transport("connection handle never arrived".into()))?,
+            exit = shared.wait_exit() => return Err(shared.exited_error(exit)),
+        };
+        let shutdown = Mutex::new(Some(shutdown_tx));
+        let kill = Mutex::new(kill);
+        let request = acp::InitializeRequest::new(ProtocolVersion::V1)
+            .client_capabilities(capabilities::client_capabilities(&shared.agent_id))
+            .client_info(capabilities::client_info());
+        let response = match race_exit(&shared, connection.send_request(request).block_task()).await {
+            Ok(response) => response,
+            Err(e) => {
+                disconnect(&shared, &shutdown, &kill).await;
+                return Err(e);
+            }
+        };
+        if response.protocol_version < ProtocolVersion::V1 {
+            disconnect(&shared, &shutdown, &kill).await;
+            return Err(CoreError::Transport(format!("unsupported protocol version {:?}", response.protocol_version)));
+        }
+        *lock(&shared.auth_methods) = response.auth_methods.clone();
+        let initialize = serde_json::to_value(&response)?;
+        shared.emit_state("initialized", json!({ "initialize": initialize }));
+        Ok(Arc::new(Self {
+            shared,
+            connection,
+            shutdown,
+            kill,
+            launch,
+            initialize,
+        }))
+    }
+
+    pub fn agent_id(&self) -> &str {
+        &self.shared.agent_id
+    }
+
+    pub fn shared(&self) -> &Arc<Shared> {
+        &self.shared
+    }
+
+    pub fn auth_method(&self, method_id: &str) -> Option<acp::AuthMethod> {
+        self.shared.auth_methods().into_iter().find(|m| m.id().0.as_ref() == method_id)
+    }
+
+    pub async fn session_new(&self, cwd: PathBuf) -> Result<Value> {
+        let request = acp::NewSessionRequest::new(cwd.clone());
+        let response = race_exit(&self.shared, self.connection.send_request(request).block_task()).await?;
+        self.shared.record_session(response.session_id.0.as_ref(), cwd);
+        Ok(serde_json::to_value(&response)?)
+    }
+
+    /// `prompt` 是 `ContentBlock[]` 的 JSON。返回 `PromptResponse`（stopReason + usage）。
+    pub async fn session_prompt(&self, session_id: &str, prompt: Value) -> Result<Value> {
+        let blocks: Vec<acp::ContentBlock> = serde_json::from_value(prompt)
+            .map_err(|e| CoreError::InvalidArgument(format!("prompt must be a ContentBlock array: {e}")))?;
+        let request = acp::PromptRequest::new(acp::SessionId::new(session_id), blocks);
+        let result = race_exit(&self.shared, self.connection.send_request(request).block_task()).await;
+        // 本轮结束（不论怎么结束），cancel 期结束。
+        self.shared.set_cancel_pending(session_id, false);
+        let response = result?;
+        Ok(serde_json::to_value(&response)?)
+    }
+
+    /// 发 `session/cancel`；挂起的权限请求立刻回 `cancelled`，之后到本轮结束前到达的也自动回 `cancelled`。
+    pub fn session_cancel(&self, session_id: &str) -> Result<Value> {
+        self.shared.set_cancel_pending(session_id, true);
+        let to_cancel: Vec<Pending> = {
+            let mut pending = lock(&self.shared.pending);
+            let ids: Vec<String> = pending
+                .iter()
+                .filter(|(_, p)| p.method == METHOD_REQUEST_PERMISSION && p.session_id.as_deref() == Some(session_id))
+                .map(|(id, _)| id.clone())
+                .collect();
+            ids.into_iter().filter_map(|id| pending.remove(&id)).collect()
+        };
+        let cancelled = serde_json::to_value(acp::RequestPermissionResponse::new(acp::RequestPermissionOutcome::Cancelled))?;
+        let mut auto_cancelled = Vec::new();
+        for p in to_cancel {
+            let id = p.responder.id().to_string();
+            let _ = p.responder.respond(cancelled.clone());
+            auto_cancelled.push(id);
+        }
+        self.connection
+            .send_notification(acp::CancelNotification::new(acp::SessionId::new(session_id)))
+            .map_err(|e| CoreError::Transport(e.to_string()))?;
+        Ok(json!({ "cancelledRequestIds": auto_cancelled }))
+    }
+
+    pub async fn session_set_mode(&self, session_id: &str, mode_id: &str) -> Result<Value> {
+        let request = acp::SetSessionModeRequest::new(acp::SessionId::new(session_id), acp::SessionModeId::new(mode_id));
+        let response = race_exit(&self.shared, self.connection.send_request(request).block_task()).await?;
+        Ok(serde_json::to_value(&response)?)
+    }
+
+    /// `value` 是 `SessionConfigOptionValue` 的 JSON（`{type, value}`；无 `type` 视为 select 的 value id）。
+    pub async fn session_set_config_option(&self, session_id: &str, config_id: &str, value: Value) -> Result<Value> {
+        let mut params = json!({ "sessionId": session_id, "configId": config_id });
+        if let Value::Object(target) = &mut params {
+            match value {
+                Value::Object(fields) => target.extend(fields),
+                other => {
+                    target.insert("value".to_string(), other);
+                }
+            }
+        }
+        let request: acp::SetSessionConfigOptionRequest = serde_json::from_value(params)
+            .map_err(|e| CoreError::InvalidArgument(format!("config option value: {e}")))?;
+        let response = race_exit(&self.shared, self.connection.send_request(request).block_task()).await?;
+        Ok(serde_json::to_value(&response)?)
+    }
+
+    pub async fn authenticate(&self, method_id: &str) -> Result<Value> {
+        let request = acp::AuthenticateRequest::new(acp::AuthMethodId::new(method_id));
+        let response = race_exit(&self.shared, self.connection.send_request(request).block_task()).await?;
+        Ok(serde_json::to_value(&response)?)
+    }
+
+    /// 回应队列里的 `session/request_permission` / `elicitation/create`。`response` 是对应 Response 的 JSON，先按类型校验再回。
+    pub fn respond(&self, request_id: &str, response: Value) -> Result<Value> {
+        let pending = self
+            .shared
+            .take_pending(request_id)
+            .ok_or_else(|| CoreError::UnknownRequest(request_id.to_string()))?;
+        let method = pending.method.clone();
+        let validation = match method.as_str() {
+            METHOD_REQUEST_PERMISSION => serde_json::from_value::<acp::RequestPermissionResponse>(response.clone()).map(|_| ()),
+            METHOD_ELICITATION_CREATE => serde_json::from_value::<acp::CreateElicitationResponse>(response.clone()).map(|_| ()),
+            _ => Ok(()),
+        };
+        if let Err(e) = validation {
+            // 校验失败把请求放回队列，让前端改正后再回。
+            lock(&self.shared.pending).insert(request_id.to_string(), pending);
+            return Err(CoreError::InvalidArgument(format!("{request_id}: response does not match {method}: {e}")));
+        }
+        pending
+            .responder
+            .respond(response)
+            .map_err(|e| CoreError::Transport(e.to_string()))?;
+        Ok(json!({ "requestId": request_id, "method": method }))
+    }
+
+    /// 关 stdin 让 agent 自行退出；超时结束进程树。幂等。
+    pub async fn disconnect(&self) {
+        disconnect(&self.shared, &self.shutdown, &self.kill).await;
+    }
+}
+
+/// 请求与进程退出赛跑：agent 死了不让调用方挂着。
+async fn race_exit<T, F>(shared: &Shared, request: F) -> Result<T>
+where
+    F: Future<Output = std::result::Result<T, acp::Error>>,
+{
+    if let Some(exit) = shared.exit_info() {
+        return Err(shared.exited_error(exit));
+    }
+    let result = tokio::select! {
+        result = request => result,
+        exit = shared.wait_exit() => return Err(shared.exited_error(exit)),
+    };
+    match result {
+        Ok(value) => Ok(value),
+        Err(e) if is_incoming_transport_closed(&e) => {
+            // agent 的 stdout 先关、进程随后才被 wait 到：把退出码与 stderr 尾巴等出来再报，前端拿到的是 `exited` 而不是一句「传输关闭」。
+            match tokio::time::timeout(EXIT_INFO_GRACE, shared.wait_exit()).await {
+                Ok(exit) => Err(shared.exited_error(exit)),
+                Err(_) => Err(CoreError::Transport(e.to_string())),
+            }
+        }
+        Err(e) => Err(map_acp_error(shared, e)),
+    }
+}
+
+/// `-32000` → `acp/agent_state: auth_required(authMethods)` + [`CoreError::AuthRequired`]；其他原样带出。
+fn map_acp_error(shared: &Shared, error: acp::Error) -> CoreError {
+    if error.code == acp::ErrorCode::AuthRequired {
+        shared.emit_state(
+            "auth_required",
+            json!({
+                "authMethods": shared.auth_methods(),
+                "message": error.message,
+            }),
+        );
+        return CoreError::AuthRequired {
+            agent_id: shared.agent_id.clone(),
+            message: error.message,
+        };
+    }
+    let value = serde_json::to_value(&error).unwrap_or(Value::Null);
+    CoreError::Acp {
+        code: value.get("code").and_then(Value::as_i64).unwrap_or(-32603),
+        message: error.message,
+        data: error.data,
+    }
+}
+
+async fn disconnect(shared: &Shared, shutdown: &Mutex<Option<oneshot::Sender<()>>>, kill: &Mutex<Option<oneshot::Sender<()>>>) {
+    if let Some(tx) = lock(shutdown).take() {
+        let _ = tx.send(());
+    }
+    if shared.exit_info().is_some() {
+        return;
+    }
+    if tokio::time::timeout(DISCONNECT_GRACE, shared.wait_exit()).await.is_err() {
+        if let Some(kill) = lock(kill).take() {
+            let _ = kill.send(());
+        }
+        let _ = tokio::time::timeout(DISCONNECT_GRACE, shared.wait_exit()).await;
+    }
+}
+
+// ---- 传输：stdin / stdout 行 tap（转写 Zed acp.rs 的 tapped_incoming / tapped_outgoing）
+
+fn outgoing_sink(shared: Arc<Shared>, stdin: tokio::process::ChildStdin) -> impl futures::Sink<String, Error = std::io::Error> + Send + 'static {
+    futures::sink::unfold((stdin, shared), |(mut stdin, shared), line: String| async move {
+        shared.emit_traffic(Direction::Out, &line);
+        stdin.write_all(line.as_bytes()).await?;
+        stdin.write_all(b"\n").await?;
+        stdin.flush().await?;
+        Ok::<_, std::io::Error>((stdin, shared))
+    })
+}
+
+fn incoming_stream(shared: Arc<Shared>, stdout: tokio::process::ChildStdout) -> impl futures::Stream<Item = std::io::Result<String>> + Send + 'static {
+    let lines = BufReader::new(stdout).lines();
+    futures::stream::unfold((lines, shared, false), |(mut lines, shared, failed)| async move {
+        if failed {
+            return None;
+        }
+        match lines.next_line().await {
+            Ok(Some(line)) => {
+                shared.emit_traffic(Direction::In, &line);
+                Some((Ok(line), (lines, shared, false)))
+            }
+            Ok(None) => None,
+            Err(e) => Some((Err(e), (lines, shared, true))),
+        }
+    })
+}
+
+/// stderr 单独一路：逐行进 traffic，并保留尾巴。
+async fn stderr_task(shared: Arc<Shared>, stderr: tokio::process::ChildStderr) {
+    let mut reader = BufReader::new(stderr);
+    let mut buf = Vec::new();
+    loop {
+        buf.clear();
+        match reader.read_until(b'\n', &mut buf).await {
+            Ok(0) | Err(_) => break,
+            Ok(_) => {
+                while matches!(buf.last(), Some(b'\n' | b'\r')) {
+                    buf.pop();
+                }
+                shared.push_stderr(&buf);
+                let line = String::from_utf8_lossy(&buf);
+                shared.emit_traffic(Direction::Stderr, &line);
+            }
+        }
+    }
+}
+
+/// 等子进程退出（或收到 kill 信号后结束进程树），然后 `finish`。
+async fn exit_watcher(shared: Arc<Shared>, mut child: tokio::process::Child, kill_rx: oneshot::Receiver<()>) {
+    let waited = tokio::select! {
+        status = child.wait() => Some(status),
+        _ = kill_rx => None,
+    };
+    let status = match waited {
+        Some(status) => status,
+        None => {
+            command::kill_tree(&mut child).await;
+            child.wait().await
+        }
+    };
+    let code = status.ok().and_then(|s| s.code());
+    tokio::time::sleep(STDERR_SETTLE).await;
+    shared.finish(code);
+}

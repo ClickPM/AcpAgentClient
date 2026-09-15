@@ -408,7 +408,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 |---|---|---|---|---|---|---|
 | round-design | 已完成 | main | — | 72e2be1 | 设计稿审核 2 轮（主会话） | 40 张画板入库 |
 | R0 | 已完成 | `round-00` | —（R0 无画板阶段） | ddf22b3 | 5 轮 / cursor 两次空输出（`--plan` 误判，旁路会话已修为 `--mode ask`）→ Claude Code 子代理（第 1 轮 Fable 5.1，第 2–5 轮 opus）；18 条全部关闭 | 任务卡 `rounds/round-00/round-00.md`；Rust 核心不走 pub 插件（runner CMake 直接 apply_cargokit，见任务卡「偏离」）；IME 实测待所有者手测 |
-| R1 | 未开始 | `round-01` | — | — | — | |
+| R1 | 进行中（实现与验收完成，待审查） | `round-01` | —（R1 无画板阶段） | — | — | 任务卡 `rounds/round-01/round-01.md`；ConPTY 启动探询与 dsh `--setup` 提示不可见两处 Windows 坑记 BACKLOG |
 | R1.5 | 未开始 | `round-01.5`（worktree，不合并） | — | — | — | 产出只有 `rounds/round-1.5/spike.md` 与裁定 |
 | R2 | 未开始 | `round-02` | — | — | — | |
 | R3 | 未开始 | `round-03` | — | — | — | |

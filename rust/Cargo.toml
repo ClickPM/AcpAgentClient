@@ -23,6 +23,11 @@ agent-client-protocol = { git = "https://github.com/agentclientprotocol/rust-sdk
 tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "macros", "sync", "time", "io-util", "process"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
+# rust-sdk 的公开 API 以 futures 的 Sink / Stream / AsyncRead 为底座（Lines 传输、AcpAgent 的 spawn_process 返回 futures 流），
+# 转写 Zed 的流量 tap 必须直接实现这些 trait；它已是 rust-sdk 的传递依赖，不引入新的依赖闭包（R1 任务卡记理由）。
+futures = { version = "0.3", default-features = false, features = ["std", "async-await"] }
+# CLAUDE.md 规则 1 通用库清单内：terminal auth 的可见终端与 terminal/* 回调（docs/design.md § 7）。
+portable-pty = "0.9"
 
 acp-core = { path = "acp-core" }
 registry = { path = "registry" }
