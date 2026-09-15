@@ -1,0 +1,14 @@
+{"dir":"in","tag":"tool_call","delay":200,"msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess_9f3c21a7","update":{"sessionUpdate":"tool_call","toolCallId":"call_exec_1","title":"powershell -File scripts/validate.ps1","kind":"execute","status":"pending"}}}}
+{"dir":"in","tag":"terminal/create","delay":180,"msg":{"jsonrpc":"2.0","id":8,"method":"terminal/create","params":{"sessionId":"sess_9f3c21a7","command":"powershell","args":["-File","scripts/validate.ps1"],"cwd":"D:/variFlight_work/AcpAgentClient","outputByteLimit":65536,"env":[{"name":"ACP_TOKEN","value":"tok_FAKE_FOR_REDACTION_TEST"}]}}}
+{"dir":"out","tag":"terminal/create","delay":110,"msg":{"jsonrpc":"2.0","id":8,"result":{"terminalId":"term_1"}}}
+{"dir":"in","tag":"tool_call_update","delay":140,"msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess_9f3c21a7","update":{"sessionUpdate":"tool_call_update","toolCallId":"call_exec_1","status":"in_progress","content":[{"type":"terminal","terminalId":"term_1"}]}}}}
+{"dir":"local","delay":260,"kind":"terminal_output","terminalId":"term_1","chunk":"> node scripts/gen-acp-types.mjs --check\n"}
+{"dir":"local","delay":420,"kind":"terminal_output","terminalId":"term_1","chunk":"schema/v1 -> src/acp/types.ts: 同步\n"}
+{"dir":"local","delay":380,"kind":"terminal_output","terminalId":"term_1","chunk":"> cargo build --workspace\n    Finished dev [unoptimized] in 3.71s\n"}
+{"dir":"local","delay":340,"kind":"terminal_output","terminalId":"term_1","chunk":"> cargo test --workspace\ntest result: ok. 12 passed; 0 failed\n"}
+{"dir":"in","tag":"terminal/wait_for_exit","delay":120,"msg":{"jsonrpc":"2.0","id":9,"method":"terminal/wait_for_exit","params":{"sessionId":"sess_9f3c21a7","terminalId":"term_1"}}}
+{"dir":"local","delay":100,"kind":"terminal_exit","terminalId":"term_1","exitStatus":{"exitCode":0,"signal":null}}
+{"dir":"out","tag":"terminal/wait_for_exit","delay":40,"msg":{"jsonrpc":"2.0","id":9,"result":{"exitCode":0,"signal":null}}}
+{"dir":"in","tag":"terminal/release","delay":140,"msg":{"jsonrpc":"2.0","id":10,"method":"terminal/release","params":{"sessionId":"sess_9f3c21a7","terminalId":"term_1"}}}
+{"dir":"out","tag":"terminal/release","delay":60,"msg":{"jsonrpc":"2.0","id":10,"result":{}}}
+{"dir":"in","tag":"tool_call_update","note":"终端已 release，但输出必须继续留在卡上","delay":160,"msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"sess_9f3c21a7","update":{"sessionUpdate":"tool_call_update","toolCallId":"call_exec_1","status":"completed"}}}}

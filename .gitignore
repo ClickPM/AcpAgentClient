@@ -35,3 +35,10 @@ node_modules/
 .venv/
 .zed/
 ai-output/temporary/
+
+# Flutter tooling leftovers
+*.iml
+.idea/
+.metadata.bak
+# cargokit build tool scratch (rust build itself goes to CARGO_TARGET_DIR)
+cargokit/build_tool/.dart_tool/

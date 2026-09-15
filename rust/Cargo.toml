@@ -1,0 +1,43 @@
+[workspace]
+resolver = "3"
+members = [
+    "bridge",
+    "acp-core",
+    "registry",
+    "pty",
+    "fs",
+    "settings",
+    "tools/acp-smoke",
+]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.98"
+license = "GPL-3.0-or-later"
+publish = false
+
+[workspace.dependencies]
+# 官方 rust-sdk，钉 pins/upstream.json 的 rust-sdk commit（CLAUDE.md 规则 4）；feature 集与 Zed 对齐（规则 10）。
+agent-client-protocol = { git = "https://github.com/agentclientprotocol/rust-sdk.git", rev = "3a6d0ae88dbaa09fcb74e26761e3643a75b2015e", features = ["unstable"] }
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "macros", "sync", "time", "io-util", "process"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+
+acp-core = { path = "acp-core" }
+registry = { path = "registry" }
+pty = { path = "pty" }
+fs = { path = "fs" }
+settings = { path = "settings" }
+
+[workspace.lints.rust]
+# CLAUDE.md 规则 6：Rust 禁 unsafe。frb 生成物（bridge/src/frb_generated.rs）是唯一例外，在 lib.rs 上按模块 allow。
+unsafe_code = "deny"
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
+# MSVC 每次链接 cdylib 都往 stdout 打「正在创建库 …dll.lib」，rustc 会当 linker_messages 警告转发；不是问题。
+linker_messages = "allow"
+
+[workspace.lints.clippy]
+todo = "deny"
+unimplemented = "deny"
+unwrap_used = "warn"

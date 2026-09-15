@@ -407,7 +407,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 | 轮 | 状态 | 分支 | 画板阶段收口提交 | 合并 `main` 提交 | 审查（轮数 / 执行器） | 备注 |
 |---|---|---|---|---|---|---|
 | round-design | 已完成 | main | — | 72e2be1 | 设计稿审核 2 轮（主会话） | 40 张画板入库 |
-| R0 | 未开始 | `round-00` | — | — | — | |
+| R0 | 进行中 | `round-00` | — | — | — | 任务卡 `rounds/round-00/round-00.md`；Rust 核心不走 pub 插件（runner CMake 直接 apply_cargokit，见任务卡「偏离」） |
 | R1 | 未开始 | `round-01` | — | — | — | |
 | R1.5 | 未开始 | `round-01.5`（worktree，不合并） | — | — | — | 产出只有 `rounds/round-1.5/spike.md` 与裁定 |
 | R2 | 未开始 | `round-02` | — | — | — | |

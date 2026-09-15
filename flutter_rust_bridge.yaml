@@ -1,0 +1,6 @@
+# flutter_rust_bridge v2 codegen（docs/design.md § 2）。跑：flutter_rust_bridge_codegen generate
+# 生成物入库：lib/bridge/（Dart）与 rust/bridge/src/frb_generated.rs（Rust，rust_root 默认位置）。
+rust_input: crate::api
+rust_root: rust/bridge/
+dart_output: lib/bridge
+dart_entrypoint_class_name: RustLib

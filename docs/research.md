@@ -96,7 +96,7 @@ macOS 的 headless `run()` 仍然调用 `CFRunLoopRun()` 并把前台任务投�
 - 无系统 Node 时复用 Zed `node_runtime` 下载受管 Node 的路径在中文用户名下是否可用。
 - sidecar 与运行中的 Zed 同时打开 `threads.db` 的行为。
 - `unstable` 特性集与五个 agent 的对齐（usage、compaction、session fork）。
-- Flutter 构建链（CMake → cargokit → cargo）在含中文与全角括号的用户名路径下能否完成 Windows release 构建（§ 9.3）。
+- ~~Flutter 构建链（CMake → cargokit → cargo）在含中文与全角括号的用户名路径下能否完成 Windows release 构建（§ 9.3）~~ → R0 已验证：本机用户名已是 ASCII；含中文与空格的项目路径经 `build.ps1` 的目录联接可过，裸 `flutter build` 不行（§ 9.3）。
 - Flutter Windows 桌面的中文 IME 组合窗行为；`SelectionArea` 包住惰性列表后跨消息选择的表现。
 
 ## 9. Flutter + Rust 桥接（2026-09-12 技术栈调整依据）
@@ -119,6 +119,7 @@ macOS 的 headless `run()` 仍然调用 `CFRunLoopRun()` 并把前台任务投�
 ### 9.3 Windows 构建链的已知坑
 
 - frb 用 cargokit 在 Flutter 的 CMake 里调 `cargo build`，中间目录经过 `%LOCALAPPDATA%` 或项目路径；本机用户名含中文与全角括号，8.3 短名与 UTF-8 路径在 CMake ↔ cargo 间传递可能出错。对策：`CARGO_TARGET_DIR` 指到纯 ASCII 路径，R0 第一项验收就是在本机跑通 `flutter build windows --release`。
+  **R0 实测（2026-09-15）**：cargokit ↔ cargo 这段在含中文与空格的项目路径下没问题（`CARGO_TARGET_DIR` 补丁生效）；出问题的是 Flutter 自己的 `flutter_assemble` MSBuild 自定义生成规则，项目路径按系统代码页转码后读不到 `app.dill`。`scripts/build.ps1` 用 ASCII 目录联接（`mklink /J`）绕过，见 `rounds/round-00/round-00.md`。
 - Flutter Windows 前置：VS 2022「使用 C++ 的桌面开发」工作负载 + CMake（随 VS 装）+ Windows 10 SDK；与 Zed sidecar 的前置重叠，不额外增加机器要求。
 - frb codegen 需要 `cargo expand`（依赖 nightly rustfmt 或 `cargo-expand` 二进制），要写进本地开发前置。
 - Rust panic 跨 FFI 边界是 UB 级问题；frb 默认在边界 `catch_unwind` 转 Dart 异常，核心 API 层仍应统一返回 `Result`，不依赖这层兜底。

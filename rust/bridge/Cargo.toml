@@ -1,0 +1,20 @@
+[package]
+# 目录是 rust/bridge，包名用 acp_bridge：frb 与 cargokit 都拿包名当 DLL 名（acp_bridge.dll）。
+name = "acp_bridge"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+# 版本必须与 flutter_rust_bridge_codegen 与 Dart 侧 flutter_rust_bridge 完全一致；frb 的 deps check 直接读这一行。
+flutter_rust_bridge = "=2.13.0"
+acp-core.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

@@ -32,9 +32,12 @@ AcpAgentClient/
 ├── pins/upstream.json                     上游钉版本清单（提交进仓库；改版本先改这里）
 ├── scripts/                               fetch-upstream.ps1 / .sh；R0 起 validate / build
 ├── vendor/upstream/<name>/                钉版本源码（gitignored；fetch 脚本按 pins 填充）
-├── rust/                                  （R0）Rust 核心 workspace：acp-core / registry / pty / fs / settings + bridge（frb cdylib）
-├── lib/                                   （R0）Flutter 前端（Dart）：bridge/（frb 生成物）/ projection/（ACP 投影状态层）/ theme/tokens.dart / 画板 widget
-├── pubspec.yaml / flutter_rust_bridge.yaml（R0）Flutter 项目与 frb codegen 配置
+├── rust/                                  Rust 核心 workspace：acp-core / registry / pty / fs / settings + bridge（frb cdylib，包名 acp_bridge）+ tools/acp-smoke
+├── cargokit/                              frb 模板自带的 cargokit 副本；windows/CMakeLists.txt 直接 apply_cargokit（不走 pub 插件，见 rounds/round-00）
+├── assets/fonts/                          Geist / Geist Mono 可变字体 + OFL 许可证
+├── lib/                                   Flutter 前端（Dart）：app/（组合根）/ bridge/（frb 生成物）/ projection/（ACP 投影状态层）/ theme/tokens.dart / gallery/（画板对照）/ ui/（画板 widget，R2 起）
+├── test/fixtures/                         ACP 线上行（JSON Lines），Rust 测试 / Dart 单测 / gallery 三处共用
+├── pubspec.yaml / flutter_rust_bridge.yaml Flutter 项目与 frb codegen 配置
 ├── windows/ macos/ linux/                 （R0 / R8）Flutter 平台 runner；sidecar 的 CMake install 规则在这里
 └── sidecar/zed-agent-acp/                 （R7）独立 cargo workspace，path 依赖 vendor/upstream/zed
 ```
@@ -91,4 +94,6 @@ AcpAgentClient/
 - **上游源码**：`powershell -File scripts/fetch-upstream.ps1`（首次填充）、`-Check`（验证钉版本）；Git Bash 用 `scripts/fetch-upstream.sh [--check]`。
 - **审查器**：`cursor-agent` 装在 `%LOCALAPPDATA%\cursor-agent\cursor-agent.cmd`（不在 PATH），须先 `cursor-agent login`；脚本按绝对路径找。
 - **本机坑**（沿用全局记忆）：用户名含中文与全角括号，含中文的 `.ps1` 必须 UTF-8 with BOM（`cursor-review.ps1` 已带）；Bash 工具里 `\\` 会塌成 `\`；`%TEMP%` 是 8.3 短名，路径比较要双边规范化。
-- **命令**：R0 起提供 `scripts/validate.ps1`（编译 + 测试 + 契约检查）与 `scripts/build.ps1`；在此之前本节只有 fetch 与审查。
+- **命令**：`scripts/validate.ps1`（编译 + 测试 + 契约检查；`-Quick` 只跑静态检查）与 `scripts/build.ps1`（`flutter build windows --release`；`-Smoke` 跑一次无头往返自检）。frb 生成：`flutter_rust_bridge_codegen generate`（改 `rust/bridge/src/api.rs` 后必跑，生成物入库）。
+- **项目路径含中文 / 空格时只用 `scripts/build.ps1`**：Flutter 自己的 Windows 构建链会把非 ASCII 项目路径转码坏（R0 实测），`build.ps1` 检测到后经 `CARGO_TARGET_DIRscii-root` 目录联接构建；裸 `flutter build windows` 会失败。
+- **Windows 开发者模式**：Flutter 为 pub 插件建符号链接需要它；R0 的 Rust 核心不走插件所以不需要，R3 起引入 url_launcher / file_selector 前必须开启（设置 → 系统 → 开发者选项）。
