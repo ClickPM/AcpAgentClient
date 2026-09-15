@@ -297,7 +297,9 @@ class PlanUpdateWire {
   String? get planId => _asString(json['planId']);
   List<PlanEntryWire> get entries => _asMapList(json['entries']).map(PlanEntryWire.new).toList(growable: false);
   String? get uri => _asString(json['uri']);
-  String? get markdown => _asString(json['markdown']);
+
+  /// markdown 载荷的正文字段在 schema 里叫 `content`（`PlanMarkdown { planId, content }`），不是 `markdown`。
+  String? get markdown => _asString(json['content']);
 }
 
 class AvailableCommandWire {

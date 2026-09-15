@@ -8,13 +8,39 @@ environment:
   sdk: ^3.13.3
   flutter: ">=3.47.4"
 
-# 依赖只允许 CLAUDE.md 规则 1 的通用库清单（scripts/validate.ps1 核对）。
+# 依赖只允许 CLAUDE.md 规则 1 的通用库清单（scripts/validate.ps1 核对直接依赖；传递依赖不算引入，
+# flutter_math_fork 带进来的 provider 不得在我们的代码里 import）。
 # Rust 核心不是 pub 插件：cargokit 直接挂在 windows/CMakeLists.txt，产物 acp_bridge.dll 随 runner 安装。
 dependencies:
   flutter:
     sdk: flutter
   # 版本必须与 flutter_rust_bridge_codegen 与 rust/bridge 的 crate 完全一致。
   flutter_rust_bridge: 2.13.0
+  # ---- R2 转录卡片（R1.5 裁定 2026-09-15 按推荐项，rounds/round-1.5/spike.md § 0）----
+  # Markdown 只用解析器，渲染层按画板自写（lib/ui/transcript/markdown_body.dart）。
+  markdown: ^7.3.1
+  # 代码高亮（hljs 11.9 语法，画板 13 / 60）。
+  re_highlight: ^0.0.3
+  # 数学公式（画板 16；$…$ / $$…$$ 的识别在 Markdown 层做）。
+  flutter_math_fork: ^0.7.4
+  # Mermaid（画板 15；解析失败经 errorBuilder 回落源码态）。
+  mermaid_flutter: ^0.3.0
+  mermaid_core: ^0.3.0
+  # 音频块（画板 32；内存 BytesSource）。
+  audioplayers: ^6.8.1
+  # 行级 diff（画板 21；规则 1 的「一个 diff 库」）。
+  diffutil_dart: ^5.0.0
+  # 终端渲染（画板 22 / 23 / 61；PTY 在 Rust 侧，Dart 只喂字节）。
+  xterm: ^4.0.0
+  # 内联单线图标与 registry icon.svg（所有者裁定 2026-09-15）。
+  flutter_svg: ^2.3.0
+
+# audioplayers → path_provider → path_provider_foundation 2.6.0 → objective_c ^9.2.1 解析到 9.6.1，
+# 其 hook/build.dart 在 Dart 3.13.3 上编不过（Architecture.arm64e 不存在），flutter test / build 在
+# 「Building native assets」阶段整体失败（R1.5 实测，CLAUDE.md「本地开发」）。钉回 9.4.1 绕过。
+# 解除条件：按规则 4 升 Flutter / Dart 到 objective_c 9.6+ 的构建钩子能编过的版本后删掉本段。
+dependency_overrides:
+  objective_c: 9.4.1
 
 dev_dependencies:
   flutter_test:

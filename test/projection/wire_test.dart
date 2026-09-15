@@ -25,7 +25,7 @@ void main() {
   });
 
   test('every fixture line parses and classifies', () {
-    expect(lines.length, 61);
+    expect(lines.length, 209); // R0 61 行 + R2 新增 148 行（10–24）
     expect(lines.where((l) => l.dir == FixtureDir.unknown), isEmpty);
     expect(lines.where((l) => l.dir == FixtureDir.local).map((l) => l.localKind).toSet(), {'terminal_output', 'terminal_exit'});
     expect(lines.where((l) => l.dir == FixtureDir.stderr).single.line, contains('turn finished'));
@@ -92,12 +92,12 @@ void main() {
       final u = l.sessionNotification!.update;
       byKind.putIfAbsent(u.kind, () => <SessionUpdateWire>[]).add(u);
     }
-    expect(byKind[SessionUpdateKind.plan]!.single.planEntries.length, 3);
-    final pu = byKind[SessionUpdateKind.planUpdate]!.single.planUpdate!;
+    expect(byKind[SessionUpdateKind.plan]!.first.planEntries.length, 3);
+    final pu = byKind[SessionUpdateKind.planUpdate]!.first.planUpdate!;
     expect(pu.type, 'items');
     expect(pu.planId, 'plan_validate');
     expect(pu.entries.first.status, 'completed');
-    expect(byKind[SessionUpdateKind.planRemoved]!.single.planId, 'plan_validate');
+    expect(byKind[SessionUpdateKind.planRemoved]!.first.planId, 'plan_validate');
     expect(byKind[SessionUpdateKind.availableCommandsUpdate]!.single.availableCommands.map((c) => c.name), ['review', 'compact', 'plan']);
     expect(byKind[SessionUpdateKind.availableCommandsUpdate]!.single.availableCommands.first.inputHint, '可选：范围');
     expect(byKind[SessionUpdateKind.currentModeUpdate]!.single.currentModeId, 'code');
@@ -107,11 +107,15 @@ void main() {
     final info = byKind[SessionUpdateKind.sessionInfoUpdate]!.single;
     expect(info.hasTitle && info.hasUpdatedAt, isTrue);
     final usage = byKind[SessionUpdateKind.usageUpdate]!;
-    expect(usage.length, 2);
+    expect(usage.length, greaterThanOrEqualTo(2));
     expect(usage.first.cost!.currency, 'USD');
     final compaction = byKind[SessionUpdateKind.compactionUpdate]!;
-    expect(compaction.map((u) => u.compactionStatus), ['in_progress', 'completed']);
-    expect(byKind[SessionUpdateKind.compactionSummaryChunk]!.every((u) => u.compactionId == 'cmp_1' && u.content!.text!.isNotEmpty), isTrue);
+    expect(compaction.take(2).map((u) => u.compactionStatus), ['in_progress', 'completed']);
+    expect(byKind[SessionUpdateKind.compactionSummaryChunk]!.where((u) => u.compactionId == 'cmp_1').every((u) => u.content!.text!.isNotEmpty), isTrue);
+    // R2：plan_update 的 file / markdown 载荷（markdown 正文字段在 schema 里叫 content）
+    final byType = <String, PlanUpdateWire>{for (final u in byKind[SessionUpdateKind.planUpdate]!) u.planUpdate!.type!: u.planUpdate!};
+    expect(byType['file']!.uri, endsWith('plan.md'));
+    expect(byType['markdown']!.markdown, contains('R0 收口顺序'));
   });
 
   test('permission and elicitation request shapes', () {
