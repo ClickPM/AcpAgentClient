@@ -3,8 +3,8 @@
 > **本文只管「谁来审、怎么发起、结果怎么取回、什么时候回落」。审查的策略**（范围口径 / 复审收口标准 / 审查边界）
 > **正本在 [`CLAUDE.md`](../CLAUDE.md)「开发模式与轮次流程」，本文不复述、只引用。**
 > 审查者读的任务书是 [`.claude/cursor-review-prompt.md`](../.claude/cursor-review-prompt.md)（入库，改契约改它，两级共用）；
-> cursor 路径的启动脚本是 [`.claude/cursor-review.ps1`](../.claude/cursor-review.ps1)，原与 agent-xray 的同名脚本逐字节一致；
-> 2026-09-15 本仓库把 `--plan` 换成 `--mode ask`（原因见「四条容易踩的」第 4 条），agent-xray 还没同步，**两边暂不一致**。
+> cursor 路径的启动脚本是 [`.claude/cursor-review.ps1`](../.claude/cursor-review.ps1)，与 agent-xray 的同名脚本**逐字节一致**
+> （2026-09-15 两边同步把 `--plan` 换成 `--mode ask`，原因见「四条容易踩的」第 4 条；**改一边就要同步另一边**）。
 
 ## 0. 执行器（所有者裁定 2026-09-11，沿用 agent-xray）
 
@@ -46,7 +46,7 @@ powershell -File .claude\cursor-review.ps1 -Wait
 把任务书模板实例化（填入范围与要点，`review` 档删掉 adversarial 专属段）→ 后台起 `cursor-agent`，
 把 stdout / stderr 落到 `.claude/reviews/<时间戳>-<kind>.{out.md,err.log}`（整个目录 gitignored）。
 
-发起时用的固定档位：`--mode ask`（CLI 强制只读，审查者不许改文件）+ `--force`（免逐条批准 `git diff` / `rg` 这类读命令）+ `--trust` + `--output-format text`。**别换成 `--plan`**，原因见下方第 4 条。
+发起时用的固定档位：`--mode ask`（CLI 强制只读，审查者不许改文件）+ `--force`（**承重，不是图省事**：本机 `~/.cursor/cli-config.json` 的 `approvalMode` 是 `auto-review`，不压住就会对一部分工具调用弹审批，而后台跑没有 TTY = 永远挂起、`.out` 永远空）+ `--trust` + `--output-format text`。**别换成 `--plan`**，原因见下方第 4 条。
 
 ### 取回结果
 
@@ -57,12 +57,13 @@ powershell -File .claude\cursor-review.ps1 -Wait
   **Git Bash 里先 `export MSYS_NO_PATHCONV=1`**，否则 `/FI` 被当路径改写、永远报「进程已死」。
 - **耗时基线**（本项目待首轮回填；agent-xray 同机实测：单文件 diff 5 分钟，13 文件 / 825 行的全量分支 diff 7 分 35 秒）。
 
-### 四条容易踩的
+### 五条容易踩的
 
 1. **`cursor-agent` 不在 PATH**：Windows 装在 `%LOCALAPPDATA%\cursor-agent\cursor-agent.cmd`，Git Bash 里裸敲是 command not found。脚本按绝对路径找，不要自己改成裸命令。
 2. **必须先 `cursor-agent login`**：未登录时它会等交互输入，后台跑就是**永远不结束、`.out` 永远空**。脚本起手先跑 `cursor-agent status` 拦这一种。
 3. **审查期间不要改仓库里的文件**：审查器是**实时读工作树**的，改了它读到的就是半新半旧的代码、findings 对不上提交。等待期间只做 scratchpad 里的准备。**同一工作树里并行跑着另一个开发会话也算改**（R0 实测踩过）。
-4. **只读要靠 `--mode ask`，不能用 `--plan`**：plan 模式下模型的终稿走 `createPlanRequestQuery` 这条独立通道，而 `-p` 非交互模式没有 plan 面板可落（响应里 `planUri` 是空串），CLI 直接丢弃；stdout 只剩工具调用之间的旁白，模型不说旁白时就是**一个换行**。表现是跑满 7–10 分钟、退出码 0、`.err.log` 0 字节、`.out.md` 1 字节，极像「进程已死」，其实是 token 全烧完才丢结果。`--mode ask` 同样由 CLI 强制只读（实测拒绝创建文件、`git diff` 照常能跑），但终稿走正常 text 通道。要确认结果去哪了，用 `--output-format stream-json` 抓流看 `interaction_query` 事件。
+4. **只读要靠 `--mode ask`，不能用 `--plan`**：plan 模式下模型的终稿走 `createPlanRequestQuery` 这条独立通道，而 `-p` 非交互模式没有 plan 面板可落（响应里 `planUri` 是空串），CLI 直接丢弃；stdout 只剩工具调用之间的旁白，模型不说旁白时就是**一个换行**。表现是跑满 7–10 分钟、退出码 0、`.err.log` 0 字节、`.out.md` 1 字节，极像「进程已死」，其实是 token 全烧完才丢结果。`--mode ask` 同样由 CLI 强制只读（实测拒绝创建文件、`git diff` 照常能跑），但终稿走正常 text 通道。要确认结果去哪了，用 `--output-format stream-json` 抓流看 `interaction_query` / `tool_call` 事件。
+5. **项目级 `.cursor/cli.json` 只认 `permissions` 一个键**（2026-09-15 实测）：`model` / `approvalMode` / `sandbox` / `subagentModels` / `exploreSubagentModel` 等写进去一律 `unrecognized_keys`，而且是**硬失败 exit 1、整个 CLI 起不来**（连 `cursor-agent -p "ok"` 都跑不了）。想按仓库钉模型或审批档只能改 home 的 `~/.cursor/cli-config.json`，那是全局生效。别照搬 `update-cli-config` skill 里那张设置表——那张表描述的是 home config，项目覆盖的 schema 窄得多。
 
 ## 2. 路径 ②：Claude Code 子代理（cursor 硬失败时）
 
