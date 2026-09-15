@@ -4,7 +4,7 @@
 
 ## 一句话
 
-一个好看的、多 agent 的 ACP 桌面客户端：Flutter 壳，Rust 核心（进程内 cdylib，经 flutter_rust_bridge 桥接），前端按 Figma Make 设计稿实现；agent 一律经 ACP 接入，registry 里的 agent 像 Zed 一样安装即用，Zed 内置 agent 也能用。
+一个好看的、多 agent 的 ACP 桌面客户端：Flutter 壳，Rust 核心（进程内 cdylib，经 flutter_rust_bridge 桥接），前端按 Claude Design 设计稿实现；agent 一律经 ACP 接入，registry 里的 agent 像 Zed 一样安装即用，Zed 内置 agent 也能用。
 
 ## 必须
 
@@ -21,7 +21,7 @@
    | dsh-acp-interactive | custom 命令 | terminal auth `--setup`；`session/new` 回 `auth_required` | 读 `_meta.terminal_output`、`elicitation.form`、`session.configOptions.boolean`；权限预设是 config option |
 
 4. **Zed 内置 agent 可用。** 以独立 sidecar `zed-agent-acp` 经 ACP stdio 接入，与其他 agent 走同一条路。
-5. **前端完全自研。** Figma Make 设计稿是功能边界：设计稿没有的功能不做，设计稿有的逐画板对照实现；每个画板的 PNG 快照入库作为验收基准（见 `design/README.md`）。
+5. **前端完全自研。** Claude Design 设计稿是功能边界：设计稿没有的功能不做，设计稿有的逐画板对照实现；每个画板的 `.dc.html` 源与 PNG 快照入库，PNG 作验收基准（见 `design/README.md`）。
 6. **开源、不商用。** 因复用 Zed 源码，许可证拟为 GPL-3.0-or-later。
 7. **尽量复用，少造轮子。** 白名单内能复用的都复用，方式分三级：直接链接 crate、复制文件后改写、只作参考转写。每一处复用在文件头标注来源仓库、路径与 commit。
 8. **依赖白名单。** 实现层只允许来自下列来源（钉版本见 `pins/upstream.json`）：

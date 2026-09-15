@@ -40,7 +40,7 @@ Flutter 宿主进程（Dart）
 | 终端回调语义 | Zed `acp_thread/terminal.rs` | 转写：输出字节上限、wait_for_exit、kill、release |
 | 文件面板 | 自研 | `std::fs` + `notify`；不做索引服务 |
 | Zed 内置 agent | Zed `agent` + `eval_cli` | sidecar，见 § 8 |
-| UI | Figma Make 设计稿 | 全部自研；token 提炼到 `lib/theme/tokens.dart`，每个画板一个 widget 文件 |
+| UI | Claude Design 设计稿 | 全部自研；token 提炼到 `lib/theme/tokens.dart`，每个画板一个 widget 文件 |
 
 ## 3. 核心与前端的契约（严格 ACP 投影）
 
@@ -117,13 +117,13 @@ Flutter 宿主进程（Dart）
 
 ## 9. 前端
 
-- **Flutter stable（Dart）+ flutter_rust_bridge v2**（所有者裁定 2026-09-12，替代 2026-09-11 裁定的 Tauri + React 19）。改的原因：设计源换成 Figma Make 后，前端框架不再被「设计稿是 HTML」绑定；Flutter 不依赖 WebView2，渲染与列表虚拟化是原生能力；Rust 核心以 cdylib 进程内加载，契约不变。代价与风险见 § 12。
+- **Flutter stable（Dart）+ flutter_rust_bridge v2**（所有者裁定 2026-09-12，替代 2026-09-11 裁定的 Tauri + React 19）。改的原因：设计稿只作视觉基准（`.dc.html` 源与 PNG 入库）、不复用其代码，前端框架不再被「设计稿是 HTML」绑定；Flutter 不依赖 WebView2，渲染与列表虚拟化是原生能力；Rust 核心以 cdylib 进程内加载，契约不变。2026-09-14 设计工具由 Figma Make 改回 Claude Design，此裁定不变。代价与风险见 § 12。
 - 流式更新的性能靠三件事：投影状态层是纯 Dart 类（不依赖 widget 树），widget 用 `ListenableBuilder` / `StreamBuilder` 选择性订阅；`session/update` 按帧批量合并；转录列表用 `ListView.builder` 惰性构建。
 - 通用库允许清单见 CLAUDE.md 规则 1；**不引第三方 UI 组件库与状态管理库**，组件全部从画板手写，状态用 SDK 自带的 `ChangeNotifier` / `Stream`；样式的唯一来源是从画板提炼的 `lib/theme/tokens.dart`（颜色、字号、间距、圆角、动效时长），widget 文件里不出现字面量。
 - Markdown 渲染：官方 `flutter_markdown` 已停止维护，社区替代对**流式追加**与代码高亮的支持参差。R1 后做一次专门 spike 比较候选（基于 `package:markdown` 自写渲染、`markdown_widget`、`gpt_markdown` 等），选定后才进规则 1 白名单与 R2；spike 之前不引入任何 Markdown 库。
 - 终端渲染用 `xterm`（pub.dev）；PTY 仍在 Rust 侧 portable-pty，`acp/terminal_output` 推字节，Dart 只渲染。文件对话框与打开 URL 用 Flutter 官方 `file_selector` / `url_launcher`，其余系统交互一律走 Rust。
 - ACP 投影的状态层自己写，约五百行，是唯一不允许第三方替代的部分；规则来自 `prototype/assets/projection.js`。
-- 设计稿存 `design/`：每轮一个子目录，含 `design-prompt.md`（喂给 Figma Make 的提示词）与每个画板一张 PNG 快照；`design/README.md` 是画板索引（编号、名称、Make 文件 URL、PNG 路径），画板编号只增不改。PNG 是审查与验收的基准，Make 文件里的后续改动不影响已开工轮次；改设计走「先更新 PNG 与索引，再进轮次」。
+- 设计稿存 `design/`：每轮一个子目录，含 `design-prompt.md`（给 Claude Design 的设计简报）、每个画板一个 `.dc.html` 源、`canvas.json` 布局与每个画板一张 PNG 快照；`design/README.md` 是画板索引（编号、名称、`.dc.html`、PNG、画布 URL），画板编号只增不改。`.dc.html` 是设计的唯一事实来源，PNG 是审查与验收的基准，画布上的后续改动不影响已开工轮次；改设计走「先拉回 `.dc.html`、重导 PNG、更新索引，再进轮次」。
 - 页面：会话工作台（消息、思考、工具卡、计划、用量、权限与 elicitation）；agent 管理（registry、custom、认证状态）；文件面板；设置；ACP 流量调试。
 - 接后端只换数据源，不改样式：接线轮里 `lib/theme/tokens.dart` 与画板 widget 文件应零 diff。
 

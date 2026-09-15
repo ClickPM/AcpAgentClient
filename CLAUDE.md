@@ -9,9 +9,9 @@ This file provides guidance to Claude Code when working in this repository.
 
 ## 项目定位
 
-**AcpAgent Client**：Flutter 桌面客户端，Rust 核心（进程内 cdylib，经 flutter_rust_bridge v2 桥接）用官方 `agent-client-protocol` rust-sdk v2 以 ACP 接入多个 agent（Claude Agent、Codex、Cursor、pi、DeepSeek Harness，以及以 sidecar 形式接入的 Zed 内置 agent），registry 里的 agent 像 Zed 一样安装即用；前端 Flutter（Dart），完全按 Figma Make 设计稿实现。开源、不商用，许可证拟为 GPL-3.0-or-later（因复用 Zed 源码）。技术栈于 2026-09-12 由 Tauri + React 调整而来，依据见 `docs/research.md` § 9 / § 10。
+**AcpAgent Client**：Flutter 桌面客户端，Rust 核心（进程内 cdylib，经 flutter_rust_bridge v2 桥接）用官方 `agent-client-protocol` rust-sdk v2 以 ACP 接入多个 agent（Claude Agent、Codex、Cursor、pi、DeepSeek Harness，以及以 sidecar 形式接入的 Zed 内置 agent），registry 里的 agent 像 Zed 一样安装即用；前端 Flutter（Dart），完全按 Claude Design 设计稿实现。开源、不商用，许可证拟为 GPL-3.0-or-later（因复用 Zed 源码）。技术栈于 2026-09-12 由 Tauri + React 调整而来，依据见 `docs/research.md` § 9 / § 10。
 
-- **功能范围的唯一边界是设计稿**：[`design/`](design/)（画板索引 `design/README.md` 已建骨架，首轮出稿后填入；每个画板一张 PNG 快照入库作为验收基准，画板编号只增不改）。设计稿没有的功能一律不做，想到的进 `rounds/BACKLOG.md` 等所有者裁定。
+- **功能范围的唯一边界是设计稿**：[`design/`](design/)（画板索引 `design/README.md` 已建骨架，首轮出稿后填入；每个画板的 `.dc.html` 源与一张 PNG 快照入库，PNG 是验收基准，画板编号只增不改）。设计稿没有的功能一律不做，想到的进 `rounds/BACKLOG.md` 等所有者裁定。
 - 诉求与非目标：[`docs/requirements.md`](docs/requirements.md)；架构与既定决策：[`docs/design.md`](docs/design.md)；研究依据：[`docs/research.md`](docs/research.md)；**可投影内容清单**：[`docs/acp-projection.md`](docs/acp-projection.md)；背景：[`docs/background.md`](docs/background.md)。
 
 **用户回复默认中文**；代码、命令、路径、技术术语保持英文。
@@ -23,8 +23,8 @@ AcpAgentClient/
 ├── CLAUDE.md / AGENTS.md / README.md      约定、审查者指针、简介
 ├── ROUNDS.md                              轮次总览与 roadmap（首轮拆解时建立）
 ├── docs/                                  background / requirements / research / design / acp-projection / review-workflow
-├── design/                                设计稿与提示词：design/round-NN/{design-prompt.md, NN-<画板>.png}
-│                                          + design/README.md 画板索引（编号 / 名称 / Figma Make URL / PNG 路径）
+├── design/                                设计稿与简报：design/round-NN/{input/（交给 Claude Design 的简报与附件）, canvas.json, NN-<画板>.dc.html, NN-<画板>.png}
+│                                          + design/README.md 画板索引（编号 / 名称 / .dc.html / PNG / 画布 URL）
 ├── rounds/                                README（目录约定）/ TEMPLATE（任务卡模板）/ BACKLOG
 │                                          + rounds/round-NN/{round-NN.md, BLOCKED.md}
 ├── .claude/                               cursor-review.ps1（审查启动脚本）+ cursor-review-prompt.md（任务书契约，入库）
@@ -48,7 +48,7 @@ AcpAgentClient/
 回落原因写进任务卡；同一轮审查只用一个执行器，不混两份 findings。发起命令、结果取回与坑清单在 [`docs/review-workflow.md`](docs/review-workflow.md)。
 
 ```
-设计轮（有 UI 变动时先做）：design/round-NN/design-prompt.md → Figma Make 出稿 → 每画板导出 PNG 入库 → 更新 design/README.md（编号 / 名称 / Make URL / PNG）
+设计轮（有 UI 变动时先做）：design/round-NN/design-prompt.md → Claude Design 出稿 → .dc.html + canvas.json 入库、每画板导出 PNG 入库 → 更新 design/README.md（编号 / 名称 / .dc.html / PNG / 画布 URL）
                                                                               ↓
 开工：cp rounds/TEMPLATE.md rounds/round-NN/round-NN.md，按 ROUNDS.md 该轮拆解填任务卡
   → 每个 worktree 第一步：scripts/fetch-upstream.ps1 且 -Check 全绿（规则 4）

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet"><style>body{margin:0;background:#fbfbfc}a{color:#4a59c9;text-decoration:none}a:hover{color:#3d4cb5}</style></helmet>
+<div data-screen-label="23" style="width:800px;min-width:800px;box-sizing:border-box;padding:24px;background:#fbfbfc;font-family:Geist,'Noto Sans SC',system-ui,sans-serif;font-size:13px;color:#33333d;display:flex;flex-direction:column;gap:16px">
+  <div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #e2e2e7;padding-bottom:10px">
+    <span style="font-size:15px;font-weight:500;color:#1e1e26">23 · 终端进行中卡</span>
+    <span style="font-size:11px;color:#8b8b96">协议来源：terminal/create → terminal/output（本地流）· terminal/kill</span>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">进行中（spinner + 红色停止方块 → terminal/kill）</div>
+    <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;overflow:hidden">
+      <div style="height:32px;display:flex;align-items:center;gap:8px;padding:0 10px">
+        <span style="display:inline-flex;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg></span>
+        <span style="font-size:13px;color:#33333d">Run Command</span>
+        <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;color:#62626e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">D:\variFlight_work\AcpAgentClient</span>
+        <span style="margin-left:auto;display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5566d8" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.55"></path></svg><span style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:4px;background:rgba(30,30,38,.06)" title="terminal/kill"><span style="width:10px;height:10px;border-radius:3px;background:#bc4e39"></span></span></span>
+        <span style="display:inline-flex;color:#8b8b96"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg></span>
+      </div>
+      <div style="border-top:1px solid #e2e2e7;padding:10px 12px;display:flex;flex-direction:column;gap:8px">
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;line-height:1.6;color:#33333d;background:#f4f4f6;border-radius:4px;padding:8px 10px;white-space:pre-wrap;word-break:break-word">powershell -File scripts/validate.ps1 -Only NoStyleLiteral</div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;line-height:1.6;color:#33333d;background:#f4f4f6;border-radius:4px;padding:8px 10px;white-space:pre-wrap;word-break:break-word">[1/4] 钉版本一致 ... <span style="color:#477f40">ok</span>
+[2/4] gpui 不进主进程 ... <span style="color:#477f40">ok</span>
+[3/4] 样式字面量扫描 lib/ ...</div>
+      </div>
+    </div>
+  </div>
+  <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;line-height:1.7">停止方块是 ghost 容器里的 error 色小方块，不是红色填充按钮；输出按字符边界截断（规范硬要求）。</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:800,&quot;height&quot;:353}}"></script>
+</body>
+</html>

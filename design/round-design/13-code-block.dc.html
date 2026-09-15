@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet"><style>body{margin:0;background:#fbfbfc}a{color:#4a59c9;text-decoration:none}a:hover{color:#3d4cb5}</style></helmet>
+<div data-screen-label="13" style="width:800px;min-width:800px;box-sizing:border-box;padding:24px;background:#fbfbfc;font-family:Geist,'Noto Sans SC',system-ui,sans-serif;font-size:13px;color:#33333d;display:flex;flex-direction:column;gap:16px">
+  <div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #e2e2e7;padding-bottom:10px">
+    <span style="font-size:15px;font-weight:500;color:#1e1e26">13 · 代码块卡片</span>
+    <span style="font-size:11px;color:#8b8b96">协议来源：agent_message_chunk · text（fenced code block）</span>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">默认（语言标签 + Copy）</div>
+    <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;overflow:hidden">
+      <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 6px 0 10px;border-bottom:1px solid #e2e2e7">
+        <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">powershell</span>
+        <span style="margin-left:auto;height:24px;display:flex;align-items:center;gap:5px;padding:0 7px;border-radius:4px;font-size:11px;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>Copy</span>
+      </div>
+      <div style="padding:10px 12px;font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;line-height:1.6;color:#33333d;white-space:pre;overflow-x:hidden"><span style="color:#8b8b96"># scripts/validate.ps1 —— CLAUDE.md 规则 3：widget 文件禁止样式字面量</span>
+<span style="color:#4a59c9">function</span> Assert-NoStyleLiteral {
+  <span style="color:#4a59c9">param</span>([<span style="color:#8a6f12">string</span>]$Root = <span style="color:#477f40">"lib"</span>)
+
+  $pattern = <span style="color:#477f40">'Color\\(0x|Colors\\.|EdgeInsets\\.(all|symmetric|only)\\(\\s*\\d'</span>
+  $skip    = <span style="color:#477f40">'^lib/(theme|bridge)/'</span>
+
+  $hits = <span style="color:#4a59c9">Get-ChildItem</span> -Path $Root -Recurse -Filter <span style="color:#477f40">'*.dart'</span> |
+    <span style="color:#4a59c9">Where-Object</span> { $_.FullName -notmatch $skip } |
+    <span style="color:#4a59c9">Select-String</span> -Pattern $pattern
+
+  <span style="color:#4a59c9">if</span> ($hits) {
+    <span style="color:#4a59c9">throw</span> <span style="color:#477f40">"发现 $($hits.Count) 处样式字面量，样式唯一来源是 lib/theme/tokens.dart"</span>
+  }
+  <span style="color:#4a59c9">Write-Host</span> <span style="color:#477f40">'  [ok] 无样式字面量'</span> -ForegroundColor <span style="color:#8a6f12">Green</span>
+}</div>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">Copy 点击后变 Copied</div>
+    <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;overflow:hidden">
+      <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 6px 0 10px;border-bottom:1px solid #e2e2e7">
+        <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">powershell</span>
+        <span style="margin-left:auto;height:24px;display:flex;align-items:center;gap:5px;padding:0 7px;border-radius:4px;font-size:11px;color:#477f40;background:rgba(30,30,38,.06)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>Copied</span>
+      </div>
+      <div style="padding:10px 12px;font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;line-height:1.6;color:#33333d;white-space:pre;overflow-x:hidden"><span style="color:#8b8b96"># 同一张卡，仅 Copy 按钮换文案与图标；120ms 后自动回落</span>
+<span style="color:#4a59c9">Write-Host</span> <span style="color:#477f40">'  [ok] 无样式字面量'</span> -ForegroundColor <span style="color:#8a6f12">Green</span></div>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">长行横向滚动（不换行，出横向滚动条）</div>
+    <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;overflow:hidden">
+      <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 6px 0 10px;border-bottom:1px solid #e2e2e7">
+        <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">powershell</span>
+        <span style="margin-left:auto;height:24px;display:flex;align-items:center;gap:5px;padding:0 7px;border-radius:4px;font-size:11px;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>Copy</span>
+      </div>
+      <div style="padding:10px 12px;font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;line-height:1.6;color:#33333d;white-space:pre;overflow-x:auto;padding-bottom:16px"><span style="color:#4a59c9">Get-ChildItem</span> -Path lib -Recurse -Filter <span style="color:#477f40">'*.dart'</span> | <span style="color:#4a59c9">Where-Object</span> { $_.FullName -notmatch $skip } | <span style="color:#4a59c9">Select-String</span> -Pattern $pattern | <span style="color:#4a59c9">ForEach-Object</span> { <span style="color:#4a59c9">Write-Host</span> <span style="color:#477f40">"  规则 3 违规: $($_.Path):$($_.LineNumber)"</span> }</div>
+    </div>
+  </div>
+  <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;line-height:1.7">语法着色只用中性色阶 + accent（关键字）+ success（字符串）+ warning（类型 / 数字）+ n.placeholder（注释），不引入表外色相。</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:800,&quot;height&quot;:809}}"></script>
+</body>
+</html>

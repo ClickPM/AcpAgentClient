@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet"><style>body{margin:0;background:#fbfbfc}a{color:#4a59c9;text-decoration:none}a:hover{color:#3d4cb5}</style></helmet>
+<div data-screen-label="12" style="width:800px;min-width:800px;box-sizing:border-box;padding:24px;background:#fbfbfc;font-family:Geist,'Noto Sans SC',system-ui,sans-serif;font-size:13px;color:#33333d;display:flex;flex-direction:column;gap:16px">
+  <div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #e2e2e7;padding-bottom:10px">
+    <span style="font-size:15px;font-weight:500;color:#1e1e26">12 · 助手富文本正文</span>
+    <span style="font-size:11px;color:#8b8b96">协议来源：agent_message_chunk · ContentBlock text（Markdown / GFM）</span>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">标题 · 段落 · 有序无序列表 · 任务清单 · 行内代码 · 引用 · 文件链接 · 分割线 · 删除线</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:13px;line-height:1.5">读完了。<a href="#" style="color:#4a59c9">docs/acp-projection.md</a> 对投影面没有额外约束，规则 3 的样式单一来源在 <a href="#" style="color:#4a59c9">lib/theme/tokens.dart</a>，所以校验可以纯静态做。</div>
+      <div style="font-size:15px;font-weight:500;color:#1e1e26;padding-top:2px">样式字面量校验</div>
+      <div style="font-size:13px;line-height:1.5">把检查拆成三层，任一层命中即 <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;background:#eeeef1;border-radius:3px;padding:1px 4px">exit 1</span>：</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;gap:8px;font-size:13px;line-height:1.5"><span style="color:#8b8b96;font-variant-numeric:tabular-nums">1.</span><span><span style="font-weight:500">扫描面</span>：<span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;background:#eeeef1;border-radius:3px;padding:1px 4px">lib/**/*.dart</span>，排除 <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;background:#eeeef1;border-radius:3px;padding:1px 4px">lib/theme/</span> 与 <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;background:#eeeef1;border-radius:3px;padding:1px 4px">lib/bridge/</span>（frb 生成物）。</span></div>
+        <div style="display:flex;gap:8px;font-size:13px;line-height:1.5"><span style="color:#8b8b96;font-variant-numeric:tabular-nums">2.</span><span><span style="font-weight:500">禁止模式</span>：<span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;background:#eeeef1;border-radius:3px;padding:1px 4px">Color(0x…)</span>、<span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;background:#eeeef1;border-radius:3px;padding:1px 4px">Colors.</span>、裸 <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;background:#eeeef1;border-radius:3px;padding:1px 4px">EdgeInsets.all(12)</span> 这类数值字面量。</span></div>
+        <div style="display:flex;gap:8px;font-size:13px;line-height:1.5"><span style="color:#8b8b96;font-variant-numeric:tabular-nums">3.</span><span><span style="font-weight:500">白名单</span>：<span style="font-style:italic">只有</span> <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;background:#eeeef1;border-radius:3px;padding:1px 4px">tokens.dart</span> 可以出现字面量。</span></div>
+      </div>
+      <div style="font-size:13px;font-weight:500;color:#1e1e26;padding-top:2px">落地步骤</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:flex-start;gap:8px"><span style="width:14px;height:14px;flex:none;margin-top:3px;border-radius:3px;border:1px solid #5566d8;background:#5566d8;display:flex;align-items:center;justify-content:center"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span style="font-size:13px;line-height:1.5;color:#8b8b96">确认 tokens.dart 是唯一样式来源</span></div>
+        <div style="display:flex;align-items:flex-start;gap:8px"><span style="width:14px;height:14px;flex:none;margin-top:3px;border-radius:3px;border:1px solid #5566d8;background:#5566d8;display:flex;align-items:center;justify-content:center"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span style="font-size:13px;line-height:1.5;color:#8b8b96">在 validate.ps1 里加 <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;background:#eeeef1;border-radius:3px;padding:1px 4px">Assert-NoStyleLiteral</span></span></div>
+        <div style="display:flex;align-items:flex-start;gap:8px"><span style="width:14px;height:14px;flex:none;margin-top:3px;border-radius:3px;border:1px solid #d3d3da;display:flex;align-items:center;justify-content:center"></span><span style="font-size:13px;line-height:1.5;color:#33333d">补一条故意违规的用例，验证会失败</span></div>
+        <div style="display:flex;align-items:flex-start;gap:8px"><span style="width:14px;height:14px;flex:none;margin-top:3px;border-radius:3px;border:1px solid #d3d3da;display:flex;align-items:center;justify-content:center"></span><span style="font-size:13px;line-height:1.5;color:#33333d">回填任务卡验收项</span></div>
+      </div>
+      <div style="font-size:13px;font-weight:500;color:#1e1e26;padding-top:2px">一处提醒</div>
+      <div style="border-left:1px solid #d3d3da;padding-left:12px;font-size:13px;line-height:1.5;color:#62626e">接线轮里 <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;background:#eeeef1;border-radius:3px;padding:1px 4px">tokens.dart</span> 与画板 widget 文件应<span style="font-weight:500">零 diff</span>；这条校验只拦新增字面量，不会替你审已有的偏差。</div>
+      <div style="height:1px;background:#e2e2e7;margin:2px 0"></div>
+      <div style="font-size:13px;line-height:1.5">函数名用 <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;background:#eeeef1;border-radius:3px;padding:1px 4px">Assert-*</span> 前缀，和脚本里既有的 <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;background:#eeeef1;border-radius:3px;padding:1px 4px">Assert-PinnedUpstream</span> 对齐；<span style="text-decoration:line-through;color:#8b8b96">Check-*</span> 不用。</div>
+    </div>
+  </div>
+  <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;line-height:1.7">文件链接与任务清单复选框可点：链接落右栏文件面板，复选框只改本地呈现态，不回写 agent。</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:800,&quot;height&quot;:603}}"></script>
+</body>
+</html>

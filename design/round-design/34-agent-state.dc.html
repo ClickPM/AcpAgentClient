@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet"><style>body{margin:0;background:#fbfbfc}a{color:#4a59c9;text-decoration:none}a:hover{color:#3d4cb5}</style></helmet>
+<div data-screen-label="34" style="width:800px;min-width:800px;box-sizing:border-box;padding:24px;background:#fbfbfc;font-family:Geist,'Noto Sans SC',system-ui,sans-serif;font-size:13px;color:#33333d;display:flex;flex-direction:column;gap:16px">
+  <div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #e2e2e7;padding-bottom:10px">
+    <span style="font-size:15px;font-weight:500;color:#1e1e26">34 · agent 状态与错误</span>
+    <span style="font-size:11px;color:#8b8b96">协议来源：acp/agent_state（spawned / initialized / auth_required / exited）· 未知变体丢弃告警 · JSON-RPC 错误码</span>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">spawned</div>
+    <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;overflow:hidden">
+      <div style="min-height:28px;display:flex;align-items:center;gap:8px;padding:5px 10px">
+        <span style="display:inline-flex;color:#8b8b96"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle></svg></span>
+        <span style="font-size:12px;color:#33333d">claude-agent-acp 进程已启动</span>
+        <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">pid 18324 · spawned</span>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">initialized</div>
+    <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;overflow:hidden">
+      <div style="min-height:28px;display:flex;align-items:center;gap:8px;padding:5px 10px">
+        <span style="display:inline-flex;color:#477f40"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><polyline points="8.4 12.2 11 14.8 15.8 9.6"></polyline></svg></span>
+        <span style="font-size:12px;color:#33333d">claude-agent-acp v0.76.0 已初始化</span>
+        <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">protocolVersion 1 · fs / terminal / elicitation / plan / compaction</span>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">auth_required（列出认证方式入口）</div>
+    <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;overflow:hidden">
+      <div style="min-height:28px;display:flex;align-items:center;gap:8px;padding:5px 10px">
+        <span style="display:inline-flex;color:#8a6f12"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg></span>
+        <span style="font-size:12px;color:#33333d">需要认证才能新建会话</span>
+        <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">JSON-RPC -32000 · session/new</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;padding:8px 12px;border-top:1px solid #e2e2e7">
+        <span style="height:28px;display:flex;align-items:center;padding:0 12px;border-radius:4px;background:#5566d8;color:#ffffff;font-size:13px">用 Claude Pro 登录</span>
+        <span style="height:28px;display:flex;align-items:center;padding:0 10px;border-radius:4px;color:#33333d;font-size:13px">在内置终端认证</span>
+        <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">authMethods: claude-pro（agent 型）/ claude-cli（terminal 型）</span>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">exited（退出码 + stderr 尾巴可展开）</div>
+    <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;overflow:hidden">
+      <div style="min-height:28px;display:flex;align-items:center;gap:8px;padding:5px 10px">
+        <span style="display:inline-flex;color:#bc4e39"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><line x1="18" y1="6" x2="6" y2="18"></line></svg></span>
+        <span style="font-size:12px;color:#33333d">claude-agent-acp 已退出</span>
+        <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">exitCode 1 · signal none</span>
+        <span style="margin-left:auto;display:inline-flex;color:#8b8b96"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg></span>
+      </div>
+      <div style="border-top:1px solid #e2e2e7;padding:10px 12px">
+        <div style="font-size:11px;font-weight:500;letter-spacing:.04em;color:#62626e;margin-bottom:6px">stderr 尾巴（最后 5 行）</div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;line-height:1.6;color:#33333d;background:#f4f4f6;border-radius:4px;padding:8px 10px;white-space:pre-wrap;word-break:break-word">Error: ANTHROPIC_API_KEY is not set
+    at loadCredentials (auth.ts:42:11)
+    at startAgent (acp-agent.ts:118:5)
+node:internal/process/promises:391
+    triggerUncaughtException(err, true)</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;padding:8px 12px;border-top:1px solid #e2e2e7">
+        <span style="height:28px;display:flex;align-items:center;padding:0 12px;border-radius:4px;background:#5566d8;color:#ffffff;font-size:13px">重启 agent</span>
+        <span style="height:28px;display:flex;align-items:center;padding:0 10px;border-radius:4px;color:#33333d;font-size:13px">在流量面板查看原始行</span>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">未知会话更新已丢弃（告警）</div>
+    <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;overflow:hidden">
+      <div style="min-height:28px;display:flex;align-items:center;gap:8px;padding:5px 10px">
+        <span style="display:inline-flex;color:#8a6f12"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></span>
+        <span style="font-size:12px;color:#33333d">3 条未知会话更新已丢弃</span>
+        <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">sessionUpdate 反序列化失败 · 原文见 ACP 流量调试</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;padding:8px 12px;border-top:1px solid #e2e2e7"><span style="height:28px;display:flex;align-items:center;padding:0 10px;border-radius:4px;color:#33333d;font-size:13px">打开流量面板</span></div>
+    </div>
+  </div>
+  <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;line-height:1.7">SessionUpdate 没有 catch-all 变体：未编译的变体（今天是 notice）会让整条通知反序列化失败，用户什么也看不到。核心侧对失败计数并经 acp/agent_state 上抛本条告警，原文落 acp/traffic（acp-projection.md § 8.1）。</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:800,&quot;height&quot;:842}}"></script>
+</body>
+</html>

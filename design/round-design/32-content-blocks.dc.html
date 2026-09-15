@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet"><style>body{margin:0;background:#fbfbfc}a{color:#4a59c9;text-decoration:none}a:hover{color:#3d4cb5}</style></helmet>
+<div data-screen-label="32" style="width:800px;min-width:800px;box-sizing:border-box;padding:24px;background:#fbfbfc;font-family:Geist,'Noto Sans SC',system-ui,sans-serif;font-size:13px;color:#33333d;display:flex;flex-direction:column;gap:16px">
+  <div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #e2e2e7;padding-bottom:10px">
+    <span style="font-size:15px;font-weight:500;color:#1e1e26">32 · 非文本内容块</span>
+    <span style="font-size:11px;color:#8b8b96">协议来源：ContentBlock：text / image / audio / resource_link / resource（输出方向没有能力门，必须全部能显示）</span>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">image（内嵌预览）</div>
+    <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;overflow:hidden">
+      <div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px">
+        <div style="width:100%;height:220px;background:#eeeef1;border:1px solid #e2e2e7;border-radius:4px;display:flex;align-items:center;justify-content:center"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">image · png · 1280×720 · 内嵌 base64 预览（点开看原图）</span></div>
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">image/png · 184 KB</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">uri: file:///D:/variFlight_work/shot.png</span></div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">audio（播放条）</div>
+    <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;overflow:hidden">
+      <div style="padding:10px 12px;display:flex;align-items:center;gap:10px">
+        <span style="width:28px;height:28px;border-radius:4px;background:#eeeef1;display:flex;align-items:center;justify-content:center"><span style="display:inline-flex;color:#33333d"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg></span></span>
+        <span style="flex:1;display:flex;flex-direction:column;gap:5px"><span style="height:3px;border-radius:3px;background:#e2e2e7;position:relative;display:block"><span style="position:absolute;left:0;top:0;height:3px;width:38%;border-radius:3px;background:#5566d8;display:block"></span></span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">0:14 / 0:37 · audio/wav · 592 KB</span></span>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">resource_link（文件卡）</div>
+    <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;overflow:hidden">
+      <div style="padding:10px 12px;display:flex;align-items:center;gap:10px">
+        <span style="width:28px;height:28px;border-radius:4px;background:#eeeef1;display:flex;align-items:center;justify-content:center"><span style="display:inline-flex;color:#33333d"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.8 1.8"></path><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.8-1.8"></path></svg></span></span>
+        <span style="flex:1;min-width:0"><span style="display:block;font-size:13px;color:#1e1e26">acp-projection.md</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">text/markdown · 17.5 KB · file:///D:/variFlight_work/AcpAgentClient/docs/acp-projection.md</span></span>
+        <span style="height:24px;display:flex;align-items:center;padding:0 8px;border-radius:4px;background:rgba(30,30,38,.06);font-size:12px;color:#33333d;white-space:nowrap">在文件面板打开</span>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">embedded resource · text（内嵌展示）</div>
+    <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;overflow:hidden">
+      <div style="padding:10px 12px;display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="display:inline-flex;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg></span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">resource · text · pins/upstream.json</span></div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;line-height:1.6;color:#33333d;background:#f4f4f6;border-radius:4px;padding:8px 10px;white-space:pre-wrap;word-break:break-word">{ <span style="color:#4a59c9">"zed"</span>: { <span style="color:#4a59c9">"commit"</span>: <span style="color:#477f40">"d9e1c024f393832765a03f4de204d6c8cd9abcb2"</span> }, ... }</div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">embedded resource · blob（不可渲染的兜底文件卡）</div>
+    <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;overflow:hidden">
+      <div style="padding:10px 12px;display:flex;align-items:center;gap:10px">
+        <span style="width:28px;height:28px;border-radius:4px;background:#eeeef1;display:flex;align-items:center;justify-content:center"><span style="display:inline-flex;color:#8b8b96"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg></span></span>
+        <span style="flex:1;min-width:0"><span style="display:block;font-size:13px;color:#1e1e26">acp-core.dll</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">resource · blob · application/octet-stream · 4.1 MB · 不可渲染，仅给文件卡</span></span>
+        <span style="height:24px;display:flex;align-items:center;padding:0 8px;border-radius:4px;background:rgba(30,30,38,.06);font-size:12px;color:#33333d;white-space:nowrap">保存到本地</span>
+      </div>
+    </div>
+  </div>
+  <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;line-height:1.7">promptCapabilities 只约束客户端往 session/prompt 塞什么，不约束 agent 发什么；五种块在消息、思考、工具卡内容里都可能出现。图像位是占位，实现里换成真实 base64 预览。</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:800,&quot;height&quot;:879}}"></script>
+</body>
+</html>

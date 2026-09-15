@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet"><style>body{margin:0;background:#fbfbfc}a{color:#4a59c9;text-decoration:none}a:hover{color:#3d4cb5}</style></helmet>
+<div data-screen-label="27" style="width:800px;min-width:800px;box-sizing:border-box;padding:24px;background:#fbfbfc;font-family:Geist,'Noto Sans SC',system-ui,sans-serif;font-size:13px;color:#33333d;display:flex;flex-direction:column;gap:16px">
+  <div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #e2e2e7;padding-bottom:10px">
+    <span style="font-size:15px;font-weight:500;color:#1e1e26">27 · 表单模式交互卡</span>
+    <span style="font-size:11px;color:#8b8b96">协议来源：elicitation/create · mode "form"（requestedSchema：string / enum / array / number / integer / boolean）</span>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">默认（已填；Submit 可用）</div>
+    <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;overflow:hidden">
+      <div style="height:36px;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid #e2e2e7">
+        <span style="display:inline-flex;color:#5566d8"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="11" x2="12" y2="16"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg></span>
+        <span style="font-size:13px;font-weight:500;color:#1e1e26">Input Requested by dsh-acp-interactive</span>
+        <span style="margin-left:auto;font-size:11px;color:#8b8b96">Waiting for input</span>
+      </div>
+      <div style="padding:12px;display:flex;flex-direction:column;gap:14px">
+        <div style="font-size:13px;line-height:1.5;color:#62626e">环境配置: 请选择本次任务的目标部署环境；功能开关支持多选。未列出的答案填到对应的 Other 文本框。</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:baseline;gap:6px"><span style="font-size:12px;font-weight:500;color:#1e1e26">环境配置 <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">string · enum</span></span></div>
+        <div style="display:flex;flex-direction:column;gap:2px">
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;background:rgba(30,30,38,.06);"><span style="width:14px;height:14px;border-radius:50%;border:1px solid #5566d8;display:flex;align-items:center;justify-content:center"><span style="width:6px;height:6px;border-radius:50%;background:#5566d8"></span></span><span style="font-size:13px;color:#33333d">开发环境 (Development)</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#4a59c9;background:#ecedfa;border-radius:3px;padding:1px 5px">Recommended</span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="width:14px;height:14px;border-radius:50%;border:1px solid #d3d3da;display:flex;align-items:center;justify-content:center"></span><span style="font-size:13px;color:#33333d">预发环境 (Staging)</span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="width:14px;height:14px;border-radius:50%;border:1px solid #d3d3da;display:flex;align-items:center;justify-content:center"></span><span style="font-size:13px;color:#33333d">生产环境 (Production)</span></div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:baseline;gap:6px"><span style="font-size:12px;font-weight:500;color:#1e1e26">环境配置 — Other</span></div>
+        <div style="font-size:11px;color:#8b8b96">Optional free-text answer when the listed choices are insufficient.</div>
+        <div style="height:28px;display:flex;align-items:center;padding:0 8px;border-radius:4px;background:#f4f4f6;border:1px solid #e2e2e7;font-size:13px;color:#8b8b96">留空表示用上面的选项</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:baseline;gap:6px"><span style="font-size:12px;font-weight:500;color:#1e1e26">功能开关 <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">array · minItems 1</span></span></div>
+        <div style="display:flex;flex-direction:column;gap:2px">
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;background:rgba(30,30,38,.06);"><span style="width:14px;height:14px;border-radius:3px;border:1px solid #5566d8;background:#5566d8;display:flex;align-items:center;justify-content:center"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span style="font-size:13px;color:#33333d">启用详细诊断日志 (Debug Logs)</span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;background:rgba(30,30,38,.06);"><span style="width:14px;height:14px;border-radius:3px;border:1px solid #5566d8;background:#5566d8;display:flex;align-items:center;justify-content:center"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span style="font-size:13px;color:#33333d">自动化回归测试 (Auto-Test)</span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="width:14px;height:14px;border-radius:3px;border:1px solid #d3d3da;display:flex;align-items:center;justify-content:center"></span><span style="font-size:13px;color:#33333d">执行结果通知 (Notify)</span></div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:baseline;gap:6px"><span style="font-size:12px;font-weight:500;color:#1e1e26">功能开关 — Other</span></div>
+        <div style="font-size:11px;color:#8b8b96">Optional free-text answer when the listed choices are insufficient.</div>
+        <div style="height:28px;display:flex;align-items:center;padding:0 8px;border-radius:4px;background:#f4f4f6;border:1px solid #e2e2e7;font-size:13px;color:#8b8b96">留空表示用上面的选项</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:baseline;gap:6px"><span style="font-size:12px;font-weight:500;color:#1e1e26">并发度 <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">integer · 1–16</span></span></div>
+        <div style="height:28px;display:flex;align-items:center;padding:0 8px;border-radius:4px;background:#f4f4f6;border:1px solid #e2e2e7;font-size:13px;color:#33333d">4</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:baseline;gap:6px"><span style="font-size:12px;font-weight:500;color:#1e1e26">失败即中止 <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">boolean</span></span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px"><span style="width:28px;height:16px;border-radius:8px;background:#5566d8;display:flex;align-items:center;padding:2px;box-sizing:border-box;justify-content:flex-end"><span style="width:12px;height:12px;border-radius:50%;background:#ffffff"></span></span><span style="font-size:13px;color:#33333d">开启</span></div>
+      </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;padding:10px 12px;border-top:1px solid #e2e2e7">
+        <span style="height:28px;display:flex;align-items:center;gap:6px;padding:0 12px;border-radius:4px;background:#5566d8;color:#ffffff;font-size:13px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>Submit</span>
+        <span style="height:28px;display:flex;align-items:center;gap:6px;padding:0 10px;border-radius:4px;color:#bc4e39;font-size:13px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>Decline</span>
+        <span style="height:28px;display:flex;align-items:center;padding:0 10px;border-radius:4px;color:#33333d;font-size:13px">Cancel</span>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">校验态（必填未填，Submit 禁用）</div>
+    <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;overflow:hidden">
+      <div style="height:36px;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid #e2e2e7">
+        <span style="display:inline-flex;color:#5566d8"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="11" x2="12" y2="16"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg></span>
+        <span style="font-size:13px;font-weight:500;color:#1e1e26">Input Requested by dsh-acp-interactive</span>
+        <span style="margin-left:auto;font-size:11px;color:#8b8b96">Waiting for input</span>
+      </div>
+      <div style="padding:12px;display:flex;flex-direction:column;gap:14px">
+        <div style="font-size:13px;line-height:1.5;color:#62626e">环境配置: 请选择本次任务的目标部署环境；功能开关支持多选。未列出的答案填到对应的 Other 文本框。</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:baseline;gap:6px"><span style="font-size:12px;font-weight:500;color:#1e1e26">环境配置 <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">string · enum</span></span><span style="font-size:11px;color:#bc4e39">必填</span></div>
+        <div style="display:flex;flex-direction:column;gap:2px">
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="width:14px;height:14px;border-radius:50%;border:1px solid #d3d3da;display:flex;align-items:center;justify-content:center"></span><span style="font-size:13px;color:#33333d">开发环境 (Development)</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#4a59c9;background:#ecedfa;border-radius:3px;padding:1px 5px">Recommended</span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="width:14px;height:14px;border-radius:50%;border:1px solid #d3d3da;display:flex;align-items:center;justify-content:center"></span><span style="font-size:13px;color:#33333d">预发环境 (Staging)</span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="width:14px;height:14px;border-radius:50%;border:1px solid #d3d3da;display:flex;align-items:center;justify-content:center"></span><span style="font-size:13px;color:#33333d">生产环境 (Production)</span></div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:baseline;gap:6px"><span style="font-size:12px;font-weight:500;color:#1e1e26">环境配置 — Other</span></div>
+        <div style="font-size:11px;color:#8b8b96">Optional free-text answer when the listed choices are insufficient.</div>
+        <div style="height:28px;display:flex;align-items:center;padding:0 8px;border-radius:4px;background:#f4f4f6;border:1px solid #e2e2e7;font-size:13px;color:#8b8b96">留空表示用上面的选项</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:baseline;gap:6px"><span style="font-size:12px;font-weight:500;color:#1e1e26">功能开关 <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">array · minItems 1</span></span></div>
+        <div style="display:flex;flex-direction:column;gap:2px">
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;background:rgba(30,30,38,.06);"><span style="width:14px;height:14px;border-radius:3px;border:1px solid #5566d8;background:#5566d8;display:flex;align-items:center;justify-content:center"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span style="font-size:13px;color:#33333d">启用详细诊断日志 (Debug Logs)</span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;background:rgba(30,30,38,.06);"><span style="width:14px;height:14px;border-radius:3px;border:1px solid #5566d8;background:#5566d8;display:flex;align-items:center;justify-content:center"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><span style="font-size:13px;color:#33333d">自动化回归测试 (Auto-Test)</span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="width:14px;height:14px;border-radius:3px;border:1px solid #d3d3da;display:flex;align-items:center;justify-content:center"></span><span style="font-size:13px;color:#33333d">执行结果通知 (Notify)</span></div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:baseline;gap:6px"><span style="font-size:12px;font-weight:500;color:#1e1e26">功能开关 — Other</span></div>
+        <div style="font-size:11px;color:#8b8b96">Optional free-text answer when the listed choices are insufficient.</div>
+        <div style="height:28px;display:flex;align-items:center;padding:0 8px;border-radius:4px;background:#f4f4f6;border:1px solid #e2e2e7;font-size:13px;color:#8b8b96">留空表示用上面的选项</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:baseline;gap:6px"><span style="font-size:12px;font-weight:500;color:#1e1e26">并发度 <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">integer · 1–16</span></span><span style="font-size:11px;color:#bc4e39">必填</span></div>
+        <div style="height:28px;display:flex;align-items:center;padding:0 8px;border-radius:4px;background:#f4f4f6;border:1px solid #bc4e39;font-size:13px;color:#8b8b96">必填</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:baseline;gap:6px"><span style="font-size:12px;font-weight:500;color:#1e1e26">失败即中止 <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">boolean</span></span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px"><span style="width:28px;height:16px;border-radius:8px;background:#5566d8;display:flex;align-items:center;padding:2px;box-sizing:border-box;justify-content:flex-end"><span style="width:12px;height:12px;border-radius:50%;background:#ffffff"></span></span><span style="font-size:13px;color:#33333d">开启</span></div>
+      </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid #e2e2e7;background:#fbeeea"><span style="font-size:12px;color:#bc4e39">有 2 个必填字段未填：环境配置、并发度</span></div>
+      <div style="display:flex;align-items:center;gap:6px;padding:10px 12px;border-top:1px solid #e2e2e7">
+        <span style="height:28px;display:flex;align-items:center;gap:6px;padding:0 12px;border-radius:4px;background:#eeeef1;color:#8b8b96;font-size:13px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>Submit</span>
+        <span style="height:28px;display:flex;align-items:center;gap:6px;padding:0 10px;border-radius:4px;color:#bc4e39;font-size:13px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>Decline</span>
+        <span style="height:28px;display:flex;align-items:center;padding:0 10px;border-radius:4px;color:#33333d;font-size:13px">Cancel</span>
+      </div>
+    </div>
+  </div>
+  <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;line-height:1.7">回应 { action: "accept", content } / "decline" / "cancel"。未知 type 的属性客户端应忽略该字段；字段标题与描述一律取 schema 的 title / description，不自造文案。</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:800,&quot;height&quot;:1641}}"></script>
+</body>
+</html>

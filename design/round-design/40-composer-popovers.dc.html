@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet"><style>body{margin:0;background:#fbfbfc}a{color:#4a59c9;text-decoration:none}a:hover{color:#3d4cb5}</style></helmet>
+<div data-screen-label="40" style="width:1200px;min-width:1200px;box-sizing:border-box;padding:24px;background:#fbfbfc;font-family:Geist,'Noto Sans SC',system-ui,sans-serif;font-size:13px;color:#33333d;display:flex;flex-direction:column;gap:16px">
+  <div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #e2e2e7;padding-bottom:10px">
+    <span style="font-size:15px;font-weight:500;color:#1e1e26">40 · 输入框弹层合集</span>
+    <span style="font-size:11px;color:#8b8b96">协议来源：config_option_update（select 扁平 / 分组、boolean、未知分类）· current_mode_update · usage_update</span>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start">
+    <div style="width:300px;display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e">模型选择器（config_option · category model，分组 + Latest 徽章 + 当前项对勾）</div>
+      <div style="background:#ffffff;border:1px solid #e2e2e7;border-radius:6px;box-shadow:0 4px 12px rgba(28,28,35,.10);padding:4px">
+        <div style="padding:2px 2px 4px"><div style="height:28px;display:flex;align-items:center;padding:0 8px;border-radius:4px;background:#f4f4f6;border:1px solid #e2e2e7;font-size:12px;color:#8b8b96">Select a model...</div></div>
+        <div style="height:22px;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:500;letter-spacing:.06em;color:#8b8b96">Recommended</div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="display:inline-flex;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M7 12h10M12 7v10"></path></svg></span><span style="font-size:12px;color:#33333d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">GPT-5.6 Luna</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#4a59c9;background:#ecedfa;border-radius:3px;padding:1px 5px">Latest</span></div>
+        <div style="height:22px;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:500;letter-spacing:.06em;color:#8b8b96">Zed</div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="display:inline-flex;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M7 12h10M12 7v10"></path></svg></span><span style="font-size:12px;color:#33333d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">GPT-5.6 Luna</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#4a59c9;background:#ecedfa;border-radius:3px;padding:1px 5px">Latest</span></div>
+        <div style="height:22px;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:500;letter-spacing:.06em;color:#8b8b96">cliproxy</div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="display:inline-flex;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M9 12a3 3 0 1 0 6 0"></path></svg></span><span style="font-size:12px;color:#33333d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">GPT-6 Astra (CLIProxy)</span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="display:inline-flex;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M9 12a3 3 0 1 0 6 0"></path></svg></span><span style="font-size:12px;color:#33333d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">GPT-5.6 Sol (CLIProxy)</span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;background:rgba(30,30,38,.06);"><span style="display:inline-flex;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M9 12a3 3 0 1 0 6 0"></path></svg></span><span style="font-size:12px;color:#33333d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">GPT-5.6 Terra (CLIProxy)</span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="display:inline-flex;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M9 12a3 3 0 1 0 6 0"></path></svg></span><span style="font-size:12px;color:#33333d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Claude Opus 4.6 Thinking (CLIProxy)</span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;background:rgba(30,30,38,.10);"><span style="display:inline-flex;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M9 12a3 3 0 1 0 6 0"></path></svg></span><span style="font-size:12px;color:#4a59c9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Gemini 3.8 Flash High (CLIProxy)</span><span style="margin-left:auto"><span style="display:inline-flex;color:#4a59c9"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></span></div>
+      </div>
+    </div>
+    <div style="width:220px;display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e">思考强度（category thought_level）</div>
+      <div style="background:#ffffff;border:1px solid #e2e2e7;border-radius:6px;box-shadow:0 4px 12px rgba(28,28,35,.10);padding:4px">
+        <div style="height:22px;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:500;letter-spacing:.06em;color:#8b8b96">Change Thinking Effort</div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="font-size:12px;color:#33333d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Minimal</span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="font-size:12px;color:#33333d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Low</span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="font-size:12px;color:#33333d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Medium</span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;background:rgba(30,30,38,.10);"><span style="font-size:12px;color:#4a59c9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">High</span><span style="margin-left:auto"><span style="display:inline-flex;color:#4a59c9"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="font-size:12px;color:#33333d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Extra High</span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="font-size:12px;color:#33333d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Max</span></div>
+      </div>
+    </div>
+    <div style="width:200px;display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e">模式（current_mode_update；configOptions 优先，modes 仅回退）</div>
+      <div style="background:#ffffff;border:1px solid #e2e2e7;border-radius:6px;box-shadow:0 4px 12px rgba(28,28,35,.10);padding:4px">
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;background:rgba(30,30,38,.10);"><span style="font-size:12px;color:#4a59c9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Write</span><span style="margin-left:auto"><span style="display:inline-flex;color:#4a59c9"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="font-size:12px;color:#33333d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Ask</span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="font-size:12px;color:#33333d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Minimal</span></div>
+      </div>
+    </div>
+    <div style="width:300px;display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e">布尔型会话选项（需声明 session.configOptions.boolean）</div>
+      <div style="background:#ffffff;border:1px solid #e2e2e7;border-radius:6px;box-shadow:0 4px 12px rgba(28,28,35,.10);padding:4px">
+        <div style="height:22px;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:500;letter-spacing:.06em;color:#8b8b96">Session options · boolean</div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="font-size:12px;color:#33333d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">自动批准只读工具</span><span style="margin-left:auto;display:flex;align-items:center;gap:6px"><span style="width:28px;height:16px;border-radius:8px;background:#5566d8;display:flex;align-items:center;padding:2px;box-sizing:border-box;justify-content:flex-end"><span style="width:12px;height:12px;border-radius:50%;background:#ffffff"></span></span></span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="font-size:12px;color:#33333d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">每轮结束后播放提示音</span><span style="margin-left:auto;display:flex;align-items:center;gap:6px"><span style="width:28px;height:16px;border-radius:8px;background:#d3d3da;display:flex;align-items:center;padding:2px;box-sizing:border-box;justify-content:flex-start"><span style="width:12px;height:12px;border-radius:50%;background:#ffffff"></span></span></span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="font-size:12px;color:#33333d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">跟随 agent 定位文件</span><span style="margin-left:auto;display:flex;align-items:center;gap:6px"><span style="width:28px;height:16px;border-radius:8px;background:#5566d8;display:flex;align-items:center;padding:2px;box-sizing:border-box;justify-content:flex-end"><span style="width:12px;height:12px;border-radius:50%;background:#ffffff"></span></span></span></div>
+      </div>
+    </div>
+    <div style="width:320px;display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e">未知分类的兜底渲染</div>
+      <div style="background:#ffffff;border:1px solid #e2e2e7;border-radius:6px;box-shadow:0 4px 12px rgba(28,28,35,.10);padding:4px">
+        <div style="height:22px;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:500;letter-spacing:.06em;color:#8b8b96">未知分类（category 不在 mode / model / model_config / thought_level）</div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="font-size:12px;color:#33333d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">sandbox_profile</span><span style="margin-left:auto;display:flex;align-items:center;gap:6px"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">workspace-write</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="font-size:12px;color:#33333d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">reasoning_summary</span><span style="margin-left:auto;display:flex;align-items:center;gap:6px"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">concise</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></div>
+        <div style="height:1px;background:#e2e2e7;margin:4px 0"></div>
+        <div style="padding:4px 8px 6px"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">未识别的 category 按扁平列表兜底渲染，顺序照数组；未识别的 type 整条忽略</span></div>
+      </div>
+    </div>
+    <div style="width:240px;display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e">+ 的上下文加入弹层</div>
+      <div style="background:#ffffff;border:1px solid #e2e2e7;border-radius:6px;box-shadow:0 4px 12px rgba(28,28,35,.10);padding:4px">
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="display:inline-flex;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg></span><span style="font-size:12px;color:#33333d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Files &amp; Directories</span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="display:inline-flex;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg></span><span style="font-size:12px;color:#33333d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Symbols</span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="display:inline-flex;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><span style="font-size:12px;color:#33333d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Threads</span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="display:inline-flex;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg></span><span style="font-size:12px;color:#33333d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Image</span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="display:inline-flex;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="4" x2="12" y2="20"></line><line x1="8" y1="4" x2="16" y2="4"></line><line x1="8" y1="20" x2="16" y2="20"></line></svg></span><span style="font-size:12px;color:#33333d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Selection</span></div>
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;"><span style="display:inline-flex;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"></line><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path></svg></span><span style="font-size:12px;color:#33333d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Branch Diff</span></div>
+      </div>
+    </div>
+    <div style="width:240px;display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e">用量弹层</div>
+      <div style="background:#ffffff;border:1px solid #e2e2e7;border-radius:6px;box-shadow:0 4px 12px rgba(28,28,35,.10);padding:4px">
+        <div style="padding:6px 8px;display:flex;flex-direction:column;gap:8px">
+          <div><div style="font-size:11px;font-weight:500;letter-spacing:.04em;color:#62626e;margin-bottom:2px">Context</div><div style="font-size:13px;color:#1e1e26;font-variant-numeric:tabular-nums">1% <span style="color:#8b8b96">·</span> 10k <span style="color:#8b8b96">/</span> 1M</div></div>
+          <div><div style="font-size:11px;font-weight:500;letter-spacing:.04em;color:#62626e;margin-bottom:2px">Rules</div><div style="display:flex;align-items:center;gap:4px;font-size:13px;color:#4a59c9">1 global rule<span style="display:inline-flex;color:#4a59c9"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg></span></div></div>
+        </div>
+      </div>
+    </div>
+    <div style="width:260px;display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e">Follow 提示</div>
+      <div style="background:#ffffff;border:1px solid #e2e2e7;border-radius:6px;box-shadow:0 4px 12px rgba(28,28,35,.10);padding:4px">
+        <div style="padding:6px 8px;display:flex;flex-direction:column;gap:4px">
+          <div style="font-size:12px;font-weight:500;color:#1e1e26">Follow pi-acp</div>
+          <div style="font-size:12px;line-height:1.5;color:#62626e">Track the agent&#39;s location as it reads and edits files.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;line-height:1.7">configOptions 是全量替换：set_config_option 返回整份列表。同时给了 configOptions 与 modes 时只用 configOptions。弹层是唯一带阴影的表面；当前项用「按下态容器 + accent 文字 + 对勾」表示。</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1200,&quot;height&quot;:726}}"></script>
+</body>
+</html>

@@ -33,3 +33,5 @@ node_modules/
 # Claude Code local permissions
 .claude/settings.local.json
 .venv/
+.zed/
+ai-output/temporary/

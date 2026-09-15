@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet"><style>body{margin:0;background:#fbfbfc}a{color:#4a59c9;text-decoration:none}a:hover{color:#3d4cb5}</style></helmet>
+<div style="width:1440px;min-width:1440px;height:900px;flex:none;box-sizing:border-box;padding:24px 24px 20px;background:#fbfbfc;color:#33333d;font-family:Geist,'Noto Sans SC',system-ui,sans-serif;font-size:13px;display:flex;flex-direction:column;gap:16px">
+
+  <div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #e2e2e7;padding-bottom:10px">
+    <span style="font-size:15px;font-weight:500;color:#1e1e26">00 · Token 表</span>
+    <span style="font-size:11px;color:#8b8b96">AcpAgent Client · 本表是唯一样式来源，将直接翻成 tokens.dart；任何画板不得出现表外数值</span>
+    <span style="margin-left:auto;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">色相 5（accent + 4 语义）· 圆角 3 / 4 / 6（+ pill 例外）· 字阶 11 / 12 / 13 / 15 / 20</span>
+  </div>
+
+  <div>
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:6px">中性色阶 · 浅色（同一色相偏移，饱和度 ≤ 0.02）</div>
+    <div style="display:grid;grid-template-columns:repeat(10,1fr);gap:4px">
+      <div><div style="height:52px;border-radius:4px;background:#fbfbfc;border:1px solid #e2e2e7"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">n.canvas</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#fbfbfc</div></div>
+      <div><div style="height:52px;border-radius:4px;background:#f4f4f6;border:1px solid #e2e2e7"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">n.panel</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#f4f4f6</div></div>
+      <div><div style="height:52px;border-radius:4px;background:#eeeef1;border:1px solid #e2e2e7"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">n.surface</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#eeeef1</div></div>
+      <div><div style="height:52px;border-radius:4px;background:#e7e7eb;border:1px solid #e2e2e7"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">n.hover.solid</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#e7e7eb</div></div>
+      <div><div style="height:52px;border-radius:4px;background:#e2e2e7;border:1px solid #d3d3da"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">n.border.subtle</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#e2e2e7</div></div>
+      <div><div style="height:52px;border-radius:4px;background:#d3d3da"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">n.border</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#d3d3da</div></div>
+      <div><div style="height:52px;border-radius:4px;background:#8b8b96"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">n.placeholder</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#8b8b96</div></div>
+      <div><div style="height:52px;border-radius:4px;background:#62626e"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">n.muted</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#62626e</div></div>
+      <div><div style="height:52px;border-radius:4px;background:#33333d"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">n.text</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#33333d</div></div>
+      <div><div style="height:52px;border-radius:4px;background:#1e1e26"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">n.strong</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#1e1e26</div></div>
+    </div>
+  </div>
+
+  <div>
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:6px">中性色阶 · 深色（本轮只备，不出深色页面画板）</div>
+    <div style="display:grid;grid-template-columns:repeat(10,1fr);gap:4px">
+      <div><div style="height:44px;border-radius:4px;background:#17171c"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">d.canvas</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#17171c</div></div>
+      <div><div style="height:44px;border-radius:4px;background:#1d1d23"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">d.panel</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#1d1d23</div></div>
+      <div><div style="height:44px;border-radius:4px;background:#24242b"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">d.surface</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#24242b</div></div>
+      <div><div style="height:44px;border-radius:4px;background:#2c2c34"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">d.hover.solid</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#2c2c34</div></div>
+      <div><div style="height:44px;border-radius:4px;background:#303039"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">d.border.subtle</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#303039</div></div>
+      <div><div style="height:44px;border-radius:4px;background:#43434e"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">d.border</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#43434e</div></div>
+      <div><div style="height:44px;border-radius:4px;background:#7e7e8a"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">d.placeholder</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#7e7e8a</div></div>
+      <div><div style="height:44px;border-radius:4px;background:#9b9ba6"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">d.muted</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#9b9ba6</div></div>
+      <div><div style="height:44px;border-radius:4px;background:#d5d5dc"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">d.text</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#d5d5dc</div></div>
+      <div><div style="height:44px;border-radius:4px;background:#8b96ec"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">d.accent</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#8b96ec</div></div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px">
+    <div>
+      <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:6px">强调色（唯一）· 主按钮 / 焦点环 / 链接 / 选中 / spinner；hover 统一用 .active</div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px">
+        <div><div style="height:40px;border-radius:4px;background:#5566d8"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">accent</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#5566d8</div></div>
+        <div><div style="height:40px;border-radius:4px;background:#3d4cb5"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">.active</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#3d4cb5</div></div>
+        <div><div style="height:40px;border-radius:4px;background:#ecedfa;border:1px solid #e2e2e7"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">.soft</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#ecedfa</div></div>
+        <div><div style="height:40px;border-radius:4px;background:#fbfbfc;border:1px solid #e2e2e7;display:flex;align-items:center;justify-content:center;font-size:13px;color:#4a59c9">Aa</div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">.text</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#4a59c9</div></div>
+        <div><div style="height:40px;border-radius:4px;background:#5566d8;display:flex;align-items:center;justify-content:center"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#ffffff;border:1px solid rgba(255,255,255,.45);border-radius:3px;padding:0 4px;line-height:16px">Alt-A</span></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">border.on-accent</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">rgba(255,255,255,.45)</div></div>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:6px">语义色（4）· 只用于状态图标 / 状态文字 / 细状态条</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px">
+        <div><div style="height:40px;border-radius:4px;background:#bc4e39"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">error</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#bc4e39</div><div style="margin-top:4px;height:14px;border-radius:3px;background:#fbeeea;border:1px solid #e2e2e7"></div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">.soft #fbeeea</div></div>
+        <div><div style="height:40px;border-radius:4px;background:#8a6f12"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">warning</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#8a6f12</div><div style="margin-top:4px;height:14px;border-radius:3px;background:#f7f2e2;border:1px solid #e2e2e7"></div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">.soft #f7f2e2</div></div>
+        <div><div style="height:40px;border-radius:4px;background:#477f40"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">success</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#477f40</div><div style="margin-top:4px;height:14px;border-radius:3px;background:#ecf3ea;border:1px solid #e2e2e7"></div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">.soft #ecf3ea</div></div>
+        <div><div style="height:40px;border-radius:4px;background:#5566d8"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">info</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#5566d8</div><div style="margin-top:4px;height:14px;border-radius:3px;background:#ecedfa;border:1px solid #e2e2e7"></div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">.soft #ecedfa</div></div>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:6px">三级表面 · 边框两级 · 阴影（仅弹层）</div>
+      <div style="display:flex;gap:8px;align-items:flex-start">
+        <div style="flex:1;height:96px;border-radius:6px;background:#fbfbfc;border:1px solid #e2e2e7;padding:8px;box-sizing:border-box">
+          <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">surface.canvas</div>
+          <div style="margin-top:6px;height:36px;border-radius:6px;background:#f4f4f6;border:1px solid #e2e2e7;padding:6px;box-sizing:border-box">
+            <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">surface.panel</div>
+          </div>
+          <div style="margin-top:6px;height:24px;border-radius:6px;background:#ffffff;box-shadow:0 4px 12px rgba(28,28,35,.10);border:1px solid #e2e2e7;display:flex;align-items:center;padding:0 6px">
+            <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">surface.popover</div>
+          </div>
+        </div>
+        <div style="flex:1;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e;line-height:1.75">
+          <div>canvas #fbfbfc</div>
+          <div>panel #f4f4f6</div>
+          <div>popover #ffffff</div>
+          <div>border.subtle 1px #e2e2e7</div>
+          <div>border 1px #d3d3da</div>
+          <div>shadow.popover 0 4 12 rgba(28,28,35,.10)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1.15fr 1fr 1fr 1fr;gap:24px;border-top:1px solid #e2e2e7;padding-top:14px">
+    <div>
+      <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">字阶（5 档）· 字重 400 / 500</div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div style="display:flex;align-items:baseline;gap:10px"><span style="font-size:20px;font-weight:500;color:#1e1e26">New Thread</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">text.display 20 / 500 · 空态</span></div>
+        <div style="display:flex;align-items:baseline;gap:10px"><span style="font-size:15px;font-weight:500;color:#1e1e26">ACP Registry</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">text.title 15 / 500</span></div>
+        <div style="display:flex;align-items:baseline;gap:10px"><span style="font-size:13px;line-height:1.5">正文与控件基准 Body</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">text.body 13 / 400 · lh 1.5（控件 1.35）</span></div>
+        <div style="display:flex;align-items:baseline;gap:10px"><span style="font-size:12px;color:#62626e">次要说明 Secondary</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">text.secondary 12 / 400</span></div>
+        <div style="display:flex;align-items:baseline;gap:10px"><span style="font-size:11px;color:#8b8b96">15 分钟前 · 2 条消息</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">text.meta 11 / 400</span></div>
+        <div style="display:flex;align-items:baseline;gap:10px"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;font-variant-numeric:tabular-nums">10,240 tokens · $0.021 · 4.2s</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">mono 12.5 · tabular-nums</span></div>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">间距（4px 网格）· 圆角（3 档 + pill 例外）</div>
+      <div style="display:flex;align-items:flex-end;gap:8px;margin-bottom:12px">
+        <div><div style="width:4px;height:16px;background:#5566d8;border-radius:3px"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">4</div></div>
+        <div><div style="width:8px;height:16px;background:#5566d8;border-radius:3px"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">8</div></div>
+        <div><div style="width:12px;height:16px;background:#5566d8;border-radius:3px"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">12</div></div>
+        <div><div style="width:16px;height:16px;background:#5566d8;border-radius:3px"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">16</div></div>
+        <div><div style="width:24px;height:16px;background:#5566d8;border-radius:3px"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">24</div></div>
+      </div>
+      <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-bottom:10px">space.chip 1px 5px（徽章内边距，唯一非 4px 网格例外；kbd 用 0 4px + line-height 16）</div>
+      <div style="display:flex;gap:10px">
+        <div><div style="width:44px;height:32px;border-radius:3px;background:#eeeef1;border:1px solid #d3d3da"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">radius.3 芯片 / kbd</div></div>
+        <div><div style="width:44px;height:32px;border-radius:4px;background:#eeeef1;border:1px solid #d3d3da"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">radius.4 按钮 / 输入</div></div>
+        <div><div style="width:44px;height:32px;border-radius:6px;background:#eeeef1;border:1px solid #d3d3da"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">radius.6 卡片 / 弹层</div></div>
+        <div><div style="width:44px;height:32px;display:flex;align-items:center"><div style="width:28px;height:16px;border-radius:8px;background:#5566d8;display:flex;align-items:center;justify-content:flex-end;padding:2px;box-sizing:border-box"><span style="width:12px;height:12px;border-radius:50%;background:#ffffff"></span></div></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">radius.pill 例外：布尔开关轨道 / 全圆徽章（= 轨道高度一半）</div></div>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">控件高度 · 按钮四态</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <div style="height:24px;display:flex;align-items:center;padding:0 8px;border-radius:3px;background:#eeeef1;font-size:11px;color:#62626e">24 紧凑</div>
+        <div style="height:28px;display:flex;align-items:center;padding:0 8px;border-radius:4px;background:#eeeef1;font-size:12px;color:#62626e">28 标准</div>
+        <div style="height:32px;display:flex;align-items:center;padding:0 10px;border-radius:4px;background:#eeeef1;font-size:13px;color:#62626e">32 主输入</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <div style="height:28px;display:flex;align-items:center;padding:0 8px;border-radius:4px;font-size:13px;color:#33333d">默认 ghost</div>
+        <div style="height:28px;display:flex;align-items:center;padding:0 8px;border-radius:4px;font-size:13px;color:#33333d;background:rgba(30,30,38,.06)">hover 6%</div>
+        <div style="height:28px;display:flex;align-items:center;padding:0 8px;border-radius:4px;font-size:13px;color:#33333d;background:rgba(30,30,38,.10)">active 10%</div>
+        <div style="height:28px;display:flex;align-items:center;padding:0 8px;border-radius:4px;font-size:13px;color:#4a59c9;background:rgba(30,30,38,.10)">selected</div>
+        <div style="height:28px;display:flex;align-items:center;padding:0 10px;border-radius:4px;font-size:13px;color:#ffffff;background:#5566d8">primary</div>
+        <div style="height:28px;display:flex;align-items:center;padding:0 8px;border-radius:4px;font-size:13px;color:#bc4e39">danger ghost</div>
+        <div style="height:28px;display:flex;align-items:center;padding:0 8px;border-radius:4px;font-size:13px;color:#33333d;outline:1.5px solid #5566d8;outline-offset:1px">focus ring 1.5 / +1</div>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">图标 · kbd · 动效</div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+        <span style="display:inline-flex;color:#33333d"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.2" y2="16.2"></line></svg></span>
+        <span style="display:inline-flex;color:#33333d"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg></span>
+        <span style="display:inline-flex;color:#33333d"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg></span>
+        <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">icon 16 / 工具栏 14 · stroke 1.5</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e;border:1px solid #d3d3da;border-radius:3px;padding:0 4px;line-height:16px;white-space:nowrap">Alt-Shift-A</span>
+        <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e;border:1px solid #d3d3da;border-radius:3px;padding:0 4px;line-height:16px;white-space:nowrap">Ctrl-Alt-A</span>
+        <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">kbd · mono 11 · radius 3</span>
+      </div>
+      <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e;line-height:1.75">
+        <div>motion.fast 120ms ease-out（hover / 颜色）</div>
+        <div>motion.base 160ms ease-out（展开 / 弹层）</div>
+        <div>spinner accent #5566d8 · 1.5px 弧</div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:924}}"></script>
+</body>
+</html>

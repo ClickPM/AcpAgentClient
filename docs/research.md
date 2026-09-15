@@ -1,6 +1,6 @@
 # 研究概要
 
-> 2026-09-11 三轮可行性分析的沉淀；§ 9、§ 10 是 2026-09-12 技术栈调整（Tauri → Flutter、Claude Design → Figma Make）的依据。所有数字来自当日 main 分支源码（commit 见 `pins/upstream.json`）。源码在本仓库 `vendor/upstream/`；分析期的临时克隆在 `D:/variFlight_work/_references/`（含已被排除的 codex、pi-web-0.8.9、acp-components，仅历史参考）。改动钉版本时本文相应段落要重核。
+> 2026-09-11 三轮可行性分析的沉淀；§ 9 是 2026-09-12 技术栈调整（Tauri → Flutter）的依据，§ 10 是设计交付链路；设计工具 2026-09-12 由 Claude Design 改为 Figma Make，2026-09-14 改回 Claude Design，§ 10 按现状写。所有数字来自当日 main 分支源码（commit 见 `pins/upstream.json`）。源码在本仓库 `vendor/upstream/`；分析期的临时克隆在 `D:/variFlight_work/_references/`（含已被排除的 codex、pi-web-0.8.9、acp-components，仅历史参考）。改动钉版本时本文相应段落要重核。
 
 ## 1. Zed 的 ACP 相关代码
 
@@ -85,7 +85,7 @@ macOS 的 headless `run()` 仍然调用 `CFRunLoopRun()` 并把前台任务投�
 | 复用 pi-web 的文件管理与会话组件 | MIT 但传输层是 pi 私有 RPC；所有者裁定前端全部自研 |
 | acp-components / acp-ui / Jockey 等第三方 ACP 客户端与组件库 | 所有者裁定白名单之外一律不引入 |
 | 前端跑官方 TypeScript SDK | `typescript-sdk` 不在白名单；协议层落 Rust 核心 |
-| Tauri 2 + WebView2 + React 19（2026-09-11 原方案） | 2026-09-12 所有者改为 Flutter：设计源换 Figma Make 后「设计稿是 HTML」的绑定消失；见 § 9 |
+| Tauri 2 + WebView2 + React 19（2026-09-11 原方案） | 2026-09-12 所有者改为 Flutter：设计稿只作视觉基准、不复用代码，「设计稿是 HTML」的绑定消失；见 § 9 |
 | Rust 核心作为独立进程 `acp-host.exe` 经 stdio 与 Flutter 通信（方案 B） | 所有者裁定 2026-09-12 取进程内 cdylib（方案 A）；契约是 JSON 字符串，日后要改传输层 Dart 侧不动 |
 | Rinf（Rust 持有状态、消息传递） | 不支持带返回值的调用，`session_new` 这类请求 / 响应要自己配对；frb v2 更直接 |
 | Dart 侧 PTY（`kyroon_pty` / `flutter_pty` / `pty2`） | PTY 语义要转写 Zed `acp_thread/terminal.rs` 且是 `terminal/*` 回调的实现方，必须留在 Rust；Dart 只渲染 |
@@ -103,7 +103,7 @@ macOS 的 headless `run()` 仍然调用 `CFRunLoopRun()` 并把前台任务投�
 
 ### 9.1 为什么改
 
-2026-09-11 选 Tauri + React 的核心依据是「Claude Design 出的是纯 HTML + 内联样式，Web 栈与它距离最近」。设计源改为 Figma Make 后，Make 出的仍是 Web 原型，但本项目只拿它当**视觉基准**（PNG 快照入库），不复用其代码；前端框架因此不再被设计工具绑定。Flutter 的收益：不依赖 WebView2；列表惰性构建、动效、字体渲染是原生能力；单一 Dart 工具链。代价见 § 9.4。
+2026-09-11 选 Tauri + React 的核心依据是「Claude Design 出的是纯 HTML + 内联样式，Web 栈与它距离最近」。2026-09-12 起本项目只拿设计稿当**视觉基准**（`.dc.html` 源与 PNG 快照入库），不复用其代码；前端框架因此不再被设计工具绑定，2026-09-14 设计工具改回 Claude Design 也不影响这条。Flutter 的收益：不依赖 WebView2；列表惰性构建、动效、字体渲染是原生能力；单一 Dart 工具链。代价见 § 9.4。
 
 ### 9.2 frb v2 与 Rinf
 
@@ -135,9 +135,10 @@ macOS 的 headless `run()` 仍然调用 `CFRunLoopRun()` 并把前台任务投�
 | 跨消息文本选择 | 浏览器免费 | `SelectionArea`，与惰性列表配合有边界情况 | 弱于 Web，实测记录 |
 | 打包 | Tauri bundler + `externalBin` | Flutter Windows CMake install + Inno Setup / MSIX；sidecar 用 CMake install 规则 | 等价，多写几行 CMake |
 
-## 10. Figma Make 交付链路
+## 10. Claude Design 交付链路
 
-- **Make 与 Claude Design 的同构性**：都是「提示词 → Web 原型」，产物在 Figma 云端（`figma.com/make/:key`）而非仓库。本项目把它当视觉基准而不是代码来源：每个画板导出 PNG 入库，`design/README.md` 记编号、名称、Make URL、PNG 路径；画板编号只增不改。PNG 是审查与验收的锚，Make 文件后续改动不影响已开工轮次。
-- **MCP 可用面**：本环境的 Figma MCP 能解析 Make URL，`get_screenshot` 可拉画板图、`get_design_context` 可拉结构与样式（默认吐 React + Tailwind，对 Flutter 只作结构参考）、`get_variable_defs` 可拉 token。**组件仍全部从画板手写**，MCP 输出不直接入库。
-- **Code Connect 不适用**：官方只支持 React / HTML / SwiftUI / Compose，Flutter 只能走框架无关 template API；本项目组件全手写、规模小，不引入。
-- **token 提炼**：从 Make 产物（CSS 变量 / Tailwind 配置）提炼颜色、字号、间距、圆角、动效时长到 `lib/theme/tokens.dart`，作为样式唯一来源；规则 3 的「样式零改动」在 Flutter 下的判据就是接线轮里 `tokens.dart` 与画板 widget 文件零 diff。
+- **产物形态**：Claude Design 的设计稿是「一画板一个 `.dc.html`」加一份 `canvas.json` 布局清单；`.dc.html` 是自包含的 HTML 加内联样式，可以直接入库、diff、回溯。这是它与 Figma Make 的主要差异：Make 的产物只在 Figma 云端，仓库里只能放 PNG。本项目把设计稿当视觉基准而不是代码来源：`.dc.html`、`canvas.json` 与每画板一张 PNG 入库，`design/README.md` 记编号、名称、`.dc.html`、PNG、画布 URL；画板编号只增不改。PNG 是审查与验收的锚，画布上的后续改动不影响已开工轮次。
+- **两个入口**：claude.ai/design 的完整产品，或 Claude Code 内的 `/design`（把 `.dc.html` 画板发布成一个可编辑的画布 Artifact；早期预览，不与网页版对齐）。两者产物相同。画布上 Save 过的改动要先读回仓库覆盖源文件，再重导 PNG，不在两边各改一份。
+- **Figma MCP 与 Code Connect 随 Make 一起退出**：`get_screenshot` / `get_design_context` / `get_variable_defs` 不再用于对照与提炼，直接读 `.dc.html`。
+- **token 提炼**：首个设计轮先出 `00-tokens` 画板，页面画板从它取值；从它的 `<helmet><style>` 与内联样式提炼颜色、字号、间距、圆角、动效时长到 `lib/theme/tokens.dart`，作为样式唯一来源，不从页面画板反推。规则 3 的「样式零改动」在 Flutter 下的判据就是接线轮里 `tokens.dart` 与画板 widget 文件零 diff。
+- **组件仍全部从画板手写**：`.dc.html` 里的 HTML 与 CSS 不翻译成 Dart，只作结构与数值参照（CLAUDE.md 规则 1 / 3）。

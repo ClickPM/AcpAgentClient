@@ -1,0 +1,386 @@
+{
+  "pages": [
+    {
+      "id": "page-1",
+      "name": "P1 Token 与壳"
+    },
+    {
+      "id": "page-2",
+      "name": "P2 转录卡片"
+    },
+    {
+      "id": "page-3",
+      "name": "P3 弹层与菜单"
+    },
+    {
+      "id": "page-4",
+      "name": "P4 其余页面"
+    }
+  ],
+  "artboards": [
+    {
+      "file": "00-tokens.dc.html",
+      "title": "Token 表",
+      "page": "page-1",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "01-workbench-empty.dc.html",
+      "title": "工作台 · 新会话",
+      "page": "page-1",
+      "x": 1520,
+      "y": 0,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "02-workbench-running.dc.html",
+      "title": "工作台 · 进行中的一轮",
+      "page": "page-1",
+      "x": 3040,
+      "y": 0,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "03-workbench-done.dc.html",
+      "title": "工作台 · 回合结束 + 右栏展开",
+      "page": "page-1",
+      "x": 0,
+      "y": 1020,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "04-sidebar-states.dc.html",
+      "title": "侧栏与顶栏状态",
+      "page": "page-1",
+      "x": 1520,
+      "y": 1020,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "10-checkpoint.dc.html",
+      "title": "Restore Checkpoint 分隔线",
+      "page": "page-2",
+      "x": 0,
+      "y": 0,
+      "w": 800,
+      "h": 400
+    },
+    {
+      "file": "11-user-message.dc.html",
+      "title": "用户消息气泡",
+      "page": "page-2",
+      "x": 880,
+      "y": 0,
+      "w": 800,
+      "h": 900
+    },
+    {
+      "file": "12-assistant-text.dc.html",
+      "title": "助手富文本正文",
+      "page": "page-2",
+      "x": 1760,
+      "y": 0,
+      "w": 800,
+      "h": 900
+    },
+    {
+      "file": "13-code-block.dc.html",
+      "title": "代码块卡片",
+      "page": "page-2",
+      "x": 2640,
+      "y": 0,
+      "w": 800,
+      "h": 600
+    },
+    {
+      "file": "14-gfm-table.dc.html",
+      "title": "GFM 表格",
+      "page": "page-2",
+      "x": 3520,
+      "y": 0,
+      "w": 800,
+      "h": 500
+    },
+    {
+      "file": "15-mermaid.dc.html",
+      "title": "Mermaid 图",
+      "page": "page-2",
+      "x": 0,
+      "y": 1020,
+      "w": 800,
+      "h": 800
+    },
+    {
+      "file": "16-math.dc.html",
+      "title": "数学公式",
+      "page": "page-2",
+      "x": 880,
+      "y": 1020,
+      "w": 800,
+      "h": 400
+    },
+    {
+      "file": "17-thinking.dc.html",
+      "title": "思考折叠块",
+      "page": "page-2",
+      "x": 1760,
+      "y": 1020,
+      "w": 800,
+      "h": 700
+    },
+    {
+      "file": "18-tool-call.dc.html",
+      "title": "标准工具调用卡",
+      "page": "page-2",
+      "x": 2640,
+      "y": 1020,
+      "w": 800,
+      "h": 1200
+    },
+    {
+      "file": "19-tool-failed.dc.html",
+      "title": "工具调用失败卡",
+      "page": "page-2",
+      "x": 3520,
+      "y": 1020,
+      "w": 800,
+      "h": 600
+    },
+    {
+      "file": "20-tool-cancelled.dc.html",
+      "title": "工具已取消卡",
+      "page": "page-2",
+      "x": 0,
+      "y": 2340,
+      "w": 800,
+      "h": 400
+    },
+    {
+      "file": "21-diff-card.dc.html",
+      "title": "文件差异对比卡",
+      "page": "page-2",
+      "x": 880,
+      "y": 2340,
+      "w": 800,
+      "h": 800
+    },
+    {
+      "file": "22-terminal-card.dc.html",
+      "title": "嵌入式终端控制台卡",
+      "page": "page-2",
+      "x": 1760,
+      "y": 2340,
+      "w": 800,
+      "h": 800
+    },
+    {
+      "file": "23-terminal-running.dc.html",
+      "title": "终端进行中卡",
+      "page": "page-2",
+      "x": 2640,
+      "y": 2340,
+      "w": 800,
+      "h": 400
+    },
+    {
+      "file": "24-subagent.dc.html",
+      "title": "子代理委派卡",
+      "page": "page-2",
+      "x": 3520,
+      "y": 2340,
+      "w": 800,
+      "h": 900
+    },
+    {
+      "file": "25-permission.dc.html",
+      "title": "权限授权卡",
+      "page": "page-2",
+      "x": 0,
+      "y": 3360,
+      "w": 800,
+      "h": 1000
+    },
+    {
+      "file": "26-awaiting.dc.html",
+      "title": "Awaiting Confirmation",
+      "page": "page-2",
+      "x": 880,
+      "y": 3360,
+      "w": 800,
+      "h": 500
+    },
+    {
+      "file": "27-elicitation-form.dc.html",
+      "title": "表单模式交互卡",
+      "page": "page-2",
+      "x": 1760,
+      "y": 3360,
+      "w": 800,
+      "h": 1400
+    },
+    {
+      "file": "28-elicitation-url.dc.html",
+      "title": "链接跳转交互卡",
+      "page": "page-2",
+      "x": 2640,
+      "y": 3360,
+      "w": 800,
+      "h": 800
+    },
+    {
+      "file": "29-plan.dc.html",
+      "title": "计划卡",
+      "page": "page-2",
+      "x": 3520,
+      "y": 3360,
+      "w": 800,
+      "h": 1400
+    },
+    {
+      "file": "30-context-window.dc.html",
+      "title": "上下文窗口浮窗",
+      "page": "page-2",
+      "x": 0,
+      "y": 4880,
+      "w": 800,
+      "h": 500
+    },
+    {
+      "file": "31-turn-state.dc.html",
+      "title": "回合态与结束",
+      "page": "page-2",
+      "x": 880,
+      "y": 4880,
+      "w": 800,
+      "h": 1000
+    },
+    {
+      "file": "32-content-blocks.dc.html",
+      "title": "非文本内容块",
+      "page": "page-2",
+      "x": 1760,
+      "y": 4880,
+      "w": 800,
+      "h": 1000
+    },
+    {
+      "file": "33-compaction.dc.html",
+      "title": "上下文压缩卡",
+      "page": "page-2",
+      "x": 2640,
+      "y": 4880,
+      "w": 800,
+      "h": 700
+    },
+    {
+      "file": "34-agent-state.dc.html",
+      "title": "agent 状态与错误",
+      "page": "page-2",
+      "x": 3520,
+      "y": 4880,
+      "w": 800,
+      "h": 900
+    },
+    {
+      "file": "40-composer-popovers.dc.html",
+      "title": "输入框弹层合集",
+      "page": "page-3",
+      "x": 0,
+      "y": 0,
+      "w": 1200,
+      "h": 800
+    },
+    {
+      "file": "41-topbar-popovers.dc.html",
+      "title": "顶栏与侧栏弹层合集",
+      "page": "page-3",
+      "x": 1280,
+      "y": 0,
+      "w": 1200,
+      "h": 800
+    },
+    {
+      "file": "42-inline-menus.dc.html",
+      "title": "输入框内联菜单",
+      "page": "page-3",
+      "x": 2560,
+      "y": 0,
+      "w": 1200,
+      "h": 800
+    },
+    {
+      "file": "50-registry.dc.html",
+      "title": "Agents 面板（ACP Registry）",
+      "page": "page-4",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "51-registry-states.dc.html",
+      "title": "Registry 条目状态",
+      "page": "page-4",
+      "x": 1520,
+      "y": 0,
+      "w": 1200,
+      "h": 800
+    },
+    {
+      "file": "52-auth.dc.html",
+      "title": "agent 认证",
+      "page": "page-4",
+      "x": 2800,
+      "y": 0,
+      "w": 1200,
+      "h": 800
+    },
+    {
+      "file": "60-files-panel.dc.html",
+      "title": "文件面板",
+      "page": "page-4",
+      "x": 0,
+      "y": 1020,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "61-terminal-panel.dc.html",
+      "title": "终端面板",
+      "page": "page-4",
+      "x": 1520,
+      "y": 1020,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "70-settings.dc.html",
+      "title": "设置",
+      "page": "page-4",
+      "x": 3040,
+      "y": 1020,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "80-traffic.dc.html",
+      "title": "ACP 流量调试",
+      "page": "page-4",
+      "x": 0,
+      "y": 2040,
+      "w": 1440,
+      "h": 900
+    }
+  ],
+  "launch": {
+    "view": "canvas",
+    "page": "page-1"
+  }
+}

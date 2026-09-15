@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet"><style>body{margin:0;background:#fbfbfc}a{color:#4a59c9;text-decoration:none}a:hover{color:#3d4cb5}</style></helmet>
+<div data-screen-label="21" style="width:800px;min-width:800px;box-sizing:border-box;padding:24px;background:#fbfbfc;font-family:Geist,'Noto Sans SC',system-ui,sans-serif;font-size:13px;color:#33333d;display:flex;flex-direction:column;gap:16px">
+  <div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #e2e2e7;padding-bottom:10px">
+    <span style="font-size:15px;font-weight:500;color:#1e1e26">21 · 文件差异对比卡</span>
+    <span style="font-size:11px;color:#8b8b96">协议来源：tool_call.content[] · { type: "diff", path, oldText, newText }（只读）</span>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">折叠（路径 + 增删计数）</div>
+    <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;overflow:hidden">
+      <div style="height:32px;display:flex;align-items:center;gap:8px;padding:0 10px">
+        <span style="display:inline-flex"><span style="display:inline-flex;color:#477f40"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><polyline points="8.4 12.2 11 14.8 15.8 9.6"></polyline></svg></span></span>
+        <span style="display:inline-flex;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5a2 2 0 0 1 2-2h6v18H4a2 2 0 0 1-2-2z"></path><path d="M22 5a2 2 0 0 0-2-2h-6v18h6a2 2 0 0 0 2-2z"></path></svg></span>
+        <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;color:#62626e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">rounds\BACKLOG.md</span>
+        <span style="display:flex;align-items:center;gap:6px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;font-variant-numeric:tabular-nums"><span style="color:#477f40">+4</span><span style="color:#bc4e39">−1</span></span>
+        <span style="margin-left:auto;display:inline-flex;color:#8b8b96"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">展开（行号 · 增删行着色 · 行悬浮出「在文件面板中定位」）</div>
+    <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;overflow:hidden">
+      <div style="height:32px;display:flex;align-items:center;gap:8px;padding:0 10px">
+        <span style="display:inline-flex"><span style="display:inline-flex;color:#477f40"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><polyline points="8.4 12.2 11 14.8 15.8 9.6"></polyline></svg></span></span>
+        <span style="display:inline-flex;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5a2 2 0 0 1 2-2h6v18H4a2 2 0 0 1-2-2z"></path><path d="M22 5a2 2 0 0 0-2-2h-6v18h6a2 2 0 0 0 2-2z"></path></svg></span>
+        <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;color:#62626e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">rounds\BACKLOG.md</span>
+        <span style="display:flex;align-items:center;gap:6px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;font-variant-numeric:tabular-nums"><span style="color:#477f40">+4</span><span style="color:#bc4e39">−1</span></span>
+        <span style="margin-left:auto;display:inline-flex;color:#8b8b96"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg></span>
+      </div>
+      <div style="border-top:1px solid #e2e2e7;padding:6px 0">
+        <div style="display:flex;align-items:center;gap:0;background:transparent;font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;line-height:1.7;position:relative"><span style="width:44px;flex:none;text-align:right;padding-right:10px;color:#8b8b96;font-variant-numeric:tabular-nums">24</span><span style="width:14px;flex:none;color:#33333d"> </span><span style="color:#33333d;white-space:pre;overflow:hidden;text-overflow:ellipsis">## 工程</span></div>
+        <div style="display:flex;align-items:center;gap:0;background:transparent;font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;line-height:1.7;position:relative"><span style="width:44px;flex:none;text-align:right;padding-right:10px;color:#8b8b96;font-variant-numeric:tabular-nums">25</span><span style="width:14px;flex:none;color:#33333d"> </span><span style="color:#33333d;white-space:pre;overflow:hidden;text-overflow:ellipsis"></span></div>
+        <div style="display:flex;align-items:center;gap:0;background:#fbeeea;font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;line-height:1.7;position:relative"><span style="width:44px;flex:none;text-align:right;padding-right:10px;color:#8b8b96;font-variant-numeric:tabular-nums">26</span><span style="width:14px;flex:none;color:#bc4e39">-</span><span style="color:#bc4e39;white-space:pre;overflow:hidden;text-overflow:ellipsis">- [ ] 截图验收：逐一验证并截图 Zed Agent 的 20 项 ACP 投影交互卡片样式 (2026-09-14)</span></div>
+        <div style="display:flex;align-items:center;gap:0;background:#ecf3ea;font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;line-height:1.7;position:relative"><span style="width:44px;flex:none;text-align:right;padding-right:10px;color:#8b8b96;font-variant-numeric:tabular-nums">26</span><span style="width:14px;flex:none;color:#477f40">+</span><span style="color:#477f40;white-space:pre;overflow:hidden;text-overflow:ellipsis">- [x] 截图验收：逐一验证并截图 Zed Agent 的 22 项 ACP 投影交互卡片样式 (2026-09-14)</span></div>
+        <div style="display:flex;align-items:center;gap:0;background:#ecf3ea;font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;line-height:1.7;position:relative"><span style="width:44px;flex:none;text-align:right;padding-right:10px;color:#8b8b96;font-variant-numeric:tabular-nums">27</span><span style="width:14px;flex:none;color:#477f40">+</span><span style="color:#477f40;white-space:pre;overflow:hidden;text-overflow:ellipsis">- [ ] R0 validate.ps1 增 Assert-NoStyleLiteral（CLAUDE.md 规则 3 的机器校验） (2026-09-14)</span></div>
+        <div style="display:flex;align-items:center;gap:0;background:#ecf3ea;font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;line-height:1.7;position:relative"><span style="width:44px;flex:none;text-align:right;padding-right:10px;color:#8b8b96;font-variant-numeric:tabular-nums">28</span><span style="width:14px;flex:none;color:#477f40">+</span><span style="color:#477f40;white-space:pre;overflow:hidden;text-overflow:ellipsis">- [ ] 设计轮：40 张画板按 canvas.json 出稿并逐张导出 PNG (2026-09-14)</span></div>
+        <div style="display:flex;align-items:center;gap:0;background:#ecf3ea;font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;line-height:1.7;position:relative"><span style="width:44px;flex:none;text-align:right;padding-right:10px;color:#8b8b96;font-variant-numeric:tabular-nums">29</span><span style="width:14px;flex:none;color:#477f40">+</span><span style="color:#477f40;white-space:pre;overflow:hidden;text-overflow:ellipsis"></span></div>
+        <div style="display:flex;align-items:center;gap:0;background:rgba(30,30,38,.06);font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;line-height:1.7;position:relative"><span style="width:44px;flex:none;text-align:right;padding-right:10px;color:#8b8b96;font-variant-numeric:tabular-nums">30</span><span style="width:14px;flex:none;color:#33333d"> </span><span style="color:#33333d;white-space:pre;overflow:hidden;text-overflow:ellipsis">## 文档</span><span style="position:absolute;right:8px;top:2px;height:20px;display:flex;align-items:center;gap:5px;padding:0 6px;border-radius:3px;background:#ffffff;border:1px solid #e2e2e7;box-shadow:0 4px 12px rgba(28,28,35,.10);font-family:Geist,'Noto Sans SC',system-ui,sans-serif;font-size:11px;color:#33333d">在文件面板中定位</span></div>
+      </div>
+    </div>
+  </div>
+  <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;line-height:1.7">既定裁定：不做 Zed 的 Edits 审阅条，没有 Keep / Reject / 逐文件接受；点行只在右栏文件面板定位。增删行用 success.soft / error.soft 打底，符号列与行号列都是等宽 tabular。</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:800,&quot;height&quot;:487}}"></script>
+</body>
+</html>

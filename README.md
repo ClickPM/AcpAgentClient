@@ -1,12 +1,12 @@
 # AcpAgent Client
 
-> 一个好看的多 agent ACP 桌面客户端。Flutter 壳，Rust 核心（flutter_rust_bridge 进程内桥接），前端按 Figma Make 设计稿实现。
+> 一个好看的多 agent ACP 桌面客户端。Flutter 壳，Rust 核心（flutter_rust_bridge 进程内桥接），前端按 Claude Design 设计稿实现。
 
 Agent 一律经 [Agent Client Protocol（ACP）](https://agentclientprotocol.com/) 接入：Claude Agent、Codex、Cursor、pi、DeepSeek Harness，以及以独立 sidecar 形式接入的 Zed 内置 agent。官方 registry 里的 agent 像 Zed 一样安装即用。
 
 ## 状态
 
-2026-09-11 建仓，完成三轮可行性分析；2026-09-12 技术栈调整为 Flutter + Rust（frb v2）、设计源 Figma Make。尚未开始编码。轮次拆解将建立在 `ROUNDS.md`。
+2026-09-11 建仓，完成三轮可行性分析；2026-09-12 技术栈调整为 Flutter + Rust（frb v2）；2026-09-14 设计工具改回 Claude Design。尚未开始编码。轮次拆解将建立在 `ROUNDS.md`。
 
 ## 文档
 
@@ -14,7 +14,7 @@ Agent 一律经 [Agent Client Protocol（ACP）](https://agentclientprotocol.com
 |---|---|
 | [`docs/background.md`](docs/background.md) | 为什么做：前作、为什么是 ACP、为什么是 Flutter + Rust |
 | [`docs/requirements.md`](docs/requirements.md) | 必须 / 不做 / 依赖白名单 / 五个一等 agent |
-| [`docs/research.md`](docs/research.md) | 源码级研究结论：Zed 的 ACP 代码、rust-sdk v2、registry、五个 agent、sidecar 接入点、被排除的路线、Flutter + Rust 桥接、Figma Make 交付链路 |
+| [`docs/research.md`](docs/research.md) | 源码级研究结论：Zed 的 ACP 代码、rust-sdk v2、registry、五个 agent、sidecar 接入点、被排除的路线、Flutter + Rust 桥接、Claude Design 交付链路 |
 | [`docs/design.md`](docs/design.md) | 进程模型、分层来源、核心与前端契约、认证、registry、终端与 fs、sidecar、前端（Flutter）、阶段草案 |
 | [`docs/review-workflow.md`](docs/review-workflow.md) | 独立审查：cursor CLI + grok 4.6 high 首选，硬失败回落 Claude Code 子代理；发起、取回与回落条件 |
 | [`CLAUDE.md`](CLAUDE.md) | 开发约定、轮次流程与硬性规则（`AGENTS.md` 是给审查者的指针） |

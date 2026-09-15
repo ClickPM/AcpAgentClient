@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet"><style>body{margin:0;background:#fbfbfc}a{color:#4a59c9;text-decoration:none}a:hover{color:#3d4cb5}</style></helmet>
+<div data-screen-label="17" style="width:800px;min-width:800px;box-sizing:border-box;padding:24px;background:#fbfbfc;font-family:Geist,'Noto Sans SC',system-ui,sans-serif;font-size:13px;color:#33333d;display:flex;flex-direction:column;gap:16px">
+  <div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #e2e2e7;padding-bottom:10px">
+    <span style="font-size:15px;font-weight:500;color:#1e1e26">17 · 思考折叠块</span>
+    <span style="font-size:11px;color:#8b8b96">协议来源：agent_thought_chunk（纯流；折叠单元是客户端本地态）</span>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">流式中</div>
+    <div style="">
+      <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 10px">
+        <span style="display:inline-flex;color:#5566d8"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5566d8" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.55"></path></svg></span>
+        <span style="font-size:13px;color:#62626e">Thinking...</span>
+        <span style="margin-left:auto;display:inline-flex;color:#8b8b96"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">结束折叠</div>
+    <div style="">
+      <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 10px">
+        <span style="display:inline-flex;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M12 2a6 6 0 0 0-3.5 10.9c.6.5.9 1.2.9 2h5.2c0-.8.3-1.5.9-2A6 6 0 0 0 12 2z"></path></svg></span>
+        <span style="font-size:13px;color:#62626e">Thought for 4 seconds</span>
+        <span style="margin-left:auto;display:inline-flex;color:#8b8b96"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">展开</div>
+    <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;">
+      <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 10px">
+        <span style="display:inline-flex;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M12 2a6 6 0 0 0-3.5 10.9c.6.5.9 1.2.9 2h5.2c0-.8.3-1.5.9-2A6 6 0 0 0 12 2z"></path></svg></span>
+        <span style="font-size:13px;color:#62626e">Thought for 4 seconds</span>
+        <span style="margin-left:auto;display:inline-flex;color:#8b8b96"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg></span>
+      </div>
+      <div style="border-top:1px solid #e2e2e7;padding:10px 12px;font-size:13px;line-height:1.5;color:#62626e">用户要在 validate 脚本里加一条「widget 文件不得出现样式字面量」的检查。这条规则的唯一样式来源是 lib/theme/tokens.dart，所以校验的形状应该是：扫 lib 下除 theme/ 之外的 .dart，命中颜色 / 尺寸字面量就失败。先确认 acp-projection.md 里对投影面的口径没有额外约束，再看 rounds/ 的任务卡格式，最后改脚本。</div>
+    </div>
+  </div>
+  <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;line-height:1.7">思考块没有「一段思考」的协议边界，分段与折叠规则由客户端定（acp-projection.md § 7 第 6 条）；耗时是客户端本地打的时间戳。</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:800,&quot;height&quot;:423}}"></script>
+</body>
+</html>
