@@ -121,7 +121,7 @@ class ToolCallStore {
         }
       }
       entry.content = kept; // 替换，不是追加
-      entry.skippedContent += skipped;
+      entry.skippedContent = skipped; // 计数跟着这一份 content 走，不累加（审查 P3）
     }
     if (w.hasLocations) entry.locations = w.locations; // 同上
     if (w.json.containsKey('rawInput')) entry.rawInput = w.rawInput;

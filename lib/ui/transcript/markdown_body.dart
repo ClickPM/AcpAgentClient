@@ -1,6 +1,7 @@
 // 助手正文的 Markdown 渲染（R1.5 裁定：package:markdown 只用解析器，渲染层按画板自写）。
 // - 每个顶层块带 ValueKey(index)，流式追加时只有尾块的子树变化；
-// - 链接的 recognizer 下推到每个叶子 span（RichText 命中测试只看最内层）；
+// - 链接的 recognizer 下推到每个叶子 span（RichText 命中测试只看最内层），由 MarkdownBody 的 State 持有：
+//   输入变化先 dispose 再重建、widget 卸载时全部释放（审查 P2：流式 chunk 每次 build 新建且从不 dispose 会泄漏）；
 // - `$…$` / `$$…$$` 在这里以 InlineSyntax 识别，交给 math_block.dart；
 // - 围栏交给 code_block.dart（语言 mermaid 交给 mermaid_block.dart）、表格交给 gfm_table.dart；
 // - 表头行启发式：只有一行 `| a | b |` 还没等到分隔行时先按表头渲染，避免分隔行到达那一帧跳变。
@@ -33,7 +34,25 @@ class LatexSyntax extends md.InlineSyntax {
   }
 }
 
-class MarkdownBody extends StatelessWidget {
+/// 链接 recognizer 的所有者：`MarkdownBody` 的 State 持有一份，块渲染时经 [create] 登记，State 负责释放。
+class LinkRecognizers {
+  final List<GestureRecognizer> _owned = <GestureRecognizer>[];
+
+  TapGestureRecognizer create(VoidCallback onTap) {
+    final r = TapGestureRecognizer()..onTap = onTap;
+    _owned.add(r);
+    return r;
+  }
+
+  void disposeAll() {
+    for (final r in _owned) {
+      r.dispose();
+    }
+    _owned.clear();
+  }
+}
+
+class MarkdownBody extends StatefulWidget {
   const MarkdownBody(this.data, {super.key, this.onLink, this.mermaidFontFamily, this.baseStyle});
 
   final String data;
@@ -49,30 +68,64 @@ class MarkdownBody extends StatelessWidget {
   static List<md.Node> parse(String data) => md.Document(extensionSet: _extensions, encodeHtml: false).parse(data);
 
   @override
-  Widget build(BuildContext context) {
-    final nodes = parse(data);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        for (var i = 0; i < nodes.length; i++)
-          KeyedSubtree(
-            key: ValueKey<int>(i),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: t.Spacing.s4),
-              child: MarkdownBlock(node: nodes[i], onLink: onLink, mermaidFontFamily: mermaidFontFamily, base: baseStyle ?? t.TextStyles.body),
-            ),
+  State<MarkdownBody> createState() => _MarkdownBodyState();
+}
+
+class _MarkdownBodyState extends State<MarkdownBody> {
+  final LinkRecognizers _links = LinkRecognizers();
+  List<Widget> _blocks = const <Widget>[];
+
+  @override
+  void initState() {
+    super.initState();
+    _rebuild();
+  }
+
+  @override
+  void didUpdateWidget(MarkdownBody old) {
+    super.didUpdateWidget(old);
+    if (old.data != widget.data || old.onLink != widget.onLink || old.mermaidFontFamily != widget.mermaidFontFamily || old.baseStyle != widget.baseStyle) {
+      _rebuild();
+    }
+  }
+
+  @override
+  void dispose() {
+    _links.disposeAll();
+    super.dispose();
+  }
+
+  /// 只在输入变化时重新解析；块 widget 实例缓存，父级重建时子树不重建，recognizer 也就不会随父级 build 反复登记。
+  void _rebuild() {
+    _links.disposeAll();
+    final nodes = MarkdownBody.parse(widget.data);
+    final base = widget.baseStyle ?? t.TextStyles.body;
+    _blocks = <Widget>[
+      for (var i = 0; i < nodes.length; i++)
+        KeyedSubtree(
+          key: ValueKey<int>(i),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: t.Spacing.s4),
+            child: MarkdownBlock(node: nodes[i], onLink: widget.onLink, links: _links, mermaidFontFamily: widget.mermaidFontFamily, base: base),
           ),
-      ],
-    );
+        ),
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: _blocks);
   }
 }
 
 class MarkdownBlock extends StatelessWidget {
-  const MarkdownBlock({super.key, required this.node, this.onLink, this.mermaidFontFamily, required this.base});
+  const MarkdownBlock({super.key, required this.node, this.onLink, this.links, this.mermaidFontFamily, required this.base});
 
   final md.Node node;
   final LinkCallback? onLink;
+
+  /// 链接 recognizer 的登记处；缺省（不经 MarkdownBody 直接用）时不挂 recognizer。
+  final LinkRecognizers? links;
   final String? mermaidFontFamily;
   final TextStyle base;
 
@@ -115,7 +168,7 @@ class MarkdownBlock extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               for (final c in n.children ?? const <md.Node>[])
-                MarkdownBlock(node: c, onLink: onLink, mermaidFontFamily: mermaidFontFamily, base: base.copyWith(color: t.Neutral.muted)),
+                MarkdownBlock(node: c, onLink: onLink, links: links, mermaidFontFamily: mermaidFontFamily, base: base.copyWith(color: t.Neutral.muted)),
             ],
           ),
         );
@@ -188,7 +241,7 @@ class MarkdownBlock extends StatelessWidget {
         ? Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
-            children: <Widget>[for (final k in kids) MarkdownBlock(node: k, onLink: onLink, mermaidFontFamily: mermaidFontFamily, base: base)],
+            children: <Widget>[for (final k in kids) MarkdownBlock(node: k, onLink: onLink, links: links, mermaidFontFamily: mermaidFontFamily, base: base)],
           )
         : Text.rich(inlines(kids, base), style: base);
     return Padding(
@@ -238,10 +291,11 @@ class MarkdownBlock extends StatelessWidget {
       case 'a':
         final href = node.attributes['href'] ?? '';
         final cb = onLink;
+        final owner = links;
         final span = TextSpan(style: const TextStyle(color: t.Accent.text), children: <InlineSpan>[inlines(node.children, base)]);
-        if (cb == null) return span;
-        // RichText 命中测试只看最内层 TextSpan 的 recognizer，所以要下推到每个叶子。
-        return _withRecognizer(span, TapGestureRecognizer()..onTap = () => cb(href));
+        if (cb == null || owner == null) return span;
+        // RichText 命中测试只看最内层 TextSpan 的 recognizer，所以要下推到每个叶子；recognizer 由 MarkdownBody 的 State 释放。
+        return _withRecognizer(span, owner.create(() => cb(href)));
       case 'br':
         return const TextSpan(text: '\n');
       case 'latex':

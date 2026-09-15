@@ -116,6 +116,28 @@ class PendingQueue extends ChangeNotifier {
     'outcome': <String, dynamic>{'outcome': 'cancelled'},
   };
 
+  /// elicitation 的取消回应载荷。
+  static const JsonMap cancelledAction = <String, dynamic>{'action': 'cancel'};
+
+  /// 把一条挂起的请求标成 cancelled（Restore Checkpoint 截断时用；permission 回 [cancelledOutcome]，elicitation 回 [cancelledAction]）。
+  bool cancelRequest(String requestId, {required DateTime now}) {
+    final e = _byRequestId[requestId];
+    if (e is PermissionEntry && e.status == PendingStatus.pending) {
+      e
+        ..status = PendingStatus.cancelled
+        ..answeredAt = now;
+    } else if (e is ElicitationEntry && e.status == PendingStatus.pending) {
+      e
+        ..status = PendingStatus.cancelled
+        ..action = 'cancel'
+        ..answeredAt = now;
+    } else {
+      return false;
+    }
+    notifyListeners();
+    return true;
+  }
+
   /// `$/cancel_request`：agent 撤回了自己的请求。
   bool withdraw(String requestId, {required DateTime now}) {
     final e = _byRequestId[requestId];

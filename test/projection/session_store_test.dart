@@ -258,14 +258,47 @@ void main() {
       expect(s.turnCount, 2);
       expect(s.isRunning, isTrue);
 
-      final restored = s.restoreTo(t2.id);
-      expect(restored, same(t2));
+      final restored = s.restoreTo(t2.id)!;
+      expect(restored.turn, same(t2));
+      expect(restored.cancelledRequestIds, isEmpty);
+      expect(restored.cancelledElicitationIds, isEmpty);
       expect(s.entries.whereType<TurnEntry>(), hasLength(1));
       expect(s.toolCalls.contains('t2'), isFalse);
       expect(s.toolCalls.contains('t1'), isTrue);
       expect(s.plans[PlanCardEntry.stablePlanId], isNull);
       expect(s.turnCount, 1);
       expect(s.isRunning, isFalse);
+    });
+
+    test('Restore 截断范围内仍挂起的 permission / elicitation 标 cancelled 并返回 id（截断前的不动）', () {
+      final s = newStore();
+      s.startTurn(const <ContentBlockWire>[]);
+      s.applyClientRequest(ClientRequestEnvelope(permissionEnvelope('keep', 't0')));
+      s.endTurn(stopReason: 'end_turn');
+      final t2 = s.startTurn(const <ContentBlockWire>[]);
+      s.applyUpdateJson(tool('sub', title: 'Task', kind: 'other', status: 'in_progress', meta: <String, dynamic>{'claudeCode': <String, dynamic>{'subagent': true}}));
+      // 权限卡本身落顶层（不按 _meta 嵌套），这里只验证它属于被截断的轮；children 的递归收集由消息 / 思考 / 工具的嵌套覆盖。
+      s.applyClientRequest(ClientRequestEnvelope(permissionEnvelope('nested', 'sub')));
+      s.applyClientRequest(ClientRequestEnvelope(permissionEnvelope('answered', 't1')));
+      s.answerPermission('answered', 'allow');
+      s.applyClientRequest(const ClientRequestEnvelope(<String, dynamic>{
+        'agentId': 'a',
+        'requestId': 'el',
+        'method': 'elicitation/create',
+        'params': <String, dynamic>{'mode': 'url', 'message': 'login', 'sessionId': sid, 'elicitationId': 'e1', 'url': 'https://x'},
+      }));
+
+      final r = s.restoreTo(t2.id)!;
+      expect(r.cancelledRequestIds, <String>['nested']);
+      expect(r.cancelledElicitationIds, <String>['el']);
+      expect((s.pending.byRequestId('nested')! as PermissionEntry).status, PendingStatus.cancelled);
+      expect((s.pending.byRequestId('answered')! as PermissionEntry).status, PendingStatus.answered);
+      final el = s.pending.byRequestId('el')! as ElicitationEntry;
+      expect(el.status, PendingStatus.cancelled);
+      expect(el.action, 'cancel');
+      expect((s.pending.byRequestId('keep')! as PermissionEntry).status, PendingStatus.pending);
+      expect(s.pending.pending, hasLength(1));
+      expect(s.pending.pending.single, same(s.pending.byRequestId('keep')));
     });
   });
 
@@ -324,6 +357,12 @@ void main() {
       expect(e.content, hasLength(2));
       expect(e.skippedContent, 1);
       expect(e.createdFromUpdate, isTrue);
+      // content[] 整份替换时，跳过计数跟着这一份走，不累加。
+      s.applyUpdateJson(tool('t1', update: true, content: <JsonMap>[
+        <String, dynamic>{'type': 'content', 'content': <String, dynamic>{'type': 'text', 'text': '3'}},
+      ]));
+      expect(e.content, hasLength(1));
+      expect(e.skippedContent, 0);
     });
   });
 

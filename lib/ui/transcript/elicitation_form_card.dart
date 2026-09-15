@@ -18,9 +18,11 @@ class ElicitationField {
   final JsonMap schema;
   final bool required;
 
-  String get type => schema['type'] as String? ?? '';
-  String get title => schema['title'] as String? ?? name;
-  String? get description => schema['description'] as String?;
+  // type / title / description 非字符串（例如 JSON Schema 常见的 type: ["string", "null"]）时不炸：
+  // type 当未知（跳过字段），标题回落属性名（审查 P2）。
+  String get type => schema['type'] is String ? schema['type'] as String : '';
+  String get title => schema['title'] is String ? schema['title'] as String : name;
+  String? get description => schema['description'] is String ? schema['description'] as String : null;
   Object? get defaultValue => schema['default'];
 
   /// 单选：string 的 oneOf（带标题）或 enum（无标题）。

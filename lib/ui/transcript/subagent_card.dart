@@ -12,6 +12,7 @@ import 'card_chrome.dart';
 import 'icons.dart';
 import 'markdown_body.dart';
 import 'terminal_card.dart';
+import 'thinking_block.dart';
 import 'tool_call_card.dart';
 
 class SubagentCard extends StatefulWidget {
@@ -32,6 +33,38 @@ class SubagentCard extends StatefulWidget {
 class _SubagentCardState extends State<SubagentCard> {
   late bool _expanded = widget.initiallyExpanded ?? widget.entry.isFinished;
 
+  Widget _outputLabel() => Row(
+        children: <Widget>[
+          const AcpIcon(AcpIcons.cornerDownRight, color: t.Neutral.muted, size: t.IconSizes.toolbar),
+          const SizedBox(width: t.Spacing.s4),
+          Text('Subagent Output', style: CardText.secondary),
+        ],
+      );
+
+  List<Widget> _children(ToolCallEntry e, bool hasOutput) {
+    final out = <Widget>[];
+    var labelled = false;
+    for (final c in e.children) {
+      switch (c) {
+        case final ToolCallEntry tool:
+          out.add(ToolCallCard(tool, cwd: widget.cwd));
+        case final ThoughtEntry th:
+          out.add(ThinkingBlock(th));
+        case final MessageEntry m:
+          if (!labelled) {
+            out.add(_outputLabel());
+            labelled = true;
+          }
+          out.add(AssistantText(m, onLink: widget.onLink));
+        default:
+          break;
+      }
+    }
+    // dsh 把子代理转录折进父卡 content[]（没有嵌套 MessageEntry）时，标签放在 content 正文之前。
+    if (!labelled && hasOutput) out.add(_outputLabel());
+    return out;
+  }
+
   @override
   Widget build(BuildContext context) {
     final e = widget.entry;
@@ -42,9 +75,8 @@ class _SubagentCardState extends State<SubagentCard> {
         .where((b) => b.type == ContentBlockType.text)
         .map((b) => b.text ?? '')
         .join('\n');
-    final outputs = e.children.whereType<MessageEntry>().toList();
-    final tools = e.children.whereType<ToolCallEntry>().toList();
-    final hasBody = tools.isNotEmpty || outputs.isNotEmpty || contentText.isNotEmpty;
+    final hasOutput = e.children.any((c) => c is MessageEntry) || contentText.isNotEmpty;
+    final hasBody = e.children.isNotEmpty || contentText.isNotEmpty;
     return TranscriptCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -63,17 +95,10 @@ class _SubagentCardState extends State<SubagentCard> {
             CardBody(
               padding: const EdgeInsets.all(t.Spacing.s12),
               children: <Widget>[
-                for (final tool in tools) ToolCallCard(tool, cwd: widget.cwd),
-                if (outputs.isNotEmpty || contentText.isNotEmpty) ...<Widget>[
-                  Row(
-                    children: <Widget>[
-                      const AcpIcon(AcpIcons.cornerDownRight, color: t.Neutral.muted, size: t.IconSizes.toolbar),
-                      const SizedBox(width: t.Spacing.s4),
-                      Text('Subagent Output', style: CardText.secondary),
-                    ],
-                  ),
-                  for (final m in outputs) AssistantText(m, onLink: widget.onLink),
-                  if (contentText.isNotEmpty) MarkdownBody(contentText, onLink: widget.onLink),
+                // 嵌套条目按到达顺序：工具行 / 思考块（审查 P2：投影已分组的 ThoughtEntry 不能丢）/ 输出前先给「↳ Subagent Output」。
+                ..._children(e, hasOutput),
+                if (contentText.isNotEmpty) MarkdownBody(contentText, onLink: widget.onLink),
+                if (hasOutput) ...<Widget>[
                   const Row(
                     children: <Widget>[
                       IconButtonGhost(icon: AcpIcons.thumbsUp, size: t.Controls.compact),

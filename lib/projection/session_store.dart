@@ -19,6 +19,19 @@ import 'wire.dart';
 
 typedef Clock = DateTime Function();
 
+class RestoreResult {
+  const RestoreResult({required this.turn, required this.cancelledRequestIds, required this.cancelledElicitationIds});
+
+  /// 被截断的轮（其 prompt 用于同会话重发）。
+  final TurnEntry turn;
+
+  /// 要以 `PendingQueue.cancelledOutcome` 回应的权限请求。
+  final List<String> cancelledRequestIds;
+
+  /// 要以 `PendingQueue.cancelledAction` 回应的 elicitation。
+  final List<String> cancelledElicitationIds;
+}
+
 class CancelResult {
   const CancelResult({required this.toolCallIds, required this.cancelledRequestIds});
 
@@ -329,21 +342,45 @@ class SessionStore extends ChangeNotifier {
     return CancelResult(toolCallIds: tools, cancelledRequestIds: requests);
   }
 
-  /// Restore Checkpoint（画板 10）：本地截断该轮及其后全部投影块，返回被截断的轮（其 prompt 用于同会话重发）。
+  /// Restore Checkpoint（画板 10）：本地截断该轮及其后全部投影块，返回被截断的轮（其 prompt 用于同会话重发）与
+  /// 截断范围内仍挂起的请求：permission 标 cancelled（回 `PendingQueue.cancelledOutcome`）、elicitation 标 cancelled
+  /// （回 `PendingQueue.cancelledAction`）——接线侧必须拿这些 id 去 `acp_respond`，否则 agent 挂起（审查 high）。
   /// 协议没有回滚，agent 侧上下文不回退（所有者裁定 2026-09-15，已知限制）。
-  TurnEntry? restoreTo(String turnEntryId) {
+  RestoreResult? restoreTo(String turnEntryId) {
     final idx = entries.indexWhere((e) => e.id == turnEntryId && e is TurnEntry);
     if (idx < 0) return null;
+    final now = this.now;
     final turn = entries[idx] as TurnEntry;
     final removed = entries.sublist(idx);
     entries.removeRange(idx, entries.length);
+    final permissions = <String>[];
+    final elicitations = <String>[];
     for (final e in removed) {
       _forget(e);
+      _collectPending(e, permissions, elicitations);
+    }
+    for (final id in <String>[...permissions, ...elicitations]) {
+      pending.cancelRequest(id, now: now);
     }
     turnCount = turn.n - 1;
     currentTurn = null;
     _changed();
-    return turn;
+    return RestoreResult(turn: turn, cancelledRequestIds: permissions, cancelledElicitationIds: elicitations);
+  }
+
+  void _collectPending(TranscriptEntry e, List<String> permissions, List<String> elicitations) {
+    switch (e) {
+      case final PermissionEntry p when p.status == PendingStatus.pending:
+        permissions.add(p.requestId);
+      case final ElicitationEntry el when el.status == PendingStatus.pending:
+        elicitations.add(el.requestId);
+      case final ToolCallEntry tc:
+        for (final c in tc.children) {
+          _collectPending(c, permissions, elicitations);
+        }
+      default:
+        break;
+    }
   }
 
   void _forget(TranscriptEntry e) {
@@ -420,9 +457,10 @@ class SessionStore extends ChangeNotifier {
     currentModeId = modes?['currentModeId'] as String?;
     final opts = result['configOptions'];
     if (opts is List) {
+      // 与 config_option_update 同一口径：未识别的 type 整条忽略（审查 P2）。
       configOptions = <ConfigOptionWire>[
         for (final o in opts)
-          if (o is Map) ConfigOptionWire(o.cast<String, dynamic>()),
+          if (o is Map && (o['type'] == 'select' || o['type'] == 'boolean')) ConfigOptionWire(o.cast<String, dynamic>()),
       ];
     }
     _changed();

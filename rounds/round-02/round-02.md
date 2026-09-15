@@ -59,11 +59,20 @@
      ① cursor CLI + grok 4.6 high → ② 硬失败回落主会话委派的 Claude Code 只读子代理（同一份任务书）。
      范围：前两轮全量（-Scope branch，即 main...HEAD），第 3 轮起只审上一轮整改 diff（-Scope since -Base <上一轮已审提交>）。 -->
 
-- 审查方式：待回填
-- 审查器与模型：待回填
-- 审查范围与基准提交：待回填
-- findings 处理：待回填
-- 结论：待回填
+- 审查方式：`powershell -File .claude\cursor-review.ps1`（默认档 `review`，后台跑，`--mode ask --force --trust --output-format text`）。
+- 审查器与模型：① cursor CLI（`cursor-agent`）+ `cursor-grok-4.6-high`，全程没有硬失败，没有回落。
+- 审查范围与基准提交：
+  - 第 1 轮：`-Scope branch`（`main...HEAD`，全量），HEAD = f3a3f87，74 files / +9595；产物 `.claude/reviews/20260915-172733-review.out.md`（17:27:33 发起，17:37:52 落地）。
+  - 第 2 轮：`-Scope branch`（前两轮必须全量），HEAD = 整改提交（见下）；产物待回填。
+- findings 处理（第 1 轮 6 条：high 1 / P2 4 / P3 1，全部采纳，均为最小改动，没有新增机制）：
+  1. [high] `restoreTo` 截断转录后挂起的 permission / elicitation 仍 pending，agent 会挂起 → **采纳**：`restoreTo` 改返回 `RestoreResult{turn, cancelledRequestIds, cancelledElicitationIds}`，截断范围内（含子代理卡 children 递归）仍 pending 的 permission 标 cancelled（回 `PendingQueue.cancelledOutcome`）、elicitation 标 cancelled + `action: cancel`（回新增常量 `PendingQueue.cancelledAction`）；接线侧（R3）必须拿这些 id 去 `acp_respond`。`PendingQueue` 加 `cancelRequest(requestId)`（复用 `cancelSession` 的标记逻辑，不是新队列）。单测 § 7.7 加一例：截断前的请求不动、已回应的不动、范围内的两类都回 cancelled 且 id 原样返回。
+  2. [P2] Markdown 链接的 `TapGestureRecognizer` 每次 build 新建且从不 dispose → **采纳**：`MarkdownBody` 改 `StatefulWidget`，State 持有 `LinkRecognizers`（登记 + 统一释放）；只在 data / onLink / baseStyle / mermaidFontFamily 变化时重新解析并「先 dispose 再重建」，`dispose()` 全部释放；块 widget 实例缓存，父级重建不重建子树。`MarkdownBlock` 新增可选 `links` 参数，缺省不挂 recognizer。
+  3. [P2] `session/new` 的 configOptions 未忽略未知 type → **采纳**：`applyNewSession` 与 `config_option_update` 同一判断，只收 `select` / `boolean`。
+  4. [P2] elicitation schema 的 `type` 用 `as String?`，非字符串（`["string","null"]`）整卡 build 失败 → **采纳**：`type` / `title` / `description` 都 `is String` 才用，否则 type 当未知跳过字段、标题回落属性名。
+  5. [P2] 子代理卡不渲染 children 里的 `ThoughtEntry` → **采纳**：children 按到达顺序渲染（工具行 → `ToolCallCard`、思考 → `ThinkingBlock`、消息 → `AssistantText`，首条消息前给「↳ Subagent Output」标签），`hasBody` 改为 children 非空或 content 文本非空。画板 24 重渲染无视觉变化（fixtures 里子代理没有思考块）。
+  6. [P3] `content[]` 整份替换但 `skippedContent += skipped` 累加 → **采纳**：改赋值；§ 8.3 单测加一例「第二次 update 全合法 → 计数归 0」。
+  - 整改后：`flutter analyze` 0 issue；`flutter test test/projection` 45 通过；`selection_test` + `gallery_test`（27 张）通过；`validate.ps1 -Quick` 全 PASS。
+- 结论：待第 2 轮复审回填（high 级清零才合并 `main`）。
 
 ## 失败处理
 
