@@ -175,6 +175,11 @@ impl Shared {
 
     /// `acp/traffic`：脱敏后的原始行（规则 8）。
     fn emit_traffic(&self, direction: Direction, line: &str) {
+        self.emit_traffic_redacted(direction, redact::redact_line(line));
+    }
+
+    /// 调用方已经脱敏过的行（stderr 那一路只脱敏一次，尾巴与 traffic 共用）。
+    fn emit_traffic_redacted(&self, direction: Direction, line: String) {
         let ts = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_millis() as u64)
@@ -184,7 +189,7 @@ impl Shared {
             json!({
                 "agentId": self.agent_id,
                 "direction": direction.as_str(),
-                "line": redact::redact_line(line),
+                "line": line,
                 "ts": ts,
             }),
         );
@@ -342,6 +347,11 @@ impl Shared {
                         .map(|id| id.to_string())
                         .unwrap_or_else(|_| id.to_string());
                     if self.take_pending(&key).is_some() {
+                        // `requestId` 归一化成与队列键同形的字符串（协议原样可能是数字），前端直接比对（审查 finding）。
+                        let mut params = params;
+                        if let Value::Object(map) = &mut params {
+                            map.insert("requestId".to_string(), Value::String(key));
+                        }
                         self.forward_notification(&method, params);
                     }
                 }
@@ -536,6 +546,8 @@ impl AgentConnection {
     pub async fn session_prompt(&self, session_id: &str, prompt: Value) -> Result<Value> {
         let blocks: Vec<acp::ContentBlock> = serde_json::from_value(prompt)
             .map_err(|e| CoreError::InvalidArgument(format!("prompt must be a ContentBlock array: {e}")))?;
+        // 回合开始先清 cancel 期：落在回合之外的 cancel（连点停止、收尾补发）不能把下一回合的权限请求静默回 cancelled（审查 finding）。
+        self.shared.set_cancel_pending(session_id, false);
         let request = acp::PromptRequest::new(acp::SessionId::new(session_id), blocks);
         let result = race_exit(&self.shared, self.connection.send_request(request).block_task()).await;
         // 本轮结束（不论怎么结束），cancel 期结束。
@@ -732,9 +744,10 @@ async fn stderr_task(shared: Arc<Shared>, stderr: tokio::process::ChildStderr) {
                 while matches!(buf.last(), Some(b'\n' | b'\r')) {
                     buf.pop();
                 }
-                shared.push_stderr(&buf);
-                let line = String::from_utf8_lossy(&buf);
-                shared.emit_traffic(Direction::Stderr, &line);
+                // 先脱敏再进尾巴：尾巴会随 `exited` 事件与 `CoreError::Exited` 文案到前端与日志（规则 8；审查 finding）。
+                let line = redact::redact_line(&String::from_utf8_lossy(&buf));
+                shared.push_stderr(line.as_bytes());
+                shared.emit_traffic_redacted(Direction::Stderr, line);
             }
         }
     }

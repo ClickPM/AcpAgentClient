@@ -397,6 +397,38 @@ async fn cancel_auto_answers_pending_and_late_permission_requests() {
     assert_eq!(*state.permission_outcomes.lock().expect("lock"), vec!["cancelled", "cancelled"]);
     assert_eq!(events.client_requests().len(), 1);
     assert!(connection.shared().pending_request_ids().is_empty());
+
+    // 回合之外再发一次 cancel（用户连点停止、前端收尾补发）：不能污染下一回合——
+    // 第二回合的权限请求必须正常进队列、由前端回应（审查 finding：cancel_pending 曾是粘滞的）。
+    connection.session_cancel("sess_fake").expect("stray cancel");
+    let second_turn = {
+        let connection = connection.clone();
+        let events = events.clone();
+        tokio::spawn(async move {
+            events
+                .wait_for("second permission request", |items| {
+                    items.iter().filter(|(c, v)| *c == EventChannel::ClientRequest && !v["requestId"].is_null()).count() == 2
+                })
+                .await;
+            let request_id = events.client_requests()[1]["requestId"].as_str().expect("id").to_string();
+            connection.respond(&request_id, allow_once()).expect("respond");
+            // 假 agent 在 cancel 场景里拿到回应后等 cancel 再收尾。
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            connection.session_cancel("sess_fake").expect("cancel");
+        })
+    };
+    let prompt2 = connection
+        .session_prompt("sess_fake", json!([{ "type": "text", "text": "again" }]))
+        .await
+        .expect("prompt 2");
+    second_turn.await.expect("second turn task");
+    assert_eq!(prompt2["stopReason"], "cancelled");
+    assert_eq!(
+        *state.permission_outcomes.lock().expect("lock"),
+        vec!["cancelled", "cancelled", "selected", "cancelled"],
+        "second turn's first permission must reach the frontend and be answered, not auto-cancelled"
+    );
+    assert_eq!(events.client_requests().len(), 2);
     connection.disconnect().await;
 }
 

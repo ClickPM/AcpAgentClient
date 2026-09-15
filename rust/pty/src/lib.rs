@@ -236,15 +236,23 @@ impl TerminalManager {
                 .spawn(move || {
                     let mut buf = [0u8; READ_CHUNK];
                     let mut dsr_answered = false;
+                    // 探询可能被 read 边界切开：拼上上一块的末尾（最多 len-1 字节）再匹配（审查 finding）。
+                    let mut carry: Vec<u8> = Vec::new();
                     loop {
                         match reader.read(&mut buf) {
                             Ok(0) | Err(_) => break,
                             Ok(n) => {
                                 let chunk = &buf[..n];
-                                if !dsr_answered && chunk.windows(DSR_QUERY.len()).any(|w| w == DSR_QUERY) {
-                                    dsr_answered = true;
-                                    if let Some(writer) = lock_or_recover(&handle.writer).as_mut() {
-                                        let _ = writer.write_all(DSR_REPLY).and_then(|()| writer.flush());
+                                if !dsr_answered {
+                                    carry.extend_from_slice(chunk);
+                                    if carry.windows(DSR_QUERY.len()).any(|w| w == DSR_QUERY) {
+                                        dsr_answered = true;
+                                        if let Some(writer) = lock_or_recover(&handle.writer).as_mut() {
+                                            let _ = writer.write_all(DSR_REPLY).and_then(|()| writer.flush());
+                                        }
+                                        carry = Vec::new();
+                                    } else if carry.len() > DSR_QUERY.len() - 1 {
+                                        carry.drain(..carry.len() - (DSR_QUERY.len() - 1));
                                     }
                                 }
                                 sink.output(&id, source, chunk);
@@ -252,10 +260,16 @@ impl TerminalManager {
                         }
                     }
                 })
-                .map_err(|e| PtyError::Io(e.to_string()))?
+        };
+        let reader_thread = match reader_thread {
+            Ok(thread) => thread,
+            Err(e) => {
+                self.abandon(&id, &handle);
+                return Err(PtyError::Io(e.to_string()));
+            }
         };
 
-        {
+        let waiter = {
             let sink = self.sink.clone();
             let id = id.clone();
             let handle = handle.clone();
@@ -275,9 +289,20 @@ impl TerminalManager {
                     handle.exit.set(status.clone());
                     sink.exited(&id, source, &status);
                 })
-                .map_err(|e| PtyError::Io(e.to_string()))?;
+        };
+        if let Err(e) = waiter {
+            self.abandon(&id, &handle);
+            return Err(PtyError::Io(e.to_string()));
         }
         Ok(id)
+    }
+
+    /// 拉起后半途失败（读 / 等待线程建不出来）：撤表项、杀子进程、关伪终端，不留孤儿（审查 finding）。
+    fn abandon(&self, id: &str, handle: &Arc<Handle>) {
+        lock_or_recover(&self.terminals).remove(id);
+        let _ = lock_or_recover(&handle.killer).kill();
+        drop(lock_or_recover(&handle.writer).take());
+        drop(lock_or_recover(&handle.master).take());
     }
 
     fn handle(&self, id: &str) -> Result<Arc<Handle>> {
