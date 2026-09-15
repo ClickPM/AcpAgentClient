@@ -45,13 +45,19 @@
 
 ## 代码审查
 
-<!-- 完成后回填。 -->
-
-- 审查方式：
-- 审查器与模型：
-- 审查范围与基准提交：
-- findings 处理：
-- 结论：
+- 审查方式：`cursor-review.ps1`（默认档，`--mode ask`）两次硬失败 → 回落主会话委派的 Claude Code 只读子代理（同一份任务书 `.claude/cursor-review-prompt.md`）。
+- cursor 失败原因（`20260915-132034` 与 `20260915-132138`）：两次进程都在启动瞬间退出，`.out.md` 0 字节、`.err.log` 只有一行 `Error: EPERM: operation not permitted, rename 'C:\Users\Click\.cursor\cli-config.json.<pid>.<uuid>.tmp' -> 'C:\Users\Click\.cursor\cli-config.json'`；同一时刻 `cursor-agent status` 正常（已登录），用 `[System.IO.File]::Open(..., 'None')` 探测 `cli-config.json` 报「正由另一进程使用」——CLI 启动要原子重写自己的配置，文件被本机另一个进程（疑似同机另一个 cursor-agent / Cursor IDE 会话）锁住就起不来。属于文档定义的「启动失败」硬失败；本轮与复审都走子代理（同一轮只用一个执行器）。`--mode ask` 的首次实测顺延到 R1.5 / R2。
+- 审查器与模型：Claude Code 子代理（general-purpose，**opus**，所有者裁定 2026-09-15），只读；范围 `main...HEAD`（第 1 轮，全量，基准 b3534a6）。
+- findings：5（high 2 / P2 0 / P3 3），逐条：
+  1. [high] agent 的 stderr 尾巴（`push_stderr`）存的是原始字节，随 `exited.stderrTail` 与 `CoreError::Exited` 文案把明文密钥带到前端与日志，而同一行在 traffic 里已打码（规则 8）→ **采纳**：`stderr_task` 先 `redact_line` 再进尾巴、traffic 共用同一份脱敏结果（`emit_traffic_redacted`）。复验：fake agent `--stderr-noise` + 权限挂起时 `--crash-after 800`，`exited{code: 3, stderrTail: "[fake-agent] turn started; token=*** / fake-agent: simulated crash (exit 3)"}`，`session_prompt failed: ... token=***`，日志与 stderr 里 `FAKE-TOKEN` 0 次。
+  2. [high] `cancel_pending` 只在 `session_prompt` 返回时清，cancel 落在回合之外（连点停止、收尾补发）会把**下一回合**的权限请求静默自动 `cancelled`、前端永远看不到权限卡 → **采纳**：`session_prompt` 发请求前先清标志（一行）。`scripted.rs` 的 cancel 用例扩成两回合：回合外补发一次 cancel 后，第二回合的权限请求进队列并被前端回 `selected`，agent 端看到的 outcome 序列是 `cancelled, cancelled, selected, cancelled`。
+  3. [P3] `TerminalManager::spawn` 在子进程已拉起、表项已插入之后，读 / 等待线程建不出来就 `?` 返回，子进程与表项成孤儿 → **采纳**：两处失败路径走 `abandon(id, handle)`（撤表项、kill、关伪终端）。
+  4. [P3] ConPTY 启动探询 `CSI 6 n` 只在单次 read 的 chunk 内匹配，跨 read 边界就永不应答、终端里的 `--setup` 永久挂 → **采纳**：读线程保留上一块末尾 3 字节拼接后再匹配。
+  5. [P3] `$/cancel_request` 转发的 `params.requestId` 是协议原样（数字），与队列键（Display 字符串）不同形，R3 直接比对会匹配不上 → **采纳**：转发前把 `params.requestId` 归一化成与队列键同形的字符串，`docs/design.md` § 3 同步注明。
+  未判 finding 的说明（审查者给出）：规则 1 新依赖只有 `futures`（任务卡有理由）与清单内的 `portable-pty`；规则 6 的 `unsafe` 全在 frb 生成物（R0 已裁定）；规则 3 `lib/` 只有生成物变化；规则 7 settings 走 temp + rename；规则 9 四处 Windows 坑都有实测记录；判据 11 能力声明与 § 4 逐条对齐、handler 返回 `Err` 时 SDK 会替我们回错误响应不会让 agent 挂起。
+- 整改提交 2f5c9ef 后：`cargo test -p acp-core -p pty` 全过（scripted 3 含扩展用例）、`cargo clippy --workspace --all-targets -D warnings` 零告警、`validate.ps1 -Quick` 全 PASS。
+- 复审：<!-- 第 2 轮回填 -->
+- 结论：<!-- 复审后回填 -->
 
 ## 失败处理
 
@@ -111,6 +117,7 @@ fake agent `--stderr-noise`（stderr 写 `token=FAKE-TOKEN-FOR-REDACTION-TEST`�
 ### 验收 5 · agent 退出与重连
 
 - `--crash-on-prompt`（agent 收到 prompt 就 `exit(3)`）：`exited{code:3, stderrTail:"fake-agent: crash on prompt (exit 3)"}`；`session_prompt` 报 `agent `fake` exited (code Some(3))`（SDK 的「传输已关闭」先到，`race_exit` 等 2 s 内的退出信息再报，前端拿到退出码而不是一句 transport closed）。
+- `--stderr-noise` + 权限挂起中 `--crash-after 800`：`exited.stderrTail` 里 stderr 那行是 `token=***`（第 1 轮审查整改后复验，尾巴与 traffic 共用脱敏结果）。
 - `--hang-on-prompt` + 外部 `taskkill /PID <pid> /F`：`exited{code:1, stderrTail:"fake-agent: hanging on prompt"}`，`agents_status.exited.code` 1；随后同一 data-dir 再 `run`：`agent_connect` 成功、整轮 `end_turn`。核心全程无 panic。
 
 ### 验收 6 · elicitation form / url
