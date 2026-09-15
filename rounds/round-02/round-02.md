@@ -2,7 +2,7 @@
 
 <!-- 保存为 rounds/round-02/round-02.md；该轮其他管理产出放同一目录。 -->
 
-> 状态：进行中（开工 2026-09-15，分支 `round-02`，基线 `main` = 981e8f5；画板阶段收口提交见「本轮实测 · 收口」）
+> 状态：已完成（开工 2026-09-15，分支 `round-02`，基线 `main` = 981e8f5；画板阶段收口提交 98e4cea，见「本轮实测 · 收口」；合并 `main` 的提交号记在 `ROUNDS.md` § 7）
 
 ## 目标
 
@@ -64,7 +64,7 @@
 - 审查范围与基准提交：
   - 第 1 轮：`-Scope branch`（`main...HEAD`，全量），HEAD = f3a3f87，74 files / +9595；产物 `.claude/reviews/20260915-172733-review.out.md`（17:27:33 发起，17:37:52 落地）。
   - 第 2 轮：`-Scope branch`（前两轮必须全量），HEAD = 12d5137（第 1 轮整改提交），74 files / +9784；产物 `.claude/reviews/20260915-174942-review.out.md`（17:49:42 发起，~18:00 落地）。
-  - 第 3 轮：`-Scope since -Base <第 2 轮整改提交>`（第 3 轮起只审整改 diff）；产物待回填。
+  - 第 3 轮：`-Scope since -Base 12d5137`（第 3 轮起只审整改 diff），HEAD = 98e4cea，8 files；产物 `.claude/reviews/20260915-180848-review.out.md`（18:08:48 发起，~18:18 落地）；**findings 0**——审查者逐条确认第 2 轮 5 条整改没有引入新的 high / P2 / P3，并核对了 `restoreTo` 仍只收集 pending、`_changed()` 走 batch 脏标记、画板 27 / 28 的 widget 树未改。
 - findings 处理（第 1 轮 6 条：high 1 / P2 4 / P3 1，全部采纳，均为最小改动，没有新增机制）：
   1. [high] `restoreTo` 截断转录后挂起的 permission / elicitation 仍 pending，agent 会挂起 → **采纳**：`restoreTo` 改返回 `RestoreResult{turn, cancelledRequestIds, cancelledElicitationIds}`，截断范围内（含子代理卡 children 递归）仍 pending 的 permission 标 cancelled（回 `PendingQueue.cancelledOutcome`）、elicitation 标 cancelled + `action: cancel`（回新增常量 `PendingQueue.cancelledAction`）；接线侧（R3）必须拿这些 id 去 `acp_respond`。`PendingQueue` 加 `cancelRequest(requestId)`（复用 `cancelSession` 的标记逻辑，不是新队列）。单测 § 7.7 加一例：截断前的请求不动、已回应的不动、范围内的两类都回 cancelled 且 id 原样返回。
   2. [P2] Markdown 链接的 `TapGestureRecognizer` 每次 build 新建且从不 dispose → **采纳**：`MarkdownBody` 改 `StatefulWidget`，State 持有 `LinkRecognizers`（登记 + 统一释放）；只在 data / onLink / baseStyle / mermaidFontFamily 变化时重新解析并「先 dispose 再重建」，`dispose()` 全部释放；块 widget 实例缓存，父级重建不重建子树。`MarkdownBlock` 新增可选 `links` 参数，缺省不挂 recognizer。
@@ -80,7 +80,7 @@
   4. [P2] `TranscriptList` 建 `UserMessage` 不传 Restore / Regenerate → **采纳**：新增顶层 `turnOf(entries, e)`（用户消息归它前面最近的检查点），`onRestore(turn)` 复用已有回调，新增 `onRegenerate(turn, text)` 转发；单测覆盖 turnOf 与两个回调绑到所属轮。
   5. [P2] 多选字段的 Recommended 被 `&& false` 恒关 → **采纳（删死代码，保留画板口径）**：画板 27 的多选 default 只预勾选、不打 Recommended 标签（单选才打），所以删掉整个 `recommended:` 表达式并写明原因，不是删 `&& false` 让标签出现（那会偏离画板 27 的 PNG）。
   - 整改后：`flutter analyze` 0 issue；`flutter test` 全量 80 通过（含 gallery 27 张重渲染、1,000 块滚动、跨消息选择、新增接线单测 3 例）；画板 27 / 28 重渲染后目视对照无变化（多选本就没有标签，URL 卡三态不变；cancelled 态画板没有，只在单测里验）；`validate.ps1 -Quick` 全 PASS。
-- 结论：待第 3 轮复审回填（high 级清零才合并 `main`）。
+- 结论：3 轮共 11 条 findings（high 2 / P2 8 / P3 1）全部采纳整改、第 3 轮 0 条，**high 级清零**，允许合并 `main`。所有整改均为最小改动（改判断 / 删代码 / 补回调转发），没有新增队列、协议或抽象；没有一条以「概率低」放行。审查产物目录 `.claude/reviews/` gitignored，三份 `.out.md` 留在本机（`-Wait` 跑出的两份是 UTF-16，读时用 `iconv -f UTF-16LE`）。
 
 ## 失败处理
 
@@ -92,7 +92,7 @@
 
 ### 收口
 
-- 画板阶段收口提交：待回填（R3 接线以 `git diff <该提交>..HEAD -- lib/theme lib/ui` 为空作判据）。
+- 画板阶段收口提交：**98e4cea**（第 2 轮审查整改；之后只有文档提交）。R3 接线以 `git diff 98e4cea..HEAD -- lib/theme lib/ui` 为空作判据。
 - 依赖解析：`flutter pub get` 58 个包变化；直接依赖只有裁定清单内的 9 个 + flutter_rust_bridge；`validate.ps1` 白名单 PASS。`provider`（flutter_math_fork 传递依赖）没有被我们的代码 import（`grep -rn "package:provider" lib test` 为空）。
 
 ### 画板对照（验收 2）
