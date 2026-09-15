@@ -619,14 +619,23 @@ class WorkbenchController extends ChangeNotifier {
   Future<void>? _turnInFlight;
 
   Future<void> _runTurn(CoreCommands b, String id, SessionStore s, List<JsonMap> blocks) async {
-    final turn = _guard(() async {
-      final result = await b.sessionPrompt(id, s.sessionId, blocks);
-      s.endTurn(
-        stopReason: result['stopReason'] as String?,
-        usage: result['usage'] is Map ? (result['usage'] as Map).cast<String, dynamic>() : null,
-      );
-      await _saveIndex();
-    });
+    final turn = () async {
+      try {
+        final result = await b.sessionPrompt(id, s.sessionId, blocks);
+        s.endTurn(
+          stopReason: result['stopReason'] as String?,
+          usage: result['usage'] is Map ? (result['usage'] as Map).cast<String, dynamic>() : null,
+        );
+        await _saveIndex();
+      } catch (e) {
+        // 失败也必须收轮：不收的话 `currentTurn` 一直挂着，线程头永远转 spinner、发送位永远是停止键，
+        // 之后的 Restore 还会拿新连接去操作一个 agent 侧已不存在的 sessionId（审查第 2 轮 finding P2，2026-09-15）。
+        // `stopReason` 留空：连接断了本来就没有协议给的结束值，不编一个（规则 2）。
+        s.endTurn();
+        lastError = e.toString();
+        debugPrint('[workbench] session/prompt failed: $e');
+      }
+    }();
     _turnInFlight = turn;
     try {
       await turn;

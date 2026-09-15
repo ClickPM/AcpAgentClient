@@ -106,6 +106,26 @@ pub struct SearchResult {
     pub truncated: bool,
 }
 
+/// 这一项算不算「可以进去的目录」。链接一律不算：
+/// Unix 的符号链接 `is_symlink()` 为 true；**Windows 的目录联接（junction / mount point）`is_symlink()` 是 false、
+/// `is_dir()` 是 true**，只能看 `FILE_ATTRIBUTE_REPARSE_POINT`（审查第 2 轮 finding P2，2026-09-15）。
+/// `DirEntry::metadata` 不跟随链接，拿到的就是链接本身的属性。
+fn entry_is_dir(meta: &std::fs::Metadata) -> bool {
+    if !meta.is_dir() {
+        return false;
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        /// `winnt.h`。
+        const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
+        if meta.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+            return false;
+        }
+    }
+    !meta.file_type().is_symlink()
+}
+
 fn relative_parent(root: &Path, dir: &Path) -> String {
     match dir.strip_prefix(root) {
         Ok(rel) if rel.as_os_str().is_empty() => String::new(),
@@ -133,20 +153,18 @@ pub fn list_dir(root: &Path, path: &Path) -> Result<DirListing> {
     for item in read {
         let item = item.map_err(|e| FsError::Io(format!("{}: {e}", path.display())))?;
         let name = item.file_name().to_string_lossy().into_owned();
-        // `DirEntry::file_type` 不跟随链接：符号链接与 Windows 的目录联接（junction）一律当文件，
-        // 既不进目录组、也不会被 `search` 递归进去。`ensure_inside` 只是词法检查，跟进去就会把工作区
-        // 外面的东西列出来、再被加成 `resource_link`（审查 finding P2，2026-09-15）。
-        let file_type = match item.file_type() {
-            Ok(t) => t,
+        // 链接（含 Windows 的目录联接）一律当文件：既不进目录组、也不会被 `search` 递归进去。
+        // `ensure_inside` 只是词法检查，跟进去就会把工作区外面的东西列出来、再被加成 `resource_link`。
+        let meta = match item.metadata() {
+            Ok(m) => m,
             // 悬空链接 / 权限不足：跳过而不是整次失败。
             Err(_) => continue,
         };
-        let is_dir = file_type.is_dir() && !file_type.is_symlink();
+        let is_dir = entry_is_dir(&meta);
         if is_dir && IGNORED_DIRS.contains(&name.as_str()) {
             continue;
         }
-        let size = if is_dir { None } else { item.metadata().ok().map(|m| m.len()) };
-        entries.push(entry_of(root, path, &name, is_dir, size));
+        entries.push(entry_of(root, path, &name, is_dir, if is_dir { None } else { Some(meta.len()) }));
     }
     entries.sort_by(|a, b| match (a.is_dir, b.is_dir) {
         (true, false) => std::cmp::Ordering::Less,
@@ -179,14 +197,13 @@ pub fn search(root: &Path, query: &str, limit: usize) -> Result<SearchResult> {
             }
             let name = item.file_name().to_string_lossy().into_owned();
             // 同 `list_dir`：不跟随链接 / junction，免得搜出工作区外面的路径。
-            let Ok(file_type) = item.file_type() else { continue };
-            let is_dir = file_type.is_dir() && !file_type.is_symlink();
+            let Ok(meta) = item.metadata() else { continue };
+            let is_dir = entry_is_dir(&meta);
             if is_dir && IGNORED_DIRS.contains(&name.as_str()) {
                 continue;
             }
             if name.to_lowercase().contains(&needle) {
-                let size = if is_dir { None } else { item.metadata().ok().map(|m| m.len()) };
-                let entry = entry_of(root, &dir, &name, is_dir, size);
+                let entry = entry_of(root, &dir, &name, is_dir, if is_dir { None } else { Some(meta.len()) });
                 let bucket = if is_dir { &mut directories } else { &mut files };
                 if bucket.len() < limit {
                     bucket.push(entry);
@@ -254,6 +271,50 @@ mod tests {
         assert_eq!(listing.entries.last().expect("file").size, Some(1));
         assert!(list_dir(&dir, Path::new("relative")).is_err());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Windows 的目录联接（junction）：`is_symlink()` 是 false、`is_dir()` 是 true，
+    /// 只能靠 `FILE_ATTRIBUTE_REPARSE_POINT` 认出来。不认就会把工作区外面的东西列出来 / 搜出来
+    /// （审查第 2 轮 finding P2，2026-09-15）。
+    #[cfg(windows)]
+    #[test]
+    fn junctions_are_not_followed_out_of_the_workspace() {
+        let dir = sandbox("junction");
+        let outside = std::env::temp_dir().join(format!("acp-fs-outside-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&outside);
+        std::fs::create_dir_all(&outside).expect("mkdir");
+        std::fs::write(outside.join("工作区外的秘密.txt"), "x").expect("write");
+
+        let link = dir.join("link-out");
+        let status = std::process::Command::new("cmd")
+            .args(["/c", "mklink", "/J"])
+            .arg(&link)
+            .arg(&outside)
+            .output()
+            .expect("mklink");
+        if !status.status.success() {
+            eprintln!("mklink /J failed; skipping: {}", String::from_utf8_lossy(&status.stderr));
+            let _ = std::fs::remove_dir_all(&dir);
+            let _ = std::fs::remove_dir_all(&outside);
+            return;
+        }
+
+        let listing = list_dir(&dir, &dir).expect("list");
+        let entry = listing.entries.iter().find(|e| e.name == "link-out").expect("junction listed");
+        assert!(!entry.is_dir, "junction 必须当文件，否则 @ 提及会把它当目录点进去");
+
+        // 搜索不能跟进去：外面那个文件名一条都不该出现。
+        let r = search(&dir, "秘密", 10).expect("search");
+        assert!(r.files.is_empty() && r.directories.is_empty(), "不该搜出工作区外面的东西: {r:?}");
+
+        // 联接本身按名字还是搜得到（它就在工作区里）。
+        let hit = search(&dir, "link-out", 10).expect("search");
+        assert_eq!(hit.files.len(), 1);
+        assert!(hit.directories.is_empty());
+
+        let _ = std::fs::remove_dir_all(&link);
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&outside);
     }
 
     #[test]

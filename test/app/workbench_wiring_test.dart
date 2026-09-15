@@ -127,6 +127,14 @@ class SlowCore extends FakeCore {
   }
 }
 
+/// `session/prompt` 直接抛错（连接断了 / agent 已退出）。
+class FailingCore extends FakeCore {
+  @override
+  Future<JsonMap> sessionPrompt(String agentId, String sessionId, List<Object?> prompt) async {
+    throw StateError('not_connected');
+  }
+}
+
 const String _agent = 'a';
 const String _session = 'sess_1';
 
@@ -249,6 +257,24 @@ void main() {
     expect(turns.length, 1, reason: '旧轮被截断，只剩重发的那一轮');
     expect(turns.single.stopReason, 'end_turn',
         reason: '剩下的是重发那一轮、带它自己的结束值；先返回的那次（cancelled）没有打到它头上');
+    c.dispose();
+  });
+
+  test('session/prompt 失败也要收轮，否则线程头一直转 spinner（审查第 2 轮 finding P2）', () async {
+    final core = FailingCore();
+    final c = WorkbenchController(source: DataSource.bridge, bridge: core)
+      ..agentId = _agent
+      ..sessionId = _session;
+    final store = c.sessions.session(_session, agentId: _agent);
+    c.composer.text = '会失败的一轮';
+
+    await c.send();
+
+    expect(store.isRunning, isFalse, reason: 'currentTurn 不收，停止键与 spinner 就永远去不掉');
+    final turn = store.entries.whereType<TurnEntry>().single;
+    expect(turn.endedAt, isNotNull);
+    expect(turn.stopReason, isNull, reason: '连接断了没有协议给的结束值，不编一个');
+    expect(c.lastError, contains('not_connected'));
     c.dispose();
   });
 
