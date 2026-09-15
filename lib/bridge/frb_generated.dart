@@ -69,7 +69,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -1677134292;
+  int get rustContentHash => -770449623;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -81,7 +81,31 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 }
 
 abstract class RustLibApi extends BaseApi {
+  Future<String> crateApiAcpRespond({
+    required String agentId,
+    required String requestId,
+    required String response,
+  });
+
+  Future<String> crateApiAgentConnect({required String agentId, String? cwd});
+
+  Future<String> crateApiAgentDisconnect({required String agentId});
+
+  Future<String> crateApiAgentSettingsGet();
+
+  Future<String> crateApiAgentSettingsSet({
+    required String agentId,
+    required String server,
+  });
+
   Stream<String> crateApiAgentStateStream();
+
+  Future<String> crateApiAgentsStatus();
+
+  Future<String> crateApiAuthenticate({
+    required String agentId,
+    required String methodId,
+  });
 
   Stream<String> crateApiClientRequestStream();
 
@@ -93,9 +117,49 @@ abstract class RustLibApi extends BaseApi {
 
   Future<String> crateApiPing({required String echo});
 
+  Future<String> crateApiSessionCancel({
+    required String agentId,
+    required String sessionId,
+  });
+
+  Future<String> crateApiSessionNew({
+    required String agentId,
+    required String cwd,
+  });
+
+  Future<String> crateApiSessionPrompt({
+    required String agentId,
+    required String sessionId,
+    required String prompt,
+  });
+
+  Future<String> crateApiSessionSetConfigOption({
+    required String agentId,
+    required String sessionId,
+    required String configId,
+    required String value,
+  });
+
+  Future<String> crateApiSessionSetMode({
+    required String agentId,
+    required String sessionId,
+    required String modeId,
+  });
+
   Stream<String> crateApiSessionUpdateStream();
 
+  Future<String> crateApiTerminalAuthRun({
+    required String agentId,
+    required String methodId,
+    required String cwd,
+  });
+
   Stream<String> crateApiTerminalOutputStream();
+
+  Future<String> crateApiTerminalWrite({
+    required String terminalId,
+    required String data,
+  });
 
   Stream<String> crateApiTrafficStream();
 }
@@ -109,6 +173,162 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   });
 
   @override
+  Future<String> crateApiAcpRespond({
+    required String agentId,
+    required String requestId,
+    required String response,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(agentId, serializer);
+          sse_encode_String(requestId, serializer);
+          sse_encode_String(response, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 1,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiAcpRespondConstMeta,
+        argValues: [agentId, requestId, response],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiAcpRespondConstMeta => const TaskConstMeta(
+    debugName: "acp_respond",
+    argNames: ["agentId", "requestId", "response"],
+  );
+
+  @override
+  Future<String> crateApiAgentConnect({required String agentId, String? cwd}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(agentId, serializer);
+          sse_encode_opt_String(cwd, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 2,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiAgentConnectConstMeta,
+        argValues: [agentId, cwd],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiAgentConnectConstMeta => const TaskConstMeta(
+    debugName: "agent_connect",
+    argNames: ["agentId", "cwd"],
+  );
+
+  @override
+  Future<String> crateApiAgentDisconnect({required String agentId}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(agentId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 3,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiAgentDisconnectConstMeta,
+        argValues: [agentId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiAgentDisconnectConstMeta =>
+      const TaskConstMeta(debugName: "agent_disconnect", argNames: ["agentId"]);
+
+  @override
+  Future<String> crateApiAgentSettingsGet() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 4,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiAgentSettingsGetConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiAgentSettingsGetConstMeta =>
+      const TaskConstMeta(debugName: "agent_settings_get", argNames: []);
+
+  @override
+  Future<String> crateApiAgentSettingsSet({
+    required String agentId,
+    required String server,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(agentId, serializer);
+          sse_encode_String(server, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 5,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiAgentSettingsSetConstMeta,
+        argValues: [agentId, server],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiAgentSettingsSetConstMeta => const TaskConstMeta(
+    debugName: "agent_settings_set",
+    argNames: ["agentId", "server"],
+  );
+
+  @override
   Stream<String> crateApiAgentStateStream() {
     final sink = RustStreamSink<String>();
     handler.executeSync(
@@ -116,7 +336,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_StreamSink_String_Sse(sink, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 1)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -134,6 +354,67 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "agent_state_stream", argNames: ["sink"]);
 
   @override
+  Future<String> crateApiAgentsStatus() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 7,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiAgentsStatusConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiAgentsStatusConstMeta =>
+      const TaskConstMeta(debugName: "agents_status", argNames: []);
+
+  @override
+  Future<String> crateApiAuthenticate({
+    required String agentId,
+    required String methodId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(agentId, serializer);
+          sse_encode_String(methodId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 8,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiAuthenticateConstMeta,
+        argValues: [agentId, methodId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiAuthenticateConstMeta => const TaskConstMeta(
+    debugName: "authenticate",
+    argNames: ["agentId", "methodId"],
+  );
+
+  @override
   Stream<String> crateApiClientRequestStream() {
     final sink = RustStreamSink<String>();
     handler.executeSync(
@@ -141,7 +422,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_StreamSink_String_Sse(sink, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -171,7 +452,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 3,
+            funcId: 10,
             port: port_,
           );
         },
@@ -195,7 +476,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_u_64,
@@ -220,7 +501,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 12,
             port: port_,
           );
         },
@@ -248,7 +529,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 13,
             port: port_,
           );
         },
@@ -267,6 +548,185 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "ping", argNames: ["echo"]);
 
   @override
+  Future<String> crateApiSessionCancel({
+    required String agentId,
+    required String sessionId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(agentId, serializer);
+          sse_encode_String(sessionId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 14,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiSessionCancelConstMeta,
+        argValues: [agentId, sessionId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSessionCancelConstMeta => const TaskConstMeta(
+    debugName: "session_cancel",
+    argNames: ["agentId", "sessionId"],
+  );
+
+  @override
+  Future<String> crateApiSessionNew({
+    required String agentId,
+    required String cwd,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(agentId, serializer);
+          sse_encode_String(cwd, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 15,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiSessionNewConstMeta,
+        argValues: [agentId, cwd],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSessionNewConstMeta => const TaskConstMeta(
+    debugName: "session_new",
+    argNames: ["agentId", "cwd"],
+  );
+
+  @override
+  Future<String> crateApiSessionPrompt({
+    required String agentId,
+    required String sessionId,
+    required String prompt,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(agentId, serializer);
+          sse_encode_String(sessionId, serializer);
+          sse_encode_String(prompt, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 16,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiSessionPromptConstMeta,
+        argValues: [agentId, sessionId, prompt],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSessionPromptConstMeta => const TaskConstMeta(
+    debugName: "session_prompt",
+    argNames: ["agentId", "sessionId", "prompt"],
+  );
+
+  @override
+  Future<String> crateApiSessionSetConfigOption({
+    required String agentId,
+    required String sessionId,
+    required String configId,
+    required String value,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(agentId, serializer);
+          sse_encode_String(sessionId, serializer);
+          sse_encode_String(configId, serializer);
+          sse_encode_String(value, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 17,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiSessionSetConfigOptionConstMeta,
+        argValues: [agentId, sessionId, configId, value],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSessionSetConfigOptionConstMeta =>
+      const TaskConstMeta(
+        debugName: "session_set_config_option",
+        argNames: ["agentId", "sessionId", "configId", "value"],
+      );
+
+  @override
+  Future<String> crateApiSessionSetMode({
+    required String agentId,
+    required String sessionId,
+    required String modeId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(agentId, serializer);
+          sse_encode_String(sessionId, serializer);
+          sse_encode_String(modeId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 18,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiSessionSetModeConstMeta,
+        argValues: [agentId, sessionId, modeId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSessionSetModeConstMeta => const TaskConstMeta(
+    debugName: "session_set_mode",
+    argNames: ["agentId", "sessionId", "modeId"],
+  );
+
+  @override
   Stream<String> crateApiSessionUpdateStream() {
     final sink = RustStreamSink<String>();
     handler.executeSync(
@@ -274,7 +734,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_StreamSink_String_Sse(sink, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -295,6 +755,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<String> crateApiTerminalAuthRun({
+    required String agentId,
+    required String methodId,
+    required String cwd,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(agentId, serializer);
+          sse_encode_String(methodId, serializer);
+          sse_encode_String(cwd, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 20,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiTerminalAuthRunConstMeta,
+        argValues: [agentId, methodId, cwd],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiTerminalAuthRunConstMeta => const TaskConstMeta(
+    debugName: "terminal_auth_run",
+    argNames: ["agentId", "methodId", "cwd"],
+  );
+
+  @override
   Stream<String> crateApiTerminalOutputStream() {
     final sink = RustStreamSink<String>();
     handler.executeSync(
@@ -302,7 +798,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_StreamSink_String_Sse(sink, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 8)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 21)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -323,6 +819,40 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<String> crateApiTerminalWrite({
+    required String terminalId,
+    required String data,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(terminalId, serializer);
+          sse_encode_String(data, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 22,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_bridge_error,
+        ),
+        constMeta: kCrateApiTerminalWriteConstMeta,
+        argValues: [terminalId, data],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiTerminalWriteConstMeta => const TaskConstMeta(
+    debugName: "terminal_write",
+    argNames: ["terminalId", "data"],
+  );
+
+  @override
   Stream<String> crateApiTrafficStream() {
     final sink = RustStreamSink<String>();
     handler.executeSync(
@@ -330,7 +860,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_StreamSink_String_Sse(sink, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 23)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -381,6 +911,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as Uint8List;
+  }
+
+  @protected
+  String? dco_decode_opt_String(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_String(raw);
   }
 
   @protected
@@ -436,6 +972,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     final len_ = sse_decode_i_32(deserializer);
     return deserializer.buffer.getUint8List(len_);
+  }
+
+  @protected
+  String? sse_decode_opt_String(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_String(deserializer));
+    } else {
+      return null;
+    }
   }
 
   @protected
@@ -514,6 +1061,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     serializer.buffer.putUint8List(self);
+  }
+
+  @protected
+  void sse_encode_opt_String(String? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_String(self, serializer);
+    }
   }
 
   @protected

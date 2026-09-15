@@ -7,7 +7,7 @@ import 'frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `core`, `guarded`, `new`
+// These functions are ignored because they are not marked as `pub`: `core`, `guarded`, `new`, `on_core`, `parse_json`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `fmt`, `from`
 
 /// 初始化核心。`data_dir` 是 docs/design.md § 10 的数据目录（Windows：%APPDATA%/AcpAgentClient）。
@@ -19,29 +19,150 @@ Future<String> coreInit({required String dataDir}) =>
 Future<String> ping({required String echo}) =>
     RustLib.instance.api.crateApiPing(echo: echo);
 
-/// `acp/session_update`：`{agentId, sessionId, update}`，`update` 是 SessionNotification 原样 JSON。
+/// 按 settings.json 的 `agent_servers[agent_id]` 拉起 agent 并完成 `initialize`；已连接的先断开。
+/// `cwd` 是 agent 进程的工作目录（可选）。返回 `{agentId, initialize}`（`initialize` 是 InitializeResponse 原样 JSON）。
+Future<String> agentConnect({required String agentId, String? cwd}) =>
+    RustLib.instance.api.crateApiAgentConnect(agentId: agentId, cwd: cwd);
+
+/// 关掉 agent（先关 stdin 等它自己退，超时结束进程树）。退出事件仍经 `acp/agent_state: exited` 推出。
+Future<String> agentDisconnect({required String agentId}) =>
+    RustLib.instance.api.crateApiAgentDisconnect(agentId: agentId);
+
+/// `session/new`。回 `-32000` 时抛 `auth_required`（authMethods 已经 `acp/agent_state: auth_required` 推出）。
+/// 返回 NewSessionResponse 原样 JSON。
+Future<String> sessionNew({required String agentId, required String cwd}) =>
+    RustLib.instance.api.crateApiSessionNew(agentId: agentId, cwd: cwd);
+
+/// `session/prompt`。`prompt` 是 `ContentBlock[]` 的 JSON 字符串；本轮的 `session/update` 经事件流推出，
+/// 本函数在回合结束时返回 PromptResponse 原样 JSON（stopReason + usage）。
+Future<String> sessionPrompt({
+  required String agentId,
+  required String sessionId,
+  required String prompt,
+}) => RustLib.instance.api.crateApiSessionPrompt(
+  agentId: agentId,
+  sessionId: sessionId,
+  prompt: prompt,
+);
+
+/// `session/cancel`：挂起的权限请求由核心自动回 `cancelled`；未完成的工具卡由前端本地标 cancelled（核心不伪造状态）。
+/// 返回 `{cancelledRequestIds}`。
+Future<String> sessionCancel({
+  required String agentId,
+  required String sessionId,
+}) => RustLib.instance.api.crateApiSessionCancel(
+  agentId: agentId,
+  sessionId: sessionId,
+);
+
+/// `session/set_mode`（老 agent 的回退；configOptions 优先）。
+Future<String> sessionSetMode({
+  required String agentId,
+  required String sessionId,
+  required String modeId,
+}) => RustLib.instance.api.crateApiSessionSetMode(
+  agentId: agentId,
+  sessionId: sessionId,
+  modeId: modeId,
+);
+
+/// `session/set_config_option`。`value` 是 `SessionConfigOptionValue` 的 JSON（`{"type":"select","value":"x"}` /
+/// `{"type":"boolean","value":true}`）。返回全量 configOptions（SetSessionConfigOptionResponse 原样 JSON）。
+Future<String> sessionSetConfigOption({
+  required String agentId,
+  required String sessionId,
+  required String configId,
+  required String value,
+}) => RustLib.instance.api.crateApiSessionSetConfigOption(
+  agentId: agentId,
+  sessionId: sessionId,
+  configId: configId,
+  value: value,
+);
+
+/// 回应 `acp/client_request`（`session/request_permission` / `elicitation/create`）。`request_id` 原样回传事件里的值，
+/// `response` 是对应 Response 的 JSON 字符串。
+Future<String> acpRespond({
+  required String agentId,
+  required String requestId,
+  required String response,
+}) => RustLib.instance.api.crateApiAcpRespond(
+  agentId: agentId,
+  requestId: requestId,
+  response: response,
+);
+
+/// agent 型认证：`authenticate(methodId)`，agent 自己开浏览器；成功后由前端重试 `session_new`。
+Future<String> authenticate({
+  required String agentId,
+  required String methodId,
+}) => RustLib.instance.api.crateApiAuthenticate(
+  agentId: agentId,
+  methodId: methodId,
+);
+
+/// terminal 型认证：在可见终端（pty）里跑方法给的命令，输出经 `acp/terminal_output`（source = auth）推出，
+/// 键盘输入走 `terminal_write`；进程退出后核心自动重试 `session/new`。返回 `{terminalId, exitStatus, session}`。
+Future<String> terminalAuthRun({
+  required String agentId,
+  required String methodId,
+  required String cwd,
+}) => RustLib.instance.api.crateApiTerminalAuthRun(
+  agentId: agentId,
+  methodId: methodId,
+  cwd: cwd,
+);
+
+/// 往终端写键盘输入（UTF-8 文本原样写进 pty）。R4 的本地 shell 四命令之一，terminal auth 需要它所以 R1 先出。
+Future<String> terminalWrite({
+  required String terminalId,
+  required String data,
+}) => RustLib.instance.api.crateApiTerminalWrite(
+  terminalId: terminalId,
+  data: data,
+);
+
+/// 读 `settings.json`（不存在 → `{agent_servers: {}}`）。
+Future<String> agentSettingsGet() =>
+    RustLib.instance.api.crateApiAgentSettingsGet();
+
+/// 覆盖 `agent_servers[agent_id]`（`server` 是 `{type: "custom", command, args, env}` 的 JSON），临时文件 + rename 落盘；
+/// 返回落盘后的全量设置。
+Future<String> agentSettingsSet({
+  required String agentId,
+  required String server,
+}) => RustLib.instance.api.crateApiAgentSettingsSet(
+  agentId: agentId,
+  server: server,
+);
+
+/// 开发期排查：每个已连接 agent 的 droppedUpdates / 退出状态 / 挂起请求。
+Future<String> agentsStatus() => RustLib.instance.api.crateApiAgentsStatus();
+
+/// `acp/session_update`：`{agentId, sessionId, update, _meta?}`，即 SessionNotification 原样 JSON 加 `agentId`。
 Stream<String> sessionUpdateStream() =>
     RustLib.instance.api.crateApiSessionUpdateStream();
 
-/// `acp/client_request`：`{agentId, requestId, method, params}`。
+/// `acp/client_request`：`{agentId, requestId, method, params}`；`requestId` 为 null 的是通知
+/// （`elicitation/complete`、`$/cancel_request`），不需回应。
 Stream<String> clientRequestStream() =>
     RustLib.instance.api.crateApiClientRequestStream();
 
-/// `acp/agent_state`：连接生命周期；R0 只有 `core_ready`。
+/// `acp/agent_state`：core_ready / spawned / initialized / auth_required / authenticating / update_dropped / exited。
 Stream<String> agentStateStream() =>
     RustLib.instance.api.crateApiAgentStateStream();
 
-/// `acp/terminal_output`：`{terminalId, source, bytes}`（R4 才有内容）。
+/// `acp/terminal_output`：`{terminalId, source, bytes}`（base64）或 `{terminalId, source, exitStatus}`。
 Stream<String> terminalOutputStream() =>
     RustLib.instance.api.crateApiTerminalOutputStream();
 
-/// `acp/traffic`：脱敏后的原始 JSON-RPC 行（R1 才有内容）。
+/// `acp/traffic`：`{agentId, direction, line, ts}`，`line` 是脱敏后的原始 JSON-RPC 行（或 stderr 行）。
 Stream<String> trafficStream() => RustLib.instance.api.crateApiTrafficStream();
 
 /// 未送达（Dart 未订阅或流已关闭）的事件计数，供开发期排查。
 BigInt droppedEventCount() => RustLib.instance.api.crateApiDroppedEventCount();
 
-/// 跨桥的错误形状：Dart 侧作为 `BridgeError` 异常抛出。
+/// 跨桥的错误形状：Dart 侧作为 `BridgeError` 异常抛出。`code` 是 `CoreError::code()` 的稳定短码。
 class BridgeError implements FrbException {
   final String code;
   final String message;

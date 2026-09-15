@@ -54,10 +54,10 @@ Flutter 宿主进程（Dart）
 | 事件 | payload |
 |---|---|
 | `acp/session_update` | `{agentId, sessionId, update}`；`update` 是 `SessionNotification` 的原样 JSON（SDK 类型 serde 直出） |
-| `acp/client_request` | `{agentId, requestId, method, params}`；用于需要用户参与的客户端请求：`session/request_permission`、`elicitation/create`；`elicitation/create` 可能是 requestScope（无 `sessionId`，认证阶段），前端队列不能只按会话索引，这类落认证页（画板 52）而不是转录；前端必须以 `acp_respond` 回应 |
-| `acp/agent_state` | 连接生命周期：spawned / initialized / auth_required(authMethods) / exited(code, stderrTail)；另带 `droppedUpdates`（反序列化失败的 `session/update` 计数，§ 4）与对应告警（R1）。核心自身也走这条流：`core_init` 完成时发 `{agentId: null, state: "core_ready", dataDir, coreVersion}`（R0，验证事件通路） |
-| `acp/terminal_output` | `{terminalId, source, bytes}`；`source` ∈ agent（`terminal/*` 回调建的终端）/ auth（terminal auth 的可见终端）/ local（终端面板的本地 shell）；非协议消息，仅用于渲染（R4） |
-| `acp/traffic` | 原始 JSON-RPC 行（脱敏后），供调试面板 |
+| `acp/client_request` | `{agentId, requestId, method, params}`；用于需要用户参与的客户端请求：`session/request_permission`、`elicitation/create`；`elicitation/create` 可能是 requestScope（无 `sessionId`，认证阶段），前端队列不能只按会话索引，这类落认证页（画板 52）而不是转录；前端必须以 `acp_respond` 回应。**`requestId` 为 null 的是 agent 发来的通知**，不需回应，只更新队列：`elicitation/complete`（URL elicitation 收尾）与 `$/cancel_request`（agent 撤回了自己的请求，`params.requestId` 已归一化成与队列 `requestId` 同形的字符串——协议原样可能是数字——前端按它把请求从队列移除）（R1） |
+| `acp/agent_state` | 连接生命周期 `{agentId, state, droppedUpdates, ...}`：`spawned(pid, program, args, cwd)` / `initialized(initialize)`（InitializeResponse 原样）/ `auth_required(authMethods, message)` / `authenticating(methodId, terminalId, label)`（terminal auth 的 pty 已拉起）/ `update_dropped(method, error)`（一条 `session/update` 反序列化失败，`droppedUpdates` 已 +1，§ 4）/ `exited(code, stderrTail, transportError)`；每条都带 `droppedUpdates` 计数（R1）。核心自身也走这条流：`core_init` 完成时发 `{agentId: null, state: "core_ready", dataDir, coreVersion}`（R0，验证事件通路） |
+| `acp/terminal_output` | `{terminalId, source, bytes}`（`bytes` 是 base64 的原始字节）或进程结束时的 `{terminalId, source, exitStatus: {exitCode, signal}}`；`source` ∈ agent（`terminal/*` 回调建的终端）/ auth（terminal auth 的可见终端，R1）/ local（终端面板的本地 shell）；非协议消息，仅用于渲染（R4 补齐 agent / local 两路） |
+| `acp/traffic` | `{agentId, direction, line, ts}`：`direction` ∈ in（agent stdout）/ out（agent stdin）/ stderr，`line` 是脱敏后的原始行（`Authorization` / `api_key` / `token` 类键的值打成 `***`，规则 8），`ts` 毫秒时间戳；供调试面板（R1） |
 | `registry/progress` | 安装进度 `{agentId, step, done?, total?, error?}`：npx 是 resolve / write_settings / handshake，binary 是 download / verify / extract，另有 node_download（R5） |
 
 **命令（前端 → 核心）**
@@ -66,10 +66,10 @@ Flutter 宿主进程（Dart）
 - 认证：`authenticate`（agent 类型）、`terminal_auth_run`（terminal 类型；完成后核心自动重试 `session/new`）
 - registry、Node 与设置：`registry_refresh`、`registry_list`、`registry_install`、`registry_cancel_install`、`registry_remove`、`node_status`、`node_download`、`agent_settings_get/set`、`agent_settings_import_zed`
 - 文件面板与 git：`fs_list_dir`、`fs_read`、`fs_watch`、`fs_search`、`git_status`（文件树徽章）、`git_branches`、`git_switch`、`git_create_branch`、`git_diff`（Branch Diff 上下文）
-- 本地 shell（终端面板）：`terminal_open`、`terminal_write`、`terminal_resize`、`terminal_close`；输出走 `acp/terminal_output`
+- 本地 shell（终端面板）：`terminal_open`、`terminal_write`、`terminal_resize`、`terminal_close`；输出走 `acp/terminal_output`（`terminal_write` 在 R1 先出：terminal auth 的可见终端要接键盘输入）
 - 项目与本地索引：`workspace_recent`、`workspace_open`、`session_index_list/upsert/remove`（会话索引：agentId + sessionId + 标题 + cwd + 时间 + 消息计数）
 
-命令名以本节为准，各轮只实现自己那部分（归属见 `ROUNDS.md` § 3 / § 5）；R3–R6 的新增项是 2026-09-15 按画板裁定后一次写入的，不再逐轮改契约。
+命令名以本节为准，各轮只实现自己那部分（归属见 `ROUNDS.md` § 3 / § 5）；R3–R6 的新增项是 2026-09-15 按画板裁定后一次写入的，不再逐轮改契约。每条命令的入参形状（哪些是 JSON 字符串、哪些是标量）与返回 JSON 以 `rust/bridge/src/api.rs` 的文档注释为准；错误统一是 `BridgeError {code, message}`，`code` 是 `CoreError::code()` 的稳定短码（`auth_required` / `exited` / `not_connected` / `unknown_request` / `acp` 等）。
 
 **前端状态规则**
 
