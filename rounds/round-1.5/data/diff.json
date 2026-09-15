@@ -1,0 +1,50 @@
+{
+  "sample-diffutil_dart": {
+    "adds": 3,
+    "dels": 1
+  },
+  "sample-diff_match_patch": {
+    "adds": 3,
+    "dels": 1
+  },
+  "5000 lines / 50 edits · diffutil_dart": {
+    "ms": 3.662,
+    "adds": 34,
+    "dels": 33
+  },
+  "5000 lines / 50 edits · diff_match_patch": {
+    "ms": 8.767,
+    "adds": 34,
+    "dels": 33
+  },
+  "20000 lines / 200 edits · diffutil_dart": {
+    "ms": 17.721,
+    "adds": 134,
+    "dels": 133
+  },
+  "20000 lines / 200 edits · diff_match_patch": {
+    "ms": 50.94,
+    "adds": 134,
+    "dels": 133
+  },
+  "2000 lines / all different · diffutil_dart": {
+    "ms": 41.458,
+    "adds": 2000,
+    "dels": 2000
+  },
+  "2000 lines / all different · diff_match_patch": {
+    "ms": 564.207,
+    "adds": 2000,
+    "dels": 2000
+  },
+  "oldText absent (0 → 3000 lines) · diffutil_dart": {
+    "ms": 13.073,
+    "adds": 3000,
+    "dels": 0
+  },
+  "oldText absent (0 → 3000 lines) · diff_match_patch": {
+    "ms": 0.466,
+    "adds": 3000,
+    "dels": 0
+  }
+}

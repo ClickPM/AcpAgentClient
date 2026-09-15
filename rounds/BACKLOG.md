@@ -24,8 +24,8 @@
 
 - [ ] 立项 sidecar 与运行中的 Zed 争用 `threads.db`：R7 实测后裁定「只读共用 / 隔离目录」，未发现 Zed 现成的数据目录覆盖变量 (2026-09-11)
 - [x] 立项 前端 Dart 类型来源二选一 → 所有者裁定 2026-09-15：手写薄封装 `lib/projection/wire.dart`，不做构建期生成；合规性由 Rust 侧 fixtures 反序列化测试兜底；已写 `docs/design.md` § 2 与 `docs/acp-projection.md` § 11 (2026-09-11)
-- [ ] 立项 Markdown 渲染库选型：官方 `flutter_markdown` 已停维；R1.5 spike 比较 `package:markdown` 自写渲染 / `markdown_widget` / `gpt_markdown`（流式追加、GFM、代码高亮、CJK、选择复制），所有者裁定后进规则 1 白名单；spike 前不得引入 (2026-09-12)
-- [ ] 拆解 R1.5 spike 范围扩到画板 15 Mermaid（Dart 无成熟渲染器：WebView / 只做源码态并改画板 / 自写子集三选一）、16 数学公式、32 audio 播放、13 / 60 代码高亮与 21 的 diff 库，一并裁定进白名单 (2026-09-15)
+- [ ] 立项 Markdown 渲染库选型：官方 `flutter_markdown` 已停维；R1.5 spike 比较 `package:markdown` 自写渲染 / `markdown_widget` / `gpt_markdown`（流式追加、GFM、代码高亮、CJK、选择复制），所有者裁定后进规则 1 白名单；spike 前不得引入 (2026-09-12) → spike 完成 2026-09-15（`rounds/round-1.5/spike.md` § 0，2 轮审查收口）：推荐 `package:markdown` 7.3.1 解析 + 自写渲染，备选 `flutter_markdown_plus`；代码高亮推荐 `re_highlight` 0.0.3；待所有者裁定
+- [ ] 拆解 R1.5 spike 范围扩到画板 15 Mermaid（Dart 无成熟渲染器：WebView / 只做源码态并改画板 / 自写子集三选一）、16 数学公式、32 audio 播放、13 / 60 代码高亮与 21 的 diff 库，一并裁定进白名单 (2026-09-15) → spike 完成 2026-09-15（同上）：Mermaid 推荐第四条路 `mermaid_flutter` + `mermaid_core` 0.3.0（纯 Dart，画板 15 不用改），公式 `flutter_math_fork` 0.7.4（附带裁定 `provider` 传递依赖），音频 `audioplayers` 6.8.1（附带 `objective_c` 9.4.1 override），diff `diffutil_dart` 5.0.0；待所有者裁定
 - [x] 拆解 图标与 registry `icon.svg` 的渲染 → 所有者裁定 2026-09-15：`flutter_svg` 进规则 1 通用库清单（CLAUDE.md 与 `docs/requirements.md` § 8 已加） (2026-09-15)
 - [x] 拆解 `CARGO_TARGET_DIR` 位置 → 所有者裁定 2026-09-15：`D:\cargo-target\AcpAgentClient`，已写 CLAUDE.md「本地开发」 (2026-09-15)
 - [ ] 立项 若 R0 在中文用户名路径下 `flutter build windows` 因 cargokit 路径失败，`CARGO_TARGET_DIR` 指 ASCII 路径仍不够时评估形态 B（独立 `acp-host.exe`），见 `docs/research.md` § 9.3 (2026-09-12)

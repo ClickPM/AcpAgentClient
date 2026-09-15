@@ -1,0 +1,206 @@
+{
+ "results": [
+  {
+   "name": "A-BytesSource",
+   "durationMs": 3000,
+   "positionSamples": 367,
+   "firstPositionMs": 0,
+   "lastPositionMs": 3001,
+   "completed": true
+  },
+  {
+   "name": "B-DeviceFileSource",
+   "durationMs": 3000,
+   "positionSamples": 398,
+   "firstPositionMs": 0,
+   "lastPositionMs": 3005,
+   "completed": true
+  },
+  {
+   "name": "C-pause-seek-BytesSource",
+   "pauseHeld": true,
+   "seekLanded": true,
+   "durationMs": 3000,
+   "positionSamples": 214,
+   "firstPositionMs": 0,
+   "lastPositionMs": 2999,
+   "completed": true
+  }
+ ],
+ "timeline": [
+  {
+   "t_ms": 0,
+   "test": "setup",
+   "event": "wav bytes",
+   "detail": "132344"
+  },
+  {
+   "t_ms": 0,
+   "test": "A-BytesSource",
+   "event": "play:start",
+   "detail": null
+  },
+  {
+   "t_ms": 783,
+   "test": "A-BytesSource",
+   "event": "duration",
+   "detail": "3000"
+  },
+  {
+   "t_ms": 784,
+   "test": "A-BytesSource",
+   "event": "duration",
+   "detail": "3000"
+  },
+  {
+   "t_ms": 784,
+   "test": "A-BytesSource",
+   "event": "play:returned",
+   "detail": null
+  },
+  {
+   "t_ms": 784,
+   "test": "A-BytesSource",
+   "event": "state",
+   "detail": "PlayerState.playing"
+  },
+  {
+   "t_ms": 3803,
+   "test": "A-BytesSource",
+   "event": "complete",
+   "detail": null
+  },
+  {
+   "t_ms": 3803,
+   "test": "A-BytesSource",
+   "event": "state",
+   "detail": "PlayerState.completed"
+  },
+  {
+   "t_ms": 4029,
+   "test": "B-DeviceFileSource",
+   "event": "play:start",
+   "detail": null
+  },
+  {
+   "t_ms": 4191,
+   "test": "B-DeviceFileSource",
+   "event": "duration",
+   "detail": "3000"
+  },
+  {
+   "t_ms": 4191,
+   "test": "B-DeviceFileSource",
+   "event": "duration",
+   "detail": "3000"
+  },
+  {
+   "t_ms": 4192,
+   "test": "B-DeviceFileSource",
+   "event": "play:returned",
+   "detail": null
+  },
+  {
+   "t_ms": 4192,
+   "test": "B-DeviceFileSource",
+   "event": "state",
+   "detail": "PlayerState.playing"
+  },
+  {
+   "t_ms": 7214,
+   "test": "B-DeviceFileSource",
+   "event": "complete",
+   "detail": null
+  },
+  {
+   "t_ms": 7215,
+   "test": "B-DeviceFileSource",
+   "event": "state",
+   "detail": "PlayerState.completed"
+  },
+  {
+   "t_ms": 7418,
+   "test": "C-pause-seek-BytesSource",
+   "event": "play:start",
+   "detail": null
+  },
+  {
+   "t_ms": 7578,
+   "test": "C-pause-seek-BytesSource",
+   "event": "duration",
+   "detail": "3000"
+  },
+  {
+   "t_ms": 7578,
+   "test": "C-pause-seek-BytesSource",
+   "event": "duration",
+   "detail": "3000"
+  },
+  {
+   "t_ms": 7579,
+   "test": "C-pause-seek-BytesSource",
+   "event": "play:returned",
+   "detail": null
+  },
+  {
+   "t_ms": 7579,
+   "test": "C-pause-seek-BytesSource",
+   "event": "state",
+   "detail": "PlayerState.playing"
+  },
+  {
+   "t_ms": 8480,
+   "test": "C-pause-seek-BytesSource",
+   "event": "state",
+   "detail": "PlayerState.paused"
+  },
+  {
+   "t_ms": 8481,
+   "test": "C-pause-seek-BytesSource",
+   "event": "paused",
+   "detail": "910"
+  },
+  {
+   "t_ms": 9184,
+   "test": "C-pause-seek-BytesSource",
+   "event": "position-while-paused",
+   "detail": "910"
+  },
+  {
+   "t_ms": 9184,
+   "test": "C-pause-seek-BytesSource",
+   "event": "duration",
+   "detail": "3000"
+  },
+  {
+   "t_ms": 9185,
+   "test": "C-pause-seek-BytesSource",
+   "event": "resumed",
+   "detail": null
+  },
+  {
+   "t_ms": 9185,
+   "test": "C-pause-seek-BytesSource",
+   "event": "state",
+   "detail": "PlayerState.playing"
+  },
+  {
+   "t_ms": 9491,
+   "test": "C-pause-seek-BytesSource",
+   "event": "after-seek",
+   "detail": "2500"
+  },
+  {
+   "t_ms": 10018,
+   "test": "C-pause-seek-BytesSource",
+   "event": "complete",
+   "detail": null
+  },
+  {
+   "t_ms": 10019,
+   "test": "C-pause-seek-BytesSource",
+   "event": "state",
+   "detail": "PlayerState.completed"
+  }
+ ]
+}

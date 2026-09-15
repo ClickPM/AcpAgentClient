@@ -409,7 +409,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 | round-design | 已完成 | main | — | 72e2be1 | 设计稿审核 2 轮（主会话） | 40 张画板入库 |
 | R0 | 已完成 | `round-00` | —（R0 无画板阶段） | ddf22b3 | 5 轮 / cursor 两次空输出（`--plan` 误判，旁路会话已修为 `--mode ask`）→ Claude Code 子代理（第 1 轮 Fable 5.1，第 2–5 轮 opus）；18 条全部关闭 | 任务卡 `rounds/round-00/round-00.md`；Rust 核心不走 pub 插件（runner CMake 直接 apply_cargokit，见任务卡「偏离」）；IME 实测待所有者手测 |
 | R1 | 已完成 | `round-01` | —（R1 无画板阶段） | 5466609 | 3 轮 / 第 1 轮 Claude Code 子代理（opus；cursor 因 Zed 占 `cli-config.json` 启动 EPERM）→ 第 2–3 轮 cursor CLI（`--mode ask`）；6 条（high 3 / P3 3）全部关闭 | 任务卡 `rounds/round-01/round-01.md`；6 项验收全过（dsh 真跑 4 轮 + fake agent 离线链 + npx `.cmd` 中文路径）；ConPTY 启动探询、dsh `--setup` 提示不可见、taskkill 收尾三条记 BACKLOG |
-| R1.5 | 未开始 | `round-01.5`（worktree，不合并） | — | — | — | 产出只有 `rounds/round-1.5/spike.md` 与裁定 |
+| R1.5 | spike 完成，待裁定 | `round-01.5`（worktree，不合并；spike 收口提交 32f122f） | —（无画板阶段） | —（不合并；`rounds/round-1.5/` 以纯文档进 `main`） | 2 轮 / cursor CLI `--mode ask`（第 1 轮 adversarial：4 条 P2 3 / P3 1 + 4 条取舍质疑；第 2 轮：1 条 P3；全部采纳） | 任务卡 `rounds/round-1.5/round-1.5.md`；`spike.md` § 0 六项各一个推荐 + 备选（Markdown：`package:markdown` + 自写渲染；高亮 `re_highlight`；公式 `flutter_math_fork`；Mermaid `mermaid_flutter` + `mermaid_core`；音频 `audioplayers`；diff `diffutil_dart`），截图 19 张、测量 7 份 JSON；裁定后落 CLAUDE.md 规则 1 / `docs/requirements.md` § 8 / BACKLOG |
 | R2 | 未开始 | `round-02` | — | — | — | |
 | R3 | 未开始 | `round-03` | — | — | — | |
 | R4 | 未开始 | `round-04` | — | — | — | |

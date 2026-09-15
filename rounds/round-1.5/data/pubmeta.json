@@ -1,0 +1,675 @@
+{
+ "markdown": {
+  "version": "7.3.1",
+  "published": "2026-03-18",
+  "repo": "https://github.com/dart-lang/tools/tree/main/pkgs/markdown",
+  "desc": "A portable Markdown library written in Dart that can parse Markdown into HTML.",
+  "deps": [
+   "args",
+   "meta"
+  ],
+  "likes": 367,
+  "points": 160,
+  "maxpoints": 160,
+  "downloads": 2548350,
+  "tags": [
+   "platform:android",
+   "platform:ios",
+   "platform:windows",
+   "platform:linux",
+   "platform:macos",
+   "platform:web",
+   "license:bsd-3-clause",
+   "license:fsf-libre",
+   "license:osi-approved"
+  ]
+ },
+ "markdown_widget": {
+  "version": "2.3.2+8",
+  "published": "2025-04-26",
+  "repo": "https://github.com/asjqkkkk/markdown_widget",
+  "desc": "A new markdown package. It supports TOC function, code highlighting, and it supports all platforms",
+  "deps": [
+   "flutter",
+   "flutter_highlight",
+   "highlight",
+   "markdown",
+   "scroll_to_index",
+   "url_launcher",
+   "visibility_detector"
+  ],
+  "likes": 411,
+  "points": 160,
+  "maxpoints": 160,
+  "downloads": 5798,
+  "tags": [
+   "platform:android",
+   "platform:ios",
+   "platform:windows",
+   "platform:linux",
+   "platform:macos",
+   "platform:web",
+   "license:mit",
+   "license:fsf-libre",
+   "license:osi-approved"
+  ]
+ },
+ "gpt_markdown": {
+  "version": "1.2.1",
+  "published": "2026-08-23",
+  "repo": "https://github.com/Infinitix-LLC/gpt_markdown",
+  "desc": "Powerful Flutter Markdown & LaTeX Renderer: Rich Text, Math, Tables, Links, and Text Selection. Ideal for ChatGPT, Gemini, and more.",
+  "deps": [
+   "flutter",
+   "flutter_math_fork"
+  ],
+  "likes": 322,
+  "points": 160,
+  "maxpoints": 160,
+  "downloads": 149804,
+  "tags": [
+   "platform:android",
+   "platform:ios",
+   "platform:windows",
+   "platform:linux",
+   "platform:macos",
+   "platform:web",
+   "license:bsd-3-clause",
+   "license:fsf-libre",
+   "license:osi-approved"
+  ]
+ },
+ "flutter_markdown_plus": {
+  "version": "1.0.12",
+  "published": "2026-07-10",
+  "repo": "https://github.com/foresightmobile/flutter_markdown_plus",
+  "desc": "A Markdown renderer for Flutter. Create rich text output, including text styles, tables, links, and more, from plain text data formatted with simple Markdown ta",
+  "deps": [
+   "flutter",
+   "markdown",
+   "meta",
+   "path"
+  ],
+  "likes": 143,
+  "points": 160,
+  "maxpoints": 160,
+  "downloads": 549520,
+  "tags": [
+   "platform:android",
+   "platform:ios",
+   "platform:windows",
+   "platform:linux",
+   "platform:macos",
+   "platform:web",
+   "license:bsd-3-clause",
+   "license:fsf-libre",
+   "license:osi-approved"
+  ]
+ },
+ "flutter_markdown": {
+  "version": "0.7.7+1",
+  "published": "2025-05-06",
+  "repo": "https://github.com/flutter/packages/tree/main/packages/flutter_markdown",
+  "desc": "A Markdown renderer for Flutter. Create rich text output, including text styles, tables, links, and more, from plain text data formatted with simple Markdown ta",
+  "deps": [
+   "flutter",
+   "markdown",
+   "meta",
+   "path"
+  ],
+  "likes": 1473,
+  "points": 150,
+  "maxpoints": 160,
+  "downloads": 174229,
+  "tags": [
+   "platform:android",
+   "platform:ios",
+   "platform:windows",
+   "platform:linux",
+   "platform:macos",
+   "platform:web",
+   "license:bsd-3-clause",
+   "license:fsf-libre",
+   "license:osi-approved"
+  ]
+ },
+ "flutter_smooth_markdown": {
+  "version": "0.8.1",
+  "published": "2026-07-07",
+  "repo": "https://github.com/JackCaow/flutter-smooth-markdown",
+  "desc": "High-performance Flutter markdown renderer and editor with syntax highlighting, LaTeX math, tables, footnotes, SVG images, and real-time streaming support.",
+  "deps": [
+   "cached_network_image",
+   "flutter",
+   "flutter_highlight",
+   "flutter_math_fork",
+   "flutter_svg",
+   "highlight"
+  ],
+  "likes": 14,
+  "points": 140,
+  "maxpoints": 160,
+  "downloads": 2010,
+  "tags": [
+   "platform:android",
+   "platform:ios",
+   "platform:windows",
+   "platform:linux",
+   "platform:macos",
+   "platform:web",
+   "license:mit",
+   "license:fsf-libre",
+   "license:osi-approved"
+  ]
+ },
+ "streamdown": {
+  "version": "0.1.1",
+  "published": "2026-05-28",
+  "repo": "https://github.com/jayu1023/streamdown",
+  "desc": "Flicker-free streaming markdown renderer for Flutter AI apps. Drop-in replacement for flutter_markdown with no flash on partial code fences, tables, or LaTeX.",
+  "deps": [
+   "flutter",
+   "flutter_highlight",
+   "flutter_math_fork",
+   "url_launcher"
+  ],
+  "likes": 7,
+  "points": 160,
+  "maxpoints": 160,
+  "downloads": 69,
+  "tags": [
+   "platform:android",
+   "platform:ios",
+   "platform:windows",
+   "platform:linux",
+   "platform:macos",
+   "platform:web",
+   "license:bsd-3-clause",
+   "license:fsf-libre",
+   "license:osi-approved"
+  ]
+ },
+ "highlight": {
+  "version": "0.7.0",
+  "published": "2021-03-07",
+  "repo": "https://github.com/pd4d10/highlight",
+  "desc": "Syntax highlighting for Dart with lots of languages and themes support.",
+  "deps": [
+   "collection"
+  ],
+  "likes": 59,
+  "points": 120,
+  "maxpoints": 160,
+  "downloads": 285281,
+  "tags": [
+   "platform:android",
+   "platform:ios",
+   "platform:windows",
+   "platform:linux",
+   "platform:macos",
+   "platform:web",
+   "license:mit",
+   "license:fsf-libre",
+   "license:osi-approved"
+  ]
+ },
+ "flutter_highlight": {
+  "version": "0.7.0",
+  "published": "2021-03-07",
+  "repo": "https://github.com/git-touch/highlight",
+  "desc": "Syntax highlighting widget for Flutter with lots of languages and themes support.",
+  "deps": [
+   "flutter",
+   "highlight"
+  ],
+  "likes": 156,
+  "points": 130,
+  "maxpoints": 160,
+  "downloads": 247948,
+  "tags": [
+   "platform:android",
+   "platform:ios",
+   "platform:windows",
+   "platform:linux",
+   "platform:macos",
+   "platform:web",
+   "license:mit",
+   "license:fsf-libre",
+   "license:osi-approved"
+  ]
+ },
+ "re_highlight": {
+  "version": "0.0.3",
+  "published": "2024-02-05",
+  "repo": "https://github.com/reqable/re-highlight",
+  "desc": "Re-Highlight is a powerful text syntax highlighting library.",
+  "deps": [
+   "collection",
+   "flutter",
+   "path"
+  ],
+  "likes": 24,
+  "points": 140,
+  "maxpoints": 160,
+  "downloads": 61188,
+  "tags": [
+   "platform:android",
+   "platform:ios",
+   "platform:windows",
+   "platform:linux",
+   "platform:macos",
+   "platform:web",
+   "license:mit",
+   "license:fsf-libre",
+   "license:osi-approved"
+  ]
+ },
+ "syntax_highlight": {
+  "version": "0.5.0",
+  "published": "2025-08-19",
+  "repo": "https://github.com/serverpod/syntax_highlight",
+  "desc": "Syntax highlighting in the style of VSCode for Flutter, takes a string and returns a formatted TextSpan.",
+  "deps": [
+   "collection",
+   "flutter",
+   "string_scanner",
+   "super_clipboard"
+  ],
+  "likes": 78,
+  "points": 150,
+  "maxpoints": 160,
+  "downloads": 23207,
+  "tags": [
+   "platform:android",
+   "platform:ios",
+   "platform:windows",
+   "platform:linux",
+   "platform:macos",
+   "platform:web",
+   "license:bsd-3-clause",
+   "license:fsf-libre",
+   "license:osi-approved"
+  ]
+ },
+ "any_syntax_highlighter": {
+  "version": "0.0.13",
+  "published": "2023-03-28",
+  "repo": "https://github.com/ssrajputtheboss/any_syntax_highlighter.git",
+  "desc": "any_syntax_highlighter is a lightweight \"convention\" based syntax highlighting tool.",
+  "deps": [
+   "flutter",
+   "google_fonts"
+  ],
+  "likes": 7,
+  "points": 140,
+  "maxpoints": 160,
+  "downloads": 4034,
+  "tags": [
+   "platform:android",
+   "platform:ios",
+   "platform:windows",
+   "platform:linux",
+   "platform:macos",
+   "platform:web",
+   "license:mit",
+   "license:fsf-libre",
+   "license:osi-approved"
+  ]
+ },
+ "flutter_math_fork": {
+  "version": "0.7.4",
+  "published": "2025-05-21",
+  "repo": "https://github.com/simpleclub/flutter_math",
+  "desc": "Fast and high-quality TeX math equation rendering with pure Dart & Flutter.",
+  "deps": [
+   "collection",
+   "flutter",
+   "flutter_svg",
+   "meta",
+   "provider",
+   "tuple"
+  ],
+  "likes": 172,
+  "points": 140,
+  "maxpoints": 160,
+  "downloads": 264327,
+  "tags": [
+   "platform:android",
+   "platform:ios",
+   "platform:windows",
+   "platform:linux",
+   "platform:macos",
+   "platform:web",
+   "license:apache-2.0",
+   "license:fsf-libre",
+   "license:osi-approved"
+  ]
+ },
+ "flutter_mermaid": {
+  "version": "0.1.0",
+  "published": "2026-03-05",
+  "repo": "https://github.com/JackCaow/flutter-mermaid",
+  "desc": "A pure Dart/Flutter library for rendering Mermaid diagrams without WebView or external dependencies. Supports flowcharts, sequence diagrams, pie charts, Gantt c",
+  "deps": [
+   "flutter"
+  ],
+  "likes": 5,
+  "points": 140,
+  "maxpoints": 160,
+  "downloads": 2018,
+  "tags": [
+   "platform:android",
+   "platform:ios",
+   "platform:windows",
+   "platform:linux",
+   "platform:macos",
+   "platform:web",
+   "license:mit",
+   "license:fsf-libre",
+   "license:osi-approved"
+  ]
+ },
+ "mermaid_dart": {
+  "version": "0.1.0",
+  "published": "2026-06-27",
+  "repo": "https://github.com/RanveerSingh1997/mermaid_dart",
+  "desc": "Pure-Dart parser for Mermaid flowchart/graph syntax. Converts Mermaid text into a generic graph model (nodes, edges, frames) with no Flutter dependency.",
+  "deps": [],
+  "likes": 0,
+  "points": 140,
+  "maxpoints": 160,
+  "downloads": 10,
+  "tags": [
+   "platform:android",
+   "platform:ios",
+   "platform:windows",
+   "platform:linux",
+   "platform:macos",
+   "platform:web",
+   "license:mit",
+   "license:fsf-libre",
+   "license:osi-approved"
+  ]
+ },
+ "mermaid_flutter": {
+  "version": "0.3.0",
+  "published": "2026-09-08",
+  "repo": "https://github.com/orestesgaolin/mermaid",
+  "desc": "Native Flutter renderer for mermaid_core: TextPainter text measurement and a CustomPainter that paints the mermaid render scene directly. 28 diagram types.",
+  "deps": [
+   "flutter",
+   "mermaid_core"
+  ],
+  "likes": 2,
+  "points": 150,
+  "maxpoints": 160,
+  "downloads": 404,
+  "tags": [
+   "platform:android",
+   "platform:ios",
+   "platform:windows",
+   "platform:linux",
+   "platform:macos",
+   "platform:web",
+   "license:mit",
+   "license:fsf-libre",
+   "license:osi-approved"
+  ]
+ },
+ "mermaid_core": {
+  "version": "0.3.0",
+  "published": "2026-09-08",
+  "repo": "https://github.com/orestesgaolin/mermaid",
+  "desc": "Pure Dart port of mermaid.js: detect, parse and lay out 28 diagram types into a backend-agnostic scene, with an SVG renderer and a CLI. No Flutter.",
+  "deps": [
+   "elk",
+   "katex_dart",
+   "meta",
+   "path_parsing"
+  ],
+  "likes": 1,
+  "points": 150,
+  "maxpoints": 160,
+  "downloads": 1327,
+  "tags": [
+   "platform:android",
+   "platform:ios",
+   "platform:windows",
+   "platform:linux",
+   "platform:macos",
+   "platform:web",
+   "license:unknown"
+  ]
+ },
+ "duskmoon_mermaid_renderer": {
+  "version": "1.8.0",
+  "published": "2026-07-17",
+  "repo": "https://github.com/duskmoon-dev/flutter_duskmoon_ui",
+  "desc": "Flutter RenderObject-based Mermaid renderer for Duskmoon UI.",
+  "deps": [
+   "collection",
+   "flutter",
+   "meta"
+  ],
+  "likes": 0,
+  "points": 140,
+  "maxpoints": 160,
+  "downloads": 78,
+  "tags": [
+   "platform:android",
+   "platform:ios",
+   "platform:windows",
+   "platform:linux",
+   "platform:macos",
+   "platform:web",
+   "license:mit",
+   "license:fsf-libre",
+   "license:osi-approved"
+  ]
+ },
+ "audioplayers": {
+  "version": "6.8.1",
+  "published": "2026-06-27",
+  "repo": "https://github.com/bluefireteam/audioplayers/tree/master/packages/audioplayers",
+  "desc": "A Flutter plugin to play multiple audio files simultaneously",
+  "deps": [
+   "audioplayers_android",
+   "audioplayers_darwin",
+   "audioplayers_linux",
+   "audioplayers_platform_interface",
+   "audioplayers_web",
+   "audioplayers_windows",
+   "file",
+   "flutter",
+   "http",
+   "meta",
+   "path_provider",
+   "synchronized",
+   "uuid"
+  ],
+  "likes": 3441,
+  "points": 150,
+  "maxpoints": 160,
+  "downloads": 1206091,
+  "tags": [
+   "platform:android",
+   "platform:ios",
+   "platform:windows",
+   "platform:linux",
+   "platform:macos",
+   "platform:web",
+   "license:mit",
+   "license:fsf-libre",
+   "license:osi-approved"
+  ]
+ },
+ "just_audio": {
+  "version": "0.10.6",
+  "published": "2026-06-29",
+  "repo": "https://github.com/ryanheise/just_audio/tree/minor/just_audio",
+  "desc": "A feature-rich audio player for Flutter. Loop, clip and sequence any sound from any source (asset/file/URL/stream) in gapless playlists.",
+  "deps": [
+   "async",
+   "audio_session",
+   "crypto",
+   "flutter",
+   "just_audio_platform_interface",
+   "just_audio_web",
+   "meta",
+   "path",
+   "path_provider",
+   "rxdart",
+   "synchronized",
+   "uuid"
+  ],
+  "likes": 4148,
+  "points": 150,
+  "maxpoints": 160,
+  "downloads": 1084191,
+  "tags": [
+   "platform:android",
+   "platform:ios",
+   "platform:macos",
+   "platform:web",
+   "license:apache-2.0",
+   "license:mit",
+   "license:fsf-libre",
+   "license:osi-approved"
+  ]
+ },
+ "just_audio_windows": {
+  "version": "0.2.3",
+  "published": "2026-04-04",
+  "repo": "https://github.com/bdlukaa/just_audio_windows/tree/master/just_audio_windows",
+  "desc": "Windows platform implementation of just_audio. Implemented using WinRT MediaPlayer",
+  "deps": [
+   "flutter"
+  ],
+  "likes": 33,
+  "points": 150,
+  "maxpoints": 160,
+  "downloads": 19431,
+  "tags": [
+   "platform:windows",
+   "license:mit",
+   "license:fsf-libre",
+   "license:osi-approved"
+  ]
+ },
+ "diff_match_patch": {
+  "version": "0.4.1",
+  "published": "2021-06-03",
+  "repo": "http://github.com/jheyne/diff-match-patch",
+  "desc": "The Diff Match and Patch libraries offer robust algorithms to perform the operations required for synchronizing plain text.",
+  "deps": [],
+  "likes": 41,
+  "points": 130,
+  "maxpoints": 160,
+  "downloads": 1482804,
+  "tags": [
+   "platform:android",
+   "platform:ios",
+   "platform:windows",
+   "platform:linux",
+   "platform:macos",
+   "platform:web",
+   "license:apache-2.0",
+   "license:fsf-libre",
+   "license:osi-approved"
+  ]
+ },
+ "diffutil_dart": {
+  "version": "5.0.0",
+  "published": "2026-06-06",
+  "repo": "https://github.com/knaeckeKami/diffutil.dart",
+  "desc": "Calculate the difference between two lists as list of edit operations. Used for example for implicitly animating Flutter lists without having to maintain a Stat",
+  "deps": [],
+  "likes": 102,
+  "points": 160,
+  "maxpoints": 160,
+  "downloads": 165873,
+  "tags": [
+   "platform:android",
+   "platform:ios",
+   "platform:windows",
+   "platform:linux",
+   "platform:macos",
+   "platform:web",
+   "license:apache-2.0",
+   "license:fsf-libre",
+   "license:osi-approved"
+  ]
+ },
+ "webview_windows": {
+  "version": "0.4.0",
+  "published": "2024-02-17",
+  "repo": "https://github.com/jnschulze/flutter-webview-windows",
+  "desc": "A WebView2-powered webview implementation for the Windows platform.",
+  "deps": [
+   "flutter"
+  ],
+  "likes": 236,
+  "points": 140,
+  "maxpoints": 160,
+  "downloads": 55932,
+  "tags": [
+   "platform:windows",
+   "license:bsd-3-clause",
+   "license:fsf-libre",
+   "license:osi-approved"
+  ]
+ },
+ "flutter_inappwebview": {
+  "version": "6.1.5",
+  "published": "2024-10-08",
+  "repo": "https://github.com/pichillilorenzo/flutter_inappwebview",
+  "desc": "A Flutter plugin that allows you to add an inline webview, to use an headless webview, and to open an in-app browser window.",
+  "deps": [
+   "flutter",
+   "flutter_inappwebview_android",
+   "flutter_inappwebview_ios",
+   "flutter_inappwebview_macos",
+   "flutter_inappwebview_platform_interface",
+   "flutter_inappwebview_web",
+   "flutter_inappwebview_windows"
+  ],
+  "likes": 2848,
+  "points": 130,
+  "maxpoints": 160,
+  "downloads": 1128697,
+  "tags": [
+   "platform:android",
+   "platform:ios",
+   "platform:windows",
+   "platform:macos",
+   "platform:web",
+   "license:apache-2.0",
+   "license:fsf-libre",
+   "license:osi-approved"
+  ]
+ },
+ "webview_flutter": {
+  "version": "4.14.1",
+  "published": "2026-07-07",
+  "repo": "https://github.com/flutter/packages/tree/main/packages/webview_flutter/webview_flutter",
+  "desc": "A Flutter plugin that provides a WebView widget backed by the system webview.",
+  "deps": [
+   "flutter",
+   "webview_flutter_android",
+   "webview_flutter_platform_interface",
+   "webview_flutter_wkwebview"
+  ],
+  "likes": 4528,
+  "points": 160,
+  "maxpoints": 160,
+  "downloads": 3076317,
+  "tags": [
+   "platform:android",
+   "platform:ios",
+   "platform:macos",
+   "license:bsd-3-clause",
+   "license:fsf-libre",
+   "license:osi-approved"
+  ]
+ }
+}

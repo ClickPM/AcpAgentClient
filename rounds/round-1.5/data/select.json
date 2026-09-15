@@ -1,0 +1,72 @@
+{
+  "custom": {
+    "selectedChars": 1452,
+    "probes": {
+      "heading": true,
+      "listItem": true,
+      "codeBlock": true,
+      "tableCell": true,
+      "strikethrough": true,
+      "blockquote": true
+    },
+    "selectionException": "",
+    "linkHref": "docs/acp-projection.md",
+    "linkException": ""
+  },
+  "markdown_widget": {
+    "selectedChars": 1408,
+    "probes": {
+      "heading": true,
+      "listItem": true,
+      "codeBlock": true,
+      "tableCell": true,
+      "strikethrough": true,
+      "blockquote": true
+    },
+    "selectionException": "",
+    "linkHref": "docs/acp-projection.md",
+    "linkException": ""
+  },
+  "gpt_markdown": {
+    "selectedChars": 1586,
+    "probes": {
+      "heading": true,
+      "listItem": true,
+      "codeBlock": true,
+      "tableCell": true,
+      "strikethrough": true,
+      "blockquote": true
+    },
+    "selectionException": "",
+    "linkHref": "docs/acp-projection.md",
+    "linkException": ""
+  },
+  "flutter_markdown_plus": {
+    "selectedChars": 1452,
+    "probes": {
+      "heading": true,
+      "listItem": true,
+      "codeBlock": true,
+      "tableCell": true,
+      "strikethrough": true,
+      "blockquote": true
+    },
+    "selectionException": "",
+    "linkHref": "docs/acp-projection.md",
+    "linkException": ""
+  },
+  "streamdown": {
+    "selectedChars": 722,
+    "probes": {
+      "heading": true,
+      "listItem": true,
+      "codeBlock": false,
+      "tableCell": true,
+      "strikethrough": true,
+      "blockquote": true
+    },
+    "selectionException": "",
+    "linkHref": "docs/acp-projection.md",
+    "linkException": ""
+  }
+}

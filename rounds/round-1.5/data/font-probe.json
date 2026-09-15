@@ -1,0 +1,40 @@
+{
+ "note": "Windows 11 26200 真机（audio_spike.exe，release），TextPainter 排版 10 个 i 与 10 个 m 的宽度（fontSize 20）；相等即等宽字体",
+ "fontProbe": {
+  "default": {
+   "i10": 48.4375,
+   "m10": 172.265625,
+   "monospace": false
+  },
+  "monospace": {
+   "i10": 48.4375,
+   "m10": 172.265625,
+   "monospace": false
+  },
+  "Courier": {
+   "i10": 48.4375,
+   "m10": 172.265625,
+   "monospace": false
+  },
+  "Consolas": {
+   "i10": 109.9609375,
+   "m10": 109.9609375,
+   "monospace": true
+  },
+  "Courier New": {
+   "i10": 120.01953125,
+   "m10": 120.01953125,
+   "monospace": true
+  },
+  "Segoe UI": {
+   "i10": 48.4375,
+   "m10": 172.265625,
+   "monospace": false
+  },
+  "no-such-family-xyz": {
+   "i10": 48.4375,
+   "m10": 172.265625,
+   "monospace": false
+  }
+ }
+}
