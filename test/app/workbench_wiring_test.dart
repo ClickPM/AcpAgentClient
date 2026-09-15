@@ -99,11 +99,40 @@ class FakeCore implements CoreCommands {
   Future<JsonMap> sessionIndexRemove(String agentId, String sessionId) async => <String, dynamic>{'sessions': <Object?>[]};
 }
 
+/// 第一次 `session/prompt` 挂着不返回，直到 [release]；用来复现「回合进行中点 Restore」。
+class SlowCore extends FakeCore {
+  final List<String> order = <String>[];
+  final Completer<void> _gate = Completer<void>();
+  bool _first = true;
+
+  void release() {
+    if (!_gate.isCompleted) _gate.complete();
+  }
+
+  @override
+  Future<JsonMap> sessionPrompt(String agentId, String sessionId, List<Object?> prompt) async {
+    order.add('prompt');
+    if (_first) {
+      _first = false;
+      await _gate.future;
+      return <String, dynamic>{'stopReason': 'cancelled'};
+    }
+    return super.sessionPrompt(agentId, sessionId, prompt);
+  }
+
+  @override
+  Future<JsonMap> sessionCancel(String agentId, String sessionId) {
+    order.add('cancel');
+    return super.sessionCancel(agentId, sessionId);
+  }
+}
+
 const String _agent = 'a';
 const String _session = 'sess_1';
 
 /// 建一个「一轮里既有挂起的 permission 又有挂起的 elicitation」的控制器。
-(WorkbenchController, FakeCore, TurnEntry) _scenario() {
+/// `running: false` = 这一轮已经结束、但两条请求还挂着（Restore 的 `_respondCancelled` 走这条路）。
+(WorkbenchController, FakeCore, TurnEntry) _scenario({bool running = true}) {
   final core = FakeCore();
   final c = WorkbenchController(source: DataSource.bridge, bridge: core)
     ..agentId = _agent
@@ -135,12 +164,13 @@ const String _session = 'sess_1';
       'requestedSchema': <String, dynamic>{'type': 'object', 'properties': <String, dynamic>{}},
     },
   });
+  if (!running) store.endTurn(stopReason: 'end_turn');
   return (c, core, turn);
 }
 
 void main() {
-  test('Restore 截断时两组挂起请求都要 acp_respond（permission cancelled / elicitation cancel）', () async {
-    final (c, core, turn) = _scenario();
+  test('轮已结束但请求还挂着时 Restore：两组 id 都要 acp_respond（permission cancelled / elicitation cancel）', () async {
+    final (c, core, turn) = _scenario(running: false);
     final store = c.sessions.session(_session);
     expect(store.pending.forSession(_session).length, 2, reason: '两条都还挂着');
 
@@ -151,6 +181,7 @@ void main() {
     expect(byId['req_perm'], <String, dynamic>{'outcome': <String, dynamic>{'outcome': 'cancelled'}});
     expect(byId['req_elic']!['action'], 'cancel');
     expect(store.pending.forSession(_session), isEmpty);
+    expect(core.cancels, 0, reason: '轮已经结束，不该再发 session/cancel');
     // 截断后用原 prompt 同会话重发。
     expect(core.prompts.single.length, 1);
     expect((core.prompts.single.single as JsonMap)['text'], '原始提示');
@@ -158,7 +189,7 @@ void main() {
   });
 
   test('Regenerate 用新文本重发，同样先回应被截断的挂起请求', () async {
-    final (c, core, turn) = _scenario();
+    final (c, core, turn) = _scenario(running: false);
     await c.restore(turn, newText: '改过的提示');
 
     expect(core.responded.length, 2);
@@ -167,12 +198,57 @@ void main() {
     c.dispose();
   });
 
-  test('session/cancel 只发命令、不重复回应（挂起的权限由核心自动回 cancelled）', () async {
+  test('轮还在进行时 Restore：权限交给核心的 cancel、elicitation 前端回 cancel，队列清空', () async {
+    final (c, core, turn) = _scenario();
+    final store = c.sessions.session(_session);
+    expect(store.isRunning, isTrue);
+
+    await c.restore(turn);
+
+    final byId = <String, JsonMap>{for (final r in core.responded) r.$1: r.$2};
+    expect(core.cancels, 1, reason: '先把在途那一轮收掉');
+    expect(byId.keys.toSet(), <String>{'req_elic'}, reason: 'req_perm 由核心 session_cancel 自动回，前端再回会撞 unknown_request');
+    expect(byId['req_elic'], <String, dynamic>{'action': 'cancel'});
+    expect(store.pending.forSession(_session), isEmpty);
+    c.dispose();
+  });
+
+  test('session/cancel：权限交给核心，elicitation 前端必须自己回 cancel（审查 finding high）', () async {
     final (c, core, _) = _scenario();
     await c.cancel();
 
     expect(core.cancels, 1);
-    expect(core.responded, isEmpty, reason: 'acp_respond 由核心侧做，前端再回一遍会撞 unknown_request');
+    // 权限请求由核心 session_cancel 自动回 cancelled，前端再回一遍会撞 unknown_request。
+    expect(core.responded.map((r) => r.$1), isNot(contains('req_perm')));
+    // elicitation 核心不管：不回 agent 会一直等着。
+    final byId = <String, JsonMap>{for (final r in core.responded) r.$1: r.$2};
+    expect(byId.keys.toSet(), <String>{'req_elic'});
+    expect(byId['req_elic'], <String, dynamic>{'action': 'cancel'});
+    c.dispose();
+  });
+
+  test('回合进行中点 Restore：先 cancel 并等在途的 session/prompt 结束，再截断重发（审查 finding high）', () async {
+    final core = SlowCore();
+    final c = WorkbenchController(source: DataSource.bridge, bridge: core)
+      ..agentId = _agent
+      ..sessionId = _session;
+    final store = c.sessions.session(_session, agentId: _agent);
+    c.composer.text = '第一轮';
+    final sending = c.send();
+    expect(store.isRunning, isTrue);
+    final turn = store.entries.whereType<TurnEntry>().first;
+
+    // 第一轮还没返回就点 Restore。
+    final restoring = c.restore(turn, newText: '改过的提示');
+    core.release();
+    await Future.wait(<Future<void>>[sending, restoring]);
+
+    expect(core.cancels, 1, reason: '截断之前要把在途那一轮收掉');
+    expect(core.order, <String>['prompt', 'cancel', 'prompt'], reason: '两次 prompt 不能重叠');
+    final turns = store.entries.whereType<TurnEntry>().toList();
+    expect(turns.length, 1, reason: '旧轮被截断，只剩重发的那一轮');
+    expect(turns.single.stopReason, 'end_turn',
+        reason: '剩下的是重发那一轮、带它自己的结束值；先返回的那次（cancelled）没有打到它头上');
     c.dispose();
   });
 

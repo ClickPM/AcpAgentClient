@@ -344,18 +344,28 @@ class WorkbenchController extends ChangeNotifier {
     sidebarSessions = _toSidebar(result['sessions']);
   }
 
-  List<SidebarSession> _toSidebar(Object? raw) => <SidebarSession>[
-        if (raw is List)
-          for (final s in raw)
-            if (s is Map)
-              SidebarSession(
-                id: s['sessionId'] as String? ?? '',
-                title: s['title'] as String? ?? (s['sessionId'] as String? ?? ''),
-                updatedAt: DateTime.fromMillisecondsSinceEpoch((s['updatedAt'] as num?)?.toInt() ?? 0),
-                messageCount: (s['messageCount'] as num?)?.toInt() ?? 0,
-                canDelete: _sessionCaps.containsKey('delete'),
-              ),
-      ];
+  /// 把 `sessions.json` 的一条映射成侧栏项，**顺带把 agentId 记进 [_sessionAgent]**：
+  /// 重启后点侧栏 / 改名 / 删除都要用 (agentId, sessionId) 这一对键，只靠 `newSession` 时写入
+  /// 会让重启后的删除按空 agentId 去匹配、删不掉（审查 finding P2，2026-09-15）。
+  List<SidebarSession> _toSidebar(Object? raw) {
+    final out = <SidebarSession>[];
+    if (raw is! List) return out;
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final sessionId = item['sessionId'] as String? ?? '';
+      if (sessionId.isEmpty) continue;
+      final owner = item['agentId'] as String?;
+      if (owner != null && owner.isNotEmpty) _sessionAgent[sessionId] = owner;
+      out.add(SidebarSession(
+        id: sessionId,
+        title: item['title'] as String? ?? sessionId,
+        updatedAt: DateTime.fromMillisecondsSinceEpoch((item['updatedAt'] as num?)?.toInt() ?? 0),
+        messageCount: (item['messageCount'] as num?)?.toInt() ?? 0,
+        canDelete: _sessionCaps.containsKey('delete'),
+      ));
+    }
+    return out;
+  }
 
   JsonMap get _sessionCaps {
     final caps = connection?.agentCapabilities?['sessionCapabilities'];
@@ -509,6 +519,9 @@ class WorkbenchController extends ChangeNotifier {
     _touch();
   }
 
+  /// 删除 / 改名用的 agentId：优先本地索引里记的那个，退到当前连接。
+  String _ownerOf(String sessionId) => _sessionAgent[sessionId] ?? agentId ?? '';
+
   Future<void> _saveIndex() async {
     final b = bridge;
     final s = store;
@@ -544,7 +557,7 @@ class WorkbenchController extends ChangeNotifier {
       return;
     }
     await _guard(() async {
-      final owner = _sessionAgent[id] ?? agentId ?? '';
+      final owner = _ownerOf(id);
       final existing = sidebarSessions.where((s) => s.id == id).firstOrNull;
       final result = await b.sessionIndexUpsert(<String, dynamic>{
         'agentId': owner,
@@ -576,7 +589,7 @@ class WorkbenchController extends ChangeNotifier {
     final b = bridge;
     if (b == null) return;
     await _guard(() async {
-      final result = await b.sessionIndexRemove(_sessionAgent[id] ?? agentId ?? '', id);
+      final result = await b.sessionIndexRemove(_ownerOf(id), id);
       sidebarSessions = _toSidebar(result['sessions']);
       if (sessionId == id) sessionId = null;
     });
@@ -600,8 +613,13 @@ class WorkbenchController extends ChangeNotifier {
     await _runTurn(b, id, s, blocks);
   }
 
+  /// 在途的那一轮（`session/prompt` 还没返回）。Restore / Regenerate 要先等它结束，
+  /// 否则同一个 session 上会重叠两个 `session/prompt`，先返回的那次会把 `endTurn` 打到新开的轮上
+  /// （审查 finding high，2026-09-15）。
+  Future<void>? _turnInFlight;
+
   Future<void> _runTurn(CoreCommands b, String id, SessionStore s, List<JsonMap> blocks) async {
-    await _guard(() async {
+    final turn = _guard(() async {
       final result = await b.sessionPrompt(id, s.sessionId, blocks);
       s.endTurn(
         stopReason: result['stopReason'] as String?,
@@ -609,6 +627,12 @@ class WorkbenchController extends ChangeNotifier {
       );
       await _saveIndex();
     });
+    _turnInFlight = turn;
+    try {
+      await turn;
+    } finally {
+      if (identical(_turnInFlight, turn)) _turnInFlight = null;
+    }
     _touch();
   }
 
@@ -627,9 +651,13 @@ class WorkbenchController extends ChangeNotifier {
     final id = agentId;
     if (s == null || b == null || id == null) return;
     await _guard(() async {
-      // 核心会自动把挂起的权限请求回 cancelled（api.rs 的契约），前端只做本地态。
+      // 权限请求由核心自动回 cancelled（api.rs 的契约），前端再回会撞 unknown_request；
+      // **elicitation 核心不管**，不回 agent 会一直等（审查 finding high，2026-09-15）。
       await b.sessionCancel(id, s.sessionId);
-      s.cancel();
+      final result = s.cancel();
+      for (final requestId in result.cancelledElicitationIds) {
+        await _guard(() => b.acpRespond(id, requestId, PendingQueue.cancelledAction));
+      }
     });
     _touch();
   }
@@ -660,6 +688,11 @@ class WorkbenchController extends ChangeNotifier {
   Future<void> restore(TurnEntry turn, {String? newText}) async {
     final s = store;
     if (s == null) return;
+    // 先把在途的那一轮收干净（发 cancel 并等 session/prompt 真正返回），再截断重发。
+    if (s.isRunning) {
+      await cancel();
+      await _turnInFlight;
+    }
     final result = s.restoreTo(turn.id);
     if (result == null) return;
     await _respondCancelled(result);

@@ -8,6 +8,8 @@
 
 use std::path::Path;
 use std::process::Command;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 
 use serde::Serialize;
 
@@ -64,6 +66,24 @@ pub const DIFF_LIMIT: usize = 200 * 1024;
 /// `for-each-ref` 的字段分隔符：用 `\x1f`（单元分隔符），提交主题里不会出现。
 const SEP: char = '\u{1f}';
 
+/// Windows `CREATE_NO_WINDOW`：GUI 宿主里每调一次 git 都闪一个控制台窗口，与 agent 拉起同一口径
+/// （`rust/acp-core/src/command.rs`；审查 finding P2，2026-09-15）。
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+/// 用户输入的分支名 / 版本表达式不能以 `-` 开头，否则 git 会把它当选项
+/// （`git switch -c --discard-changes` 之类）。没走 shell，所以只有这一面（审查 finding P2，2026-09-15）。
+fn ensure_safe_ref(name: &str) -> Result<()> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err(FsError::Git("branch name is empty".into()));
+    }
+    if trimmed.starts_with('-') {
+        return Err(FsError::Git(format!("refusing a ref that starts with '-': {trimmed}")));
+    }
+    Ok(())
+}
+
 struct Output {
     ok: bool,
     stdout: String,
@@ -73,6 +93,8 @@ struct Output {
 /// 跑一条 git 命令。`Ok(None)` = 本机没有 `git`。
 fn git(cwd: &Path, args: &[&str]) -> Result<Option<Output>> {
     let mut command = Command::new("git");
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW);
     // `core.quotepath=false`：否则含中文的路径在 diff / status 里是 `"è¯´..."` 这种八进制转义，
     // 用户看不懂，塞进 prompt 的 Branch Diff 也读不出来（R3 实测）。只对本次调用生效，不改用户配置（规则 7）。
     command.arg("-c").arg("core.quotepath=false");
@@ -144,11 +166,13 @@ pub fn branches(cwd: &Path) -> Result<BranchList> {
 
 /// `git switch <name>`。失败时把 git 自己的 stderr 原样带出（例如「本地有未提交改动」）。
 pub fn switch(cwd: &Path, name: &str) -> Result<BranchList> {
+    ensure_safe_ref(name)?;
     run_switch(cwd, &["switch", name])
 }
 
 /// `git switch -c <name>`（从当前 HEAD 拉一条新分支）。
 pub fn create_branch(cwd: &Path, name: &str) -> Result<BranchList> {
+    ensure_safe_ref(name)?;
     run_switch(cwd, &["switch", "-c", name])
 }
 
@@ -165,6 +189,10 @@ fn run_switch(cwd: &Path, args: &[&str]) -> Result<BranchList> {
 
 /// `git diff`：给了 `base` 就是 `git diff <base>...HEAD`（三点：与共同祖先比），否则是工作区相对 HEAD 的改动。
 pub fn diff(cwd: &Path, base: Option<&str>) -> Result<Diff> {
+    // 先校验入参再看是不是仓库：以 `-` 开头的 base 会被 git 当选项（审查 finding P2）。
+    if let Some(b) = base {
+        ensure_safe_ref(b)?;
+    }
     match is_repo(cwd)? {
         None => {
             return Ok(Diff {
@@ -273,6 +301,16 @@ mod tests {
         assert!(d.text.contains("说明.md"), "diff should mention the changed file: {}", d.text);
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 以 `-` 开头的分支名会被 git 当成选项，必须在跑之前拒掉（审查 finding P2）。
+    #[test]
+    fn refuses_refs_that_look_like_options() {
+        let dir = std::env::temp_dir();
+        assert!(matches!(switch(&dir, "--discard-changes"), Err(FsError::Git(_))));
+        assert!(matches!(create_branch(&dir, "-c"), Err(FsError::Git(_))));
+        assert!(matches!(create_branch(&dir, "   "), Err(FsError::Git(_))));
+        assert!(matches!(diff(&dir, Some("--output=x")), Err(FsError::Git(_))));
     }
 
     /// 不是仓库的目录：`is_repo` 为 false，前端据此隐藏分支区。

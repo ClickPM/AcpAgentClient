@@ -67,6 +67,7 @@ pub fn write_text_file(cwd: &Path, path: &Path, _content: &str) -> Result<()> {
 // ---------------------------------------------------------------- 目录列举与按名搜索（R3）
 
 /// 不进列举与搜索的目录名：版本库内部、包管理与构建产物。搜索的深度与总量都有上限，防止在大仓库上卡住。
+/// 符号链接与 Windows 的目录联接一律当文件（不递归进去），见 [`list_dir`]。
 pub const IGNORED_DIRS: &[&str] = &[".git", "node_modules", "target", "build", ".dart_tool", ".gradle", ".idea", ".vscode"];
 
 /// 搜索最多访问的目录项数（含被跳过的）。
@@ -132,16 +133,20 @@ pub fn list_dir(root: &Path, path: &Path) -> Result<DirListing> {
     for item in read {
         let item = item.map_err(|e| FsError::Io(format!("{}: {e}", path.display())))?;
         let name = item.file_name().to_string_lossy().into_owned();
-        let meta = match item.metadata() {
-            Ok(m) => m,
+        // `DirEntry::file_type` 不跟随链接：符号链接与 Windows 的目录联接（junction）一律当文件，
+        // 既不进目录组、也不会被 `search` 递归进去。`ensure_inside` 只是词法检查，跟进去就会把工作区
+        // 外面的东西列出来、再被加成 `resource_link`（审查 finding P2，2026-09-15）。
+        let file_type = match item.file_type() {
+            Ok(t) => t,
             // 悬空链接 / 权限不足：跳过而不是整次失败。
             Err(_) => continue,
         };
-        let is_dir = meta.is_dir();
+        let is_dir = file_type.is_dir() && !file_type.is_symlink();
         if is_dir && IGNORED_DIRS.contains(&name.as_str()) {
             continue;
         }
-        entries.push(entry_of(root, path, &name, is_dir, if is_dir { None } else { Some(meta.len()) }));
+        let size = if is_dir { None } else { item.metadata().ok().map(|m| m.len()) };
+        entries.push(entry_of(root, path, &name, is_dir, size));
     }
     entries.sort_by(|a, b| match (a.is_dir, b.is_dir) {
         (true, false) => std::cmp::Ordering::Less,
@@ -173,13 +178,15 @@ pub fn search(root: &Path, query: &str, limit: usize) -> Result<SearchResult> {
                 break;
             }
             let name = item.file_name().to_string_lossy().into_owned();
-            let Ok(meta) = item.metadata() else { continue };
-            let is_dir = meta.is_dir();
+            // 同 `list_dir`：不跟随链接 / junction，免得搜出工作区外面的路径。
+            let Ok(file_type) = item.file_type() else { continue };
+            let is_dir = file_type.is_dir() && !file_type.is_symlink();
             if is_dir && IGNORED_DIRS.contains(&name.as_str()) {
                 continue;
             }
             if name.to_lowercase().contains(&needle) {
-                let entry = entry_of(root, &dir, &name, is_dir, if is_dir { None } else { Some(meta.len()) });
+                let size = if is_dir { None } else { item.metadata().ok().map(|m| m.len()) };
+                let entry = entry_of(root, &dir, &name, is_dir, size);
                 let bucket = if is_dir { &mut directories } else { &mut files };
                 if bucket.len() < limit {
                     bucket.push(entry);

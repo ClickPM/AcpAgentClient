@@ -99,7 +99,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   // ---------------------------------------------------------------- 顶栏（画板 01–04）
 
   Widget _topBar({bool windowControls = true}) {
-    final bar = TopBar(
+    return TopBar(
       projectName: c.project?.name ?? '—',
       branch: c.branchAreaVisible ? c.branch : null,
       sidebarCollapsed: c.sidebarCollapsed,
@@ -112,18 +112,13 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       onClose: AppWindow.close,
       projectAnchor: c.projectAnchor,
       branchAnchor: c.branchAnchor,
-    );
-    // 拖拽区：Listener 在底下，顶栏的可点控件在上面先吃掉事件（无边框窗口，docs/design.md § 9）。
-    return Stack(
-      children: <Widget>[
-        Positioned.fill(
-          child: Listener(
-            behavior: HitTestBehavior.translucent,
-            onPointerDown: (_) => AppWindow.startDragging(),
-          ),
-        ),
-        bar,
-      ],
+      // 无边框窗口的拖拽区：顶栏空白处按下鼠标就把拖拽交回系统（docs/design.md § 9）。
+      // 必须是 opaque（translucent 的 `hitTest` 返回 false，命中链断在这里），且必须交给 TopBar 放进它自己的容器里
+      // ——垫在外面会被顶栏的 BoxDecoration 挡掉（审查 finding P2；回归由 test/ui/topbar_drag_test.dart 钉住）。
+      dragArea: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: (_) => AppWindow.startDragging(),
+      ),
     );
   }
 

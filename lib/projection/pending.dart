@@ -112,6 +112,22 @@ class PendingQueue extends ChangeNotifier {
     return ids;
   }
 
+  /// 同上，但管的是 elicitation（载荷 [cancelledAction]）。核心侧的 `session/cancel` 只自动回权限请求，
+  /// elicitation 不回就一直挂在 agent 那边（审查 finding high，2026-09-15）。
+  List<String> cancelSessionElicitations(String sessionId, {required DateTime now}) {
+    final ids = <String>[];
+    for (final e in _order) {
+      if (e is ElicitationEntry && e.status == PendingStatus.pending && e.sessionId == sessionId) {
+        e
+          ..status = PendingStatus.cancelled
+          ..answeredAt = now;
+        ids.add(e.requestId);
+      }
+    }
+    if (ids.isNotEmpty) notifyListeners();
+    return ids;
+  }
+
   static const JsonMap cancelledOutcome = <String, dynamic>{
     'outcome': <String, dynamic>{'outcome': 'cancelled'},
   };

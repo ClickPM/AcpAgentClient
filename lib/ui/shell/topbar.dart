@@ -28,6 +28,7 @@ class TopBar extends StatelessWidget {
     this.hoverBranch = false,
     this.projectAnchor,
     this.branchAnchor,
+    this.dragArea,
   });
 
   final String projectName;
@@ -53,11 +54,31 @@ class TopBar extends StatelessWidget {
   final PopoverHandle? projectAnchor;
   final PopoverHandle? branchAnchor;
 
+  /// 无边框窗口的拖拽层（docs/design.md § 9）：铺在顶栏**里面**、控件行**下面**。
+  /// 必须在容器内部：`BoxDecoration.hitTest` 对矩形一律返回 true，顶栏那层 `Container` 会把 pointer 全吃掉，
+  /// 垫在外面（兄弟 `Stack`）的 Listener 根本收不到（审查 finding P2，2026-09-15）。
+  /// 子节点先于 `hitTestSelf` 参与命中，所以放进来就能拿到空白处的事件；控件在更上层，照常先吃掉自己的。
+  final Widget? dragArea;
+
   @override
   Widget build(BuildContext context) {
     return Container(
       height: t.Geometry.barHeight,
       decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+      // `StackFit.expand`：控件行要拿到与原来一样的紧约束（否则没有窗口控制的那几张画板里，
+      // 行高塌成 24 再顶部对齐，纵向居中就变了）。
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          if (dragArea != null) Positioned.fill(child: dragArea!),
+          _bar(),
+        ],
+      ),
+    );
+  }
+
+  Widget _bar() {
+    return Padding(
       padding: const EdgeInsets.only(left: t.Spacing.s8),
       child: Row(
         children: <Widget>[
