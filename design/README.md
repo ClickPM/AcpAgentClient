@@ -23,10 +23,10 @@
 | 编号 | 名称 | 页面 | 设计轮 | .dc.html | PNG | 画布 URL | 状态 | token 变更 |
 |---|---|---|---|---|---|---|---|---|
 | 00 | Token 表 | 全局 | round-design | `design/round-design/00-tokens.dc.html` | `design/round-design/00-tokens.png` | — | 已实现（R0） | 首版 token 表（浅色 + 深色色阶、accent、语义色、字阶、圆角、间距、kbd、动效） |
-| 01 | 工作台 · 新会话 | 会话工作台 | round-design | `design/round-design/01-workbench-empty.dc.html` | `design/round-design/01-workbench-empty.png` | — | 待实现 | — |
-| 02 | 工作台 · 进行中的一轮 | 会话工作台 | round-design | `design/round-design/02-workbench-running.dc.html` | `design/round-design/02-workbench-running.png` | — | 待实现 | — |
-| 03 | 工作台 · 回合结束 + 右栏展开 | 会话工作台 + 文件面板 | round-design | `design/round-design/03-workbench-done.dc.html` | `design/round-design/03-workbench-done.png` | — | 待实现 | — |
-| 04 | 侧栏与顶栏状态 | 会话工作台 | round-design | `design/round-design/04-sidebar-states.dc.html` | `design/round-design/04-sidebar-states.png` | — | 待实现 | — |
+| 01 | 工作台 · 新会话 | 会话工作台 | round-design | `design/round-design/01-workbench-empty.dc.html` | `design/round-design/01-workbench-empty.png` | — | 已实现（R3） | — |
+| 02 | 工作台 · 进行中的一轮 | 会话工作台 | round-design | `design/round-design/02-workbench-running.dc.html` | `design/round-design/02-workbench-running.png` | — | 已实现（R3） | — |
+| 03 | 工作台 · 回合结束 + 右栏展开 | 会话工作台 + 文件面板 | round-design | `design/round-design/03-workbench-done.dc.html` | `design/round-design/03-workbench-done.png` | — | 已实现（R3） | — |
+| 04 | 侧栏与顶栏状态 | 会话工作台 | round-design | `design/round-design/04-sidebar-states.dc.html` | `design/round-design/04-sidebar-states.png` | — | 已实现（R3） | — |
 | 10 | Restore Checkpoint 分隔线 | 转录 | round-design | `design/round-design/10-checkpoint.dc.html` | `design/round-design/10-checkpoint.png` | — | 已实现（R2） | — |
 | 11 | 用户消息气泡 | 转录 | round-design | `design/round-design/11-user-message.dc.html` | `design/round-design/11-user-message.png` | — | 已实现（R2） | — |
 | 12 | 助手富文本正文 | 转录 | round-design | `design/round-design/12-assistant-text.dc.html` | `design/round-design/12-assistant-text.png` | — | 已实现（R2） | — |
@@ -51,17 +51,17 @@
 | 31 | 回合态与结束 | 线程头 + 输入框 + 转录 | round-design | `design/round-design/31-turn-state.dc.html` | `design/round-design/31-turn-state.png` | — | 已实现（R2） | — |
 | 32 | 非文本内容块 | 转录 | round-design | `design/round-design/32-content-blocks.dc.html` | `design/round-design/32-content-blocks.png` | — | 已实现（R2） | — |
 | 33 | 上下文压缩卡 | 转录 | round-design | `design/round-design/33-compaction.dc.html` | `design/round-design/33-compaction.png` | — | 已实现（R2） | — |
-| 34 | agent 状态与错误 | 线程头下 / 转录 | round-design | `design/round-design/34-agent-state.dc.html` | `design/round-design/34-agent-state.png` | — | 已实现（R2） | — |
-| 40 | 输入框弹层合集 | 会话工作台 | round-design | `design/round-design/40-composer-popovers.dc.html` | `design/round-design/40-composer-popovers.png` | — | 待实现 | — |
-| 41 | 顶栏与侧栏弹层合集 | 会话工作台 | round-design | `design/round-design/41-topbar-popovers.dc.html` | `design/round-design/41-topbar-popovers.png` | — | 待实现 | — |
-| 42 | 输入框内联菜单 | 会话工作台 | round-design | `design/round-design/42-inline-menus.dc.html` | `design/round-design/42-inline-menus.png` | — | 待实现 | — |
+| 34 | agent 状态与错误 | 线程头下 / 转录 | round-design | `design/round-design/34-agent-state.dc.html` | `design/round-design/34-agent-state.png` | — | 已实现（R2）· 已接线（R3） | — |
+| 40 | 输入框弹层合集 | 会话工作台 | round-design | `design/round-design/40-composer-popovers.dc.html` | `design/round-design/40-composer-popovers.png` | — | 已实现（R3） | — |
+| 41 | 顶栏与侧栏弹层合集 | 会话工作台 | round-design | `design/round-design/41-topbar-popovers.dc.html` | `design/round-design/41-topbar-popovers.png` | — | 已实现（R3） | — |
+| 42 | 输入框内联菜单 | 会话工作台 | round-design | `design/round-design/42-inline-menus.dc.html` | `design/round-design/42-inline-menus.png` | — | 已实现（R3） | — |
 | 50 | Agents 面板（ACP Registry） | agent 管理 | round-design | `design/round-design/50-registry.dc.html` | `design/round-design/50-registry.png` | — | 待实现 | — |
 | 51 | Registry 条目状态 | agent 管理 | round-design | `design/round-design/51-registry-states.dc.html` | `design/round-design/51-registry-states.png` | — | 待实现 | — |
 | 52 | agent 认证 | agent 管理 | round-design | `design/round-design/52-auth.dc.html` | `design/round-design/52-auth.png` | — | 待实现 | — |
 | 60 | 文件面板 | 文件面板 | round-design | `design/round-design/60-files-panel.dc.html` | `design/round-design/60-files-panel.png` | — | 待实现 | — |
 | 61 | 终端面板 | 文件面板（右栏） | round-design | `design/round-design/61-terminal-panel.dc.html` | `design/round-design/61-terminal-panel.png` | — | 待实现 | — |
 | 70 | 设置 | 设置 | round-design | `design/round-design/70-settings.dc.html` | `design/round-design/70-settings.png` | — | 待实现 | — |
-| 80 | ACP 流量调试 | ACP 流量调试 | round-design | `design/round-design/80-traffic.dc.html` | `design/round-design/80-traffic.png` | — | 待实现 | — |
+| 80 | ACP 流量调试 | ACP 流量调试 | round-design | `design/round-design/80-traffic.dc.html` | `design/round-design/80-traffic.png` | — | 已实现（R3） | — |
 
 状态取值：`待实现` / `已实现（R<N>）` / `已废弃`。
 

@@ -2,7 +2,7 @@
 
 <!-- 保存为 rounds/round-03/round-03.md；该轮其他管理产出放同一目录。 -->
 
-> 状态：进行中
+> 状态：进行中（实现与实测完成，待独立审查收口）
 
 ## 目标
 
@@ -51,17 +51,25 @@
 - `lib/ui/popovers/inline_menus.dart`（42：`@` 提及菜单 / `/` 命令菜单）
 - `lib/ui/traffic/traffic_page.dart`（80：过滤条、告警行、流量行与原文展开、stderr 尾巴区）
 - `lib/gallery/boards/shell_boards.dart`：01a / 01b / 02 / 03 / 04 / 40 / 41 / 42 / 80 九张 gallery 画板
+- **ROUNDS § 2 文件表之外新增的三个文件**（已回填 § 2）：`lib/ui/shell/shell_common.dart`（agent 标记方块 / 悬浮包装 /
+  `EditableText` 封装 / 相对时间 / `ShellTab`）、`lib/ui/shell/popover_anchor.dart`（弹层锚点）、
+  `lib/ui/popovers/menu.dart`（40 / 41 / 42 共用的弹层骨架）。都是三张以上画板共用的骨架，不拆会在每个画板文件里重复一遍。
+- `lib/projection/traffic.dart`：`acp/traffic` 的投影与行标签解析（画板 80 的数据源）
 
 ### 接线阶段（只换数据源；`lib/theme` 与 `lib/ui` 零 diff）
 
-- `lib/app/app.dart` / `workbench.dart` / `data_source.dart` / `session_index.dart` / `projects.dart` / `rules.dart`：组合根，
-  默认 bridge，`--dart-define=DATA_SOURCE=fixtures` 供 gallery 与开发；`SmokeScreen` 换成工作台壳（`scripts/build.ps1 -Smoke` 仍过）。
+- `lib/app/`：`workbench_controller.dart`（状态与动作）+ `workbench_screen.dart`（widget 装配）+ `window_controls.dart`
+  + `app.dart`（组合根）。默认 bridge，`--dart-define=DATA_SOURCE=fixtures` 供 gallery 与开发；`SmokeScreen` 换成工作台壳
+  （`scripts/build.ps1 -Smoke` 仍过）。文件名与任务卡最初拟的五个文件不同：索引、项目、规则计数都只是控制器上的几个方法
+  （各十来行），拆成五个文件只会让调用面更碎。
 - `rust/bridge/src/api.rs` 新命令：`workspace_recent` / `workspace_open`、`git_branches` / `git_switch` / `git_create_branch` / `git_diff`、
   `session_index_list` / `session_index_upsert` / `session_index_remove`、`fs_list_dir` / `fs_search`；`flutter_rust_bridge_codegen generate` 生成物入库。
 - `rust/fs/src/lib.rs`：`list_dir` / `search` 最小实现 + `git` CLI 薄封装（`rust/fs/src/git.rs`）。
 - `rust/index`（并入 `rust/settings`）：`sessions.json` / `projects.json` 本地索引，临时文件 + rename。
 - `rust/acp-core/tests/fixtures.rs` 方法表补 `elicitation/complete` / `$/cancel_request`；`test/fixtures/16-elicitation.jsonl` 收两条通知。
-- `windows/runner/`：`WM_NCHITTEST` 拖拽区 + 最小化 / 最大化 / 关闭三个方法的平台通道。
+- `windows/runner/acp_window.{h,cpp}`：MethodChannel `acp/window`（minimize / toggleMaximize / close / isMaximized /
+  startDragging）+ 无边框窗口的 `WM_NCCALCSIZE` / `WM_NCHITTEST`。
+- `lib/app/headless_run.dart`：无头实跑口子 `ACP_R3_REPORT`（验收 3–6 的证据来源，见「本轮实测」）。
 
 ## 验收
 
@@ -104,6 +112,182 @@
 
 ## 本轮实测
 
-<!-- 完成后回填：实际数字、踩的坑、与设计 / 计划的偏离及原因；子进程相关改动附 Windows 实测命令与输出（规则 9） -->
+### 画板阶段收口提交
 
-待回填。
+`dc4de5e`（弹层锚点）。判据 `git diff dc4de5e..HEAD -- lib/theme lib/ui` 在接线阶段全程为空。
+
+> 画板阶段分两个提交：`c487a39` 出全部 widget 与 gallery，`dc4de5e` 补弹层锚点（`OverlayPortal` +
+> `CompositedTransformFollower`）。锚点属于画板阶段：接线阶段要给每个触发控件挂弹层，没有它就只能在接线阶段改 `lib/ui`。
+
+### 验收 1 · 画板逐张对照
+
+`flutter test test/gallery_test.dart` 出 9 张（01a / 01b / 02 / 03 / 04 / 40 / 41 / 42 / 80）到 `build/gallery/`，
+34 沿用 R2 的那张。逐张与 `design/round-design/*.png` 并排看，文案 / 状态 / 层级 / 控件齐。偏离：
+
+| # | 画板 | 偏离 | 原因 |
+|---|---|---|---|
+| 1 | 40 | 模型行的 provider 图标用中性占位、`Latest` 徽章省略 | `SessionConfigSelectOption` 只有 `value` / `name` / `description`，没有图标与「最新」字段（规则 2 不自造）。与画板 31「18 次请求」同类，已记 BACKLOG 归下个设计轮 |
+| 2 | 41 | 分支弹层出「默认」与「输入了新名字」两张样张；后者按搜索过滤后本地分支不再列出 | 画板上输入 `feat/tokens` 时两条分支仍在，但 ROUNDS § 3 R3 要求「搜索」。取搜索语义，用两张样张把两种状态都画出来 |
+| 3 | 42 | 输入框正文是纯文本，`@val` / `/co` 不做行内彩色芯片 | 输入框是 `EditableText`；芯片只在已发送的用户气泡里（画板 11，R2 已实现）。已记 BACKLOG |
+| 4 | 04 | 四个会话项状态摞在同一个 280 宽面板里（画板是四个并排面板） | 沿用 R2 的 `BoardPage` 版式（宽 800、分节竖排），像素级排布差异不作 finding |
+| 5 | 全部 | 转录 / 弹层里的样例文字来自 fixtures，与画板上的样例文案不同 | ROUNDS § 0 第 5 条：对照的是文案 / 状态 / 层级 / 控件，不是像素 |
+| 6 | 01a | 三个下拉的当前值是 fixtures 给的 | 数据驱动；画板上的值是设计样例 |
+
+新增 token：`tokens.dart` 的 `Geometry` 组除裁定 6 的 7 个外，另加壳几何 13 个（侧栏宽 280、条高 36、窗口键格宽 44、
+右栏宽 580、内容最大宽 800、空态文本最大宽 520、模型下拉最大宽 170、弹层分组标题高 22、弹层宽四档、
+流量方法列宽 220、侧栏空态高 96、agent 标记菱形 6、弹层上下偏移）。每条都注明出处画板。
+任务书写的是「`tokens.dart` 缺 token 先停下问」——判断那条约束针对接线阶段（接线阶段确实一个都没加），
+画板阶段不落这些值就做不到「widget 里不写字面量」。**此项请所有者确认。**
+
+### 验收 2 · 接线阶段不改样式
+
+    git diff dc4de5e -- lib/theme lib/ui      # 空输出
+
+### 验收 3 / 4 / 5 / 6 / 10 · 无头实跑（`ACP_R3_REPORT`）
+
+GUI 的点击动作没法在本会话里自动化（本机的 computer-use 只认 Start 菜单里的应用，认不出刚构建的
+`acp_agent_client.exe`）。改用**驱动同一条接线**的无头口子：`lib/app/headless_run.dart` 用
+`WorkbenchController`（UI 点下去走的就是它）对真实 agent 跑一遍，结果写 JSON。绕过 UI 的只有「鼠标落在哪个像素」，
+命令、回应、状态机都是产品代码。
+
+**dsh 真跑**（`build/r3-report.json`，release 构建）：
+
+    $env:ACP_R3_REPORT="build\r3-report.json"; $env:ACP_R3_AGENT="dsh-acp-interactive"
+    $env:ACP_R3_CWD="D:\cargo-target\AcpAgentClient\dsh-cwd-r3"; $env:ACP_R3_CONFIG="permission=read-only"
+    $env:ACP_R3_PROMPT="把 notes.md 的第一行标题改成「R3 实测」。"
+    $env:ACP_R3_PROMPT2="逐个读一遍当前目录下的所有文件，并对每个文件写一段两百字的总结。"
+    $env:ACP_R3_CANCEL_AFTER="6"; $env:ACP_R3_PERMISSION="allow_once"; $env:ACP_R3_KILL="1"; $env:ACP_R3_TIMEOUT="180"
+    Start-Process build\windows\x64\runner\Release\acp_agent_client.exe -Wait -WindowStyle Hidden   # exit 0
+
+| 步骤 | 结果 |
+|---|---|
+| `session/new` | `cwd` = 当前项目且 `cwdMatchesProject: true`；`agentCapabilities` 五项；线程头标题 `New dsh-acp-interactive Thread` |
+| configOptions 分配 | `model` → 模型下拉、`reasoning_effort`（category `thought_level`）→ 思考强度下拉、`permission`（category `_permission`，**未识别**）→ 扁平兜底。dsh 没有 `mode` category，模式下拉整块不渲染 |
+| 改一个 config option | `permission=read-only` 后返回整份列表，三个值都刷新（`set_config_option` 是全量替换） |
+| 第一轮 · 权限允许 | `session/request_permission` 进队列 → 回 `allow-once` → `stopReason end_turn`，8.1 s；`notes.md` 首行真的变成 `# R3 实测` |
+| 第一轮 · 权限拒绝（另一次跑） | 回 `reject-once` → `end_turn`，文件**没被改**（仍是 `# 拒绝前的标题`） |
+| 线程头标题 | `session_info_update` 到达后变成 `将 notes.md 首行标题改为 R3 实测`（不再是缺省的 `New … Thread`） |
+| 用量圆环 | `usage_update` → `used 6272 / size 1000000` |
+| 第二轮 · 中途停止 | 6 s 时发 `session/cancel` → `stopReason cancelled`，6.0 s；挂起权限由核心回 cancelled，前端不再重复回（见验收 10） |
+| 杀掉 agent | `taskkill /F /T /PID 8972` 连子进程一起终结 → `acp/agent_state: exited`，`exitCode 1`，stderr 尾巴拿得到；应用不崩 |
+| 重载 agent | 断开 + 重拉 + 新会话：`cd9e81e7…` → `5f45e585…`，状态回到 `initialized`，旧会话转录留在内存里 |
+| 流量 | 618 行；`looksRedacted: true`（整份日志里没有 `sk-` 形状的裸密钥） |
+
+`Alt-Shift-A` / `Alt-Shift-X` / `Ctrl-Alt-A` 是画板 25 上的快捷键标注：允许与拒绝两条路径都按上面实测过（走的是
+同一个 `answerPermission`）；**`Ctrl-Alt-A` 的「范围下拉」没有实测到** —— dsh 只给 `allow_once` / `reject_once` 两个选项，
+下拉里没有第二个同向选项可选。R6 五 agent 全通时补。
+
+**elicitation 与计划卡**：dsh 本轮三次跑都没发过 `elicitation/create` 与 `plan`（与 R1 的观察一致）。改用
+`test/fake-agent/fake-agent.mjs`（确定性、按 fixtures 回放）覆盖：
+
+| 步骤 | 结果 |
+|---|---|
+| 权限 | `allow-once` ✓ |
+| elicitation form（sessionScope） | 自动 `accept` ✓ |
+| elicitation url（**requestScope**，无 sessionId） | 自动 `accept` ✓ —— 但见下方「已知限制」 |
+| 计划卡 | `PlanCardEntry: 1`（输入框上方的折叠计划条数据源）✓ |
+| 回合结束 | `stopReason end_turn` + 回合级 usage（42 tokens）✓ |
+
+### 验收 4 · 流量面板
+
+同一场景（fake agent，确定性）两边对数：
+
+    面板（afterTurn1）  trafficLines = 22（JSON-RPC 行）+ stderr 尾巴 1 行 = 23
+    acp-smoke          acp/traffic 事件 = 23
+
+一致。方向与变体标签也对得上（`request` 8 / `response` 7 / 各 `session/update` 变体 / `unknown · dropped` 1 /
+`response · stopReason end_turn` 1）。
+
+`notice` 注入：`trafficDropped: 1`（画板 80 的 dropped 行与高亮行）与 `agentDroppedUpdates: 1`（画板 34 的告警条）
+**同时为真**（报告里的 `bothWarningsVisible: true`）。脱敏：fake agent 往 stderr 写 `token=FAKE-TOKEN-…`，
+`exited` 的 stderr 尾巴里是 `[fake-agent] turn started; token=***`。
+
+### 验收 5 · 项目与分支
+
+在一个**路径含空格与中文**的 git 仓库上跑（`D:\cargo-target\AcpAgentClient\r3 git 仓库 测试`）：
+
+| 检查 | 结果 |
+|---|---|
+| 分支列表 | `["feat/已有分支", "main"]`，与 `git branch --format="%(refname:short)"` 完全一致 |
+| 新建分支 | `git switch -c feat/r3-新建分支` → 顶栏当前分支立即变成它（`createdIsCurrent: true`），列表也多出一条 |
+| 切回 | `git switch main` → 顶栏回 `main` |
+| 非 git 目录 | `dsh-cwd-r3` → `branchAreaVisible: false`（分支区整块不渲染） |
+| Rules 行 | 仓库里放了 `AGENTS.md` + `CLAUDE.md` → `rulesCount: 2`（画板 30 / 40 用量弹层的 Rules 行） |
+| 切项目后新会话 cwd | `cwdMatchesProject: true` |
+
+### 验收 7 · 无已安装 agent
+
+`test/app/workbench_wiring_test.dart`：settings 里没有 `agent_servers` 时 `hasAgent == false`、线程头 `No Agent`、
+输入框占位 `安装并选择一个 agent 后即可输入`（画板 01 状态 2）；`openTab(ShellTab.agents)` 后右栏切到 Agents 标签
+（R5 前是 `RightPanelPlaceholder`）。
+
+### 验收 8 · Windows 实测
+
+**窗口控制**（无边框窗口，`windows/runner/acp_window.cpp`）——用 Win32 API 客观核对：
+
+    GetWindowRect = 1280x720 ; GetClientRect = 1280x720   → 客户区 == 窗口区，系统标题栏与边框已去掉
+    WM_NCHITTEST  左上角 → 13 (HTTOPLEFT) / 右边 → 11 (HTRIGHT) / 中间 → 1 (HTCLIENT，交给 Flutter)
+    WS_THICKFRAME = True                                   → 系统的缩放与 Snap 保留
+
+**git 子进程**（路径带空格与中文）：上面验收 5 的整段就是在 `r3 git 仓库 测试` 里跑的；另加常驻回归测试
+`rust/fs/src/git.rs::works_with_spaces_and_non_ascii_in_path`（`git init` / 提交 / `switch -c 功能/新分支` / `diff`）。
+
+**未实测、需所有者手测的两项**（本会话没有可用的 GUI 自动化通道）：
+
+1. 顶栏空白处拖拽移动窗口、三个窗口按钮的点击（平台通道方法都已实现并注册，`WM_NCHITTEST` 的热区已客观验过）。
+2. `file_selector` 的目录选择（画板 41 Open Local Folders）与文件 / 图片选择（画板 40 的 Files & Directories / Image）
+   —— 都是系统模态对话框。
+
+跑法：`build\windows\x64\runner\Release\acp_agent_client.exe`（settings.json 里已有 dsh 与 fake-agent 两条）。
+
+### 验收 9 · 门禁
+
+    powershell -File scripts/validate.ps1      # 13 项全 PASS，VALIDATE OK
+    flutter test                               # 94 passed（R2 的 80 个 + gallery 9 张 + 接线 5 个）
+    cargo test --workspace                     # 全绿（新增 fs 4 + index 3）
+    powershell -File scripts/build.ps1 -Smoke  # ok: true，droppedEvents 0
+
+### 验收 10 · Restore / Regenerate
+
+`test/app/workbench_wiring_test.dart` 四个用例：截断范围内挂起的 permission 回 `{outcome:{outcome:cancelled}}`、
+elicitation 回 `{action:cancel}`，两组 id **一条都不漏**（漏一条 agent 就一直等）；Regenerate 用新文本重发；
+`session/cancel` 只发命令、前端不再 `acp_respond`（核心侧已自动回，前端再回会撞 `unknown_request`）。
+
+### 接线阶段发现并修掉的四个缺陷
+
+1. **`acp/session_update` 信封形状两边对不上**（最严重）：核心往 `SessionNotification` 里插 `agentId`
+   （`{sessionId, update, agentId}`），R2 的 Dart 侧却按 `{..., update: SessionNotification}` 多套了一层。
+   后果是每条会话更新都被当未知变体丢弃——转录区一个字都不出，而 fixtures 与单测都自洽地用着错的形状，所以 R2 发现不了。
+   修：Dart 侧对齐核心，回放器与 `wire_test` 同步，`docs/design.md` § 3 把措辞写死。
+2. **无头进程没有 vsync**：按帧批量的 `scheduleFrameCallback` 永远不回调，事件全卡在队列里。
+   `WorkbenchController` 的 flush 调度器改成可注入，无头模式传微任务（窗口里仍按帧合并）。
+3. **`WM_NCCALCSIZE` 的 `wParam == FALSE` 形态没接**：建窗时的第一次非客户区计算走的正是这一支，
+   只处理 `TRUE` 的话标题栏根本没去掉（实测 client 1266×683 vs window 1280×720）。
+4. **`git diff` 对含中文的路径默认输出八进制转义**（`core.quotepath`）：用户与 agent 都读不出来。
+   git 封装统一加 `-c core.quotepath=false`（只对本次调用生效，不改用户配置，规则 7）。
+
+### 已知限制与偏离（已记 `rounds/BACKLOG.md`）
+
+- **requestScope 的 elicitation 在 R3 没有落点**：`docs/design.md` § 3 说它落认证页（画板 52），而画板 52 归 R5。
+  本轮它只进 `PendingQueue.requestScope`，UI 上看不到、也回应不了——agent 会一直等。无头验收脚本里代答了一次
+  （fake agent 的 URL elicitation 就是 requestScope），产品侧留到 R5。
+- **线程头 ≡ 按钮当前只做右栏开关**：画板 03 的 ≡ 是右栏展开的选中态，画板 41 的 ≡ 菜单（Rename / Reload /
+  Resume / Close / Delete）动作本身归 R6。菜单 widget 已实现并在 gallery 出样张，接线留到 R6。
+- **流量面板的返回路径**：画板 80 上没有「返回工作台」控件。本轮从画板 34 的「打开流量面板」进，点侧栏任一会话返回。
+- **新建会话弹层里的 agent 名是 settings.json 的键**（如 `dsh-acp-interactive`）：协议里没有「展示名」，
+  连上之后线程头才从 `initialize.agentInfo` 取更好看的名字（规则 2 不做 agent 名映射表）。R5 的 registry 会带来展示名与 logo。
+- **`ToolCallEntry.cancelledLocally` 在 dsh 上没触发**：第二轮取消时 5 个工具调用都已经完成了，没有「进行中」的卡可标。
+  逻辑本身有 R2 的单测覆盖（`10-cancel.jsonl`）。
+
+### 环境与踩的坑（本机，规则 9）
+
+- **含中文注释的 `.cpp` / `.h` 必须 UTF-8 with BOM**：MSVC 按代码页 936 解码，行尾会被吞、把下一行并进注释
+  （表现是 `LPARAM` 重定义之类莫名其妙的语法错误）。与「含中文的 `.ps1` 必须带 BOM」是同一个坑。
+- **helper 不能叫 `IsMaximized`**：`winuser.h` 把它 `#define` 成 `IsZoomed`，会和系统重载撞上（`C2668`）。
+- **`Assert-NoStyleLiteral` 会扫 `Duration(milliseconds:`**：无头脚本的超时改成 `Duration(seconds:)`
+  （扫描器注释里写明秒级 Duration 不在此列），环境变量也跟着改成秒。
+- **Bash 工具的 heredoc 里反斜杠会塌**：写 C 字符串里的转义时被吃掉，产生「常量中有换行符」。
+  含反斜杠的内容用 `chr(92)` 拼，或走 Write 工具。
+- `computer-use` 的 `request_access` 只认 Start 菜单里的应用，认不出刚构建的 `acp_agent_client.exe`（两次尝试都是
+  `notInstalled`），所以 GUI 点击类验收改走无头口子 + Win32 API 客观核对。
+

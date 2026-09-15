@@ -39,7 +39,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 | 画板 | 名称 | 轮 | widget 文件（拟） |
 |---|---|---|---|
 | 00 | Token 表 | R0 | `lib/theme/tokens.dart`（不是 widget；gallery 里有一张 token 样板页） |
-| 01 | 工作台 · 新会话 | R3 | `lib/ui/shell/app_shell.dart` + `sidebar.dart` + `topbar.dart` + `thread_header.dart` + `composer.dart` + `transcript_empty.dart` |
+| 01 | 工作台 · 新会话 | R3 | `lib/ui/shell/app_shell.dart` + `sidebar.dart` + `topbar.dart` + `thread_header.dart` + `composer.dart` + `transcript_empty.dart`（另有三张以上画板共用的 `shell_common.dart` 与 `popover_anchor.dart`） |
 | 02 | 工作台 · 进行中的一轮 | R3 | 同上（状态由投影层驱动） |
 | 03 | 工作台 · 回合结束 + 右栏展开 | R3（右栏内容 R4） | 同上 + `lib/ui/shell/right_panel.dart` |
 | 04 | 侧栏与顶栏状态 | R3 | `sidebar.dart`、`topbar.dart`（会话项、搜索、折叠态） |
@@ -68,7 +68,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 | 32 | 非文本内容块 | R2 | `lib/ui/transcript/content_blocks.dart` |
 | 33 | 上下文压缩卡 | R2 | `lib/ui/transcript/compaction_card.dart` |
 | 34 | agent 状态与错误 | R3 | `lib/ui/shell/agent_state_bar.dart` |
-| 40 | 输入框弹层合集 | R3 | `lib/ui/popovers/composer_popovers.dart` |
+| 40 | 输入框弹层合集 | R3 | `lib/ui/popovers/composer_popovers.dart`（+ 40 / 41 / 42 共用的 `lib/ui/popovers/menu.dart`） |
 | 41 | 顶栏与侧栏弹层合集 | R3（会话菜单动作 R6） | `lib/ui/popovers/topbar_popovers.dart` |
 | 42 | 输入框内联菜单 | R3 | `lib/ui/popovers/inline_menus.dart` |
 | 50 | Agents 面板（ACP Registry） | R5 | `lib/ui/registry/registry_panel.dart` |
@@ -77,9 +77,9 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 | 60 | 文件面板 | R4 | `lib/ui/files/files_panel.dart` |
 | 61 | 终端面板 | R4 | `lib/ui/terminal/terminal_panel.dart` |
 | 70 | 设置 | R5 | `lib/ui/settings/settings_page.dart` |
-| 80 | ACP 流量调试 | R3 | `lib/ui/traffic/traffic_page.dart` |
+| 80 | ACP 流量调试 | R3 | `lib/ui/traffic/traffic_page.dart`（数据源 `lib/projection/traffic.dart`） |
 
-前端其余目录（R0 定型）：`lib/app/`（组合根：数据源选择 fixtures / bridge、路由、窗口）、`lib/bridge/`（frb 生成物，入库）、`lib/projection/`（投影状态层，纯 Dart，无 widget 依赖）、`lib/theme/tokens.dart`、`lib/gallery/`（画板对照，debug 构建才编入）。
+前端其余目录（R0 定型）：`lib/app/`（组合根：R3 落 `workbench_controller.dart` 状态与动作、`workbench_screen.dart` widget 装配、`window_controls.dart` 平台通道、`headless_run.dart` 无头实跑；数据源选择 fixtures / bridge）、`lib/bridge/`（frb 生成物，入库）、`lib/projection/`（投影状态层，纯 Dart，无 widget 依赖）、`lib/theme/tokens.dart`、`lib/gallery/`（画板对照，debug 构建才编入）。
 
 ## 3. 各轮拆解
 
@@ -411,7 +411,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 | R1 | 已完成 | `round-01` | —（R1 无画板阶段） | 5466609 | 3 轮 / 第 1 轮 Claude Code 子代理（opus；cursor 因 Zed 占 `cli-config.json` 启动 EPERM）→ 第 2–3 轮 cursor CLI（`--mode ask`）；6 条（high 3 / P3 3）全部关闭 | 任务卡 `rounds/round-01/round-01.md`；6 项验收全过（dsh 真跑 4 轮 + fake agent 离线链 + npx `.cmd` 中文路径）；ConPTY 启动探询、dsh `--setup` 提示不可见、taskkill 收尾三条记 BACKLOG |
 | R1.5 | 已完成（裁定 2026-09-15 按推荐项） | `round-01.5`（worktree，不合并；spike 收口提交 32f122f） | —（无画板阶段） | —（不合并；`rounds/round-1.5/` 以纯文档进 `main`） | 2 轮 / cursor CLI `--mode ask`（第 1 轮 adversarial：4 条 P2 3 / P3 1 + 4 条取舍质疑；第 2 轮：1 条 P3；全部采纳） | 任务卡 `rounds/round-1.5/round-1.5.md`；`spike.md` § 0 六项各一个推荐 + 备选（Markdown：`package:markdown` + 自写渲染；高亮 `re_highlight`；公式 `flutter_math_fork`；Mermaid `mermaid_flutter` + `mermaid_core`；音频 `audioplayers`；diff `diffutil_dart`），截图 19 张、测量 7 份 JSON；裁定后落 CLAUDE.md 规则 1 / `docs/requirements.md` § 8 / BACKLOG |
 | R2 | 已完成 | `round-02` | 98e4cea | 050003a | 3 轮 / cursor CLI `--mode ask`（第 1–2 轮全量 `main...HEAD`：6 条 high 1 / P2 4 / P3 1，5 条 high 1 / P2 4；第 3 轮只审整改 diff：0 条；11 条全部采纳） | 任务卡 `rounds/round-02/round-02.md`；6 项验收全过（投影单测 § 7 七项 / § 2.2 / § 3.1 / § 8.3 + 分批与整份回放等价；25 张画板 gallery 逐张对照、偏离逐板记卡；validate 全绿、pubspec 只有裁定的 9 库 + `objective_c` override；1,000 块滚动数字见卡；子代理只按 `docs/design.md` § 4 入站 `_meta` 键分组；跨消息选择实测）；fixtures 新增 15 文件 148 行；跨轮问题 6 条记 BACKLOG（fixtures.rs 方法表缺两条通知、画板 27 占位文案、画板 33 / 34 措辞、画板 15 elk 布局、画板 31 请求次数、7 个局部几何常量） |
-| R3 | 未开始 | `round-03` | — | — | — | |
+| R3 | 进行中（实现与实测完成，待审查收口） | `round-03` | dc4de5e | — | — | 任务卡 `rounds/round-03/round-03.md`；10 项验收里 8 项自动化通过，窗口拖拽与 `file_selector` 对话框两项待所有者手测；接线阶段修掉 4 个缺陷（`acp/session_update` 信封形状两边对不上最严重）；新增无头实跑口子 `ACP_R3_REPORT` |
 | R4 | 未开始 | `round-04` | — | — | — | |
 | R5 | 未开始 | `round-05` | — | — | — | |
 | R6 | 未开始 | `round-06` | — | — | — | |
