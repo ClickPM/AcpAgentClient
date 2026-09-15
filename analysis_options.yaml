@@ -1,0 +1,19 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - build/**
+    - windows/**
+    - cargokit/**
+    - vendor/**
+    - prototype/**
+    - design/**
+
+linter:
+  rules:
+    # 样式字面量由 scripts/validate.ps1 的 Assert-NoStyleLiteral 管（CLAUDE.md 规则 3），lint 只管常规质量。
+    prefer_const_constructors: true
+    prefer_final_locals: true
+    unawaited_futures: true
+    cancel_subscriptions: true
+    close_sinks: true

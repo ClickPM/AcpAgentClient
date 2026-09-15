@@ -3,7 +3,8 @@
 > **本文只管「谁来审、怎么发起、结果怎么取回、什么时候回落」。审查的策略**（范围口径 / 复审收口标准 / 审查边界）
 > **正本在 [`CLAUDE.md`](../CLAUDE.md)「开发模式与轮次流程」，本文不复述、只引用。**
 > 审查者读的任务书是 [`.claude/cursor-review-prompt.md`](../.claude/cursor-review-prompt.md)（入库，改契约改它，两级共用）；
-> cursor 路径的启动脚本是 [`.claude/cursor-review.ps1`](../.claude/cursor-review.ps1)，与 agent-xray 的同名脚本逐字节一致。
+> cursor 路径的启动脚本是 [`.claude/cursor-review.ps1`](../.claude/cursor-review.ps1)，原与 agent-xray 的同名脚本逐字节一致；
+> 2026-09-15 本仓库把 `--plan` 换成 `--mode ask`（原因见「四条容易踩的」第 4 条），agent-xray 还没同步，**两边暂不一致**。
 
 ## 0. 执行器（所有者裁定 2026-09-11，沿用 agent-xray）
 
@@ -13,6 +14,7 @@
 | ② | Claude Code 子代理 | 主会话用 Agent 工具委派一个只读子代理，读同一份任务书 | ① 硬失败 |
 
 **硬失败的定义**：`cursor-agent` 未安装 / 未登录 / 启动失败 / 限流 / 后台进程已死而 `.out` 仍空。「等得久」「改动小」不是回落理由。
+R0 实测（2026-09-15）：曾两次拿到空 `.out` 并据此误判为硬失败 —— 真因是脚本当时发的是 `--plan`，终稿被 plan 通道吞掉（见下方「四条容易踩的」第 4 条），进程其实跑满了 7–10 分钟、退出码 0、审查也做完了。**空 `.out` 且退出码为 0 不算硬失败**，先查发起参数，再谈回落。
 回落原因写进任务卡「代码审查」段；同一轮审查只用一个执行器，免得两份 findings 编号打架。
 
 流程与策略对两级完全一样：Claude Code solo 开发 + 独立审查者做缺陷门禁；
@@ -44,7 +46,7 @@ powershell -File .claude\cursor-review.ps1 -Wait
 把任务书模板实例化（填入范围与要点，`review` 档删掉 adversarial 专属段）→ 后台起 `cursor-agent`，
 把 stdout / stderr 落到 `.claude/reviews/<时间戳>-<kind>.{out.md,err.log}`（整个目录 gitignored）。
 
-发起时用的固定档位：`--plan`（只读，审查者不许改文件）+ `--force`（免逐条批准 `git diff` / `rg` 这类读命令）+ `--trust` + `--output-format text`。
+发起时用的固定档位：`--mode ask`（CLI 强制只读，审查者不许改文件）+ `--force`（免逐条批准 `git diff` / `rg` 这类读命令）+ `--trust` + `--output-format text`。**别换成 `--plan`**，原因见下方第 4 条。
 
 ### 取回结果
 
@@ -55,11 +57,12 @@ powershell -File .claude\cursor-review.ps1 -Wait
   **Git Bash 里先 `export MSYS_NO_PATHCONV=1`**，否则 `/FI` 被当路径改写、永远报「进程已死」。
 - **耗时基线**（本项目待首轮回填；agent-xray 同机实测：单文件 diff 5 分钟，13 文件 / 825 行的全量分支 diff 7 分 35 秒）。
 
-### 三条容易踩的
+### 四条容易踩的
 
 1. **`cursor-agent` 不在 PATH**：Windows 装在 `%LOCALAPPDATA%\cursor-agent\cursor-agent.cmd`，Git Bash 里裸敲是 command not found。脚本按绝对路径找，不要自己改成裸命令。
 2. **必须先 `cursor-agent login`**：未登录时它会等交互输入，后台跑就是**永远不结束、`.out` 永远空**。脚本起手先跑 `cursor-agent status` 拦这一种。
-3. **审查期间不要改仓库里的文件**：审查器是**实时读工作树**的，改了它读到的就是半新半旧的代码、findings 对不上提交。等待期间只做 scratchpad 里的准备。
+3. **审查期间不要改仓库里的文件**：审查器是**实时读工作树**的，改了它读到的就是半新半旧的代码、findings 对不上提交。等待期间只做 scratchpad 里的准备。**同一工作树里并行跑着另一个开发会话也算改**（R0 实测踩过）。
+4. **只读要靠 `--mode ask`，不能用 `--plan`**：plan 模式下模型的终稿走 `createPlanRequestQuery` 这条独立通道，而 `-p` 非交互模式没有 plan 面板可落（响应里 `planUri` 是空串），CLI 直接丢弃；stdout 只剩工具调用之间的旁白，模型不说旁白时就是**一个换行**。表现是跑满 7–10 分钟、退出码 0、`.err.log` 0 字节、`.out.md` 1 字节，极像「进程已死」，其实是 token 全烧完才丢结果。`--mode ask` 同样由 CLI 强制只读（实测拒绝创建文件、`git diff` 照常能跑），但终稿走正常 text 通道。要确认结果去哪了，用 `--output-format stream-json` 抓流看 `interaction_query` 事件。
 
 ## 2. 路径 ②：Claude Code 子代理（cursor 硬失败时）
 
@@ -70,6 +73,7 @@ powershell -File .claude\cursor-review.ps1 -Wait
 严格按第 1 到 6 节执行审查；只输出第 5 节格式的结论，不修改任何文件。
 ```
 
+- **模型固定 opus**（所有者裁定 2026-09-15）：Agent 工具显式传 `model: "opus"`，不让子代理继承主会话的模型（主会话是 Fable 5.1 时尤其如此）——独立审查要换一个视角。子代理类型 `general-purpose`，提示词里写死「不许修改、创建、删除文件，不许 git 写操作，不许跑构建 / 测试」。
 - 范围口径与路径 ① 相同：前两轮 `main...HEAD`；第 3 轮起 `<上一轮已审提交>..HEAD`；零已提交基线用 `HEAD`。
 - 质疑取舍那一档：提示词里加一句「保留第 3b 节」。
 - 子代理的输出直接回填任务卡；不落 `.claude/reviews/`。

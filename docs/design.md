@@ -55,7 +55,7 @@ Flutter 宿主进程（Dart）
 |---|---|
 | `acp/session_update` | `{agentId, sessionId, update}`；`update` 是 `SessionNotification` 的原样 JSON（SDK 类型 serde 直出） |
 | `acp/client_request` | `{agentId, requestId, method, params}`；用于需要用户参与的客户端请求：`session/request_permission`、`elicitation/create`；`elicitation/create` 可能是 requestScope（无 `sessionId`，认证阶段），前端队列不能只按会话索引，这类落认证页（画板 52）而不是转录；前端必须以 `acp_respond` 回应 |
-| `acp/agent_state` | 连接生命周期：spawned / initialized / auth_required(authMethods) / exited(code, stderrTail)；另带 `droppedUpdates`（反序列化失败的 `session/update` 计数，§ 4）与对应告警（R1） |
+| `acp/agent_state` | 连接生命周期：spawned / initialized / auth_required(authMethods) / exited(code, stderrTail)；另带 `droppedUpdates`（反序列化失败的 `session/update` 计数，§ 4）与对应告警（R1）。核心自身也走这条流：`core_init` 完成时发 `{agentId: null, state: "core_ready", dataDir, coreVersion}`（R0，验证事件通路） |
 | `acp/terminal_output` | `{terminalId, source, bytes}`；`source` ∈ agent（`terminal/*` 回调建的终端）/ auth（terminal auth 的可见终端）/ local（终端面板的本地 shell）；非协议消息，仅用于渲染（R4） |
 | `acp/traffic` | 原始 JSON-RPC 行（脱敏后），供调试面板 |
 | `registry/progress` | 安装进度 `{agentId, step, done?, total?, error?}`：npx 是 resolve / write_settings / handshake，binary 是 download / verify / extract，另有 node_download（R5） |
@@ -85,7 +85,7 @@ Flutter 宿主进程（Dart）
 
 ## 4. initialize 能力声明
 
-照 Zed 的 `client_capabilities_for_agent`：`fs.readTextFile`、`fs.writeTextFile`、`terminal`、`auth.terminal`、`session.configOptions.boolean`、`elicitation.form`、`elicitation.url`；`_meta` 里 `terminal_output: true`、`terminal-auth: true`。对 Cursor 追加参数化模型选择器键。**这是允许的 `_meta` 键的全部清单**，增加新键要改本节并进所有者裁定。
+照 Zed 的 `client_capabilities_for_agent`：`fs.readTextFile`、`fs.writeTextFile`、`terminal`、`auth.terminal`、`session.configOptions.boolean`、`elicitation.form`、`elicitation.url`；`_meta` 里 `terminal_output: true`、`terminal-auth: true`。对 Cursor 追加参数化模型选择器键 `parameterizedModelPicker: true`（Zed 的 `PARAMETERIZED_MODEL_PICKER_META_KEY`）。**这是允许的 `_meta` 键的全部清单**，增加新键要改本节并进所有者裁定。
 
 比 Zed 多声明两个 unstable 客户端能力（所有者裁定 2026-09-11，依据「多数 agent 已支持 plan 与压缩」）：
 

@@ -84,14 +84,14 @@ $errFile = Join-Path $dir "$stamp-$Kind.err.log"
 Set-Content -Path $promptFile -Value $tpl -Encoding utf8
 
 $ask = "严格执行 $rel 里的审查任务书,不要修改任何文件。"
-$cmdline = "-p ""$ask"" --model $Model --plan --force --trust --output-format text"
+$cmdline = "-p ""$ask"" --model $Model --mode ask --force --trust --output-format text"
 
 Write-Output "范围: $range   档: $Kind   模型: $Model"
 Write-Output "任务书: $promptFile"
 
 if ($Wait) {
   Push-Location $repo
-  try { & $agent -p $ask --model $Model --plan --force --trust --output-format text | Tee-Object -FilePath $outFile }
+  try { & $agent -p $ask --model $Model --mode ask --force --trust --output-format text | Tee-Object -FilePath $outFile }
   finally { Pop-Location }
   Write-Output "结果: $outFile"
   exit 0

@@ -1,0 +1,5 @@
+# R0 钉的 Rust 工具链（CLAUDE.md「本地开发」）。cargokit 走 `rustup run stable`，本机 stable 与此一致（1.98.1）。
+[toolchain]
+channel = "1.98.1"
+profile = "minimal"
+components = ["rustfmt", "clippy"]
