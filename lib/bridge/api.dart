@@ -139,6 +139,67 @@ Future<String> agentSettingsSet({
 /// 开发期排查：每个已连接 agent 的 droppedUpdates / 退出状态 / 挂起请求。
 Future<String> agentsStatus() => RustLib.instance.api.crateApiAgentsStatus();
 
+/// 列一层目录。`root` 是当前项目目录，`path` 必须在它之内（越界报 `fs`）。
+/// 返回 `{path, entries: [{name, path, parent, isDir, size}]}`，目录在前、各自按名排序。
+Future<String> fsListDir({required String root, required String path}) =>
+    RustLib.instance.api.crateApiFsListDir(root: root, path: path);
+
+/// 按名字子串搜索（`@` 提及）。返回 `{files, directories, truncated}`；`query` 为空时不遍历、直接回空。
+Future<String> fsSearch({
+  required String root,
+  required String query,
+  required int limit,
+}) => RustLib.instance.api.crateApiFsSearch(
+  root: root,
+  query: query,
+  limit: limit,
+);
+
+/// 本地分支列表：`{available, isRepo, current, branches: [{name, author, when, subject}]}`。
+/// 找不到 `git`（`available: false`）或目录不是仓库（`isRepo: false`）都不是错误——前端据此把顶栏分支区整块隐藏。
+Future<String> gitBranches({required String cwd}) =>
+    RustLib.instance.api.crateApiGitBranches(cwd: cwd);
+
+/// `git switch <branch>`；返回切换后的分支列表。git 报错（例如有未提交改动）时抛 `fs`，消息是 git 自己的 stderr。
+Future<String> gitSwitch({required String cwd, required String branch}) =>
+    RustLib.instance.api.crateApiGitSwitch(cwd: cwd, branch: branch);
+
+/// `git switch -c <branch>`（从当前 HEAD 拉）；返回切换后的分支列表。
+Future<String> gitCreateBranch({required String cwd, required String branch}) =>
+    RustLib.instance.api.crateApiGitCreateBranch(cwd: cwd, branch: branch);
+
+/// `git diff`：给了 `base` 就是 `git diff <base>...HEAD`，否则是工作区相对 HEAD 的改动。
+/// 返回 `{available, isRepo, command, text, truncated}`；输出超过 200 KiB 截断（整份 diff 进 prompt 会顶爆上下文）。
+Future<String> gitDiff({required String cwd, String? base}) =>
+    RustLib.instance.api.crateApiGitDiff(cwd: cwd, base: base);
+
+/// 最近项目列表：`{projects: [{path, name, openedAt}]}`（按 `openedAt` 倒序）。
+Future<String> workspaceRecent() =>
+    RustLib.instance.api.crateApiWorkspaceRecent();
+
+/// 打开一个本地目录作为项目（`session/new` 的 cwd）：写进最近列表，返回 `{project, projects}`。
+/// 目录不存在或不是目录时抛 `settings`。
+Future<String> workspaceOpen({required String path}) =>
+    RustLib.instance.api.crateApiWorkspaceOpen(path: path);
+
+/// 会话索引全量：`{sessions: [{agentId, sessionId, title?, cwd?, createdAt, updatedAt, messageCount}]}`。
+Future<String> sessionIndexList() =>
+    RustLib.instance.api.crateApiSessionIndexList();
+
+/// 新增 / 更新一条会话索引（`entry` 是上面那个形状的 JSON 字符串）；返回全量列表。
+/// `createdAt` 只在新增时写；`updatedAt` 省略或为 0 时由核心打当前时间。
+Future<String> sessionIndexUpsert({required String entry}) =>
+    RustLib.instance.api.crateApiSessionIndexUpsert(entry: entry);
+
+/// 移除一条会话索引；返回全量列表。向 agent 发 `session/delete` 是 R6 的事。
+Future<String> sessionIndexRemove({
+  required String agentId,
+  required String sessionId,
+}) => RustLib.instance.api.crateApiSessionIndexRemove(
+  agentId: agentId,
+  sessionId: sessionId,
+);
+
 /// `acp/session_update`：`{agentId, sessionId, update, _meta?}`，即 SessionNotification 原样 JSON 加 `agentId`。
 Stream<String> sessionUpdateStream() =>
     RustLib.instance.api.crateApiSessionUpdateStream();

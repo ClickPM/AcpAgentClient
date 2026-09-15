@@ -35,6 +35,8 @@ pub enum CoreError {
     InvalidArgument(String),
     /// 终端（pty）错误。
     Pty(String),
+    /// 工作区文件或 git 子进程错误（`rust/fs`）。
+    Fs(String),
     /// 传输层错误（连接句柄丢失、发送失败）。
     Transport(String),
 }
@@ -57,6 +59,7 @@ impl CoreError {
             CoreError::UnknownRequest(_) => "unknown_request",
             CoreError::InvalidArgument(_) => "invalid_argument",
             CoreError::Pty(_) => "pty",
+            CoreError::Fs(_) => "fs",
             CoreError::Transport(_) => "transport",
         }
     }
@@ -85,6 +88,7 @@ impl fmt::Display for CoreError {
             CoreError::UnknownRequest(id) => write!(f, "no pending client request with id {id}"),
             CoreError::InvalidArgument(e) => write!(f, "invalid argument: {e}"),
             CoreError::Pty(e) => write!(f, "{e}"),
+            CoreError::Fs(e) => write!(f, "{e}"),
             CoreError::Transport(e) => write!(f, "transport error: {e}"),
         }
     }
@@ -113,6 +117,12 @@ impl From<settings::SettingsError> for CoreError {
 impl From<pty::PtyError> for CoreError {
     fn from(e: pty::PtyError) -> Self {
         CoreError::Pty(e.to_string())
+    }
+}
+
+impl From<fs::FsError> for CoreError {
+    fn from(e: fs::FsError) -> Self {
+        CoreError::Fs(e.to_string())
     }
 }
 
