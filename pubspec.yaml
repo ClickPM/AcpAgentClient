@@ -34,6 +34,11 @@ dependencies:
   xterm: ^4.0.0
   # 内联单线图标与 registry icon.svg（所有者裁定 2026-09-15）。
   flutter_svg: ^2.3.0
+  # ---- R3 接线（规则 1 清单内）----
+  # 打开链接（画板 28 的 URL elicitation、正文里的 http 链接）。
+  url_launcher: ^6.3.2
+  # 文件与目录选择（画板 40 的 Files & Directories / Image、画板 41 的 Open Local Folders）。
+  file_selector: ^1.0.3
 
 # audioplayers → path_provider → path_provider_foundation 2.6.0 → objective_c ^9.2.1 解析到 9.6.1，
 # 其 hook/build.dart 在 Dart 3.13.3 上编不过（Architecture.arm64e 不存在），flutter test / build 在

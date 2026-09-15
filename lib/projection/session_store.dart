@@ -462,15 +462,23 @@ class SessionStore extends ChangeNotifier {
   void applyNewSession(JsonMap result) {
     modes = result['modes'] is Map ? (result['modes'] as Map).cast<String, dynamic>() : null;
     currentModeId = modes?['currentModeId'] as String?;
-    final opts = result['configOptions'];
-    if (opts is List) {
-      // 与 config_option_update 同一口径：未识别的 type 整条忽略（审查 P2）。
-      configOptions = <ConfigOptionWire>[
-        for (final o in opts)
-          if (o is Map && (o['type'] == 'select' || o['type'] == 'boolean')) ConfigOptionWire(o.cast<String, dynamic>()),
-      ];
-    }
+    _setConfigOptions(result['configOptions']);
     _changed();
+  }
+
+  /// `session/set_config_option` 的响应（`{configOptions}`，全量替换）。与 `config_option_update` 同一口径。
+  void applyConfigOptionsResponse(JsonMap result) {
+    _setConfigOptions(result['configOptions']);
+    _changed();
+  }
+
+  void _setConfigOptions(Object? opts) {
+    if (opts is! List) return;
+    // 与 config_option_update 同一口径：未识别的 type 整条忽略（审查 P2）。
+    configOptions = <ConfigOptionWire>[
+      for (final o in opts)
+        if (o is Map && (o['type'] == 'select' || o['type'] == 'boolean')) ConfigOptionWire(o.cast<String, dynamic>()),
+    ];
   }
 
   void dismissPlan(String planId) {

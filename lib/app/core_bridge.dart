@@ -30,7 +30,37 @@ class CoreEventRecord {
   final JsonMap? json;
 }
 
-class CoreBridge {
+/// 组合根用到的核心接口（事件订阅 + R3 的命令面）。抽出来是为了让 `lib/app/` 的接线能在
+/// `flutter test` 里用假实现驱动（cdylib 在 flutter_tester 里加载不了），真实实现只有 [CoreBridge]。
+abstract interface class CoreCommands {
+  Stream<CoreEventRecord> on(CoreEvent channel);
+
+  Future<JsonMap> init(String dataDir);
+
+  Future<JsonMap> agentConnect(String agentId, {String? cwd});
+  Future<JsonMap> agentDisconnect(String agentId);
+  Future<JsonMap> sessionNew(String agentId, String cwd);
+  Future<JsonMap> sessionPrompt(String agentId, String sessionId, List<Object?> prompt);
+  Future<JsonMap> sessionCancel(String agentId, String sessionId);
+  Future<JsonMap> sessionSetConfigOption(String agentId, String sessionId, String configId, JsonMap value);
+  Future<JsonMap> sessionSetMode(String agentId, String sessionId, String modeId);
+  Future<JsonMap> acpRespond(String agentId, String requestId, JsonMap response);
+  Future<JsonMap> authenticate(String agentId, String methodId);
+  Future<JsonMap> agentSettingsGet();
+  Future<JsonMap> fsListDir(String root, String path);
+  Future<JsonMap> fsSearch(String root, String query, {int limit});
+  Future<JsonMap> gitBranches(String cwd);
+  Future<JsonMap> gitSwitch(String cwd, String branch);
+  Future<JsonMap> gitCreateBranch(String cwd, String branch);
+  Future<JsonMap> gitDiff(String cwd, {String? base});
+  Future<JsonMap> workspaceRecent();
+  Future<JsonMap> workspaceOpen(String path);
+  Future<JsonMap> sessionIndexList();
+  Future<JsonMap> sessionIndexUpsert(JsonMap entry);
+  Future<JsonMap> sessionIndexRemove(String agentId, String sessionId);
+}
+
+class CoreBridge implements CoreCommands {
   CoreBridge._();
 
   static CoreBridge? _instance;
@@ -49,6 +79,7 @@ class CoreBridge {
   /// 全部事件（五条流合一，按到达顺序）。
   Stream<CoreEventRecord> get events => _events.stream;
 
+  @override
   Stream<CoreEventRecord> on(CoreEvent channel) => events.where((e) => e.channel == channel);
 
   /// 先订阅再 init：核心在 init 时就会推 `core_ready`。
@@ -76,6 +107,7 @@ class CoreBridge {
   }
 
   /// `core_init(data_dir)` → `{dataDir, coreVersion}`。
+  @override
   Future<JsonMap> init(String dataDir) async {
     subscribe();
     final raw = await api.coreInit(dataDir: dataDir);
@@ -86,6 +118,82 @@ class CoreBridge {
   Future<JsonMap> ping(String echo) async => _decode(await api.ping(echo: echo));
 
   int get droppedEventCount => api.droppedEventCount().toInt();
+
+  // ---- 命令（docs/design.md § 3；R3 用到的那些。入参与返回都是 JSON 字符串，这里只做 decode）
+
+  @override
+  Future<JsonMap> agentConnect(String agentId, {String? cwd}) async =>
+      _decode(await api.agentConnect(agentId: agentId, cwd: cwd));
+
+  @override
+  Future<JsonMap> agentDisconnect(String agentId) async => _decode(await api.agentDisconnect(agentId: agentId));
+
+  @override
+  Future<JsonMap> sessionNew(String agentId, String cwd) async => _decode(await api.sessionNew(agentId: agentId, cwd: cwd));
+
+  @override
+  Future<JsonMap> sessionPrompt(String agentId, String sessionId, List<Object?> prompt) async =>
+      _decode(await api.sessionPrompt(agentId: agentId, sessionId: sessionId, prompt: jsonEncode(prompt)));
+
+  @override
+  Future<JsonMap> sessionCancel(String agentId, String sessionId) async =>
+      _decode(await api.sessionCancel(agentId: agentId, sessionId: sessionId));
+
+  @override
+  Future<JsonMap> sessionSetConfigOption(String agentId, String sessionId, String configId, JsonMap value) async => _decode(
+        await api.sessionSetConfigOption(agentId: agentId, sessionId: sessionId, configId: configId, value: jsonEncode(value)),
+      );
+
+  @override
+  Future<JsonMap> sessionSetMode(String agentId, String sessionId, String modeId) async =>
+      _decode(await api.sessionSetMode(agentId: agentId, sessionId: sessionId, modeId: modeId));
+
+  @override
+  Future<JsonMap> acpRespond(String agentId, String requestId, JsonMap response) async =>
+      _decode(await api.acpRespond(agentId: agentId, requestId: requestId, response: jsonEncode(response)));
+
+  @override
+  Future<JsonMap> authenticate(String agentId, String methodId) async =>
+      _decode(await api.authenticate(agentId: agentId, methodId: methodId));
+
+  @override
+  Future<JsonMap> agentSettingsGet() async => _decode(await api.agentSettingsGet());
+
+  @override
+  Future<JsonMap> fsListDir(String root, String path) async => _decode(await api.fsListDir(root: root, path: path));
+
+  @override
+  Future<JsonMap> fsSearch(String root, String query, {int limit = 10}) async =>
+      _decode(await api.fsSearch(root: root, query: query, limit: limit));
+
+  @override
+  Future<JsonMap> gitBranches(String cwd) async => _decode(await api.gitBranches(cwd: cwd));
+
+  @override
+  Future<JsonMap> gitSwitch(String cwd, String branch) async => _decode(await api.gitSwitch(cwd: cwd, branch: branch));
+
+  @override
+  Future<JsonMap> gitCreateBranch(String cwd, String branch) async =>
+      _decode(await api.gitCreateBranch(cwd: cwd, branch: branch));
+
+  @override
+  Future<JsonMap> gitDiff(String cwd, {String? base}) async => _decode(await api.gitDiff(cwd: cwd, base: base));
+
+  @override
+  Future<JsonMap> workspaceRecent() async => _decode(await api.workspaceRecent());
+
+  @override
+  Future<JsonMap> workspaceOpen(String path) async => _decode(await api.workspaceOpen(path: path));
+
+  @override
+  Future<JsonMap> sessionIndexList() async => _decode(await api.sessionIndexList());
+
+  @override
+  Future<JsonMap> sessionIndexUpsert(JsonMap entry) async => _decode(await api.sessionIndexUpsert(entry: jsonEncode(entry)));
+
+  @override
+  Future<JsonMap> sessionIndexRemove(String agentId, String sessionId) async =>
+      _decode(await api.sessionIndexRemove(agentId: agentId, sessionId: sessionId));
 
   JsonMap _decode(String raw) {
     final decoded = jsonDecode(raw);
