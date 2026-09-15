@@ -107,8 +107,10 @@ try {
     }
 
     Step "pubspec.yaml 依赖 ⊆ 白名单 (规则 1)" {
-        # CLAUDE.md 规则 1 Dart 侧通用库清单；diff 库与 Markdown 库在 R1.5 裁定后加入。flutter_lints / flutter_test 是工具。
+        # CLAUDE.md 规则 1 Dart 侧通用库清单（R1.5 裁定 2026-09-15 加入 markdown / re_highlight / flutter_math_fork / mermaid_flutter + mermaid_core / audioplayers / diffutil_dart）。
+        # 只核对直接依赖，传递依赖不算引入；flutter_lints / flutter_test 是工具。
         $allowed = @("flutter", "flutter_rust_bridge", "xterm", "url_launcher", "file_selector", "flutter_svg",
+                     "markdown", "re_highlight", "flutter_math_fork", "mermaid_flutter", "mermaid_core", "audioplayers", "diffutil_dart",
                      "flutter_test", "flutter_lints", "integration_test")
         $lines = Get-Content (Join-Path $root "pubspec.yaml") -Encoding UTF8
         $section = ""

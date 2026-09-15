@@ -188,7 +188,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 
 - 24 子代理卡的判据（`rounds/BACKLOG.md` 功能项）：画板依赖 `_meta.claudeCode.{parentToolUseId, subagent, toolName}`，dsh 用 `_meta.dsh_subagent`。**推荐**在 `docs/design.md` § 4 增「入站 `_meta` 识别键」一节，只列这两组键；投影层按「键存在」分组，不按 agent 名判。不裁定则 24 只做「进行中 / 完成」两态、不做嵌套。
 - 10 / 11 的 Restore 与 Regenerate 语义：原型定的是「本地截断其后投影块 + 在同一会话重发 prompt」，协议没有回滚，agent 侧上下文不回退。**推荐**照原型做，作为已知限制记 BACKLOG，不在 UI 加提示（设计稿没有）。
-- 15 Mermaid、32 audio 的方案随 R1.5 裁定；若裁定改画板，先改 `.dc.html` 与 PNG 再开工（规则 3）。
+- 15 Mermaid、32 audio 的方案随 R1.5 裁定 → 2026-09-15 按推荐项：`mermaid_flutter` + `mermaid_core` 与 `audioplayers`，两张画板都不改。
 
 **契约变更**：无（本轮不碰 `rust/`）。
 
@@ -396,7 +396,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 | 8 | 子代理卡的入站 `_meta` 键 | 24 | R2 | § 4 增识别键节 | 2026-09-15 按推荐，落 design.md § 4 |
 | 9 | Restore / Regenerate 的协议语义 | 10、11 | R2 | 照原型（本地截断），记已知限制 | 2026-09-15 按推荐，落 design.md § 3 |
 
-另有库选型 5 项（Markdown、高亮、数学、Mermaid、音频）与 diff 库走 R1.5 spike，仍待裁定；`flutter_svg` 已于 2026-09-15 进规则 1 清单。
+库选型 5 项（Markdown、高亮、数学、Mermaid、音频）与 diff 库已随 R1.5 spike 于 2026-09-15 按推荐项裁定进规则 1 清单（`rounds/round-1.5/spike.md` § 0）；`flutter_svg` 同日进清单。
 
 **不在本计划内**（要做先改设计稿或所有者裁定）：深色主题页面与外观设置（`00-tokens` 只备色阶）；`uvx` 分发；Gemini CLI；JetBrains AIR `_meta` 扩展（子代理独立会话、async task、quota）；Zed 的 Edits 审阅条；Web / 移动版。
 
@@ -409,7 +409,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 | round-design | 已完成 | main | — | 72e2be1 | 设计稿审核 2 轮（主会话） | 40 张画板入库 |
 | R0 | 已完成 | `round-00` | —（R0 无画板阶段） | ddf22b3 | 5 轮 / cursor 两次空输出（`--plan` 误判，旁路会话已修为 `--mode ask`）→ Claude Code 子代理（第 1 轮 Fable 5.1，第 2–5 轮 opus）；18 条全部关闭 | 任务卡 `rounds/round-00/round-00.md`；Rust 核心不走 pub 插件（runner CMake 直接 apply_cargokit，见任务卡「偏离」）；IME 实测待所有者手测 |
 | R1 | 已完成 | `round-01` | —（R1 无画板阶段） | 5466609 | 3 轮 / 第 1 轮 Claude Code 子代理（opus；cursor 因 Zed 占 `cli-config.json` 启动 EPERM）→ 第 2–3 轮 cursor CLI（`--mode ask`）；6 条（high 3 / P3 3）全部关闭 | 任务卡 `rounds/round-01/round-01.md`；6 项验收全过（dsh 真跑 4 轮 + fake agent 离线链 + npx `.cmd` 中文路径）；ConPTY 启动探询、dsh `--setup` 提示不可见、taskkill 收尾三条记 BACKLOG |
-| R1.5 | spike 完成，待裁定 | `round-01.5`（worktree，不合并；spike 收口提交 32f122f） | —（无画板阶段） | —（不合并；`rounds/round-1.5/` 以纯文档进 `main`） | 2 轮 / cursor CLI `--mode ask`（第 1 轮 adversarial：4 条 P2 3 / P3 1 + 4 条取舍质疑；第 2 轮：1 条 P3；全部采纳） | 任务卡 `rounds/round-1.5/round-1.5.md`；`spike.md` § 0 六项各一个推荐 + 备选（Markdown：`package:markdown` + 自写渲染；高亮 `re_highlight`；公式 `flutter_math_fork`；Mermaid `mermaid_flutter` + `mermaid_core`；音频 `audioplayers`；diff `diffutil_dart`），截图 19 张、测量 7 份 JSON；裁定后落 CLAUDE.md 规则 1 / `docs/requirements.md` § 8 / BACKLOG |
+| R1.5 | 已完成（裁定 2026-09-15 按推荐项） | `round-01.5`（worktree，不合并；spike 收口提交 32f122f） | —（无画板阶段） | —（不合并；`rounds/round-1.5/` 以纯文档进 `main`） | 2 轮 / cursor CLI `--mode ask`（第 1 轮 adversarial：4 条 P2 3 / P3 1 + 4 条取舍质疑；第 2 轮：1 条 P3；全部采纳） | 任务卡 `rounds/round-1.5/round-1.5.md`；`spike.md` § 0 六项各一个推荐 + 备选（Markdown：`package:markdown` + 自写渲染；高亮 `re_highlight`；公式 `flutter_math_fork`；Mermaid `mermaid_flutter` + `mermaid_core`；音频 `audioplayers`；diff `diffutil_dart`），截图 19 张、测量 7 份 JSON；裁定后落 CLAUDE.md 规则 1 / `docs/requirements.md` § 8 / BACKLOG |
 | R2 | 未开始 | `round-02` | — | — | — | |
 | R3 | 未开始 | `round-03` | — | — | — | |
 | R4 | 未开始 | `round-04` | — | — | — | |

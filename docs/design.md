@@ -133,7 +133,7 @@ Flutter 宿主进程（Dart）
 - **Flutter stable（Dart）+ flutter_rust_bridge v2**（所有者裁定 2026-09-12，替代 2026-09-11 裁定的 Tauri + React 19）。改的原因：设计稿只作视觉基准（`.dc.html` 源与 PNG 入库）、不复用其代码，前端框架不再被「设计稿是 HTML」绑定；Flutter 不依赖 WebView2，渲染与列表虚拟化是原生能力；Rust 核心以 cdylib 进程内加载，契约不变。2026-09-14 设计工具由 Figma Make 改回 Claude Design，此裁定不变。代价与风险见 § 12。
 - 流式更新的性能靠三件事：投影状态层是纯 Dart 类（不依赖 widget 树），widget 用 `ListenableBuilder` / `StreamBuilder` 选择性订阅；`session/update` 按帧批量合并；转录列表用 `ListView.builder` 惰性构建。
 - 通用库允许清单见 CLAUDE.md 规则 1；**不引第三方 UI 组件库与状态管理库**，组件全部从画板手写，状态用 SDK 自带的 `ChangeNotifier` / `Stream`；样式的唯一来源是从画板提炼的 `lib/theme/tokens.dart`（颜色、字号、间距、圆角、动效时长），widget 文件里不出现字面量。
-- Markdown 渲染：官方 `flutter_markdown` 已停止维护，社区替代对**流式追加**与代码高亮的支持参差。R1 后做一次专门 spike 比较候选（基于 `package:markdown` 自写渲染、`markdown_widget`、`gpt_markdown` 等），选定后才进规则 1 白名单与 R2；spike 之前不引入任何 Markdown 库。
+- Markdown 渲染：官方 `flutter_markdown` 已停止维护，社区替代对**流式追加**与代码高亮的支持参差。R1.5 spike（`rounds/round-1.5/spike.md`）比较了 `package:markdown` 自写渲染、`markdown_widget`、`gpt_markdown`、`flutter_markdown_plus`、`streamdown` 五个候选，所有者裁定 2026-09-15：**`package:markdown` 只用解析器，渲染层按画板自写**（每个顶层块带 key，样式全从 `tokens.dart` 来）；代码高亮 `re_highlight`，公式 `flutter_math_fork`（`$…$` / `$$…$$` 的识别在 Markdown 层做），Mermaid `mermaid_flutter` + `mermaid_core`（解析失败经 `errorBuilder` 回落源码态），音频块 `audioplayers`（内存 `BytesSource`），diff `diffutil_dart`；画板 15 / 32 不改。
 - 终端渲染用 `xterm`（pub.dev）；PTY 仍在 Rust 侧 portable-pty，`acp/terminal_output` 推字节，Dart 只渲染。文件对话框与打开 URL 用 Flutter 官方 `file_selector` / `url_launcher`，其余系统交互一律走 Rust。
 - ACP 投影的状态层自己写，约五百行，是唯一不允许第三方替代的部分；规则来自 `prototype/assets/projection.js`。
 - 设计稿存 `design/`：每轮一个子目录，含 `design-prompt.md`（给 Claude Design 的设计简报）、每个画板一个 `.dc.html` 源、`canvas.json` 布局与每个画板一张 PNG 快照；`design/README.md` 是画板索引（编号、名称、`.dc.html`、PNG、画布 URL），画板编号只增不改。`.dc.html` 是设计的唯一事实来源，PNG 是审查与验收的基准，画布上的后续改动不影响已开工轮次；改设计走「先拉回 `.dc.html`、重导 PNG、更新索引，再进轮次」。
@@ -162,7 +162,7 @@ Windows：`%APPDATA%/AcpAgentClient/{settings.json, sessions.json, projects.json
 |---|---|
 | Windows 上 npx 类 agent 的 `.cmd` 包装与引号 | R1 第一项验收就是用 dsh 在 Windows 实测；转写 Zed `ShellBuilder` 的处理 |
 | Flutter 构建链（CMake → cargokit → cargo）在含中文与全角括号的用户名路径下失败 | R0 第一项验收；失败则在 `flutter_rust_bridge.yaml` / CMake 里把 `CARGO_TARGET_DIR` 指到纯 ASCII 路径 |
-| Flutter 侧 Markdown 渲染不如 Web 成熟（流式、高亮、选择复制） | R1.5 专门 spike，选定前不进 R2 |
+| Flutter 侧 Markdown 渲染不如 Web 成熟（流式、高亮、选择复制） | R1.5 spike 已做并裁定（2026-09-15，见 § 9）；R2 的自写渲染层按 spike 的判据（流式不闪、SelectionArea、链接、CJK）逐项验收 |
 | Rust panic 会带倒整个 Flutter 进程 | 核心对外 API 边界统一 `catch_unwind` 转 `Result`；agent 子进程崩溃只上报 `acp/agent_state` |
 | Windows 中文 IME 组合窗与转录跨消息文本选择 | R0 / R2 各实测一次记录；设计稿有「复制整段」按钮可绕过大部分选择需求 |
 | `unstable` 特性集漂移 | 钉 rust-sdk commit；改钉先改 `pins/upstream.json` 与 `research.md` |

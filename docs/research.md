@@ -129,9 +129,9 @@ macOS 的 headless `run()` 仍然调用 `CFRunLoopRun()` 并把前台任务投�
 | 需求 | Web 栈原方案 | Flutter 方案 | 结论 |
 |---|---|---|---|
 | 终端渲染 | `@xterm/xterm` | `xterm`（pub.dev，TerminalStudio 维护） | 成熟；PTY 留在 Rust |
-| Markdown（流式、GFM、代码高亮） | `react-markdown` + `remark-gfm` | 官方 `flutter_markdown` 已停维（2025）；候选 `markdown_widget`、`gpt_markdown`、基于 `package:markdown` 自写 | **缺口**，R1.5 spike 后进白名单 |
+| Markdown（流式、GFM、代码高亮） | `react-markdown` + `remark-gfm` | 官方 `flutter_markdown` 已停维（2025）；R1.5 spike 五候选对比后裁定 `package:markdown` 解析 + 自写渲染，高亮 `re_highlight`，公式 `flutter_math_fork`，Mermaid `mermaid_flutter` + `mermaid_core`，音频 `audioplayers`（`rounds/round-1.5/spike.md`） | 已裁定 2026-09-15 |
 | 长列表 | `@tanstack/react-virtual` | `ListView.builder` | 原生更好 |
-| diff 渲染 | 一个 diff 库 | Dart `diff_match_patch` 或同类 | 等价 |
+| diff 渲染 | 一个 diff 库 | Dart `diffutil_dart`（R1.5 spike 对比 `diff_match_patch` 后裁定 2026-09-15） | 等价 |
 | 文件对话框 / 打开 URL | Tauri 插件 | `file_selector` / `url_launcher`（Flutter 官方） | 等价 |
 | 跨消息文本选择 | 浏览器免费 | `SelectionArea`，与惰性列表配合有边界情况 | 弱于 Web，实测记录 |
 | 打包 | Tauri bundler + `externalBin` | Flutter Windows CMake install + Inno Setup / MSIX；sidecar 用 CMake install 规则 | 等价，多写几行 CMake |

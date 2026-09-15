@@ -2,7 +2,7 @@
 
 <!-- 保存为 rounds/round-1.5/round-1.5.md；spike 结论与对比矩阵在同目录 spike.md，截图在 shots/，原始测量在 data/。 -->
 
-> 状态：进行中（spike 与 2 轮审查已收口 2026-09-15，等所有者对 spike.md § 0 六项裁定；裁定落文档后收口）
+> 状态：已完成（spike 与 2 轮审查收口 2026-09-15；所有者同日裁定「按推荐项」，六项全部进规则 1 白名单，画板 15 / 32 不改；已落 CLAUDE.md 规则 1 / requirements § 8 / design § 9 / validate.ps1 / BACKLOG / ROUNDS）
 
 ## 目标
 

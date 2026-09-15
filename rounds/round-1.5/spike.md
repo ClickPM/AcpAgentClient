@@ -213,7 +213,7 @@ ROUNDS.md 拆解时给的三选一 (a) WebView / (b) 只做源码态并改画板
 
 按 § 0 推荐项全部采纳时，CLAUDE.md 规则 1 与 `docs/requirements.md` § 8 的 Dart 侧清单改成：
 
-> Dart 侧 Flutter SDK 自带的 Material / Cupertino、flutter_rust_bridge、xterm、url_launcher、file_selector、flutter_svg、**`markdown`（只用解析器，渲染自写，R1.5 裁定 2026-09-XX）、`re_highlight`（代码高亮）、`flutter_math_fork`（数学公式）、`mermaid_flutter` + `mermaid_core`（Mermaid）、`audioplayers`（音频块）、`diffutil_dart`（即「一个 diff 库」）**。传递依赖不算引入，`scripts/validate.ps1` 只核对 `pubspec.yaml` 的直接依赖；`pubspec.yaml` 里为工具链兼容而加的 `dependency_overrides` 要在注释里写明原因与解除条件。
+> Dart 侧 Flutter SDK 自带的 Material / Cupertino、flutter_rust_bridge、xterm、url_launcher、file_selector、flutter_svg、**`markdown`（只用解析器，渲染自写，R1.5 裁定 2026-09-15）、`re_highlight`（代码高亮）、`flutter_math_fork`（数学公式）、`mermaid_flutter` + `mermaid_core`（Mermaid）、`audioplayers`（音频块）、`diffutil_dart`（即「一个 diff 库」）**。传递依赖不算引入，`scripts/validate.ps1` 只核对 `pubspec.yaml` 的直接依赖；`pubspec.yaml` 里为工具链兼容而加的 `dependency_overrides` 要在注释里写明原因与解除条件。
 
 `scripts/validate.ps1` 的 `$allowed` 数组同步加这 7 个名字。规则 1 里「Markdown 渲染库在 R1.5 spike 选型并经所有者裁定后才进清单」那句改成裁定结果；`rounds/BACKLOG.md` 两条 R1.5 条目打 `[x]`；ROUNDS.md 进度表 R1.5 行记裁定日期。
 
