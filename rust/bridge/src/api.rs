@@ -1,5 +1,6 @@
 //! 桥命令与事件流（docs/design.md § 3）。R0 打通 `core_init` / `ping` 与五条事件流的注册；
-//! R1 加连接 / 会话 / 认证 / 设置命令。返回值一律 JSON `String`，结构化入参也是 JSON `String`（桥上不做类型镜像）。
+//! R1 加连接 / 会话 / 认证 / 设置命令；R3 加工作区文件、git、项目与会话索引。
+//! 返回值一律 JSON `String`，结构化入参也是 JSON `String`（桥上不做类型镜像）。
 //! 本模块是 frb 的扫描入口（flutter_rust_bridge.yaml `rust_input: crate::api`），只放要暴露给 Dart 的东西。
 //!
 //! 线程模型：frb 的 `async fn` 跑在 frb 自己的执行器上；核心的 future 必须在 `Core` 的 tokio runtime 上跑，
@@ -208,6 +209,71 @@ pub async fn agent_settings_set(agent_id: String, server: String) -> Result<Stri
 /// 开发期排查：每个已连接 agent 的 droppedUpdates / 退出状态 / 挂起请求。
 pub async fn agents_status() -> Result<String, BridgeError> {
     on_core(|core| async move { Ok(core.agents_status()) }).await
+}
+
+// ---- 工作区文件与 git（R3；docs/design.md § 3「文件面板与 git」）
+
+/// 列一层目录。`root` 是当前项目目录，`path` 必须在它之内（越界报 `fs`）。
+/// 返回 `{path, entries: [{name, path, parent, isDir, size}]}`，目录在前、各自按名排序。
+pub async fn fs_list_dir(root: String, path: String) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.fs_list_dir(PathBuf::from(root), PathBuf::from(path)).await }).await
+}
+
+/// 按名字子串搜索（`@` 提及）。返回 `{files, directories, truncated}`；`query` 为空时不遍历、直接回空。
+pub async fn fs_search(root: String, query: String, limit: u32) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.fs_search(PathBuf::from(root), query, limit as usize).await }).await
+}
+
+/// 本地分支列表：`{available, isRepo, current, branches: [{name, author, when, subject}]}`。
+/// 找不到 `git`（`available: false`）或目录不是仓库（`isRepo: false`）都不是错误——前端据此把顶栏分支区整块隐藏。
+pub async fn git_branches(cwd: String) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.git_branches(PathBuf::from(cwd)).await }).await
+}
+
+/// `git switch <branch>`；返回切换后的分支列表。git 报错（例如有未提交改动）时抛 `fs`，消息是 git 自己的 stderr。
+pub async fn git_switch(cwd: String, branch: String) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.git_switch(PathBuf::from(cwd), branch).await }).await
+}
+
+/// `git switch -c <branch>`（从当前 HEAD 拉）；返回切换后的分支列表。
+pub async fn git_create_branch(cwd: String, branch: String) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.git_create_branch(PathBuf::from(cwd), branch).await }).await
+}
+
+/// `git diff`：给了 `base` 就是 `git diff <base>...HEAD`，否则是工作区相对 HEAD 的改动。
+/// 返回 `{available, isRepo, command, text, truncated}`；输出超过 200 KiB 截断（整份 diff 进 prompt 会顶爆上下文）。
+pub async fn git_diff(cwd: String, base: Option<String>) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.git_diff(PathBuf::from(cwd), base).await }).await
+}
+
+// ---- 项目与会话的本地索引（R3；docs/design.md § 10。时间戳一律 Unix 毫秒）
+
+/// 最近项目列表：`{projects: [{path, name, openedAt}]}`（按 `openedAt` 倒序）。
+pub async fn workspace_recent() -> Result<String, BridgeError> {
+    on_core(|core| async move { core.workspace_recent() }).await
+}
+
+/// 打开一个本地目录作为项目（`session/new` 的 cwd）：写进最近列表，返回 `{project, projects}`。
+/// 目录不存在或不是目录时抛 `settings`。
+pub async fn workspace_open(path: String) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.workspace_open(PathBuf::from(path)) }).await
+}
+
+/// 会话索引全量：`{sessions: [{agentId, sessionId, title?, cwd?, createdAt, updatedAt, messageCount}]}`。
+pub async fn session_index_list() -> Result<String, BridgeError> {
+    on_core(|core| async move { core.session_index_list() }).await
+}
+
+/// 新增 / 更新一条会话索引（`entry` 是上面那个形状的 JSON 字符串）；返回全量列表。
+/// `createdAt` 只在新增时写；`updatedAt` 省略或为 0 时由核心打当前时间。
+pub async fn session_index_upsert(entry: String) -> Result<String, BridgeError> {
+    let entry = parse_json("entry", &entry)?;
+    on_core(|core| async move { core.session_index_upsert(entry) }).await
+}
+
+/// 移除一条会话索引；返回全量列表。向 agent 发 `session/delete` 是 R6 的事。
+pub async fn session_index_remove(agent_id: String, session_id: String) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.session_index_remove(&agent_id, &session_id) }).await
 }
 
 // 五个注册函数都是 `#[frb(sync)]`：frb 的 normal 任务跑在线程池上不保证先后，只有同步注册

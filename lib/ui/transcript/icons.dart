@@ -1,4 +1,5 @@
-// 画板 10–34 的内联单线图标（flutter_svg，所有者裁定 2026-09-15）。路径逐个取自 design/round-design/NN-*.dc.html 的
+// 画板 10–34（R2）与 01–04 / 40 / 41 / 42 / 80（R3）的内联单线图标（flutter_svg，所有者裁定 2026-09-15）。
+// 路径逐个取自 design/round-design/NN-*.dc.html 的
 // <svg> 内容（24 单位视口、无填充、圆头圆角），颜色由调用方给（colorFilter），尺寸只用 tokens 的 IconSizes。
 // 不用 Icons.*（flutter_tester 不装 Material 图标字体，规则 1 也不引图标库）。
 
@@ -104,11 +105,65 @@ abstract final class AcpIcons {
   /// 31：线程头菱形（画板 31 线程标题前的图标，原稿是填充菱形）。
   static const String diamond = '<path d="M12 3l9 9-9 9-9-9z"/>';
 
+  // ---- R3 新增（画板 01–04 / 40 / 41 / 42 / 80，路径取自各画板的 <svg>）
+
+  /// 01–04：侧栏顶部的应用标记（方框 + 两条对角线）。
+  static const String appMark = '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="3" x2="21" y2="21"/><line x1="21" y1="3" x2="3" y2="21"/>';
+
+  /// 01–04：侧栏折叠开关。
+  static const String panelLeft = '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/>';
+
+  /// 01–04 / 40 / 41：git 分支。
+  static const String gitBranch = '<line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>';
+
+  /// 01 / 04：侧栏底部导航「设置」。
+  static const String settings = '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>';
+
+  /// 01 / 03 / 04 / 42：文件夹（侧栏「文件」、右栏标签、@ 菜单的目录行、项目弹层的 Open Local Folders）。
+  static const String folder = '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>';
+
+  /// 01–03：线程头「新建会话」。
+  static const String plusSquare = '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>';
+
+  /// 01–03：线程头「重载 agent」。
+  static const String reload = '<path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>';
+
+  /// 41：≡ 菜单里的 Reload Agent。
+  static const String rotateCw = '<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"/>';
+
+  /// 01–03：线程头 ≡ 菜单（右栏开关）。
+  static const String menuLines = '<line x1="3" y1="6" x2="16" y2="6"/><line x1="3" y1="12" x2="16" y2="12"/><line x1="3" y1="18" x2="16" y2="18"/><line x1="20" y1="4" x2="20" y2="20"/>';
+
+  /// 01–03 / 40：输入框的 Follow（跟随 agent 定位）。
+  static const String target = '<circle cx="12" cy="12" r="9"/><line x1="21" y1="12" x2="17" y2="12"/><line x1="7" y1="12" x2="3" y2="12"/><line x1="12" y1="7" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="17"/>';
+
+  /// 01–03 / 42：输入框发送。
+  static const String arrowUp = '<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>';
+
+  /// 80：流量方向（→ 发 / ← 收）。
+  static const String arrowRight = '<line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/>';
+  static const String arrowLeft = '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="11 6 5 12 11 18"/>';
+
+  /// 40：+ 弹层的 Threads。
+  static const String messageSquare = '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>';
+
+  /// 40：+ 弹层的 Image。
+  static const String image = '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>';
+
+  /// 42：/ 命令菜单的行首图标。
+  static const String command = '<polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/>';
+
+  /// 01–04：窗口控制（— ☐；✕ 复用 [x]）。画板是 12 单位视口的 1px 描边，这里改写成 24 单位。
+  static const String windowMinimize = '<line x1="2" y1="12" x2="22" y2="12"/>';
+  static const String windowMaximize = '<rect x="3" y="3" width="18" height="18"/>';
+
   /// 全部图标（测试预热 svg 缓存用）。
   static const List<String> all = <String>[
     rotateCcw, pencil, copy, check, arrowDown, spinnerArc, chevronDown, chevronUp, lightbulb, file, checkCircle, search,
     dashedCircle, terminal, globe, layers, x, columns, cornerDownRight, thumbsUp, thumbsDown, externalLink, trash,
     alertTriangle, info, plus, arrowUpRight, play, link, dot, lock, slashCircle, diamond,
+    appMark, panelLeft, gitBranch, settings, folder, plusSquare, reload, rotateCw, menuLines, target, arrowUp,
+    arrowRight, arrowLeft, messageSquare, image, command, windowMinimize, windowMaximize,
   ];
 
   /// 完整 SVG 文档：stroke 固定为黑，真实颜色由 [AcpIcon] 的 colorFilter 给，这样同一图标只解析一次。
@@ -149,10 +204,7 @@ class Spinner extends StatefulWidget {
 }
 
 class _SpinnerState extends State<Spinner> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(vsync: this, duration: _period)..repeat();
-
-  /// 一圈的时长：动效 token 里没有「旋转周期」，取 motion.base 的 5 倍（800ms），只是转速。
-  static final Duration _period = t.Motion.base * 5;
+  late final AnimationController _controller = AnimationController(vsync: this, duration: t.Geometry.spinnerPeriod)..repeat();
 
   @override
   void dispose() {

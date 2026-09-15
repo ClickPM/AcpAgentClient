@@ -207,14 +207,13 @@ class _ScopeMenu extends StatelessWidget {
   final void Function(PermissionOptionWire o) onPick;
 
   /// 菜单宽度（几何，不是样式）：按画板 25 的下拉宽度。
-  static const double _width = 330;
 
   @override
   Widget build(BuildContext context) {
     return Popover(
       padding: const EdgeInsets.all(t.Spacing.s4),
       child: SizedBox(
-        width: _width,
+        width: t.Geometry.permissionMenuWidth,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,

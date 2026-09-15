@@ -33,13 +33,21 @@ class RestoreResult {
 }
 
 class CancelResult {
-  const CancelResult({required this.toolCallIds, required this.cancelledRequestIds});
+  const CancelResult({
+    required this.toolCallIds,
+    required this.cancelledRequestIds,
+    required this.cancelledElicitationIds,
+  });
 
   /// 本地标成 cancelled 的工具调用。
   final List<String> toolCallIds;
 
   /// 要以 `{outcome: {outcome: cancelled}}` 回应的权限请求（核心在 R1 也会自动回，前端只是同步本地队列）。
   final List<String> cancelledRequestIds;
+
+  /// 挂起的 elicitation：**接线侧必须**逐条 `acp_respond(PendingQueue.cancelledAction)`——
+  /// 核心的 `session/cancel` 只自动回权限请求，elicitation 不回 agent 会一直等（审查 finding high）。
+  final List<String> cancelledElicitationIds;
 }
 
 class SessionStore extends ChangeNotifier {
@@ -345,8 +353,9 @@ class SessionStore extends ChangeNotifier {
     final now = this.now;
     final tools = toolCalls.cancelUnfinished(now);
     final requests = pending.cancelSession(sessionId, now: now);
+    final elicitations = pending.cancelSessionElicitations(sessionId, now: now);
     _changed();
-    return CancelResult(toolCallIds: tools, cancelledRequestIds: requests);
+    return CancelResult(toolCallIds: tools, cancelledRequestIds: requests, cancelledElicitationIds: elicitations);
   }
 
   /// Restore Checkpoint（画板 10）：本地截断该轮及其后全部投影块，返回被截断的轮（其 prompt 用于同会话重发）与
@@ -462,15 +471,23 @@ class SessionStore extends ChangeNotifier {
   void applyNewSession(JsonMap result) {
     modes = result['modes'] is Map ? (result['modes'] as Map).cast<String, dynamic>() : null;
     currentModeId = modes?['currentModeId'] as String?;
-    final opts = result['configOptions'];
-    if (opts is List) {
-      // 与 config_option_update 同一口径：未识别的 type 整条忽略（审查 P2）。
-      configOptions = <ConfigOptionWire>[
-        for (final o in opts)
-          if (o is Map && (o['type'] == 'select' || o['type'] == 'boolean')) ConfigOptionWire(o.cast<String, dynamic>()),
-      ];
-    }
+    _setConfigOptions(result['configOptions']);
     _changed();
+  }
+
+  /// `session/set_config_option` 的响应（`{configOptions}`，全量替换）。与 `config_option_update` 同一口径。
+  void applyConfigOptionsResponse(JsonMap result) {
+    _setConfigOptions(result['configOptions']);
+    _changed();
+  }
+
+  void _setConfigOptions(Object? opts) {
+    if (opts is! List) return;
+    // 与 config_option_update 同一口径：未识别的 type 整条忽略（审查 P2）。
+    configOptions = <ConfigOptionWire>[
+      for (final o in opts)
+        if (o is Map && (o['type'] == 'select' || o['type'] == 'boolean')) ConfigOptionWire(o.cast<String, dynamic>()),
+    ];
   }
 
   void dismissPlan(String planId) {

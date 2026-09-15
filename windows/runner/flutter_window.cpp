@@ -1,8 +1,10 @@
-#include "flutter_window.h"
+﻿#include "flutter_window.h"
 
 #include <optional>
 
 #include "flutter/generated_plugin_registrant.h"
+
+#include "acp_window.h"
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -25,6 +27,8 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  // 无边框窗口的平台通道（docs/design.md § 9）：窗口控制三键与拖拽都由 Flutter 侧发起。
+  AcpWindowRegisterChannel(flutter_controller_->engine(), GetHandle());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -51,6 +55,12 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  // 无边框窗口自己要处理的两条（WM_NCCALCSIZE / WM_NCHITTEST）先走，别让默认窗口过程把标题栏画回来。
+  if (std::optional<LRESULT> handled =
+          AcpWindowHandleMessage(hwnd, message, wparam, lparam)) {
+    return *handled;
+  }
+
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =

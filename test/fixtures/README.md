@@ -42,7 +42,7 @@
 | `13-tool-kinds.jsonl` | （R2）画板 18 / 19 / 21：pending / in_progress / completed / failed 四态，read / search / execute / fetch / other / edit / delete / move / think / switch_mode 全部 kind，rawInput / rawOutput / locations；末尾一条 edit 带 diff 内容（+4 −1） |
 | `14-subagent.jsonl` | （R2）画板 24：`_meta.claudeCode.{subagent, parentToolUseId, toolName}` 嵌套（工具行 + 子代理输出）与 `_meta.dsh_subagent`（转录折进 content[]），只按键存在分组 |
 | `15-permission-kinds.jsonl` | （R2）画板 25 / 26：四种 option kind（allow_always ×2 / allow_once / reject_once / reject_always），toolCall 只带 toolCallId + kind + rawInput，用户选 allow_once |
-| `16-elicitation.jsonl` | （R2）画板 27 / 28：form（string oneOf / array anyOf / integer / boolean / 未知 type / required）与 url（elicitationId + url，sessionScope）；用户 accept |
+| `16-elicitation.jsonl` | （R2）画板 27 / 28：form（string oneOf / array anyOf / integer / boolean / 未知 type / required）与 url（elicitationId + url，sessionScope）；用户 accept。（R3）补两条不需回应的通知：`elicitation/complete`（URL 收尾）与 `$/cancel_request`（agent 撤回自己发出的 id 31 请求） |
 | `17-plan-payloads.jsonl` | （R2）画板 29：稳定 plan（5 条）、plan_update items / file / markdown、plan_removed |
 | `18-stop-reasons.jsonl` | （R2）画板 31：max_tokens / max_turn_requests / refusal / cancelled 四轮（end_turn 在 08） |
 | `19-usage.jsonl` | （R2）画板 30：1% 无 cost / 带 cost / 78% 高占用 |
@@ -50,6 +50,7 @@
 | `21-terminal-running.jsonl` | （R2）画板 23：terminal/create → 三行 ANSI 输出（本地流）→ terminal/kill → 退出信号 → failed |
 | `22-content-blocks.jsonl` | （R2）画板 32：真实 base64 PNG 的 image、audio、resource_link（size）、embedded resource text / blob |
 | `23-messages-no-id.jsonl` | （R2）§ 7 第 2 条：无 messageId 的 chunk 按角色连续合并，思考插入后另起一条 |
+| `25-config-options.jsonl` | （R3）画板 40：`config_option_update` 全量——model 三分组、thought_level 六档、mode 三档、三条 boolean、两条未知 category（`sandbox` / `_codex_reasoning`）、一条未知 type（`slider`，整条忽略）；第二条演示「改一个值也回整份列表」 |
 | `24-terminal-git-log.jsonl` | （R2）画板 22：git log 的 ANSI 彩色输出（黄 / 绿 / 青）、wait_for_exit、release 后输出留存 |
 | `90-rejected.jsonl` | `notice`（sdk 的 unstable 伞不转发）、假想的未来变体 `artifact_update` —— Rust 侧必须失败 |
 
@@ -58,7 +59,7 @@ R2 起的文件由 `scratchpad` 里的生成脚本一次性产出后入库（脚
 ## 不进 fixtures 的两类数据（R2）
 
 - **`acp/agent_state`**（画板 34）是核心自己的事件，不是 ACP 线上行，`fixtures.rs` 不会去解析；gallery 场景在 Dart 侧按 `docs/design.md` § 3 的 payload 形状构造（`lib/gallery/scenarios.dart`）。
-- **`elicitation/complete`**（画板 28 完成态）是 ACP 通知，但 `fixtures.rs` 的方法表没有它（加表要改 `rust/`，R2 不碰）；gallery 场景在 Dart 侧直接调 `PendingQueue.completeElicitation`。记 `rounds/BACKLOG.md`：R3 接线时给方法表补 `elicitation/complete` / `$/cancel_request`，再把这条收进 fixtures。
+- ~~**`elicitation/complete`**~~（R3 已收进 fixtures）：`fixtures.rs` 的方法表已补 `elicitation/complete` → `CompleteElicitationNotification` 与 `$/cancel_request` → `CancelRequestNotification`（BACKLOG 里写的是 `CancelNotification`，那是 `session/cancel` 的类型，实际要的是 `CancelRequestNotification`）；画板 28 的完成态改为回放 `16-elicitation.jsonl` 到 `elicitation/complete` 为止。
 
 ## 回放器
 

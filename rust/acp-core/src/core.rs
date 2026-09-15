@@ -7,6 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use serde_json::{Value, json};
+use settings::index::{IndexStore, SessionEntry};
 use settings::{AgentServer, SettingsStore};
 
 use crate::agent::AgentConnection;
@@ -23,6 +24,7 @@ pub struct Core {
     runtime: tokio::runtime::Runtime,
     ping_seq: AtomicU64,
     settings: SettingsStore,
+    index: IndexStore,
     terminals: Arc<pty::TerminalManager>,
     agents: Mutex<HashMap<String, Arc<AgentConnection>>>,
 }
@@ -109,6 +111,7 @@ impl Core {
         let core = Self {
             data_dir: data_dir.to_path_buf(),
             settings: SettingsStore::new(data_dir.to_path_buf()),
+            index: IndexStore::new(data_dir.to_path_buf()),
             sink,
             runtime,
             ping_seq: AtomicU64::new(0),
@@ -133,6 +136,10 @@ impl Core {
 
     pub fn settings(&self) -> &SettingsStore {
         &self.settings
+    }
+
+    pub fn index(&self) -> &IndexStore {
+        &self.index
     }
 
     /// `{dataDir, coreVersion}`。
@@ -302,6 +309,77 @@ impl Core {
         Ok(serde_json::to_value(self.settings.upsert(agent_id, server)?)?)
     }
 
+    // ---- 工作区文件与 git（R3；docs/design.md § 3「文件面板与 git」）
+    //
+    // 这些都是阻塞式的文件系统 / 子进程调用，放 `spawn_blocking`：桥层的命令跑在本 runtime 的 worker 上，
+    // 直接同步走会占住 worker（`git` 在大仓库上能跑几百毫秒）。
+
+    /// 列一层目录（`fs_list_dir`）。`root` 是当前项目，`path` 必须在它之内。
+    pub async fn fs_list_dir(&self, root: PathBuf, path: PathBuf) -> Result<Value> {
+        blocking(move || Ok(serde_json::to_value(fs::list_dir(&root, &path)?)?)).await
+    }
+
+    /// 按名字子串搜索（`fs_search`，`@` 提及用）。
+    pub async fn fs_search(&self, root: PathBuf, query: String, limit: usize) -> Result<Value> {
+        blocking(move || Ok(serde_json::to_value(fs::search(&root, &query, limit)?)?)).await
+    }
+
+    /// 本地分支列表（`git_branches`）。找不到 `git` 或目录不是仓库时不报错，`available` / `isRepo` 为 false。
+    pub async fn git_branches(&self, cwd: PathBuf) -> Result<Value> {
+        blocking(move || Ok(serde_json::to_value(fs::git::branches(&cwd)?)?)).await
+    }
+
+    /// `git switch <branch>`（`git_switch`）；返回切换后的分支列表。
+    pub async fn git_switch(&self, cwd: PathBuf, branch: String) -> Result<Value> {
+        blocking(move || Ok(serde_json::to_value(fs::git::switch(&cwd, &branch)?)?)).await
+    }
+
+    /// `git switch -c <branch>`（`git_create_branch`）；返回切换后的分支列表。
+    pub async fn git_create_branch(&self, cwd: PathBuf, branch: String) -> Result<Value> {
+        blocking(move || Ok(serde_json::to_value(fs::git::create_branch(&cwd, &branch)?)?)).await
+    }
+
+    /// `git diff`（`git_diff`，输入框 `+` 的 Branch Diff）。
+    pub async fn git_diff(&self, cwd: PathBuf, base: Option<String>) -> Result<Value> {
+        blocking(move || Ok(serde_json::to_value(fs::git::diff(&cwd, base.as_deref())?)?)).await
+    }
+
+    // ---- 项目与会话的本地索引（R3；docs/design.md § 10）
+
+    /// 最近项目列表（`workspace_recent`）。
+    pub fn workspace_recent(&self) -> Result<Value> {
+        Ok(json!({ "projects": serde_json::to_value(self.index.projects())? }))
+    }
+
+    /// 打开一个本地目录作为项目（`workspace_open`）：写进最近列表并返回它与全量列表。
+    pub fn workspace_open(&self, path: PathBuf) -> Result<Value> {
+        let (project, projects) = self.index.open_project(&path)?;
+        Ok(json!({
+            "project": serde_json::to_value(project)?,
+            "projects": serde_json::to_value(projects)?,
+        }))
+    }
+
+    /// 会话索引全量（`session_index_list`），按 `updatedAt` 倒序。
+    pub fn session_index_list(&self) -> Result<Value> {
+        Ok(json!({ "sessions": serde_json::to_value(self.index.sessions())? }))
+    }
+
+    /// 新增 / 更新一条会话索引（`session_index_upsert`）；返回全量列表。
+    pub fn session_index_upsert(&self, entry: Value) -> Result<Value> {
+        let entry: SessionEntry =
+            serde_json::from_value(entry).map_err(|e| CoreError::InvalidArgument(format!("session index entry: {e}")))?;
+        if entry.agent_id.trim().is_empty() || entry.session_id.trim().is_empty() {
+            return Err(CoreError::InvalidArgument("session index entry needs agentId and sessionId".into()));
+        }
+        Ok(json!({ "sessions": serde_json::to_value(self.index.upsert_session(entry)?)? }))
+    }
+
+    /// 移除一条会话索引（`session_index_remove`）；返回全量列表。向 agent 发 `session/delete` 是 R6 的事。
+    pub fn session_index_remove(&self, agent_id: &str, session_id: &str) -> Result<Value> {
+        Ok(json!({ "sessions": serde_json::to_value(self.index.remove_session(agent_id, session_id)?)? }))
+    }
+
     /// 连接表里每个 agent 的 `droppedUpdates` 与退出状态（开发期排查）。
     pub fn agents_status(&self) -> Value {
         let agents = lock(&self.agents);
@@ -319,6 +397,16 @@ impl Core {
         }
         Value::Object(out)
     }
+}
+
+/// 把阻塞调用挪到 tokio 的阻塞线程池；线程池关闭（runtime 正在析构）时报 Transport。
+async fn blocking<F>(f: F) -> Result<Value>
+where
+    F: FnOnce() -> Result<Value> + Send + 'static,
+{
+    tokio::task::spawn_blocking(f)
+        .await
+        .map_err(|e| CoreError::Transport(format!("blocking task: {e}")))?
 }
 
 #[cfg(test)]

@@ -285,3 +285,75 @@ abstract final class Spinner {
   static const Color color = Accent.base;
   static const double strokeWidth = 1.5;
 }
+
+/// 几何（所有者裁定 2026-09-15，R2 审查留下的 7 个局部常量收进来）：它们不是画板 00 的 token，而是画板上量出来的
+/// 单点尺寸；集中在这里是为了「widget 文件里不出现裸数字」。第 6 条是时长不是尺寸，按裁定与其余六条同组收纳。
+abstract final class Geometry {
+  /// 画板 32 image 块的预览区高度。
+  static const double imagePreviewHeight = 220;
+
+  /// 画板 32 audio 块的进度条高度。
+  static const double audioBarHeight = 3;
+
+  /// 画板 25 权限「范围」下拉的宽度。
+  static const double permissionMenuWidth = 330;
+
+  /// 画板 30 上下文窗口浮窗的宽度。
+  static const double contextPopoverWidth = 266;
+
+  /// 画板 22 / 23 终端卡的回滚行数上限（xterm `maxLines`）。
+  static const int terminalScrollbackLines = 2000;
+
+  /// spinner 转一圈的时长：动效 token 里没有「旋转周期」，取 [Motion.base] 的 5 倍（800ms），只是转速。
+  static final Duration spinnerPeriod = Motion.base * 5;
+
+  /// 画板 27 / 40 布尔开关的轨道 28 × 16；`toggleKnobInset` 是滑块与轨道的间隙。
+  static const double toggleTrackWidth = 28;
+  static const double toggleTrackHeight = 16;
+  static const double toggleKnobInset = 2;
+
+  // ---- R3（画板 01–04 / 40 / 41 / 42 / 80 量得的单点尺寸）
+
+  /// 01–04：侧栏宽。
+  static const double sidebarWidth = 280;
+
+  /// 01–04：顶栏 / 线程头 / 侧栏头 / 侧栏底部导航的条高。
+  static const double barHeight = 36;
+
+  /// 01–04：窗口控制三键的格宽（点击热区，图标仍是 [IconSizes.toolbar]）。
+  static const double windowButtonWidth = 44;
+
+  /// 03：右栏展开时的宽度。
+  static const double rightPanelWidth = 580;
+
+  /// 01–03 / 42：输入框与转录内容列的最大宽度。
+  static const double contentMaxWidth = 800;
+
+  /// 01–04 / 41：agent 标记方块（[IconSizes.base] 见方）里的菱形边长。
+  static const double agentMarkDot = 6;
+
+  /// 40 / 41 / 42：弹层分组标题的行高。
+  static const double menuGroupLabelHeight = 22;
+
+  /// 40 / 41 / 42：弹层宽度四档（真实弹层锚在触发控件上，宽度按内容类别取一档）。
+  static const double menuWidthNarrow = 240;
+  static const double menuWidth = 280;
+  static const double menuWidthWide = 320;
+  static const double menuWidthInline = 420;
+
+  /// 80：方法名列宽，也是过滤输入框宽。
+  static const double trafficMethodWidth = 220;
+
+  /// 04：侧栏搜索无结果时的占位区高。
+  static const double sidebarEmptyHeight = 96;
+
+  /// 01：转录空态的文本最大宽度。
+  static const double emptyStateMaxWidth = 520;
+
+  /// 03：输入框里模型下拉的最大宽度（名字长时截断）。
+  static const double composerModelMaxWidth = 170;
+
+  /// 弹层与触发控件的间隙（向下 / 向上展开）。
+  static const Offset popoverBelow = Offset(0, Spacing.s4);
+  static const Offset popoverAbove = Offset(0, -Spacing.s4);
+}

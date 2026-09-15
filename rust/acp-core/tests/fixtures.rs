@@ -44,6 +44,9 @@ fn parse_request(method: &str, params: &Value) -> Result<(), String> {
         "session/update" => cast::<acp::SessionNotification>(params),
         "session/request_permission" => cast::<acp::RequestPermissionRequest>(params),
         "elicitation/create" => cast::<acp::CreateElicitationRequest>(params),
+        // 两条不需要回应的通知（R3 补表，R2 的 BACKLOG 条目）：URL elicitation 收尾与 agent 撤回自己的请求。
+        "elicitation/complete" => cast::<acp::CompleteElicitationNotification>(params),
+        "$/cancel_request" => cast::<acp::CancelRequestNotification>(params),
         "fs/read_text_file" => cast::<acp::ReadTextFileRequest>(params),
         "fs/write_text_file" => cast::<acp::WriteTextFileRequest>(params),
         "terminal/create" => cast::<acp::CreateTerminalRequest>(params),

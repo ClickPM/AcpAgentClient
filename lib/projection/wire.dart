@@ -408,6 +408,9 @@ class ClientRequestEnvelope {
 }
 
 /// `acp/session_update` 事件的信封：`{agentId, sessionId, update}`，`update` 是 SessionNotification 原样 JSON。
+/// `acp/session_update` 事件：payload 就是 `SessionNotification` 的原样 JSON（`{sessionId, update, _meta?}`）
+/// **再加一个 `agentId`**，不是把它套进 `update` 里（核心侧 `rust/acp-core/src/agent.rs` 就是往 params 里插 `agentId`）。
+/// R3 接线时发现 R2 的 Dart 侧多套了一层，与核心对不上：整条通知会当未知变体被丢弃。
 class SessionUpdateEnvelope {
   const SessionUpdateEnvelope(this.json);
 
@@ -415,7 +418,7 @@ class SessionUpdateEnvelope {
 
   String? get agentId => _asString(json['agentId']);
   String? get sessionId => _asString(json['sessionId']);
-  SessionNotificationWire get notification => SessionNotificationWire(_asMap(json['update']) ?? const <String, dynamic>{});
+  SessionNotificationWire get notification => SessionNotificationWire(json);
 }
 
 /// `acp/agent_state` 事件：`{agentId, state, ...}`；R0 只有 `core_ready`。

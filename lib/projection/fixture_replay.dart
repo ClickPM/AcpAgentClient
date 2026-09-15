@@ -146,7 +146,8 @@ class FixtureReplayer {
         case 'session/update':
           final sid = params['sessionId'];
           if (sid is String) lastSessionId = sid;
-          sessions.applySessionUpdateEnvelope(<String, dynamic>{'agentId': agentId, 'sessionId': sid, 'update': params});
+          // 信封 = SessionNotification 原样 + agentId（与核心侧一致，见 SessionUpdateEnvelope 的注释）。
+          sessions.applySessionUpdateEnvelope(<String, dynamic>{...params, 'agentId': agentId});
         case 'session/request_permission':
         case 'elicitation/create':
           sessions.applyClientRequestEnvelope(<String, dynamic>{
