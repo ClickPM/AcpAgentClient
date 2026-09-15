@@ -9,6 +9,7 @@ import 'package:acp_agent_client/app/core_bridge.dart';
 import 'package:acp_agent_client/app/workbench_controller.dart';
 import 'package:acp_agent_client/projection/entries.dart';
 import 'package:acp_agent_client/projection/wire.dart';
+import 'package:acp_agent_client/ui/shell/shell_common.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// 记账用的假核心：只记调用，不做任何 IO。
@@ -172,6 +173,23 @@ void main() {
 
     expect(core.cancels, 1);
     expect(core.responded, isEmpty, reason: 'acp_respond 由核心侧做，前端再回一遍会撞 unknown_request');
+    c.dispose();
+  });
+
+  test('无已安装 agent：空态 + 「打开 Agents 面板」切右栏 Agents 标签（验收 7）', () async {
+    final core = FakeCore(); // agentSettingsGet 回空 agent_servers
+    final c = WorkbenchController(source: DataSource.bridge, bridge: core);
+    await c.start();
+
+    expect(c.installedAgents, isEmpty);
+    expect(c.hasAgent, isFalse, reason: '画板 01 状态 2：线程头 No Agent、输入框禁用');
+    expect(c.threadTitle, 'No Agent');
+    expect(c.composerPlaceholder, '安装并选择一个 agent 后即可输入');
+    expect(c.rightTab, isNull);
+
+    c.openTab(ShellTab.agents);
+    expect(c.rightTab, ShellTab.agents);
+    expect(c.openTabs, <ShellTab>[ShellTab.agents]);
     c.dispose();
   });
 

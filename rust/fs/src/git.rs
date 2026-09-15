@@ -73,6 +73,9 @@ struct Output {
 /// 跑一条 git 命令。`Ok(None)` = 本机没有 `git`。
 fn git(cwd: &Path, args: &[&str]) -> Result<Option<Output>> {
     let mut command = Command::new("git");
+    // `core.quotepath=false`：否则含中文的路径在 diff / status 里是 `"è¯´..."` 这种八进制转义，
+    // 用户看不懂，塞进 prompt 的 Branch Diff 也读不出来（R3 实测）。只对本次调用生效，不改用户配置（规则 7）。
+    command.arg("-c").arg("core.quotepath=false");
     command.arg("-C").arg(cwd);
     for a in args {
         command.arg(a);
@@ -230,6 +233,46 @@ mod tests {
         assert!(list.is_repo, "repo root should be a work tree");
         let current = list.current.clone().expect("current branch");
         assert!(list.branches.iter().any(|b| b.name == current), "current {current} not in {:?}", list.branches);
+    }
+
+    /// 规则 9：路径含空格与中文时也要能工作（`-C <path>` 走参数、不过 shell，所以不需要引号处理）。
+    #[test]
+    fn works_with_spaces_and_non_ascii_in_path() {
+        let dir = std::env::temp_dir().join(format!("acp git 仓库 测试-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        let run = |args: &[&str]| {
+            Command::new("git").arg("-C").arg(&dir).args(args).output()
+        };
+        let Ok(init) = run(&["init", "-q", "-b", "main"]) else {
+            eprintln!("git not on PATH; skipping");
+            let _ = std::fs::remove_dir_all(&dir);
+            return;
+        };
+        assert!(init.status.success(), "git init failed: {}", String::from_utf8_lossy(&init.stderr));
+        // 提交需要身份；只设仓库级配置，不碰用户的全局配置（规则 7）。
+        let _ = run(&["config", "user.name", "acp-test"]);
+        let _ = run(&["config", "user.email", "acp-test@example.invalid"]);
+        std::fs::write(dir.join("说明.md"), "内容").expect("write");
+        let _ = run(&["add", "-A"]);
+        let commit = run(&["commit", "-q", "-m", "初始提交"]).expect("commit");
+        assert!(commit.status.success(), "git commit failed: {}", String::from_utf8_lossy(&commit.stderr));
+
+        let list = branches(&dir).expect("branches");
+        assert!(list.is_repo);
+        assert_eq!(list.current.as_deref(), Some("main"));
+        assert!(list.branches.iter().any(|b| b.name == "main"));
+
+        let after = create_branch(&dir, "功能/新分支").expect("create branch");
+        assert_eq!(after.current.as_deref(), Some("功能/新分支"));
+        assert!(after.branches.iter().any(|b| b.name == "功能/新分支"));
+
+        std::fs::write(dir.join("说明.md"), "改过的内容").expect("write");
+        let d = diff(&dir, None).expect("diff");
+        assert!(d.is_repo && !d.truncated);
+        assert!(d.text.contains("说明.md"), "diff should mention the changed file: {}", d.text);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// 不是仓库的目录：`is_repo` 为 false，前端据此隐藏分支区。

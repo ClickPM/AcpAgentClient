@@ -187,7 +187,7 @@ pub fn search(root: &Path, query: &str, limit: usize) -> Result<SearchResult> {
                     truncated = true;
                 }
             }
-            if is_dir && depth + 1 <= SEARCH_DEPTH_LIMIT {
+            if is_dir && depth < SEARCH_DEPTH_LIMIT {
                 queue.push_back((dir.join(&name), depth + 1));
             }
         }

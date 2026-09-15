@@ -143,7 +143,10 @@ void main() {
   });
 
   test('event envelopes', () {
-    final env = SessionUpdateEnvelope(<String, dynamic>{'agentId': 'dsh', 'sessionId': 's', 'update': updates.first.params});
+    // 信封 = SessionNotification 原样 + agentId（核心侧 agent.rs 往 params 里插 agentId，不另套一层）。
+    final env = SessionUpdateEnvelope(<String, dynamic>{...updates.first.params!, 'agentId': 'dsh'});
+    expect(env.agentId, 'dsh');
+    expect(env.sessionId, 'sess_9f3c21a7');
     expect(env.notification.update.kind, SessionUpdateKind.availableCommandsUpdate);
     final req = const ClientRequestEnvelope(<String, dynamic>{'agentId': 'dsh', 'requestId': 6, 'method': 'session/request_permission', 'params': <String, dynamic>{'options': <dynamic>[]}});
     expect(req.isPermission, isTrue);

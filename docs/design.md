@@ -53,7 +53,7 @@ Flutter 宿主进程（Dart）
 
 | 事件 | payload |
 |---|---|
-| `acp/session_update` | `{agentId, sessionId, update}`；`update` 是 `SessionNotification` 的原样 JSON（SDK 类型 serde 直出） |
+| `acp/session_update` | `SessionNotification` 的原样 JSON（SDK 类型 serde 直出：`{sessionId, update, _meta?}`）**再加一个 `agentId`**，不另套一层（R3 接线时对齐，核心侧见 `rust/acp-core/src/agent.rs`） |
 | `acp/client_request` | `{agentId, requestId, method, params}`；用于需要用户参与的客户端请求：`session/request_permission`、`elicitation/create`；`elicitation/create` 可能是 requestScope（无 `sessionId`，认证阶段），前端队列不能只按会话索引，这类落认证页（画板 52）而不是转录；前端必须以 `acp_respond` 回应。**`requestId` 为 null 的是 agent 发来的通知**，不需回应，只更新队列：`elicitation/complete`（URL elicitation 收尾）与 `$/cancel_request`（agent 撤回了自己的请求，`params.requestId` 已归一化成与队列 `requestId` 同形的字符串——协议原样可能是数字——前端按它把请求从队列移除）（R1） |
 | `acp/agent_state` | 连接生命周期 `{agentId, state, droppedUpdates, ...}`：`spawned(pid, program, args, cwd)` / `initialized(initialize)`（InitializeResponse 原样）/ `auth_required(authMethods, message)` / `authenticating(methodId, terminalId, label)`（terminal auth 的 pty 已拉起）/ `update_dropped(method, error)`（一条 `session/update` 反序列化失败，`droppedUpdates` 已 +1，§ 4）/ `exited(code, stderrTail, transportError)`；每条都带 `droppedUpdates` 计数（R1）。核心自身也走这条流：`core_init` 完成时发 `{agentId: null, state: "core_ready", dataDir, coreVersion}`（R0，验证事件通路） |
 | `acp/terminal_output` | `{terminalId, source, bytes}`（`bytes` 是 base64 的原始字节）或进程结束时的 `{terminalId, source, exitStatus: {exitCode, signal}}`；`source` ∈ agent（`terminal/*` 回调建的终端）/ auth（terminal auth 的可见终端，R1）/ local（终端面板的本地 shell）；非协议消息，仅用于渲染（R4 补齐 agent / local 两路） |

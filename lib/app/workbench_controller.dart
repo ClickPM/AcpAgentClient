@@ -48,14 +48,19 @@ enum MainPage { workbench, traffic }
 const List<String> ruleFileNames = <String>['AGENTS.md', 'CLAUDE.md', '.rules'];
 
 class WorkbenchController extends ChangeNotifier {
-  WorkbenchController({required this.source, this.bridge});
+  WorkbenchController({required this.source, this.bridge, FlushScheduler? scheduler})
+      : _scheduler = scheduler ?? _scheduleOnFrame;
 
   final DataSource source;
   final CoreCommands? bridge;
 
+  /// 批量刷新的调度器。窗口里按帧合并（docs/design.md § 9）；无头实跑（lib/app/headless_run.dart）
+  /// 没有 vsync、`scheduleFrameCallback` 永远不回调，那里传微任务调度。
+  final FlushScheduler _scheduler;
+
   // ---- 投影层
   late final Sessions sessions = Sessions();
-  late final UpdateBatcher batcher = UpdateBatcher(sessions, scheduler: _scheduleFlush);
+  late final UpdateBatcher batcher = UpdateBatcher(sessions, scheduler: _scheduler);
   final TrafficStore traffic = TrafficStore();
 
   // ---- 本地态（协议之外）
@@ -266,10 +271,13 @@ class WorkbenchController extends ChangeNotifier {
     batcher.enqueue(() => apply(json));
   }
 
-  void _scheduleFlush(void Function() flush) {
+  static void _scheduleOnFrame(void Function() flush) {
     SchedulerBinding.instance.scheduleFrameCallback((_) => flush());
     SchedulerBinding.instance.scheduleFrame();
   }
+
+  /// 无头实跑用：微任务里刷，不依赖帧。
+  static void scheduleOnMicrotask(void Function() flush) => scheduleMicrotask(flush);
 
   static String _decodeBase64(String b64) {
     try {

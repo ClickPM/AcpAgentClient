@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import 'app/app.dart';
 import 'app/core_bridge.dart';
+import 'app/headless_run.dart';
 import 'app/smoke.dart';
 import 'app/workbench_controller.dart';
 
@@ -12,6 +13,12 @@ Future<void> main() async {
   final smokeReport = smokeReportPathFromEnvironment();
   if (smokeReport != null) {
     await runSmoke(reportPath: smokeReport);
+    return;
+  }
+  // R3 的无头实跑（验收 3–6）：驱动组合根对真实 agent 跑一遍，写 JSON 报告后退出。
+  final r3Report = r3ReportPathFromEnvironment();
+  if (r3Report != null) {
+    await runR3(reportPath: r3Report);
     return;
   }
   final source = DataSource.fromEnvironment();

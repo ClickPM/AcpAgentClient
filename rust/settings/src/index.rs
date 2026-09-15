@@ -100,7 +100,7 @@ impl IndexStore {
     /// 按 `updatedAt` 倒序（侧栏顺序）。
     pub fn sessions(&self) -> Vec<SessionEntry> {
         let mut index: SessionIndex = load(&self.sessions_path);
-        index.sessions.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+        index.sessions.sort_by_key(|s| std::cmp::Reverse(s.updated_at));
         index.sessions
     }
 
@@ -128,7 +128,7 @@ impl IndexStore {
             }
         }
         save(&self.sessions_path, &index)?;
-        index.sessions.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+        index.sessions.sort_by_key(|s| std::cmp::Reverse(s.updated_at));
         Ok(index.sessions)
     }
 
@@ -137,7 +137,7 @@ impl IndexStore {
         let mut index: SessionIndex = load(&self.sessions_path);
         index.sessions.retain(|s| !(s.agent_id == agent_id && s.session_id == session_id));
         save(&self.sessions_path, &index)?;
-        index.sessions.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+        index.sessions.sort_by_key(|s| std::cmp::Reverse(s.updated_at));
         Ok(index.sessions)
     }
 
@@ -146,7 +146,7 @@ impl IndexStore {
     /// 按 `openedAt` 倒序。
     pub fn projects(&self) -> Vec<ProjectEntry> {
         let mut index: ProjectIndex = load(&self.projects_path);
-        index.projects.sort_by(|a, b| b.opened_at.cmp(&a.opened_at));
+        index.projects.sort_by_key(|p| std::cmp::Reverse(p.opened_at));
         index.projects
     }
 
