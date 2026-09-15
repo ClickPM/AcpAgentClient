@@ -100,11 +100,23 @@
      ① cursor CLI + grok 4.6 high → ② 硬失败回落主会话委派的 Claude Code 只读子代理（同一份任务书）。
      范围：前两轮全量（-Scope branch，即 main...HEAD），第 3 轮起只审上一轮整改 diff（-Scope since -Base <上一轮已审提交>）。 -->
 
-- 审查方式：待回填
-- 审查器与模型：待回填
-- 审查范围与基准提交：待回填
-- findings 处理：待回填
-- 结论：待回填
+- 审查方式：`powershell -File .claude\cursor-review.ps1`（默认档，全量分支 diff，后台跑）
+- 审查器与模型：cursor CLI `cursor-grok-4.6-high`（`--mode ask`）
+- 审查范围与基准提交：**第 1 轮** `main...HEAD`（HEAD = `f38ee9d`），产物 `.claude/reviews/20260915-203328-review.out.md`
+
+**第 1 轮：7 条（high 2 / P2 5），全部采纳**（整改提交 `3777c35`）
+
+| # | 级别 | finding | 处理 |
+|---|---|---|---|
+| 1 | high | 点停止时挂起的 elicitation 不会被回应，agent 一直等（核心的 `session_cancel` 只自动回权限请求，`PendingQueue.cancelSession` 也只管权限） | 采纳。新增 `cancelSessionElicitations`，`CancelResult` 带出 `cancelledElicitationIds`，组合根 `cancel()` 逐条回 `{action: cancel}`；权限仍交给核心（前端再回会撞 `unknown_request`）。**原单测把「responded 为空」断言成正确，把这个漏洞锁住了**，一并改掉 |
+| 2 | high | Restore / Regenerate 不结束在途的 `session/prompt`，两路回合打到同一轮上 | 采纳。控制器记 `_turnInFlight`，`restore()` 在 `isRunning` 时先 `cancel()` 再等在途那一轮返回，然后才截断重发；新增用例用「第一次 prompt 挂着不返回」的假核心复现 |
+| 3 | P2 | 会话索引的 `agentId` 没进侧栏映射，重启后删 / 改名 / 点选用错键（删不掉） | 采纳。`_toSidebar` 顺带回填 `_sessionAgent`，删 / 改名统一走 `_ownerOf` |
+| 4 | P2 | 顶栏拖拽的 Listener 垫在整块 `TopBar` 下面，空白处也收不到 | 采纳。根因比 finding 说的更硬：`BoxDecoration.hitTest` 对矩形返回 true，Container 把 pointer 全吃掉；且 `HitTestBehavior.translucent` 的 `hitTest` 返回 false，命中链在 `Stack` 处就断了。改：`TopBar` 加 `dragArea` 槽、拖拽层放进容器内部 + `Stack(fit: expand)`；新增 `test/ui/topbar_drag_test.dart` 两个方向各一条。gallery PNG 逐字节一致 |
+| 5 | P2 | git 把用户输入的分支名直接当 argv，`-` 开头会被当选项 | 采纳。`ensure_safe_ref` 拒空名与 `-` 开头；switch / create_branch / diff 的 base 都过一遍（diff 在判仓库之前先校验），加一条守卫测试 |
+| 6 | P2 | git 子进程没设 `CREATE_NO_WINDOW`，GUI 宿主里闪控制台 | 采纳。与 agent 拉起同一口径 |
+| 7 | P2 | `list_dir` / `search` 可能跟着 junction / symlink 走出工作区 | 采纳。改用 `DirEntry::file_type`（不跟随），链接一律当文件，既不进目录组也不递归进去 |
+
+- 结论：待第 2 轮复审
 
 ## 失败处理
 
@@ -141,7 +153,13 @@
 
 ### 验收 2 · 接线阶段不改样式
 
-    git diff dc4de5e -- lib/theme lib/ui      # 空输出
+    git diff dc4de5e..5586e06 -- lib/theme lib/ui      # 空输出（接线阶段全程）
+
+**审查整改后有一处例外**：第 1 轮审查的 P2 第 4 条（顶栏拖拽层收不到事件）只能在 `lib/ui/shell/topbar.dart` 里修
+——`BoxDecoration.hitTest` 对矩形一律返回 true，垫在顶栏外面的 Listener 永远收不到 pointer。改动是给 `TopBar` 加一个
+`dragArea` 槽、把拖拽层放进容器内部（子节点先于 `hitTestSelf` 参与命中），**只动命中测试、不动布局与 token**。
+证据：gallery 35 张 PNG 与改动前**逐字节一致**（`Get-FileHash` 对比）。接线阶段本身（`dc4de5e..5586e06`）零 diff 的
+判据仍然成立；这一处是审查门禁的整改，不是接线偷改样式。
 
 ### 验收 3 / 4 / 5 / 6 / 10 · 无头实跑（`ACP_R3_REPORT`）
 
