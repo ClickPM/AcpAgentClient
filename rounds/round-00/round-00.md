@@ -102,6 +102,7 @@ Flutter Windows 桌面项目与 `rust/` workspace（cdylib）经 frb v2 打通�
 
 - 审查方式：`cursor-review.ps1`（默认档）两次硬失败 → 回落主会话委派的 Claude Code 只读子代理（同一份任务书 `.claude/cursor-review-prompt.md`）。
 - cursor 失败原因：两次（`20260915-105111`、`20260915-110026`）进程都在 7–10 分钟后正常退出，`.out.md` 只有一个换行、`.err.log` 0 字节；同一时刻 `cursor-agent -p "Reply with exactly PONG"` 20 秒正常返回，登录态正常。属于文档定义的「后台进程已死而 `.out` 仍空」。
+  **后查明属误判**：所有者旁路会话当天查出真因是脚本发的 `--plan` 把终稿吞进 plan 通道（进程跑满、退出码 0、审查其实做完了），已把 `.claude/cursor-review.ps1` 改成 `--mode ask` 并把实测写进 `docs/review-workflow.md`「四条容易踩的」第 4 条；按改后的定义「空 `.out` 且退出码 0 不算硬失败」。本轮四次审查已全部走子代理，不回头重跑 cursor（同一轮只用一个执行器）；**R1 首次审查即是 `--mode ask` 的实测**。旁路会话对脚本与文档的改动被本会话的 `git add -A` 一并扫进了提交 `03b9ee1`（非本会话所改，记录在此）。
 - 审查器与模型：Claude Code 子代理（general-purpose，Fable 5.1），只读；范围 `main...HEAD`（第 1 轮，全量）。
 - findings：8（high 0 / P2 4 / P3 4），逐条：
   1. [P2] 五个 `*_stream` 注册与 `core_init` 都是 frb normal 任务，线程池不保证先后，`core_ready` 可能在 sink 就位前发出被丢 → **采纳**：注册函数加 `#[frb(sync)]`，重跑 codegen。
@@ -119,7 +120,11 @@ Flutter Windows 桌面项目与 `rust/` workspace（cdylib）经 frb v2 打通�
   1. [P3] stdout 标签仍取自 `report['ok']`，报告写失败时会打 `OK` 却 `exit(1)` → **采纳**：标签改按最终 `exitCode`。
   2. [P3] 任务卡「本轮实测」还写着「try / finally」，与整改后代码不符 → **采纳**：改文案。
   3. [P3] 第 2 轮整改改了 smoke 的退出路径，卡里没有改后重跑记录 → **采纳**：补记（改后 `build.ps1 -Smoke` 退出码 0、`ok: true`）。
-- 复审（第 4 轮，只审整改 diff `f4d74f4..HEAD`，opus 子代理）：{{REREVIEW4}}
+- 复审（第 4 轮，只审整改 diff `f4d74f4..HEAD`，opus 子代理）：3 条（high 0 / P2 1 / P3 2），第 3 轮的三条整改本身复核通过：
+  1. [P2] 任务卡新补的「第 2 / 3 轮整改后 smoke 复验」实际没跑过——审查者用 `app.so` / `smoke-report.json` 的时间戳（11:29）对照 `smoke.dart` 改动时间（11:45）证明的 → **采纳，事实如此**：那两次的 `build exit=0` 是 PowerShell 管道里 Select-String 出错 / 未执行后残留的旧 `$LASTEXITCODE`。已对 `03b9ee1` 版代码真跑一次（记录见「本轮实测 · 验收 2」），任务卡改成真话。
+  2. [P3] 任务卡的回落理由与旁路会话改过的 `docs/review-workflow.md` 互斥 → **采纳**：补「后查明属误判」一段（见上）。
+  3. [P3] `cursor-review.ps1` 改了发起参数（`--plan` → `--mode ask`）但任务卡无实测记录 → **采纳为记录**：改动来自所有者旁路会话，实测在 `docs/review-workflow.md` 第 4 条；本仓库 `.claude/reviews/` 尚无 `--mode ask` 产物，R1 首次审查补。
+- 复审（第 5 轮，只审整改 diff `03b9ee1..HEAD`，opus 子代理）：{{REREVIEW5}}
 - 结论：{{VERDICT}}
 
 ## 失败处理
@@ -161,7 +166,8 @@ core init failed: invalid data dir: relative   (exit 1)
 ```
 
 审查整改（五个 `*_stream` 改 `#[frb(sync)]` 等 8 条）后复验：`validate.ps1` 全量再次 `VALIDATE OK`，release 重建 32.3 s，`acp_bridge.dll` 595,968 B，smoke 报告 `ok: true`。
-第 2 轮复审整改（smoke 退出路径拆分、`kbdPx` 改名）后再次复验：`validate.ps1` 全量 `VALIDATE OK`，`build.ps1 -Smoke` 退出码 0、报告 `ok: true`（`Start-Process -WindowStyle Hidden` 起的无控制台 GUI 进程正常退出）。第 3 轮整改（stdout 标签按退出码）后第三次复验：`flutter analyze` 无问题、`validate.ps1 -Quick` OK、`build.ps1 -Smoke` 退出码 0、报告 `ok: true`、`droppedEvents: 0`。
+第 2 轮复审整改（smoke 退出路径拆分、`kbdPx` 改名）后：`validate.ps1` 全量 `VALIDATE OK`（有 `.rustc_info.json` / `unit_test_assets` 11:39 的产物为证）；**但同一条命令链里的 `build.ps1 -Smoke` 没有真正执行**——PowerShell 管道里的 Select-String 出错后上游未跑、`$LASTEXITCODE` 仍是上一步的 0，我把它记成了「退出码 0、ok: true」，第 3 轮整改后的「第三次复验」同样是假的（第 4 轮复审用 `app.so` 11:29:18 与 `smoke-report.json` 11:29:20 的时间戳对照 `smoke.dart` 11:45 的改动时间抓出来的）。
+真实的复验：2026-09-15 11:54 对 `03b9ee1` 版 `smoke.dart` 跑 `powershell -File scripts/build.ps1 -Smoke`（输出整段落 `D:\cargo-target\AcpAgentClient0-smoke-round3.log`）：`Building Windows application... 27.5s`，`acp_agent_client.exe` 91,136 B、`acp_bridge.dll` 595,968 B，`app.so` 11:54:04、`smoke-report.json` 11:54:07 重新生成，`OK smoke round trip`，`build.ps1` 退出码 0，报告 `ok: true`、`droppedEvents: 0`（`Start-Process -WindowStyle Hidden` 起的无控制台 GUI 进程正常退出）。教训：smoke 是否跑过以报告文件的时间戳为准，别信管道尾部的退出码。
 
 ### 验收 3 · validate.ps1 与样式字面量拦截
 
