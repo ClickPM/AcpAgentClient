@@ -458,35 +458,13 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         ));
   }
 
-  /// 线程头 ≡：画板 41 的会话菜单（R6 接通动作）。
-  /// 画板 03 里 ≡ 是「右栏展开」的选中态，画板 41 里同一个 ≡ 又是这个菜单——R3 先按前者接成右栏开关，
-  /// 菜单一直没有入口；R6 的交付物要求菜单的动作全部可用，所以改成开菜单，`menuSelected` 仍绑右栏是否展开
-  /// （画板 03 的视觉不变），右栏开合走侧栏底部四个入口与标签条的关闭键（都已有）。待所有者裁定。
+  /// 线程头 ≡：右栏开关（画板 03 是右栏展开的选中态）。
+  /// 画板 41 里同一个 ≡ 又是会话菜单，两张画板对它的语义冲突；**所有者裁定 2026-09-16：≡ 保持右栏开关，
+  /// 会话菜单要另开入口得先改设计稿**。所以 R6 只接通菜单的动作（`resumeSession` / `closeSession` /
+  /// `deleteSession` 与能力裁剪都在组合根里、有单测覆盖），产品里的入口留到改完画板的那一轮。
+  /// 现有入口：删除走侧栏的删除图标（画板 04）；Resume / Close 本轮在产品 UI 上没有入口（见任务卡「已知限制」）。
   void _openThreadMenu() {
-    c.threadMenuAnchor.toggle((_) => ListenableBuilder(
-          listenable: c,
-          builder: (context, _) => ThreadMenuPopover(
-            canRename: c.hasAgent,
-            canResume: c.canResumeSession,
-            canClose: c.canCloseSession,
-            canDelete: c.canDeleteSession,
-            onRename: c.sessionId == null ? null : () => _renameFromMenu(c.sessionId!),
-            onReload: c.reloadAgent,
-            onResume: c.resumeSession,
-            onCloseSession: c.closeSession,
-            onDelete: c.sessionId == null ? null : () => _deleteFromMenu(c.sessionId!),
-          ),
-        ), targetAnchor: Alignment.bottomRight, followerAnchor: Alignment.topRight);
-  }
-
-  void _renameFromMenu(String id) {
-    c.threadMenuAnchor.hide();
-    c.startRename(id);
-  }
-
-  void _deleteFromMenu(String id) {
-    c.threadMenuAnchor.hide();
-    _askDelete(id);
+    c.toggleRightPanel();
   }
 
   // ---------------------------------------------------------------- 右栏与流量面板（画板 03 / 80）
