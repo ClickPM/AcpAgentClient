@@ -153,6 +153,9 @@ abstract final class AcpIcons {
   /// 42：/ 命令菜单的行首图标。
   static const String command = '<polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/>';
 
+  /// 画板 50 / 51 / 70：Install 与「下载受管 Node」（箭头落进托盘）。
+  static const String download = '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>';
+
   /// 01–04：窗口控制（— ☐；✕ 复用 [x]）。画板是 12 单位视口的 1px 描边，这里改写成 24 单位。
   static const String windowMinimize = '<line x1="2" y1="12" x2="22" y2="12"/>';
   static const String windowMaximize = '<rect x="3" y="3" width="18" height="18"/>';
@@ -163,7 +166,7 @@ abstract final class AcpIcons {
     dashedCircle, terminal, globe, layers, x, columns, cornerDownRight, thumbsUp, thumbsDown, externalLink, trash,
     alertTriangle, info, plus, arrowUpRight, play, link, dot, lock, slashCircle, diamond,
     appMark, panelLeft, gitBranch, settings, folder, plusSquare, reload, rotateCw, menuLines, target, arrowUp,
-    arrowRight, arrowLeft, messageSquare, image, command, windowMinimize, windowMaximize,
+    arrowRight, arrowLeft, messageSquare, image, command, windowMinimize, windowMaximize, download,
   ];
 
   /// 完整 SVG 文档：stroke 固定为黑，真实颜色由 [AcpIcon] 的 colorFilter 给，这样同一图标只解析一次。

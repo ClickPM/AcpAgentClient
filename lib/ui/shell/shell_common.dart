@@ -204,7 +204,7 @@ String relativeTime(DateTime at, {required DateTime now}) {
 enum ShellTab {
   settings('设置', '设置', AcpIcons.settings),
   files('文件', '文件浏览器', AcpIcons.folder),
-  agents('Agents', 'Agents', AcpIcons.layers),
+  agents('Agents', 'ACP Registry', AcpIcons.layers),
   terminal('终端', '终端', AcpIcons.terminal);
 
   const ShellTab(this.label, this.panelTitle, this.icon);
