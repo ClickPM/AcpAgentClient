@@ -124,7 +124,13 @@
 
 未报项同第 1 轮（规则 1 / 4 / 5 / 6 / 8 / 10，零 diff）。
 
-### 第 3 轮（只审整改 diff `d970e0f..HEAD`）
+### 第 3 轮（只审整改 diff `d970e0f..HEAD`，2026-09-16，产物 `.claude/reviews/20260916-143225-review.out.md`）
+
+被审提交 `7030e05`。findings 0：审查者确认建不出链接会直接红掉、没有新的绿过路径；顺带指出同文件里 R3 的 `junctions_are_not_followed_out_of_the_workspace` 仍有「`mklink` 失败就 skip」的写法，不在本轮范围（记 BACKLOG）。
+
+### 合并 main 之后的第 4 轮（全量 `main...HEAD`）
+
+R4 收口时 `main` 已并入 R5（`b1339c8`，另一会话并行完成），本分支先合入 `main`（合并提交 `96b7c99`，18 个文件手工解冲突：右栏标签条改成 `PanelTab` 承载文件 / Agents / 终端标签而设置仍是主区页面、`core_bridge` 的 R4 命令改成 R5 的 `_run` 风格、`Core::terminal_close` 与 bridge 的同名命令各合成一条、`fixtures/26-terminal-meta` 改号 27 让位 R5 的 26、frb 生成物重出）。合并本身是新 diff，按缺陷门禁再全量审一轮：
 
 （回填。）
 
@@ -136,7 +142,7 @@
 
 ### 提交
 
-- 画板阶段收口提交：`5380c03`（判据 `git diff 5380c03..HEAD -- lib/theme lib/ui` 在接线阶段全程为空，见验收 6）。
+- 画板阶段收口提交：`5380c03`（判据 `git diff 5380c03..7030e05 -- lib/theme lib/ui` 在接线阶段全程为空，见验收 6；合并 `main` 之后这个区间会含 R5 的画板文件，判据要按合并前的 `7030e05` 看）。
 - Rust 核心接线：`434db40`；Dart 接线与实测：见本文末尾的提交号。
 
 ### 验收 2 · fs 写走临时文件 + rename、1-based 行、越界
@@ -247,4 +253,5 @@ acp-smoke 对 `fake-agent-r4`（`--fs --terminal --terminal-bg`）跑一整轮�
 - 钉版本的两个参照 agent 都不调客户端的 `fs/*` 与 `terminal/*`，这七个回调的真实 handler 只靠 fake-agent（headless 真跑）+ Rust scripted 测试 + acp-smoke 覆盖；将来换到会调它们的 agent 版本时不用改客户端。
 - 画板 61 的「Exit Code · 耗时」行固定在面板底部（画板紧跟输出后），见验收 6 偏离 3。
 - 关掉右栏（`closeRightPanel`）会把全部本地 shell 一起关掉：画板 03 / 61 没有「隐藏但保留」的状态。
+- 合并 `main`（R5）之后重跑三条真跑（`96b7c99` 的 release 构建；validate 13 项 PASS、smoke OK）：fake-agent / dsh / claude-agent-acp 的终端卡、diff 卡、locations、Go to File、本地 shell、重载、收尾全部照旧；唯一变化是 fake-agent 那条 `follow.rightTab` 读到 `agents`——R5 把 requestScope 的 URL elicitation 当认证流程、到达即把右栏切到 Agents 标签的认证页（画板 52），而 R3 起的 fake 回合里就带一条这样的 elicitation，它在 Follow 落到文件面板之后到达；`selectedPath` / `highlightLine` 仍是 Follow 的落点，两个参照 agent 的 `rightTab` 仍是 `files`。
 - 在 Claude Code 会话里跑 claude-agent-acp 会与主会话争 OAuth 刷新锁（`~/.claude/.oauth_refresh.lock` 是它留下的过期空目录，挪开后重跑即通）；与客户端无关，记在记忆里。

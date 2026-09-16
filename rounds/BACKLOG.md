@@ -69,3 +69,4 @@
 - [ ] R5 npx 安装在提交点之前取消 / 失败（`npm install` 阶段）时 `agents/<id>/` 留着半个 npm 目录：没有 `install.json` 所以列表是「未安装」、下一次安装会覆盖，只是占磁盘；binary 型的 staging 目录已会清掉。要一致的话在 `registry_install` 的收尾里对未提交的失败也调 `install::remove` (2026-09-16)
 - [ ] R5 无头实跑以 `exit()` 结束进程时不走 `agent_disconnect`，Cursor 的 `cursor-agent.cmd`（cmd.exe 包装）随进程一起没了、它拉的 `dist-package
 ode.exe` 却留成孤儿（实测 PID 42768，手动 `taskkill /T`）。R4 验收 4「应用退出时子进程全部回收」要把桌面应用的关闭路径（`AcpApp.dispose` / Windows runner 的 `WM_CLOSE`）与无头口子都接到 `agent_disconnect`（`taskkill /F /T`） (2026-09-16)
+- [ ] R4 `rust/fs/src/lib.rs` 的 R3 用例 `junctions_are_not_followed_out_of_the_workspace` 在 `mklink /J` 失败时 `eprintln` + `return`，断言一行不跑也算绿（R4 第 3 轮审查顺带指出，同文件新用例已改成 `assert!`）：下次碰这个文件时同样改成建不出链接就红 (2026-09-16)
