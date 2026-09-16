@@ -231,12 +231,15 @@ class _ProgressWatch {
   void _tick() {
     final e = c.registry.byId(agentId);
     final p = e?.progress;
-    final step = p?.step ?? (e?.installed == true ? 'done' : null);
+    // cancelled 到达时投影已把进度清空、条目回到未安装态（`RegistryState.applyProgress`），这里按「刚才还在跑、
+    // 现在没进度也没装上也没失败」识别（2026-09-16 实测：只认 `progress.step == 'cancelled'` 永远等不到）。
+    final cancelled = p == null && _last != null && _last != 'done' && e?.installed != true && e?.isFailed != true;
+    final step = p?.step ?? (e?.installed == true ? 'done' : (cancelled ? 'cancelled' : null));
     if (step != null && step != _last) {
       _last = step;
       seen.add(p == null ? step : '${p.kind}:${p.step}${p.done != null && p.total != null ? ' ${p.done}/${p.total}' : ''}');
     }
-    if (!done.isCompleted && (e?.isFailed == true || (e?.installed == true && e?.isInstalling == false) || p?.step == 'cancelled')) {
+    if (!done.isCompleted && (e?.isFailed == true || (e?.installed == true && e?.isInstalling == false) || step == 'cancelled')) {
       done.complete();
     }
   }

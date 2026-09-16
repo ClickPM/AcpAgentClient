@@ -20,6 +20,9 @@ use crate::events::{EventChannel, EventSink};
 
 /// Remove 时等正在跑的安装任务退出的时间。
 const CANCEL_GRACE: Duration = Duration::from_secs(5);
+/// 回滚删 `agents/<id>/` 的重试次数与间隔（合计 5 s，与 [`CANCEL_GRACE`] 同量级：`kill_tree` 通常一秒内结束）。
+const ROLLBACK_ATTEMPTS: u32 = 20;
+const ROLLBACK_RETRY: Duration = Duration::from_millis(250);
 
 /// `registry/progress` 事件出口。
 pub struct ProgressEvents {
@@ -190,7 +193,7 @@ impl Core {
                 }
                 .await;
                 if committed.is_err() {
-                    self.rollback_install(&entry.id, settings_created);
+                    self.rollback_install(&entry.id, settings_created).await;
                 }
                 committed
             }
@@ -221,13 +224,24 @@ impl Core {
         }
     }
 
-    /// 提交点之后失败或取消：删 `agents/<id>/`（连 install.json），settings 条目只删本次新建的（原有的带用户 env，不动）。
-    /// 尽力而为，回滚自己的错误不覆盖原来的错误。
-    fn rollback_install(&self, agent_id: &str, settings_created: bool) {
+    /// 提交点之后失败或取消：回滚成没装过。先删 `install.json`（`is_intact` 立刻为假，列表不再显示已安装），再删本次新建的
+    /// settings 条目（原有的带用户 env，不动），最后删 `agents/<id>/`。取消分支丢掉 connect 的 future 时握手拉起的子进程还在
+    /// 另一个 task 里被 `kill_tree`，Windows 上它占着的文件会让 `remove_dir_all` 失败（审查第 2 轮 P2），所以短等重试；
+    /// 重试用尽也不当成功——manifest 已删，状态是真的「未安装」，剩下的目录由下一次安装覆盖。
+    async fn rollback_install(&self, agent_id: &str, settings_created: bool) {
+        let dirs = self.registry_dirs();
+        let _ = std::fs::remove_file(InstallManifest::path(dirs, agent_id));
         if settings_created {
             let _ = self.settings().remove(agent_id);
         }
-        let _ = registry::install::remove(self.registry_dirs(), agent_id);
+        for attempt in 0..ROLLBACK_ATTEMPTS {
+            if attempt > 0 {
+                tokio::time::sleep(ROLLBACK_RETRY).await;
+            }
+            if registry::install::remove(dirs, agent_id).is_ok() {
+                return;
+            }
+        }
     }
 
     /// `registry_cancel_install`。

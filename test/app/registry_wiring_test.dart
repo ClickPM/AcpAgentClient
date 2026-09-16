@@ -3,6 +3,8 @@
 // terminal 型走 `terminal_auth_run` 并接管它返回的会话；requestScope 的 URL elicitation 落认证页并以 accept 回应；
 // 设置页保存 custom 条目时 args / env 的切分；侧栏「设置」是主区页面。
 
+import 'dart:async';
+
 import 'package:acp_agent_client/app/core_bridge.dart';
 import 'package:acp_agent_client/app/workbench_controller.dart';
 import 'package:acp_agent_client/projection/entries.dart';
@@ -15,6 +17,23 @@ import 'package:flutter_test/flutter_test.dart';
 import 'fake_core.dart';
 
 /// 认证场景的假核心：第一次 `session/new` 回 -32000，`authenticate` / `terminal_auth_run` 之后放行。
+/// `authenticate` 挂到 [gate] 完成才返回（成功或失败由 [succeed] 决定），用来复现认证在途时收起 / 重开认证页。
+class GatedAuthCore extends AuthCore {
+  GatedAuthCore({required this.succeed});
+
+  final bool succeed;
+  final Completer<void> gate = Completer<void>();
+
+  @override
+  Future<JsonMap> authenticate(String agentId, String methodId) async {
+    calls.add('authenticate:$methodId');
+    await gate.future;
+    if (!succeed) throw const CoreCommandError('auth_failed', 'login window closed');
+    authed = true;
+    return <String, dynamic>{};
+  }
+}
+
 class AuthCore extends FakeCore {
   AuthCore({this.terminal = false});
 
@@ -261,6 +280,39 @@ void main() {
     expect(core.responded.map((r) => r.$1).toList(), <String>['7', '8', '9']);
     expect(core.responded.last.$2, <String, dynamic>{'action': 'cancel'});
     c.dispose();
+  });
+
+  test('认证进行中取消再重开：旧的 startAuth 不再改新页的状态，也不切走工作台', () async {
+    // 失败路径：旧的 authenticate 在页收起后才失败，新页不该画出失败卡。
+    final failing = GatedAuthCore(succeed: false);
+    final c = await _start(failing);
+    await c.openAuth('codex-acp');
+    final first = c.startAuth();
+    expect(c.authPhase, AuthPhase.running);
+    await c.cancelAuth();
+    await c.openAuth('codex-acp');
+    expect(c.authPhase, AuthPhase.choose);
+    failing.gate.complete();
+    await first;
+    expect(c.authAgentId, 'codex-acp');
+    expect(c.authPhase, AuthPhase.choose);
+    expect(c.authError, isNull);
+    c.dispose();
+
+    // 成功路径：旧的 authenticate 在页收起后才成功，不再 closeAuth、不建会话、不切工作台。
+    final succeeding = GatedAuthCore(succeed: true);
+    final c2 = await _start(succeeding);
+    await c2.openAuth('codex-acp');
+    final second = c2.startAuth();
+    await c2.cancelAuth();
+    await c2.openAuth('codex-acp');
+    succeeding.gate.complete();
+    await second;
+    expect(c2.authAgentId, 'codex-acp');
+    expect(c2.authPhase, AuthPhase.choose);
+    expect(succeeding.calls.where((x) => x == 'session_new'), isEmpty);
+    expect(c2.rightTab, ShellTab.agents);
+    c2.dispose();
   });
 
   test('设置页：保存 custom 条目时 args / env 的切分；侧栏「设置」是主区页面', () async {

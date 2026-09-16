@@ -126,6 +126,9 @@ class WorkbenchController extends ChangeNotifier {
   String? authError;
   String? authTerminalLabel;
   String? _authRetryCwd;
+  /// 认证页的「代际」：`openAuth` / `closeAuth` 各加一；在途的 `startAuth` 每个 await 之后核对，页已收起或重开就不再改状态
+  /// （审查第 2 轮 P2：否则旧的失败会画到新页上、旧的成功会把新页清掉并切走工作台）。
+  int _authGeneration = 0;
 
   /// 无会话阶段的 URL elicitation（挂起 / 已打开 / 已完成都留在页上，直到离开认证页）。
   final List<ElicitationEntry> authElicitations = <ElicitationEntry>[];
@@ -1239,6 +1242,7 @@ class WorkbenchController extends ChangeNotifier {
     authError = null;
     authTerminalLabel = null;
     _authRetryCwd = retryCwd ?? project?.path;
+    _authGeneration++;
     _cancelAuthElicitations();
     openTab(ShellTab.agents);
     final b = bridge;
@@ -1267,6 +1271,8 @@ class WorkbenchController extends ChangeNotifier {
     if (b == null || agent == null || methodId == null) return;
     final method = authMethods.where((m) => m['id'] == methodId).firstOrNull ?? const <String, dynamic>{};
     final cwd = _authRetryCwd ?? project?.path;
+    final generation = _authGeneration;
+    bool stale() => generation != _authGeneration;
     authPhase = AuthPhase.running;
     authError = null;
     _touch();
@@ -1276,6 +1282,7 @@ class WorkbenchController extends ChangeNotifier {
         authTerminalLabel = method['name'] as String? ?? methodId;
         _touch();
         final result = await b.terminalAuthRun(agent, methodId, cwd);
+        if (stale()) return;
         authPhase = AuthPhase.succeeded;
         _touch();
         final session = result['session'];
@@ -1287,16 +1294,20 @@ class WorkbenchController extends ChangeNotifier {
         }
       } else {
         await b.authenticate(agent, methodId);
+        if (stale()) return;
         authPhase = AuthPhase.succeeded;
         _touch();
         if (cwd != null) await _createSession(agent, cwd);
       }
+      if (stale()) return;
       closeAuth();
       page = MainPage.workbench;
     } on CoreCommandError catch (e) {
+      if (stale()) return;
       authPhase = AuthPhase.failed;
       authError = '${e.message} (${e.code})';
     } catch (e) {
+      if (stale()) return;
       authPhase = AuthPhase.failed;
       authError = e.toString();
     }
@@ -1325,6 +1336,7 @@ class WorkbenchController extends ChangeNotifier {
   }
 
   void closeAuth() {
+    _authGeneration++;
     authAgentId = null;
     authPhase = AuthPhase.choose;
     authMethodId = null;
