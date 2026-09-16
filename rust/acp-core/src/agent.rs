@@ -579,18 +579,30 @@ impl Shared {
         });
     }
 
-    fn on_kill_terminal(&self, request: acp::KillTerminalRequest, responder: Responder<acp::KillTerminalResponse>) {
-        let result = self
-            .owned_terminal(&request.terminal_id)
-            .and_then(|id| self.terminals.kill(&id).map_err(|e| acp::Error::internal_error().data(e.to_string())));
-        match result {
-            Ok(()) => {
-                let _ = responder.respond(acp::KillTerminalResponse::default());
+    fn on_kill_terminal(self: &Arc<Self>, request: acp::KillTerminalRequest, responder: Responder<acp::KillTerminalResponse>) {
+        let shared = self.clone();
+        tokio::spawn(async move {
+            let id = match shared.owned_terminal(&request.terminal_id) {
+                Ok(id) => id,
+                Err(e) => {
+                    let _ = responder.respond_with_error(e);
+                    return;
+                }
+            };
+            // kill 要等进程真的退出（pty 层说明），不占 SDK 的分发线程。
+            let terminals = shared.terminals.clone();
+            match tokio::task::spawn_blocking(move || terminals.kill(&id)).await {
+                Ok(Ok(())) => {
+                    let _ = responder.respond(acp::KillTerminalResponse::default());
+                }
+                Ok(Err(e)) => {
+                    let _ = responder.respond_with_error(acp::Error::internal_error().data(e.to_string()));
+                }
+                Err(join) => {
+                    let _ = responder.respond_with_error(acp::Error::internal_error().data(join.to_string()));
+                }
             }
-            Err(e) => {
-                let _ = responder.respond_with_error(e);
-            }
-        }
+        });
     }
 
     fn on_release_terminal(&self, request: acp::ReleaseTerminalRequest, responder: Responder<acp::ReleaseTerminalResponse>) {

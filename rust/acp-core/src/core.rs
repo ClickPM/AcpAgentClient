@@ -330,8 +330,13 @@ impl Core {
     }
 
     /// 结束进程但不释放（终端卡的停止方块 → `terminal/kill` 语义；输出与退出码仍可读）。
-    pub fn terminal_kill(&self, terminal_id: &str) -> Result<Value> {
-        self.terminals.kill(terminal_id)?;
+    /// `pty::TerminalManager::kill` 要等进程真的退出，走 `spawn_blocking`。
+    pub async fn terminal_kill(&self, terminal_id: &str) -> Result<Value> {
+        let terminals = self.terminals.clone();
+        let id = terminal_id.to_string();
+        tokio::task::spawn_blocking(move || terminals.kill(&id))
+            .await
+            .map_err(|e| CoreError::Pty(format!("kill task failed: {e}")))??;
         Ok(json!({ "terminalId": terminal_id }))
     }
 

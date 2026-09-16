@@ -65,7 +65,8 @@ try {
     Step "_meta 键 ⊆ docs/design.md § 4 (规则 2)" {
         # 允许的键（docs/design.md § 4 出站清单 + 入站识别键）。改清单先改文档再改这里。
         $allowed = @("terminal_output", "terminal-auth", "parameterizedModelPicker",
-                     "claudeCode.parentToolUseId", "claudeCode.subagent", "claudeCode.toolName", "dsh_subagent")
+                     "claudeCode.parentToolUseId", "claudeCode.subagent", "claudeCode.toolName", "dsh_subagent",
+                     "terminal_info", "terminal_exit")
         $design = Get-Content (Join-Path $root "docs/design.md") -Raw -Encoding UTF8
         foreach ($k in $allowed) {
             if ($design -notmatch [regex]::Escape($k)) { throw "allowed key '$k' is not mentioned in docs/design.md" }

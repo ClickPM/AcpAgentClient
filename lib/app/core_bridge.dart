@@ -21,6 +21,9 @@ enum CoreEvent {
   final String name;
 }
 
+/// 桥抛出的错误的可读文案：`BridgeError` 的 `toString` 只有类名，报告与 lastError 要看 `code: message`。
+String describeError(Object e) => e is api.BridgeError ? '${e.code}: ${e.message}' : e.toString();
+
 /// 一条到达的事件：通道 + 解码后的 payload（解不开的 payload 原样放在 [raw]，[json] 为空）。
 class CoreEventRecord {
   const CoreEventRecord(this.channel, this.raw, this.json);

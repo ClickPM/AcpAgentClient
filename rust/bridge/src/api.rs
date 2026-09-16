@@ -209,7 +209,7 @@ pub async fn terminal_resize(terminal_id: String, cols: u16, rows: u16) -> Resul
 /// 结束终端里的进程但不释放（画板 23 的停止方块 = `terminal/kill` 语义；退出状态仍经 `acp/terminal_output` 推出）。
 /// agent 建的终端也可以用它停（agent 的 `terminal/wait_for_exit` 会随之返回）。
 pub async fn terminal_kill(terminal_id: String) -> Result<String, BridgeError> {
-    on_core(|core| async move { core.terminal_kill(&terminal_id) }).await
+    on_core(|core| async move { core.terminal_kill(&terminal_id).await }).await
 }
 
 /// 关掉一个本地 shell 标签：还在跑就先结束进程，然后释放句柄。

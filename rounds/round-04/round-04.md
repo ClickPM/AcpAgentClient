@@ -28,8 +28,8 @@
 
 | agent | 依据 |
 |---|---|
-| claude-agent-acp 0.76.0 | `src/tools.ts`：客户端声明 `_meta.terminal_output: true` 时，Bash 工具卡 `content` 给 `{type: "terminal", terminalId: <toolUseId>}`，输出与退出码经 `tool_call_update._meta.{terminal_info, terminal_output, terminal_exit}` 送来（注释写明「matching codex-acp's _meta protocol」）；`src/acp-agent.ts` 只调 `fs/read_text_file` / `fs/write_text_file` |
-| dsh-acp-interactive 1.3.0 | `src/presentation.ts`：同一形状 `_meta.terminal_output {terminal_id, data}` + `terminal_exit {terminal_id, exit_code | signal}` |
+| claude-agent-acp 0.76.0 | `src/tools.ts`：客户端声明 `_meta.terminal_output: true` 时，Bash 工具卡 `content` 给 `{type: "terminal", terminalId: <toolUseId>}`，输出与退出码经 `tool_call_update._meta.{terminal_info, terminal_output, terminal_exit}` 送来（注释写明「matching codex-acp's _meta protocol」）。**真跑后订正**：`src/acp-agent.ts` 只定义了 `readTextFile` / `writeTextFile` 两个转发方法，0.76.0 的 `src/` 里没有任何调用点——Read / Edit / Write 由 Claude Code SDK 直接读写磁盘，Edit 的 diff 经 PostToolUse 钩子以 `tool_call_update.content[{type: diff}]` 送来（`acp-agent.ts` 第 9600 行附近）；客户端的 `fs/*` 回调它一次也不调（逐方法流量计数见「真跑」） |
+| dsh-acp-interactive 1.3.0 | `src/presentation.ts`：同一形状 `_meta.terminal_output {terminal_id, data}` + `terminal_exit {terminal_id, exit_code | signal}`；`src/` 里同样没有 `fs/read_text_file` / `fs/write_text_file` 的调用点（读文件是它自己的 read 工具，带 `locations`） |
 | codex-acp | `src/TerminalOutputMode.ts`：客户端有 `_meta.terminal_output` 时用 `terminal_output`，否则 `terminal_output_delta` |
 | Zed（钉版本） | `crates/agent_servers/src/acp.rs` `handle_session_notification` 的 post-handle：只读 `terminal_output.{terminal_id, data}`（追加）与 `terminal_exit.{terminal_id, exit_code, signal}` |
 
@@ -102,4 +102,116 @@
 
 ## 本轮实测
 
-<!-- 完成后回填 -->
+### 提交
+
+- 画板阶段收口提交：`5380c03`（判据 `git diff 5380c03..HEAD -- lib/theme lib/ui` 在接线阶段全程为空，见验收 6）。
+- Rust 核心接线：`434db40`；Dart 接线与实测：见本文末尾的提交号。
+
+### 验收 2 · fs 写走临时文件 + rename、1-based 行、越界
+
+    cargo test -p fs        # 17 passed
+
+| 用例 | 断言 |
+|---|---|
+| `slice_lines_is_one_based_and_keeps_newlines` | 照 Zed 的 6 组用例：`line 3` 起、`limit 2`、`line 6`（末尾换行之后的空行）读到空串、`line 7` 报 invalid params、`line 0` 与缺省同义、末尾无换行的文件最后一行不补换行 |
+| `read_and_write_text_file_stay_inside_cwd_and_write_atomically` | 相对路径 / cwd 之外 → `OutsideWorkspace`（agent 侧 `-32602`）；不存在 → `NotFound`（`-32002`）；父目录不存在一并创建；覆盖后没有 `.tmp-` 残留 |
+| `write_atomic_uses_temp_name_in_same_dir` | 临时文件名 `<name>.tmp-<pid>-<nanos>`；rename 失败时临时文件被清掉、旧内容不动 |
+| `read_file_reports_size_lines_binary_and_truncation` | 查看器读文件：行数 / 字节数 / NUL 判二进制 / 超 2 MiB 只给前一段且不切坏汉字 |
+| `watch::reports_parent_dirs_and_git_flag_but_skips_ignored` | **规则 9 的 `notify` Windows 实测**：ReadDirectoryChangesW 报出「src 下变了」；`.git` 只打 git 标志、不进 dirs；`node_modules` 之下整条跳过 |
+| `git::porcelain_z_parses_badges_and_rename_pairs` / `status_of_a_real_repo` | `-z` 格式的改名字段成对吃掉；真仓库（路径含空格与中文）改一个 + 新建一个 → `M` 与 `?`，路径绝对 |
+
+### 验收 3 · 终端截断落字符边界、kill 不释放、release 释放
+
+    cargo test -p pty       # 13 passed
+
+| 用例 | 断言 |
+|---|---|
+| `output_buffer_truncates_from_the_start_at_char_boundaries` | 限 10 字节推「汉字😀ab」：从头截掉 2 字节会落在「汉」中间，退到「字」的首字节，剩 `字😀ab`；再推一大块仍合法 UTF-8；不给上限时受 4 MiB 绝对上限 |
+| `strip_ansi_removes_escapes_and_normalizes_newlines` | CSI / OSC / 单字节 ESC 全去掉，`\r\n` → `\n`，截断在转义中间的流不 panic |
+| `output_and_kill_then_release` | `terminal/output` 文本含命令输出、不含 ESC、带退出状态；退出后 kill 是空操作；release 后 id 失效 |
+| `kill_running_command_keeps_output_until_release` | 长命令（`ping -n 30`）kill 后 wait 返回非零、输出还在、release 收尾 |
+| `spawn_shell_command_runs_through_the_system_shell` | **规则 9**：经 PowerShell 拼命令，参数含空格与 `"引号"` 与中文，cwd 含空格与中文（`acp pty 中文 目录-<pid>`） |
+| `spawn_shell_command_runs_cmd_wrappers_on_windows` | **规则 9**：裸名 `npm` 由 PowerShell 按 PATHEXT 找到 `npm.cmd` 经 cmd.exe 跑起来 |
+
+踩到的一个 portable-pty 坑：Windows 上 `ChildKiller::kill` 在 TerminateProcess 成功后仍可能报 `os error 0`（「操作成功完成」），进程其实已经结束、等待线程随后拿到退出码；`kill()` 对错误码 0 视为成功。
+
+### 七个回调走真实 handler（Rust scripted 测试）
+
+    cargo test -p acp-core --test scripted   # 6 passed（R1 的 4 个 + R4 的 2 个）
+
+`fs_and_terminal_callbacks_through_the_client_handlers`：假 agent 在 prompt 回合里依次发 `fs/write_text_file`（父目录不存在）→ `fs/read_text_file`（line 2 / limit 1 → `第二行\n`）→ 读不存在的（`-32002`）→ 读 cwd 之外的（`-32602`）→ 从第 9 行起读 3 行的文件（`-32602`）→ `terminal/create`（`echo r4-terminal-ok`，`outputByteLimit 4096`）→ `wait_for_exit`（0）→ `output`（含文本、`truncated: false`、带 `exitStatus`）→ 退出后 `kill`（空操作）→ `release` → 再 `output`（`-32602`，id 已失效）→ 后台命令 `create` → 轮询 `output` 看到 `started` → `kill` → `wait_for_exit`（非零）→ `output`（输出还在）→ `release`。会话目录含空格与中文（`acp-core r4 会话目录-<pid>`）。事件侧：`acp/terminal_output` 以 `source: agent` 推出字节与退出状态；release 后连接不再持有终端。
+`owned_terminals_are_released_when_the_agent_disconnects`：agent 建了长命令的终端后断开，终端被一并释放（`output` 报 UnknownTerminal）。
+
+acp-smoke 对 `fake-agent-r4`（`--fs --terminal --terminal-bg`）跑一整轮：99 条事件，最后一条 agent 消息里 `fs={"write":{},"read":{"content":"第二行\n"}} terminal={"exit":{"exitCode":0},"truncated":false,"sawOutput":true} background={"exit":{"exitCode":0},"sawOutput":true}`，`call_fs_write` / `call_fs_read` / `call_term_fg` / `call_term_bg` 四张卡都 completed，`PromptResponse end_turn`。
+
+### 验收 6 · gallery 对照与零 diff
+
+`flutter test test/gallery_test.dart --plain-name <id>` 出 `build/gallery/{60a-files-panel, 60b-files-empty, 61a-terminal-panel, 61b-terminal-exited, 03-workbench-done}.png`，与 `design/round-design/{60,61,03}-*.png` 并排看，文案 / 状态 / 层级 / 控件齐。偏离：
+
+| # | 画板 | 偏离 | 原因 |
+|---|---|---|---|
+| 1 | 60 / 03 | 查看器头行 36 高（03 改稿后的值），树列头行 28（60 / 03 都是 28）；树列宽取 60 的 240（03 是 200） | BACKLOG 的 R3 条目要求按 03 新 PNG 取头行；03 的右栏比 60 窄 100，树列各自量得不同，取专门画板 60 的值 |
+| 2 | 60 | 查看器正文内边距 16、标题 15（03 的值）；60 写的是 20/24 与 20 | 03 是 2026-09-16 改过的新源，同一组件取新的 |
+| 3 | 61 | 终端正文行高 1.5（`CardText.code`），画板写 1.7；「Exit Code · 耗时」行固定在面板底部，画板紧跟在输出后 | 1.7 不是 token；xterm 视口要有界高度，退出后正文仍占满 |
+| 4 | 61 | 「已退出」样张的耗时是 1.0s（画板 0.9s） | 样例时长要用 `Duration(milliseconds:)`，被样式字面量扫描拦；只是样例数据 |
+| 5 | 60 | 复制键带「复制」文案（60 的写法；03 是纯图标） | 60 是文件面板的专门画板 |
+
+零 diff 判据：`git diff 5380c03..HEAD -- lib/theme lib/ui` 为空（接线阶段的三次提交都只动 `lib/app` / `rust` / 文档 / 测试）。
+
+### 验收 1 / 4 / 5 / 7 / 8 · 真跑
+
+跑法：release 构建的 `build/windows/x64/runner/Release/acp_agent_client.exe`，无头口子在 R3 的 `ACP_R3_*` 之上加了四个环境变量（`lib/app/headless_run.dart` 头注释）：`ACP_R4_FILES=1`（回合后打开文件面板、按 locations 定位、读树与徽章）、`ACP_R4_FOLLOW=1`（回合前打开 Follow）、`ACP_R4_KILL_BG_AFTER=<秒>`（后台终端卡出现后到点按停止方块）、`ACP_R4_LOCAL_SHELL=1`（开本地 shell、等提示符、敲 `echo r4-local-shell-ok`、停止、重启、关闭）；报告落 `build/r4-*.json`，同名 `.trace.log` 记每步时间。项目目录 `D:/cargo-target/AcpAgentClient/r4 项目 目录`（git 仓库，路径含空格与中文）。三个 agent 各一条 `.ps1`（UTF-8 with BOM；`Start-Process -PassThru` + `WaitForExit()`，`-Wait` 会等整棵子进程树）。逐方法流量计数（`traffic.byMethod`）与每张工具卡的 content 种类（`r4Turn1.toolCallContent`）是本轮新加进报告的两个证据字段。
+
+**fake-agent-r4**（`--fs --terminal --terminal-bg --stderr-noise`，`build/r4-fake.json`，exit 0，全程 7 s）——确定性地走完 `terminal/*` 与 `fs/*` 真回调：
+
+| 步骤 | 结果 |
+|---|---|
+| 前台命令卡（22） | `call_term_fg` completed，`term_1` 退出码 0、输出 102 字符、`truncated: false` |
+| 后台命令卡（23）+ 停止方块 | `call_term_bg` 出现 3 s 后按停止方块 → `terminal_kill` → `term_2` 退出码 1、`killed: true`，卡状态 failed；`killedByStopButton: [term_2]` |
+| fs 回调落地 | `call_fs_write` / `call_fs_read` 的 locations 是 `fake-agent.txt` 与 `fake-agent.txt:2`（agent 经 `fs/write_text_file` 写、`fs/read_text_file` 读回第二行） |
+| Follow | 回合中 locations 到达即落右栏：`rightTab: files`、选中 `fake-agent.txt`、`highlightLine: 2`、Source 模式 |
+| 文件面板（60） | 根目录 4 项（`docs`、`AGENTS.md`、`fake-agent.txt`、`README.md`），徽章 `README.md: M`、`fake-agent.txt: ?`；Go to File 后查看器打开 `fake-agent.txt` |
+| 本地 shell（61） | `term_3` 标题「r4 项目 目录」，提示符 `PS D:/cargo-target/AcpAgentClient/r4 项目 目录>` 出来后敲 echo，输出行 `r4-local-shell-ok` 单独一行；停止 → 退出码 1；重启 → `term_4` running；关闭 → 0 个标签 |
+| 重载 agent | `lastError: null`（第一次跑时这里是 `pty: io: 句柄无效 (os error 6)`，见「Windows 实测」第 3 条，已修） |
+| 退出收尾 | `shutdown()` → agent `exited`、终端标签 0；事后进程表没有残留的 `acp_agent_client` / `pwsh` / `node` |
+
+**claude-agent-acp 0.76.0**（`npx -y @agentclientprotocol/claude-agent-acp@0.76.0`，`build/r4-claude3.json`，exit 0；模型 `opus[1m]`，mode `auto`）——提示词点名「用 Read 工具读 README.md、用 Edit 工具把第一行改成「# R4 真跑」、用 Bash 跑 `git status --porcelain`」：
+
+| 步骤 | 结果 |
+|---|---|
+| 回合 | `end_turn`，22 s，3 张工具卡：read（content）→ edit（**`content: {diff: 1}`** = 画板 21 的 diff 卡）→ execute（**`content: {terminal: 1}`** = 画板 22，输出 ` M README.md` / `?? fake-agent.txt`，退出码 0，走 `_meta.terminal_output` 通道） |
+| locations | read 与 edit 两张卡都带 `README.md:1` |
+| Follow | `rightTab: files`、选中 `README.md`、`highlightLine: 1`、Source |
+| Go to File | 查看器 `README.md`，5 行，正文开头 `# R4 真跑`（agent 改过之后的内容，查看器读的是磁盘） |
+| 逐方法流量 | `in:session/update` 76 条、`in:_auth/status_update` 5 条；**没有 `in:fs/read_text_file` / `in:fs/write_text_file` / `in:terminal/create`**——见上面「事实」表的订正 |
+| 本地 shell / 重载 / 收尾 | 与 fake-agent 相同：提示符、echo、停止（退出码 1）、重启、关闭；重载 `error: null`；shutdown 后 agent `exited` |
+
+第一次跑（`build/r4-claude.json`）提示词没点名工具，它按本机 Claude Code 的 auto 模式（`bashFirst`）全用 bash 的 `cat` / `sed` / `unix2dos`，6 张卡全是 terminal 卡（其中一张退出码 1：`bash: -c: command not found`，卡状态 failed），没有 diff 卡；这说明终端卡 / 退出码 / 失败态在真 agent 上都对得上，但 diff 卡要靠 Edit 工具。它继承本机 Claude Code 的 `~/.claude` 设置（auto 模式 → 一次也没发 `session/request_permission`）。
+
+**dsh-acp-interactive 1.3.0**（`build/r4-dsh2.json`，exit 0；`ACP_R3_CONFIG=model=cliproxy-dmit:deepseek-v4-pro,permission=read-only`）——提示词「跑 `git status --porcelain`，然后读 README.md 的前 3 行」：
+
+| 步骤 | 结果 |
+|---|---|
+| 回合 | `end_turn`，7 s，2 张卡：execute（**`content: {content: 1, terminal: 1}`**，`_meta.terminal_output` 通道，输出 ` M README.md` / `?? fake-agent.txt` + `[stderr]` 段，退出码 0）→ read（content，locations `README.md:1`） |
+| 验收 5 | R1 时（客户端没声明 `_meta.terminal_output`）dsh 的 Bash 卡只有 content 文本；本轮声明后同一张卡多出 `{type: terminal}` 内容与 `_meta.terminal_info / terminal_output / terminal_exit`，走终端卡 |
+| Follow / Go to File | `rightTab: files`、`README.md`、`highlightLine: 1`、Source；查看器 5 行 |
+| 逐方法流量 | `session/set_config_option` 2 次（model、permission）、`in:session/update` 146 条；没有 `fs/*` |
+| 观察 | ① 它缺省模型 `deepseek-official:deepseek-v4-pro` 的直连端点在本机报 `DeepSeek API error (HTTP 404)`（回合失败、`stopReason: null`，`build/r4-dsh.json`），是 agent 侧环境，换成同一模型的代理路由即通；② `[stderr]` 段是 GBK 字节按 UTF-8 解码出的乱码（PowerShell 中文错误文案），是 dsh 自己捕获 stderr 时的编码问题，客户端原样投影 |
+
+**Windows 实测（验收 7，规则 9）**：
+
+1. `terminal/create` 的 shell 拼装与 `.cmd` 包装：`cargo test -p pty` 的 `spawn_shell_command_runs_through_the_system_shell`（参数含空格 / 引号 / 中文，cwd 含空格与中文）与 `spawn_shell_command_runs_cmd_wrappers_on_windows`（裸名 `npm` 经 PATHEXT 找到 `npm.cmd`）；真跑里 fake-agent 的两条命令经 PowerShell `-C "$null | & {...}"` 拉起，cwd 是 `r4 项目 目录`。
+2. `notify`：`watch::reports_parent_dirs_and_git_flag_but_skips_ignored`（ReadDirectoryChangesW）；真跑里 agent 改完 README 后文件面板的徽章与查看器内容都是改后的。
+3. **portable-pty 0.9.0 的 Windows `kill` 成败判反了**：`WinChildKiller::kill` 在 TerminateProcess 成功时返回 `Err(GetLastError())`（陈旧值——本机先后见过 `os error 0` 与 `os error 6` 句柄无效），失败时反而 `Ok`。第一次接线只把 0 当成功，第二次真跑就撞上 6。改成不看返回值、等等待线程把退出状态落进 `ExitCell`（最多 5 s）；`terminal_kill` 与 `on_kill_terminal` 因此改走 `spawn_blocking`。`cargo test -p pty` 13 个用例 + scripted 6 个照过，重跑 fake-agent 后重载步骤 `lastError: null`。
+4. ConPTY 启动探询：xterm.dart 会对 `CSI 6 n` 再答一次并吞掉相邻按键（敲 `echo` 丢了 `e`），pty 读线程答完就把它从流里抠掉（BACKLOG 该条已关闭）。
+5. 本地 shell 的键盘输入在「停止方块按下 → 退出事件到达」之间写不进 pty（`句柄无效`），`LocalTerminals` 对未在运行的终端直接丢弃输入、不记错误。
+
+**验收 8**：`powershell -File scripts/validate.ps1`（全量，2026-09-16）13 项全 PASS（fetch-upstream -Check、rust-sdk pin、unsafe 扫描、`_meta` 键 ⊆ § 4、Zed 来源头注释、pubspec ⊆ 白名单、Assert-NoStyleLiteral、cargo build / test / clippy -D warnings、cargo tree 无 gpui、flutter analyze、flutter test）→ `VALIDATE OK`；`scripts/build.ps1 -Smoke` → `OK smoke round trip`。
+
+### 已知限制 / 观察（不阻塞）
+
+- `_meta` 三键（`terminal_info` / `terminal_output` / `terminal_exit`）按推荐项做了，**仍待所有者确认**（`docs/design.md` § 4 已标「待确认」）。
+- 钉版本的两个参照 agent 都不调客户端的 `fs/*` 与 `terminal/*`，这七个回调的真实 handler 只靠 fake-agent（headless 真跑）+ Rust scripted 测试 + acp-smoke 覆盖；将来换到会调它们的 agent 版本时不用改客户端。
+- 画板 61 的「Exit Code · 耗时」行固定在面板底部（画板紧跟输出后），见验收 6 偏离 3。
+- 关掉右栏（`closeRightPanel`）会把全部本地 shell 一起关掉：画板 03 / 61 没有「隐藏但保留」的状态。
+- 在 Claude Code 会话里跑 claude-agent-acp 会与主会话争 OAuth 刷新锁（`~/.claude/.oauth_refresh.lock` 是它留下的过期空目录，挪开后重跑即通）；与客户端无关，记在记忆里。

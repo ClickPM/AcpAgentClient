@@ -229,6 +229,25 @@ impl ExitCell {
     fn get(&self) -> Option<ExitStatus> {
         lock_or_recover(&self.status).clone()
     }
+
+    /// 最多等 `timeout`；到点还没退出返回 None。
+    fn wait_timeout(&self, timeout: Duration) -> Option<ExitStatus> {
+        let deadline = Instant::now() + timeout;
+        let mut guard = lock_or_recover(&self.status);
+        loop {
+            if let Some(status) = guard.as_ref() {
+                return Some(status.clone());
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return None;
+            }
+            guard = match self.changed.wait_timeout(guard, remaining) {
+                Ok((g, _)) => g,
+                Err(poisoned) => poisoned.into_inner().0,
+            };
+        }
+    }
 }
 
 struct Handle {
@@ -258,13 +277,20 @@ impl fmt::Debug for TerminalManager {
 
 /// 子进程退出后到关闭伪终端之间留给 ConPTY 冲刷尾部输出的时间。
 const DRAIN_AFTER_EXIT: Duration = Duration::from_millis(150);
+
+/// `kill` 之后等进程真的退出的时限：等待线程先 drain `DRAIN_AFTER_EXIT` 再 join 读线程，通常 0.3 s 内落定。
+const KILL_CONFIRM: Duration = Duration::from_secs(5);
 const READ_CHUNK: usize = 8 * 1024;
 /// ConPTY 的光标位置探询（`CSI 6 n`）与我们的应答（`CSI 1 ; 1 R`）。
 /// portable-pty 0.9 固定以 `PSEUDOCONSOLE_INHERIT_CURSOR` 建伪终端，Windows 11 26200 的 conhost 会在启动时发这条探询并
 /// **阻塞子进程的控制台 I/O 直到收到应答**（本机实测：不答则 `cmd /c echo` 永不退出，只有关掉输入管道才被 conhost 杀掉）。
 /// 真正的终端渲染器（xterm.dart）要到 `spawn` 之后才挂上，所以启动探询由 pty 层答一次；之后的 DSR 留给渲染器。
+/// 启动探询本身从输出流里抠掉（R4）：留着的话本地 shell 的 xterm.dart 会再答一次，PSReadLine 解析那条应答时把相邻的
+/// 按键一起吞掉（实测敲 `echo` 丢了 `e`）；转录里的终端卡是只读视图本来就不接 `onOutput`（`rounds/BACKLOG.md` R1 条目）。
 const DSR_QUERY: &[u8] = b"\x1b[6n";
 const DSR_REPLY: &[u8] = b"\x1b[1;1R";
+/// 启动探询最多攒这么多字节：ConPTY 把它放在最前面，超过这个量还没出现就当没有。
+const DSR_HOLD_LIMIT: usize = 256;
 
 impl TerminalManager {
     pub fn new(sink: Arc<dyn TerminalSink>) -> Self {
@@ -331,28 +357,44 @@ impl TerminalManager {
                 .name(format!("pty-read-{id}"))
                 .spawn(move || {
                     let mut buf = [0u8; READ_CHUNK];
+                    // 启动探询没答之前先把字节攒在 `held` 里（探询可能被 read 边界切开）：找到就答一次并把探询本身从流里抠掉
+                    // ——渲染器（xterm.dart）看不到它就不会再答第二次，那第二次应答会被 shell 当键盘输入吞掉相邻的按键
+                    // （R4 实测：本地 PowerShell 里敲 `echo` 丢了 `e`）。攒满 [`DSR_HOLD_LIMIT`] 还没出现就不等了。
                     let mut dsr_answered = false;
-                    // 探询可能被 read 边界切开：拼上上一块的末尾（最多 len-1 字节）再匹配（审查 finding）。
-                    let mut carry: Vec<u8> = Vec::new();
+                    let mut held: Vec<u8> = Vec::new();
+                    let emit = |bytes: &[u8]| {
+                        if bytes.is_empty() {
+                            return;
+                        }
+                        lock_or_recover(&handle.output).push(bytes);
+                        sink.output(&id, source, bytes);
+                    };
                     loop {
                         match reader.read(&mut buf) {
-                            Ok(0) | Err(_) => break,
+                            Ok(0) | Err(_) => {
+                                emit(&held);
+                                break;
+                            }
                             Ok(n) => {
                                 let chunk = &buf[..n];
-                                if !dsr_answered {
-                                    carry.extend_from_slice(chunk);
-                                    if carry.windows(DSR_QUERY.len()).any(|w| w == DSR_QUERY) {
-                                        dsr_answered = true;
-                                        if let Some(writer) = lock_or_recover(&handle.writer).as_mut() {
-                                            let _ = writer.write_all(DSR_REPLY).and_then(|()| writer.flush());
-                                        }
-                                        carry = Vec::new();
-                                    } else if carry.len() > DSR_QUERY.len() - 1 {
-                                        carry.drain(..carry.len() - (DSR_QUERY.len() - 1));
-                                    }
+                                if dsr_answered {
+                                    emit(chunk);
+                                    continue;
                                 }
-                                lock_or_recover(&handle.output).push(chunk);
-                                sink.output(&id, source, chunk);
+                                held.extend_from_slice(chunk);
+                                if let Some(at) = held.windows(DSR_QUERY.len()).position(|w| w == DSR_QUERY) {
+                                    dsr_answered = true;
+                                    if let Some(writer) = lock_or_recover(&handle.writer).as_mut() {
+                                        let _ = writer.write_all(DSR_REPLY).and_then(|()| writer.flush());
+                                    }
+                                    held.drain(at..at + DSR_QUERY.len());
+                                    let rest = std::mem::take(&mut held);
+                                    emit(&rest);
+                                } else if held.len() >= DSR_HOLD_LIMIT {
+                                    dsr_answered = true;
+                                    let rest = std::mem::take(&mut held);
+                                    emit(&rest);
+                                }
                             }
                         }
                     }
@@ -469,17 +511,19 @@ impl TerminalManager {
     }
 
     /// kill 不释放（Zed 语义）：句柄与输出留存到 `release`。已退出的进程 kill 是空操作。
+    /// 阻塞最多 `KILL_CONFIRM`（异步侧用 `spawn_blocking`）。
     pub fn kill(&self, id: &str) -> Result<()> {
         let handle = self.handle(id)?;
         if handle.exit.get().is_some() {
             return Ok(());
         }
-        match lock_or_recover(&handle.killer).kill() {
-            Ok(()) => Ok(()),
-            // portable-pty 0.9 在 Windows 上 TerminateProcess 成功后仍可能报「os error 0」（本机实测：进程确实被结束了，
-            // 等待线程随后拿到退出码）；错误码 0 = 没有错误。
-            Err(e) if e.raw_os_error() == Some(0) => Ok(()),
-            Err(e) => Err(PtyError::Io(e.to_string())),
+        // portable-pty 0.9.0 的 Windows `WinChildKiller::kill` 把 TerminateProcess 的成败判反了：成功时返回
+        // Err(GetLastError 的陈旧值——本机实测见过 os error 0 与 os error 6「句柄无效」)，失败时反而返回 Ok。
+        // 返回值不可信，以进程是否真的退出为准：等等待线程把退出状态落进 ExitCell。
+        let _ = lock_or_recover(&handle.killer).kill();
+        match handle.exit.wait_timeout(KILL_CONFIRM) {
+            Some(_) => Ok(()),
+            None => Err(PtyError::Io(format!("{id}: process still running {}s after kill", KILL_CONFIRM.as_secs()))),
         }
     }
 
@@ -560,6 +604,8 @@ mod tests {
         assert_eq!(status.exit_code, Some(0), "{status:?}");
         let out = String::from_utf8_lossy(&lock_or_recover(&recorder.output)).into_owned();
         assert!(out.contains("pty-hello-world"), "output: {out:?}");
+        // 启动探询已由 pty 层应答并抠掉，渲染器看不到它（否则会再答一次）。
+        assert!(!out.contains("\u{1b}[6n"), "startup DSR query must not reach the renderer: {out:?}");
         let exits = lock_or_recover(&recorder.exits).clone();
         assert_eq!(exits.len(), 1);
         assert_eq!(exits[0].0, id);
@@ -701,6 +747,28 @@ mod tests {
         assert!(out.text.contains("含 空格 与 \"引号\" 的参数"), "output: {:?}", out.text);
         manager.release(&id).expect("release");
         let _ = std::fs::remove_dir_all(&cwd);
+    }
+
+    /// 规则 9：`.cmd` 包装（npm / npx 全局 bin）经 PowerShell 拉起——agent 给的 `command` 是裸名 `npm`，
+    /// shell 自己按 PATHEXT 找到 `npm.cmd` 再经 cmd.exe 跑起来，输出正常回到 pty。
+    #[cfg(windows)]
+    #[test]
+    fn spawn_shell_command_runs_cmd_wrappers_on_windows() {
+        let has_npm = std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()).any(|d| d.join("npm.cmd").is_file());
+        if !has_npm {
+            eprintln!("npm.cmd not on PATH; skipping");
+            return;
+        }
+        let recorder = Arc::new(Recorder::default());
+        let manager = TerminalManager::new(recorder.clone());
+        let id = manager
+            .spawn_shell_command("npm", &["--version".into()], Vec::new(), Some(std::env::temp_dir()), None, TerminalSource::Agent)
+            .expect("spawn");
+        let status = manager.wait(&id).expect("wait");
+        assert_eq!(status.exit_code, Some(0), "{status:?} output: {:?}", manager.output(&id));
+        let out = manager.output(&id).expect("output");
+        assert!(out.text.trim().chars().next().is_some_and(|c| c.is_ascii_digit()), "npm --version output: {:?}", out.text);
+        manager.release(&id).expect("release");
     }
 
     #[test]
