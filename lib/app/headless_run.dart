@@ -46,7 +46,8 @@ String? r5ReportPathFromEnvironment() {
 ///   ACP_R5_REFRESH       `1` = 联网刷新 registry（force）
 ///   ACP_R5_NODE_DOWNLOAD `1` = 下载受管 Node（验收 3）
 ///   ACP_R5_INSTALL       要安装的 registry id（验收 1 / 2），装完等 done / failed / cancelled
-///   ACP_R5_CANCEL_AFTER  安装开始 N 秒后取消（验证取消路径）
+///   ACP_R5_CANCEL_AFTER  安装开始 N 秒后取消（验证取消路径；按时间，落点看机器快慢）
+///   ACP_R5_CANCEL_AT     看到某个安装步骤（resolve / write_settings / handshake / download …）的进度事件就取消（确定性落点）
 ///   ACP_R5_AGENT         起会话的 agent id（缺省 = ACP_R5_INSTALL）
 ///   ACP_R5_AUTH_METHOD   `-32000` 时用的方法 id（缺省第一个）
 ///   ACP_R5_AUTH_INPUT    terminal 型：拉起后延时写进终端的一行（模拟键盘）
@@ -87,7 +88,7 @@ Future<void> runR5({required String reportPath}) async {
     final install = _env('ACP_R5_INSTALL');
     if (install != null) {
       final seen = <String>[];
-      final watch = _ProgressWatch(c, install, seen);
+      final watch = _ProgressWatch(c, bridge, install, seen, cancelAt: _env('ACP_R5_CANCEL_AT'));
       watch.attach();
       final started = DateTime.now();
       await c.installAgent(install);
@@ -95,6 +96,8 @@ Future<void> runR5({required String reportPath}) async {
       if (cancelAfter > 0) Timer(Duration(seconds: cancelAfter), () => c.cancelInstall(install));
       await watch.done.future.timeout(timeout);
       watch.detach();
+      // 收尾事件之后组合根会（不等待地）重读列表；这里再读一次，`installed` 才是落盘后的状态。
+      await c.refreshRegistry();
       final entry = c.registry.byId(install);
       steps['install'] = <String, dynamic>{
         'agentId': install,
@@ -215,33 +218,45 @@ Map<String, dynamic> _registrySummary(WorkbenchController c) => <String, dynamic
     };
 
 /// 盯着一个条目的安装进度，收到终态就放行。
+/// 直接听 `registry/progress` 原始事件（投影在 done / cancelled 到达时会把进度清空，从投影上分不出这两种收尾——
+/// 2026-09-16 实测按投影推断把 done 认成了 cancelled）。`cancelAt` 指定的步骤一到就发取消，落点确定。
 class _ProgressWatch {
-  _ProgressWatch(this.c, this.agentId, this.seen);
+  _ProgressWatch(this.c, this.bridge, this.agentId, this.seen, {this.cancelAt});
 
   final WorkbenchController c;
+  final CoreBridge bridge;
   final String agentId;
   final List<String> seen;
+  final String? cancelAt;
   final Completer<void> done = Completer<void>();
+  StreamSubscription<CoreEventRecord>? _sub;
   String? _last;
+  bool _cancelSent = false;
 
-  void attach() => c.registry.addListener(_tick);
+  void attach() => _sub = bridge.on(CoreEvent.registryProgress).listen(_onEvent);
 
-  void detach() => c.registry.removeListener(_tick);
+  void detach() {
+    unawaited(_sub?.cancel());
+    _sub = null;
+  }
 
-  void _tick() {
-    final e = c.registry.byId(agentId);
-    final p = e?.progress;
-    // cancelled 到达时投影已把进度清空、条目回到未安装态（`RegistryState.applyProgress`），这里按「刚才还在跑、
-    // 现在没进度也没装上也没失败」识别（2026-09-16 实测：只认 `progress.step == 'cancelled'` 永远等不到）。
-    final cancelled = p == null && _last != null && _last != 'done' && e?.installed != true && e?.isFailed != true;
-    final step = p?.step ?? (e?.installed == true ? 'done' : (cancelled ? 'cancelled' : null));
-    if (step != null && step != _last) {
-      _last = step;
-      seen.add(p == null ? step : '${p.kind}:${p.step}${p.done != null && p.total != null ? ' ${p.done}/${p.total}' : ''}');
+  void _onEvent(CoreEventRecord e) {
+    final json = e.json;
+    if (json == null || json['agentId'] != agentId) return;
+    final step = json['step'] as String? ?? '';
+    final terminal = step == 'done' || step == 'failed' || step == 'cancelled';
+    final key = terminal ? step : '${json['kind']}:$step';
+    if (key != _last) {
+      _last = key;
+      final progress = json['done'] is num && json['total'] is num ? ' ${json['done']}/${json['total']}' : '';
+      seen.add('$key$progress');
     }
-    if (!done.isCompleted && (e?.isFailed == true || (e?.installed == true && e?.isInstalling == false) || step == 'cancelled')) {
-      done.complete();
+    if (!_cancelSent && cancelAt != null && step == cancelAt) {
+      _cancelSent = true;
+      seen.add('(cancel sent at $step)');
+      unawaited(c.cancelInstall(agentId));
     }
+    if (terminal && !done.isCompleted) done.complete();
   }
 }
 
