@@ -384,3 +384,20 @@ elicitation 回 `{action:cancel}`，两组 id **一条都不漏**（漏一条 ag
 - `scripts/validate.ps1` 全绿（13 项），`flutter test` 103 passed。
 - gallery 重渲后有 13 张变化：01a / 01b / 02 / 03（线程头 + 右栏）与 18 / 19 / 20 / 21 / 22 / 23 / 24 / 29 / 33
   （卡片头），**正好是三个被改 widget 的使用面**，其余 22 张逐字节未变。变化的几张与对应设计 PNG 重新对照过。
+
+### 代码审查（整改分支）
+
+cursor CLI `cursor-grok-4.6-high`，`-Scope branch`（`main...HEAD`，本分支第 1 轮 → 全量），
+产物 `.claude/reviews/20260916-093905-review.out.md`。
+
+**findings: 0。** 四个指定关注点逐条核过，均不构成 finding：
+
+1. `Expanded(Row)` 没有引入新的溢出路径：`thread_header` 标题仍在内层 `Flexible` 里，比原来更晚省略；
+   `card_chrome` 的省略仍只发生在副标题上（标题 `Text` 本来就不在 flex 里）。
+2. `windowControls: false` 分支仍留着标签与关闭键之间的那个 `Spacer`，关闭键贴标签条右缘；
+   生产路径与 gallery 都走默认 `true`。
+3. 树是 `_errorTextStyle` → `DefaultTextStyle(body)` → `Navigator` → `Overlay`，
+   `PopoverAnchor` 的 `OverlayPortal` 取最近 overlay，弹层与路由都在 body 样式之内。
+4. 四个测试回退实现都会红；`WindowControls` 不用 `IconButtonGhost`，右栏那例的 finder 不会误匹配。
+
+零 findings 无整改，审查循环收口（CLAUDE.md「只要有采纳整改的 findings → 再发一轮复审」）。
