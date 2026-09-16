@@ -111,15 +111,22 @@ class CardHeader extends StatelessWidget {
         child: Row(
           children: <Widget>[
             if (leading != null) ...<Widget>[leading!, const SizedBox(width: t.Spacing.s8)],
-            Text(title, style: titleStyle ?? CardText.headerTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
-            if (subtitleWidget != null) ...<Widget>[
-              const SizedBox(width: t.Spacing.s8),
-              Flexible(child: subtitleWidget!),
-            ] else if (subtitle != null && subtitle!.isNotEmpty) ...<Widget>[
-              const SizedBox(width: t.Spacing.s8),
-              Flexible(child: Text(subtitle!, style: CardText.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis)),
-            ],
-            const Spacer(),
+            // 标题与副标题吃掉余量、trailing 贴右（画板 18）。`Flexible` 与 `Spacer` 并列不行：
+            // 两者 flex 都是 1，余量被五五分，副标题短的卡 trailing 就停在中间、各行还对不齐。
+            Expanded(
+              child: Row(
+                children: <Widget>[
+                  Text(title, style: titleStyle ?? CardText.headerTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  if (subtitleWidget != null) ...<Widget>[
+                    const SizedBox(width: t.Spacing.s8),
+                    Flexible(child: subtitleWidget!),
+                  ] else if (subtitle != null && subtitle!.isNotEmpty) ...<Widget>[
+                    const SizedBox(width: t.Spacing.s8),
+                    Flexible(child: Text(subtitle!, style: CardText.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  ],
+                ],
+              ),
+            ),
             for (var i = 0; i < trailing.length; i++) ...<Widget>[
               if (i > 0) const SizedBox(width: t.Spacing.s8),
               trailing[i],

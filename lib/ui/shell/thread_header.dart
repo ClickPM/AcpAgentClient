@@ -59,16 +59,23 @@ class ThreadHeader extends StatelessWidget {
         children: <Widget>[
           AgentMark(active: hasAgent, empty: !hasAgent),
           const SizedBox(width: t.Spacing.s8),
-          Flexible(
-            child: Text(
-              title,
-              style: hasAgent ? CardText.strong : CardText.strong.copyWith(color: t.Neutral.placeholder),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+          // 标题吃掉余量、动作贴右（画板 01 的 `margin-left:auto`）。这里不能写成 `Flexible` 加 `Spacer`
+          // 并列：两者 flex 都是 1，余量被五五分，动作会停在标题与右边缘的中点上（顶栏踩过同一个坑）。
+          Expanded(
+            child: Row(
+              children: <Widget>[
+                Flexible(
+                  child: Text(
+                    title,
+                    style: hasAgent ? CardText.strong : CardText.strong.copyWith(color: t.Neutral.placeholder),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (running) ...<Widget>[const SizedBox(width: t.Spacing.s8), const Spinner()],
+              ],
             ),
           ),
-          if (running) ...<Widget>[const SizedBox(width: t.Spacing.s8), const Spinner()],
-          const Spacer(),
           if (hasAgent && canRename) IconButtonGhost(icon: AcpIcons.pencil, onTap: onRename),
           PopoverAnchor(handle: newSessionAnchor, child: IconButtonGhost(icon: AcpIcons.plusSquare, onTap: onNewSession)),
           if (hasAgent && canReload) IconButtonGhost(icon: AcpIcons.reload, onTap: onReload),

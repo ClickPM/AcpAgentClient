@@ -5,12 +5,18 @@
 
 import 'dart:async';
 
+import 'package:acp_agent_client/app/app.dart';
 import 'package:acp_agent_client/app/core_bridge.dart';
 import 'package:acp_agent_client/app/workbench_controller.dart';
+import 'package:acp_agent_client/app/workbench_screen.dart';
 import 'package:acp_agent_client/projection/entries.dart';
+import 'package:acp_agent_client/theme/tokens.dart' as t;
 import 'package:acp_agent_client/projection/wire.dart';
 import 'package:acp_agent_client/ui/shell/shell_common.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../gallery_harness.dart';
 
 /// 记账用的假核心：只记调用，不做任何 IO。
 class FakeCore implements CoreCommands {
@@ -309,5 +315,22 @@ void main() {
       'content': <String, dynamic>{'env': 'dev'},
     });
     c.dispose();
+  });
+
+  // 所有者手测 2026-09-16：Release 里满屏文字挂着黄色双下划线。`MaterialApp` 把「没有 Material 祖先」的
+  // 兜底样式（红字 + 黄色双下划线）装成环境 `DefaultTextStyle`，而这个壳一个 Material widget 都不用；
+  // `Text` 的 token 样式只覆盖字体与字号，`decoration` 原样继承下来。组合根必须自己铺一层基准字样。
+  testWidgets('组合根铺了无装饰的基准字样（不吃 MaterialApp 的黄线兜底）', (tester) async {
+    // 默认 800×600 的测试视口装不下整壳（侧栏 280 + 右栏 580），按画板的 1440×900 来。
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    // flutter_tester 不装包字体也不做 CJK 回退，缺字体时侧栏底部导航会算宽 21px 撑破（gallery_harness 的注释）。
+    await tester.runAsync(loadGalleryFonts);
+    await tester.pumpWidget(AcpApp(source: DataSource.bridge, bridge: FakeCore()));
+
+    final style = DefaultTextStyle.of(tester.element(find.byType(WorkbenchScreen))).style;
+    expect(style.decoration, anyOf(isNull, TextDecoration.none), reason: '继承到下划线就是满屏黄线');
+    expect(style.fontFamily, t.Fonts.sans, reason: '基准字样只能来自 token');
   });
 }
