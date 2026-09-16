@@ -66,8 +66,8 @@ class RightPanel extends StatelessWidget {
           children: <Widget>[
             for (final tab in tabs) _tab(tab),
             const Spacer(),
+            // 面板关闭键紧挨窗口控制（画板 03）。两个 `Spacer` 会把余量五五分、把它顶到标签条中间去。
             IconButtonGhost(icon: AcpIcons.x, size: t.Controls.compact, onTap: onClose),
-            const Spacer(),
             if (windowControls)
               WindowControls(height: t.Controls.input, onMinimize: onMinimize, onMaximize: onMaximize, onClose: onCloseWindow),
           ],

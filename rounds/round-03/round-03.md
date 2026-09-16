@@ -326,3 +326,78 @@ elicitation 回 `{action:cancel}`，两组 id **一条都不漏**（漏一条 ag
 - `computer-use` 的 `request_access` 只认 Start 菜单里的应用，认不出刚构建的 `acp_agent_client.exe`（两次尝试都是
   `notInstalled`），所以 GUI 点击类验收改走无头口子 + Win32 API 客观核对。
 
+
+## 收口后手测整改（2026-09-16，分支 `round-03-fix`）
+
+所有者在合并后跑 `build/windows/x64/runner/Release/acp_agent_client.exe` 手测，报了三条。三条都属于
+「画板对照没拦住」的那一类：偏移量随窗口宽度与文本长度变，单看一张 gallery 图不容易认出来。
+
+### 报告 1 / 2 · 右侧那组按钮没贴右
+
+**根因（一个）**：`Flexible` 与 `Spacer` 并列时两者 flex 都是 1，余量被**五五分**——`Flexible` 里的文本
+按自然宽度收缩，让出来的那半留在最后一个孩子**后面**，于是右侧那组停在「内容与右边缘的中点」上。
+画板里这些位置全是 `margin-left:auto`（贴右）。R3 的顶栏也踩过同一个坑（任务卡「接线阶段发现并修掉的四个缺陷」）。
+
+| 位置 | 文件 | 现象 |
+|---|---|---|
+| 线程头 ＋ / ≡ 等四个动作 | `lib/ui/shell/thread_header.dart` | 报告 1（图 1 / 图 2）；右栏开合时偏移量正好差半个中栏宽 |
+| 卡片头 trailing（画板 18–24 / 29 / 33） | `lib/ui/transcript/card_chrome.dart` | 副标题长短不同的几行卡，勾选图标各自对不齐 |
+
+改法都是「标题那段包进 `Expanded(Row(...))`、删掉 `Spacer`」。**卡片头是 R2 的交付物**，按
+`rounds/README.md` 跨轮问题该记 BACKLOG；这里当场改了，理由是与报告 1 同一个根因、同一个惯用法，
+改动是一行结构调整而非新机制，留着就是设计稿与实现明确不一致（对照 `design/round-design/18-tool-call.png`
+与整改前的 `build/gallery/18-tool-call.png`，三行状态卡的勾选图标分别落在 604 / 626 / 566 而画板是对齐的）。
+
+### 报告 3 · 右栏关闭键的位置
+
+**这条是设计源自己的问题**：`design/round-design/03-workbench-done.dc.html` 的标签条上有**两个连续的
+`margin-left:auto`**（关闭键一个、窗口控制一个），CSS 会把余量在两个 auto 之间均分，关闭键因此停在半路。
+实现（两个 `Spacer`）忠实复现了这个渲染，所以画板对照是「一致」的。
+
+按规则 3 的顺序办：先改设计源（去掉窗口控制那个 `margin-left:auto`）→ `scripts/render-design.ps1 -Only 03`
+重渲 PNG → 再改 `lib/ui/shell/right_panel.dart` 删掉第二个 `Spacer`。改完关闭键紧挨窗口控制。
+**画布未同步**：`design/README.md` 里 03 的画布 URL 是 `—`，这次只改了仓库里的 `.dc.html` 与 PNG。
+
+### 报告 3 之外 · 满屏文字下的黄色横线
+
+`MaterialApp` 会把「没有 Material 祖先」的兜底样式装成环境 `DefaultTextStyle`——那份样式带
+`decoration: underline` + `decorationColor: 0xFFFFFF00` + `TextDecorationStyle.double`
+（`flutter/lib/src/material/app.dart` 的 `_errorTextStyle`，`WidgetsApp(textStyle:)`）。
+这个壳按规则 1 / 3 一个 Material widget 都不用，`Text` 的 token 样式只覆盖字体、字号与颜色，
+`TextStyle.merge` 不碰没指定的 `decoration`，于是下划线原样继承到每一条文本上。Release 同样有，不是 debug 提示。
+
+改法：`lib/app/app.dart` 用 `MaterialApp.builder` 铺一层 `DefaultTextStyle(style: t.TextStyles.body)`。
+`builder` 在 `WidgetsApp` 那层兜底样式**之内**（`widgets/app.dart` 先套 `builder` 再套 `DefaultTextStyle`），
+所以能盖住；它又在 `Navigator` **之外**，弹层与路由一并覆盖。样式取自 token，规则 3 不破。
+
+### 回归测试（先确认能红，再确认能绿）
+
+- `test/ui/shell_alignment_test.dart`（新增 3 例）：三处「贴右」钉死数值，并各自加一条「不随文本长短 / 标签数量漂移」。
+  逐条回退实现验证过会红：线程头 `428.0` vs 期望 `685.0`、右栏 `294.5` vs `444.0`、卡片头 `419.5` vs `590.0`——
+  三个实测值都正好是中点，与根因对得上。
+- `test/app/workbench_wiring_test.dart` 新增 1 例：pump 真正的 `AcpApp`，断言 `DefaultTextStyle` 的
+  `decoration` 为空且 `fontFamily` 来自 token。回退 `builder` 验证过会红（`TextDecoration.underline`）。
+  该例要 `loadGalleryFonts()`：flutter_tester 不做 CJK 回退，缺字体时侧栏底部导航会算宽 21px 撑破。
+
+### 门禁
+
+- `scripts/validate.ps1` 全绿（13 项），`flutter test` 103 passed。
+- gallery 重渲后有 13 张变化：01a / 01b / 02 / 03（线程头 + 右栏）与 18 / 19 / 20 / 21 / 22 / 23 / 24 / 29 / 33
+  （卡片头），**正好是三个被改 widget 的使用面**，其余 22 张逐字节未变。变化的几张与对应设计 PNG 重新对照过。
+
+### 代码审查（整改分支）
+
+cursor CLI `cursor-grok-4.6-high`，`-Scope branch`（`main...HEAD`，本分支第 1 轮 → 全量），
+产物 `.claude/reviews/20260916-093905-review.out.md`。
+
+**findings: 0。** 四个指定关注点逐条核过，均不构成 finding：
+
+1. `Expanded(Row)` 没有引入新的溢出路径：`thread_header` 标题仍在内层 `Flexible` 里，比原来更晚省略；
+   `card_chrome` 的省略仍只发生在副标题上（标题 `Text` 本来就不在 flex 里）。
+2. `windowControls: false` 分支仍留着标签与关闭键之间的那个 `Spacer`，关闭键贴标签条右缘；
+   生产路径与 gallery 都走默认 `true`。
+3. 树是 `_errorTextStyle` → `DefaultTextStyle(body)` → `Navigator` → `Overlay`，
+   `PopoverAnchor` 的 `OverlayPortal` 取最近 overlay，弹层与路由都在 body 样式之内。
+4. 四个测试回退实现都会红；`WindowControls` 不用 `IconButtonGhost`，右栏那例的 finder 不会误匹配。
+
+零 findings 无整改，审查循环收口（CLAUDE.md「只要有采纳整改的 findings → 再发一轮复审」）。

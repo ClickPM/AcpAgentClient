@@ -53,3 +53,5 @@
 - [ ] R3 新建会话弹层里的 agent 名用的是 `settings.json` 的键（`dsh-acp-interactive`）：协议里没有「展示名」，连上之后线程头才从 `initialize.agentInfo` 取。R5 的 registry 会带来展示名与 logo，届时回填 (2026-09-15)
 - [ ] R3 `Ctrl-Alt-A` 的权限「范围下拉」没实测到：dsh 只给 `allow_once` / `reject_once`，下拉里没有第二个同向选项。R6 五 agent 全通时用给 `allow_always` 的 agent 补 (2026-09-15)
 - [ ] R3 `computer-use` 的 `request_access` 只认 Start 菜单里的应用，认不出自己构建的 `acp_agent_client.exe`，GUI 点击类验收（窗口拖拽、`file_selector` 对话框）没有自动化通道。要么做 `integration_test` + `flutter drive`，要么每轮留给所有者手测 (2026-09-15)
+- [ ] R3 画板逐张对照拦不住「位移类」偏差：右侧那组按钮没贴右这件事在 `build/gallery/01a` 与 `18` 里都画出来了，偏移量却随窗口宽度与文本长度变，肉眼比对时看不出「它本该更靠右」。本轮给三处补了数值断言（`test/ui/shell_alignment_test.dart`），但这是逐点补；是否给画板对照加一层几何不变量（贴左 / 贴右 / 等距）的通用断言，待裁定 (2026-09-16)
+- [ ] R3 设计源里两个连续的 `margin-left:auto` 会把余量均分（画板 03 标签条的关闭键因此停在半路，2026-09-16 已改源并重渲 PNG）。其余画板没逐个扫过是否有同样写法；下个设计轮顺带核一遍 (2026-09-16)
