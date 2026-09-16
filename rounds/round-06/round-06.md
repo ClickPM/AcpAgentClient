@@ -87,7 +87,9 @@
 
 - 审查方式：`powershell -File .claude\cursor-review.ps1 -Note "<本轮要点>"`（默认档，全量分支 diff，后台跑）
 - 审查器与模型：cursor CLI `cursor-grok-4.6-high`（`--mode ask`），没有回落
-- 审查范围与基准提交：第 1 轮 `main...HEAD`（`8106248`），耗时 **12 分 03 秒**（16:32:32 → 16:44:35，30 文件 / 2,831 行）
+- 审查范围与基准提交：第 1–2 轮全量 `main...HEAD`（`8106248` / `2659074`），第 3–4 轮只审整改 diff
+  （`-Scope since -Base 2659074` / `-Base 02756a4`）。耗时：第 1 轮 **12 分 03 秒**（30 文件 / 2,831 行），
+  第 2 轮 **11 分 26 秒**，第 3–4 轮的整改 diff 各几分钟。
 
 ### 第 1 轮（7 条：high 2 / P2 4 / P3 1）
 
@@ -124,8 +126,18 @@
 | 11 | P2 | **停止方块漏了这道门**：`closeSession` 里的 `s.cancel()` 不收轮（`isRunning` 还是 true），作曲器禁用态下 Stop 仍渲染，点下去把 `session/cancel` 打到已释放的会话上 | **采纳整改**。`cancel()` 开头也加 `_blockedByClose()` |
 | 12 | P3 | **我那条用例是假通过的**：「三个下拉全都发不出去」只断言了 `core.prompts` 与 `lastError`，而 `lastError` 早被 `send()` 写成同一句、`FakeCore` 又不记 config / mode 调用 —— 把 `setConfigOption` / `setMode` 的门删掉，用例照样绿 | **采纳整改**。`FakeCore` 记下 `configOptionCalls` / `modeCalls`，用例逐个命令面分别断言；再加一条反向用例（没关闭的会话 prompt / 下拉 / 停止都照常发），证明这道门不误伤 |
 
-- 结论：**整改后 PASS**（三轮共 12 条：high 2 / P2 8 / P3 2；11 条采纳整改并补了用例，1 条是设计取舍留所有者裁定）。
-  整改后复核：`flutter test` 186 条全过、Rust 10 条脚本化用例全过、`validate.ps1` 13 项全 PASS；
+### 第 4 轮（只审整改 diff `02756a4..HEAD`）：**0 条**
+
+审查者逐条验了第 3 轮那两条的整改，并特意确认了两件我点名让它查的事：
+① `cancel()` 上的这道门不会挡住该发的取消 —— `closeSession` 是在 `sessionClose` **成功之后**才 `add` 进 `_closedSessions`，
+所以 close 之前正在跑的那一轮点 Stop 时 `sessionClosed == false`，`session/cancel` 照常发；`restore()` 内部那次 `cancel()`
+也因为 `restore` 自己先过同一道门而不可能走到关闭态；
+② 两条新用例不是假通过 —— 把 `cancel()` 或 `setConfigOption` / `setMode` 的门删掉那条会红，把 `_blockedByClose()`
+写成无条件 `true` 反向那条会红。
+
+- 结论：**整改后 PASS**（四轮共 12 条：high 2 / P2 8 / P3 2；11 条采纳整改并补了用例，1 条是设计取舍留所有者裁定；
+  第 4 轮 0 条，缺陷门禁收口）。
+  收口时的复核：`flutter test` 186 条全过、Rust 10 条脚本化用例全过、`validate.ps1` 13 项全 PASS；
   fake-agent 离线全链与 claude-agent-acp 真跑各复跑一次（reopen / close / resume / delete 全绿）。
 
 ### 一条流程教训
