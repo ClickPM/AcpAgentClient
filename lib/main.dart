@@ -21,6 +21,12 @@ Future<void> main() async {
     await runR3(reportPath: r3Report);
     return;
   }
+  // R5 的无头实跑（验收 1–6 的接线部分）：registry → 安装 → 新会话 → 认证 → 一轮 → Remove。
+  final r5Report = r5ReportPathFromEnvironment();
+  if (r5Report != null) {
+    await runR5(reportPath: r5Report);
+    return;
+  }
   final source = DataSource.fromEnvironment();
   final bridge = source == DataSource.bridge ? await CoreBridge.load() : null;
   runApp(AcpApp(source: source, bridge: bridge));

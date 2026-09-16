@@ -25,10 +25,247 @@ import 'dart:io';
 import '../projection/agent_state.dart';
 import '../projection/entries.dart';
 import '../ui/popovers/topbar_popovers.dart';
+import '../ui/registry/auth_page.dart';
 import 'core_bridge.dart';
 import 'workbench_controller.dart';
 
 const String r3ReportEnv = 'ACP_R3_REPORT';
+const String r5ReportEnv = 'ACP_R5_REPORT';
+
+String? r5ReportPathFromEnvironment() {
+  final v = Platform.environment[r5ReportEnv];
+  return (v == null || v.trim().isEmpty) ? null : v.trim();
+}
+
+/// R5 的无头实跑（验收 1–6 的接线部分）：驱动 [WorkbenchController] 走一遍 registry → 安装 → 新会话 → 认证 → 一轮 → Remove，
+/// 每步结果写 JSON。与 R3 同一个口子的第三个模式。
+///
+/// 环境变量（都可选，除 REPORT 外都有缺省）：
+///   ACP_R5_REPORT        报告文件路径（必填）
+///   ACP_R5_CWD           项目目录（缺省 projects.json 里最近的一个）
+///   ACP_R5_REFRESH       `1` = 联网刷新 registry（force）
+///   ACP_R5_NODE_DOWNLOAD `1` = 下载受管 Node（验收 3）
+///   ACP_R5_INSTALL       要安装的 registry id（验收 1 / 2），装完等 done / failed / cancelled
+///   ACP_R5_CANCEL_AFTER  安装开始 N 秒后取消（验证取消路径）
+///   ACP_R5_AGENT         起会话的 agent id（缺省 = ACP_R5_INSTALL）
+///   ACP_R5_AUTH_METHOD   `-32000` 时用的方法 id（缺省第一个）
+///   ACP_R5_AUTH_INPUT    terminal 型：拉起后延时写进终端的一行（模拟键盘）
+///   ACP_R5_AUTH_INPUT_DELAY  写入前等待秒数（缺省 5）
+///   ACP_R5_AUTH_TIMEOUT  等认证完成的秒数（缺省 300；agent 型的浏览器登录要人来点）
+///   ACP_R5_PROMPT        一轮提示词
+///   ACP_R5_IMPORT_ZED    `1` = 从 Zed 导入（验收 4）
+///   ACP_R5_REMOVE        `1` = 末尾 Remove 安装的 agent（验收 5）
+///   ACP_R5_TIMEOUT       单步超时（秒，缺省 600）
+Future<void> runR5({required String reportPath}) async {
+  final report = <String, dynamic>{'ok': false, 'steps': <String, dynamic>{}};
+  final steps = report['steps'] as Map<String, dynamic>;
+  final timeout = Duration(seconds: _envInt('ACP_R5_TIMEOUT', 600));
+  var exitCode = 1;
+  WorkbenchController? controller;
+  try {
+    final bridge = await CoreBridge.load();
+    final c = WorkbenchController(source: DataSource.bridge, bridge: bridge, scheduler: WorkbenchController.scheduleOnMicrotask);
+    controller = c;
+    await c.start();
+    final cwd = _env('ACP_R5_CWD');
+    if (cwd != null) await c.openProject(_projectOf(cwd));
+    if (_env('ACP_R5_REFRESH') == '1') await c.refreshRegistry(network: true, force: true).timeout(timeout);
+    steps['registry'] = _registrySummary(c);
+
+    // ---- 受管 Node（验收 3）
+    if (_env('ACP_R5_NODE_DOWNLOAD') == '1') {
+      final before = c.registry.node;
+      await c.downloadNode().timeout(timeout);
+      steps['nodeDownload'] = <String, dynamic>{
+        'before': <String, dynamic>{'system': before.system?.version, 'managed': before.managed?.version},
+        'after': <String, dynamic>{'system': c.registry.node.system?.version, 'managed': c.registry.node.managed?.version, 'managedPath': c.registry.node.managed?.path},
+        'error': c.lastError,
+      };
+    }
+
+    // ---- 安装（验收 1 / 2）
+    final install = _env('ACP_R5_INSTALL');
+    if (install != null) {
+      final seen = <String>[];
+      final watch = _ProgressWatch(c, install, seen);
+      watch.attach();
+      final started = DateTime.now();
+      await c.installAgent(install);
+      final cancelAfter = _envInt('ACP_R5_CANCEL_AFTER', 0);
+      if (cancelAfter > 0) Timer(Duration(seconds: cancelAfter), () => c.cancelInstall(install));
+      await watch.done.future.timeout(timeout);
+      watch.detach();
+      final entry = c.registry.byId(install);
+      steps['install'] = <String, dynamic>{
+        'agentId': install,
+        'stepsSeen': seen,
+        'elapsedMs': DateTime.now().difference(started).inMilliseconds,
+        'installed': entry?.installed,
+        'installedVersion': entry?.installedVersion,
+        'launch': entry?.launch == null ? null : <String, dynamic>{'command': entry!.launch!.command, 'args': entry.launch!.args},
+        'failure': entry?.failure,
+        'error': c.lastError,
+      };
+    }
+
+    // ---- 新会话（-32000 → 认证页）
+    final agentId = _env('ACP_R5_AGENT') ?? install;
+    if (agentId != null && (cwd != null || c.project != null)) {
+      await c.newSession(AgentRef(id: agentId, name: agentId)).timeout(timeout);
+      steps['newSession'] = <String, dynamic>{
+        'sessionId': c.sessionId,
+        'authRequired': c.authAgentId == agentId,
+        'authMethods': <String?>[for (final m in c.authMethods) '${m['id']}/${AuthPage.methodType(m)}'],
+        'rightTab': c.rightTab?.name,
+        'error': c.lastError,
+      };
+      if (c.authAgentId == agentId) {
+        final methodId = _env('ACP_R5_AUTH_METHOD') ?? c.authMethodId;
+        if (methodId != null) c.selectAuthMethod(methodId);
+        final input = _env('ACP_R5_AUTH_INPUT');
+        final urls = <String>[];
+        final elicitation = _ElicitationWatch(c, urls)..attach();
+        if (input != null) {
+          Timer(Duration(seconds: _envInt('ACP_R5_AUTH_INPUT_DELAY', 5)), () => c.authTerminalInput('$input\r'));
+        }
+        final authStarted = DateTime.now();
+        await c.startAuth().timeout(Duration(seconds: _envInt('ACP_R5_AUTH_TIMEOUT', 300)));
+        elicitation.detach();
+        steps['auth'] = <String, dynamic>{
+          'methodId': methodId,
+          'phase': c.authPhase.name,
+          'error': c.authError,
+          'elapsedMs': DateTime.now().difference(authStarted).inMilliseconds,
+          'requestScopeUrls': urls,
+          'terminalId': c.authTerminalId,
+          'sessionId': c.sessionId,
+          'authPageClosed': c.authAgentId == null,
+          'authStatus': c.registry.byId(agentId)?.authStatus.wire,
+        };
+      }
+    }
+
+    // ---- 一轮（验收 1 / 2 的「一轮对话」）
+    final prompt = _env('ACP_R5_PROMPT');
+    if (prompt != null && c.sessionId != null) {
+      final answers = <Map<String, dynamic>>[];
+      final watcher = _AutoAnswer(c, 'allow_once', answers)..attach();
+      c.composer.text = prompt;
+      await c.send().timeout(timeout);
+      watcher.detach();
+      steps['turn'] = _turnSummary(c, prompt)..['answers'] = answers;
+    }
+
+    // ---- 从 Zed 导入（验收 4）
+    if (_env('ACP_R5_IMPORT_ZED') == '1') {
+      final before = c.registry.entries.where((e) => e.installed).map((e) => e.id).toList();
+      await c.importZed().timeout(timeout);
+      steps['importZed'] = <String, dynamic>{
+        'zedSettingsPath': c.zedSettingsPath,
+        'result': c.zedImportResult,
+        'installedBefore': before,
+        'installedAfter': c.registry.entries.where((e) => e.installed).map((e) => e.id).toList(),
+        'error': c.lastError,
+      };
+    }
+
+    // ---- Remove（验收 5）
+    if (_env('ACP_R5_REMOVE') == '1' && install != null) {
+      final dir = '${c.dataDir}${Platform.pathSeparator}agents${Platform.pathSeparator}$install';
+      final existedBefore = Directory(dir).existsSync();
+      await c.removeAgent(install).timeout(timeout);
+      final settings = await bridge.agentSettingsGet();
+      steps['remove'] = <String, dynamic>{
+        'agentId': install,
+        'dirExistedBefore': existedBefore,
+        'dirExistsAfter': Directory(dir).existsSync(),
+        'settingsHasEntry': (settings['agent_servers'] as Map?)?.containsKey(install) ?? false,
+        'installedNow': c.registry.byId(install)?.installed,
+        'otherDirs': Directory('${c.dataDir}').listSync().map((e) => e.path.split(Platform.pathSeparator).last).toList()..sort(),
+        'error': c.lastError,
+      };
+    }
+
+    steps['registryAfter'] = _registrySummary(c);
+    report['ok'] = true;
+    exitCode = 0;
+  } catch (e, st) {
+    report['error'] = e.toString();
+    report['stack'] = st.toString();
+    report['lastError'] = controller?.lastError;
+  }
+  try {
+    final file = File(reportPath);
+    await file.parent.create(recursive: true);
+    await file.writeAsString(const JsonEncoder.withIndent('  ').convert(report));
+  } on Object catch (_) {
+    exitCode = 1;
+  }
+  exit(exitCode);
+}
+
+Map<String, dynamic> _registrySummary(WorkbenchController c) => <String, dynamic>{
+      'count': c.registry.entries.length,
+      'installed': c.registry.entries.where((e) => e.installed).map((e) => '${e.id}:${e.kind.wire}:${e.authStatus.wire}').toList(),
+      'fetchError': c.registry.fetchError,
+      'fetchedAt': c.registry.fetchedAt?.toIso8601String(),
+      'node': <String, dynamic>{'system': c.registry.node.system?.version, 'managed': c.registry.node.managed?.version, 'systemError': c.registry.node.systemError},
+      'paths': <String, dynamic>{'dataDir': c.dataDir, 'logPath': c.logPath, 'zed': c.zedSettingsPath},
+      'sample': <String>[for (final e in c.registry.entries.take(6)) '${e.id} v${e.version} ${e.kind.wire}${e.supported ? '' : ' unsupported'}'],
+    };
+
+/// 盯着一个条目的安装进度，收到终态就放行。
+class _ProgressWatch {
+  _ProgressWatch(this.c, this.agentId, this.seen);
+
+  final WorkbenchController c;
+  final String agentId;
+  final List<String> seen;
+  final Completer<void> done = Completer<void>();
+  String? _last;
+
+  void attach() => c.registry.addListener(_tick);
+
+  void detach() => c.registry.removeListener(_tick);
+
+  void _tick() {
+    final e = c.registry.byId(agentId);
+    final p = e?.progress;
+    final step = p?.step ?? (e?.installed == true ? 'done' : null);
+    if (step != null && step != _last) {
+      _last = step;
+      seen.add(p == null ? step : '${p.kind}:${p.step}${p.done != null && p.total != null ? ' ${p.done}/${p.total}' : ''}');
+    }
+    if (!done.isCompleted && (e?.isFailed == true || (e?.installed == true && e?.isInstalling == false) || p?.step == 'cancelled')) {
+      done.complete();
+    }
+  }
+}
+
+/// requestScope 的 URL elicitation 一到就 accept 并记下 URL（无头没有浏览器，人要自己打开）。
+class _ElicitationWatch {
+  _ElicitationWatch(this.c, this.urls);
+
+  final WorkbenchController c;
+  final List<String> urls;
+  final Set<String> _done = <String>{};
+
+  void attach() => c.addListener(_tick);
+
+  void detach() => c.removeListener(_tick);
+
+  void _tick() {
+    for (final e in c.authElicitations) {
+      if (e.status != PendingStatus.pending || !_done.add(e.requestId)) continue;
+      unawaited(c.acceptElicitationUrl(e).then((url) {
+        if (url != null) {
+          urls.add(url);
+          stderr.writeln('[r5] open in browser: $url');
+        }
+      }));
+    }
+  }
+}
 
 String? r3ReportPathFromEnvironment() {
   final v = Platform.environment[r3ReportEnv];

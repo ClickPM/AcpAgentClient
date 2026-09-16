@@ -7,6 +7,7 @@
 import 'dart:convert';
 
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -14,6 +15,10 @@ import '../projection/entries.dart';
 import '../theme/tokens.dart' as t;
 import '../ui/popovers/composer_popovers.dart';
 import '../ui/popovers/topbar_popovers.dart';
+import '../ui/registry/auth_page.dart';
+import '../ui/registry/registry_entry.dart';
+import '../ui/registry/registry_panel.dart';
+import '../ui/settings/settings_page.dart';
 import '../ui/shell/agent_state_bar.dart';
 import '../ui/shell/app_shell.dart';
 import '../ui/shell/composer.dart';
@@ -57,7 +62,11 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       listenable: c,
       builder: (context, _) => AppShell(
         sidebar: c.sidebarCollapsed ? null : _sidebar(),
-        main: c.page == MainPage.traffic ? _trafficColumn() : _workbenchColumn(),
+        main: switch (c.page) {
+          MainPage.traffic => _trafficColumn(),
+          MainPage.settings => _settingsColumn(),
+          MainPage.workbench => _workbenchColumn(),
+        },
         rightPanel: c.rightTab == null ? null : _rightPanel(),
         sidebarWidth: c.sidebarWidth,
         rightPanelWidth: c.rightPanelWidth,
@@ -82,7 +91,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         renameFocusNode: c.renameFocus,
         searchController: c.sidebarSearch,
         searchFocusNode: c.sidebarSearchFocus,
-        activeTab: c.rightTab,
+        activeTab: c.activeNavTab,
         onSelect: c.selectSession,
         onSearchChanged: c.setSearch,
         onClearSearch: c.clearSearch,
@@ -450,6 +459,105 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         onMinimize: AppWindow.minimize,
         onMaximize: AppWindow.toggleMaximize,
         onCloseWindow: AppWindow.close,
+        // Agents 标签（画板 50）：registry 面板；某个 agent 在认证时换成它的认证页（画板 52）。文件 / 终端标签归 R4。
+        body: c.rightTab == ShellTab.agents ? (c.authAgentId == null ? _registryPanel() : _authPage()) : null,
+      );
+
+  // ---------------------------------------------------------------- Agents 面板与认证页（画板 50 / 51 / 52）
+
+  Widget _registryPanel() => RegistryPanel(
+        entries: c.visibleRegistryEntries,
+        searchController: c.registrySearch,
+        searchFocusNode: c.registrySearchFocus,
+        query: c.registryQuery,
+        filter: c.registryFilter,
+        installedCount: c.registry.installedCount,
+        notInstalledCount: c.registry.notInstalledCount,
+        node: c.registry.node,
+        nodeProgress: c.registry.nodeProgress,
+        fetchError: c.registry.fetchError,
+        fetching: c.registry.fetching,
+        showLogFor: c.registryShowLog,
+        onSearchChanged: c.setRegistryQuery,
+        onFilter: c.setRegistryFilter,
+        onLearnMore: () => _openExternal(registryLearnMoreUrl),
+        onDownloadNode: c.downloadNode,
+        actionsFor: (entry) => RegistryEntryActions(
+          onInstall: () => c.installAgent(entry.id),
+          onRetry: () => c.installAgent(entry.id),
+          onCancel: () => c.cancelInstall(entry.id),
+          onRemove: () => c.removeAgent(entry.id),
+          onLogin: () => c.openAuth(entry.id),
+          onViewLog: () => c.toggleInstallLog(entry.id),
+          onOpenRepository: () {
+            final url = entry.repository ?? entry.website;
+            if (url != null) _openExternal(url);
+          },
+        ),
+      );
+
+  Widget _authPage() => AuthPage(
+        agentName: c.authAgentName,
+        authMethods: c.authMethods,
+        message: c.authConnection?.authMessage,
+        selectedMethodId: c.authMethodId,
+        phase: c.authPhase,
+        terminalLabel: c.authTerminalLabel,
+        terminalBuffer: c.authTerminalBuffer,
+        error: c.authError,
+        requestScope: c.authElicitations,
+        onSelectMethod: c.selectAuthMethod,
+        onStart: c.startAuth,
+        onCancel: c.cancelAuth,
+        onRetry: c.retryAuth,
+        onChangeMethod: c.changeAuthMethod,
+        onStopTerminal: c.stopAuthTerminal,
+        onTerminalInput: c.authTerminalInput,
+        onOpenUrl: (e) async {
+          final url = await c.acceptElicitationUrl(e);
+          if (url != null) await _openExternal(url);
+        },
+        onCancelElicitation: c.cancelElicitation,
+      );
+
+  Future<void> _openExternal(String href) async {
+    final uri = Uri.tryParse(href);
+    if (uri != null) await launchUrl(uri);
+  }
+
+  // ---------------------------------------------------------------- 设置页（画板 70）
+
+  Widget _settingsColumn() => Container(
+        color: t.Surface.canvas,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            _topBar(windowControls: c.rightTab == null),
+            Expanded(
+              child: SettingsPage(
+                agents: c.installedEntries,
+                dataDir: c.dataDir ?? '',
+                logPath: c.logPath,
+                zedSettingsPath: c.zedSettingsPath,
+                zedImportResult: c.zedImportResult,
+                node: c.registry.node,
+                nodeProgress: c.registry.nodeProgress,
+                expandedId: c.settingsExpandedId,
+                editingId: c.settingsEditingId,
+                editFields: c.settingsEdit,
+                onEdit: c.editAgent,
+                onCollapse: c.collapseSettingsEdit,
+                onSave: c.saveCustomAgent,
+                onRemove: c.removeAgent,
+                onImportZed: c.importZed,
+                onDownloadNode: c.downloadNode,
+                // 「打开」：目录在资源管理器里开，日志文件用系统默认程序开（都经 url_launcher 的 file: URI）。
+                onOpenPath: (path) => launchUrl(Uri.file(path, windows: true)),
+                onCopyPath: (path) => Clipboard.setData(ClipboardData(text: path)),
+              ),
+            ),
+          ],
+        ),
       );
 
   Widget _trafficColumn() => Container(

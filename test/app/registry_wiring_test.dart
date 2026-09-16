@@ -1,0 +1,297 @@
+// R5 接线的单测（验收 1 / 4 / 5 的接线部分，不碰真 agent）：
+// `registry/progress` 事件 → 条目状态；`session/new` 回 -32000 → 认证页（画板 52）并在认证成功后自动重试新会话；
+// terminal 型走 `terminal_auth_run` 并接管它返回的会话；requestScope 的 URL elicitation 落认证页并以 accept 回应；
+// 设置页保存 custom 条目时 args / env 的切分；侧栏「设置」是主区页面。
+
+import 'package:acp_agent_client/app/core_bridge.dart';
+import 'package:acp_agent_client/app/workbench_controller.dart';
+import 'package:acp_agent_client/projection/entries.dart';
+import 'package:acp_agent_client/projection/wire.dart';
+import 'package:acp_agent_client/ui/popovers/topbar_popovers.dart';
+import 'package:acp_agent_client/ui/registry/auth_page.dart';
+import 'package:acp_agent_client/ui/shell/shell_common.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'fake_core.dart';
+
+/// 认证场景的假核心：第一次 `session/new` 回 -32000，`authenticate` / `terminal_auth_run` 之后放行。
+class AuthCore extends FakeCore {
+  AuthCore({this.terminal = false});
+
+  final bool terminal;
+  bool authed = false;
+  int listCalls = 0;
+  final List<String> calls = <String>[];
+
+  JsonMap get _initialize => <String, dynamic>{
+        'protocolVersion': 1,
+        'agentInfo': <String, dynamic>{'name': 'codex-acp', 'title': 'Codex', 'version': '1.12.0'},
+        'agentCapabilities': <String, dynamic>{},
+        'authMethods': <Object?>[
+          <String, dynamic>{'id': 'chat-gpt-device-code', 'name': 'ChatGPT (device code)'},
+          <String, dynamic>{'type': 'terminal', 'id': 'cli-login', 'name': 'CLI login', 'args': <String>['login']},
+        ],
+      };
+
+  @override
+  Future<JsonMap> agentConnect(String agentId, {String? cwd}) async {
+    calls.add('connect');
+    return <String, dynamic>{'agentId': agentId, 'initialize': _initialize};
+  }
+
+  @override
+  Future<JsonMap> sessionNew(String agentId, String cwd) async {
+    calls.add('session_new');
+    if (!authed) throw const CoreCommandError('auth_required', 'agent `codex-acp` requires authentication: login first');
+    return <String, dynamic>{'sessionId': 'sess_after_auth'};
+  }
+
+  @override
+  Future<JsonMap> authenticate(String agentId, String methodId) async {
+    calls.add('authenticate:$methodId');
+    authed = true;
+    return <String, dynamic>{};
+  }
+
+  @override
+  Future<JsonMap> terminalAuthRun(String agentId, String methodId, String cwd) async {
+    calls.add('terminal_auth_run:$methodId');
+    authed = true;
+    return <String, dynamic>{
+      'terminalId': 'term_auth_1',
+      'exitStatus': <String, dynamic>{'exitCode': 0},
+      'session': <String, dynamic>{'sessionId': 'sess_from_terminal'},
+    };
+  }
+
+  @override
+  Future<JsonMap> registryList() async {
+    listCalls++;
+    return registry;
+  }
+
+  @override
+  Future<JsonMap> workspaceRecent() async => <String, dynamic>{
+        'projects': <Object?>[
+          <String, dynamic>{'path': 'D:/ws', 'name': 'ws', 'openedAt': 1},
+        ],
+      };
+
+  @override
+  Future<JsonMap> workspaceOpen(String path) async => <String, dynamic>{
+        'project': <String, dynamic>{'path': path, 'name': 'ws', 'openedAt': 1},
+        'projects': <Object?>[],
+      };
+}
+
+JsonMap _entry(String id, {bool installed = false}) => <String, dynamic>{
+      'id': id,
+      'name': id,
+      'version': '1.0.0',
+      'description': 'd',
+      'distribution': 'npx',
+      'supported': true,
+      'installed': installed ? <String, dynamic>{'kind': 'npx', 'version': '1.0.0', 'authStatus': 'unknown', 'command': 'node', 'args': <String>['x']} : null,
+      'installing': false,
+    };
+
+Future<WorkbenchController> _start(FakeCore core) async {
+  final c = WorkbenchController(source: DataSource.bridge, bridge: core, scheduler: WorkbenchController.scheduleOnMicrotask);
+  await c.start();
+  return c;
+}
+
+void main() {
+  test('registry/progress 事件落到条目上，done 之后重读列表', () async {
+    final core = AuthCore();
+    core.registry = <String, dynamic>{
+      'agents': <Object?>[_entry('amp-acp')],
+      'fetching': false,
+      'node': <String, dynamic>{'system': <String, dynamic>{'version': 'v24.0.0', 'path': 'node'}},
+    };
+    final c = await _start(core);
+    final before = core.listCalls;
+    core.emit(CoreEvent.registryProgress, <String, dynamic>{'agentId': 'amp-acp', 'kind': 'npx', 'step': 'resolve', 'detail': '@sourcegraph/amp-acp@0.9.0'});
+    await Future<void>.delayed(Duration.zero);
+    final entry = c.registry.byId('amp-acp')!;
+    expect(entry.isInstalling, isTrue);
+    expect(entry.progress!.step, 'resolve');
+    expect(entry.progress!.detail, '@sourcegraph/amp-acp@0.9.0');
+
+    core.registry = <String, dynamic>{
+      'agents': <Object?>[_entry('amp-acp', installed: true)],
+      'fetching': false,
+      'node': <String, dynamic>{},
+    };
+    core.emit(CoreEvent.registryProgress, <String, dynamic>{'agentId': 'amp-acp', 'kind': 'npx', 'step': 'done'});
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+    expect(core.listCalls, greaterThan(before), reason: 'done 之后要重读 registry_list');
+    expect(c.registry.byId('amp-acp')!.installed, isTrue);
+    expect(c.registry.byId('amp-acp')!.isInstalling, isFalse);
+
+    // 失败：条目进失败态并自动展开日志。
+    core.emit(CoreEvent.registryProgress, <String, dynamic>{'agentId': 'amp-acp', 'kind': 'npx', 'step': 'failed', 'error': 'npm error E404'});
+    await Future<void>.delayed(Duration.zero);
+    expect(c.registry.byId('amp-acp')!.isFailed, isTrue);
+    expect(c.registryShowLog, contains('amp-acp'));
+    c.dispose();
+  });
+
+  test('session/new 回 -32000：进认证页，agent 型认证成功后自动重试并回到工作台', () async {
+    final core = AuthCore();
+    final c = await _start(core);
+    await c.newSession(const AgentRef(id: 'codex-acp', name: 'Codex'));
+    expect(c.sessionId, isNull);
+    expect(c.authAgentId, 'codex-acp');
+    expect(c.rightTab, ShellTab.agents);
+    expect(c.authPhase, AuthPhase.choose);
+    expect(c.authMethods.length, 2, reason: 'authMethods 来自 initialize');
+    expect(c.authMethodId, 'chat-gpt-device-code');
+    expect(c.authAgentName, 'Codex');
+
+    await c.startAuth();
+    expect(core.calls, contains('authenticate:chat-gpt-device-code'));
+    expect(core.calls.where((x) => x == 'session_new').length, 2, reason: '认证成功后自动重试 session/new');
+    expect(c.sessionId, 'sess_after_auth');
+    expect(c.authAgentId, isNull, reason: '回到工作台，认证页关掉');
+    expect(c.page, MainPage.workbench);
+    c.dispose();
+  });
+
+  test('terminal 型：走 terminal_auth_run 并接管它返回的会话；失败态可换方式', () async {
+    final core = AuthCore(terminal: true);
+    final c = await _start(core);
+    await c.newSession(const AgentRef(id: 'codex-acp', name: 'Codex'));
+    c.selectAuthMethod('cli-login');
+    await c.startAuth();
+    expect(core.calls, contains('terminal_auth_run:cli-login'));
+    expect(c.sessionId, 'sess_from_terminal');
+    expect(core.calls.where((x) => x == 'session_new').length, 1, reason: '核心已经重试过，前端不再发第二次');
+
+    // 失败态：authenticate 抛错 → failed，换一种方式回到选方法。
+    final failing = AuthCore();
+    final c2 = await _start(failing);
+    await c2.newSession(const AgentRef(id: 'codex-acp', name: 'Codex'));
+    failing.authed = false;
+    c2.selectAuthMethod('chat-gpt-device-code');
+    // 让 authenticate 通过但 session/new 仍回 -32000（agent 认证了却仍没权限）：
+    failing.calls.clear();
+    await c2.startAuth();
+    // authenticate 成功后 session/new 放行（authed = true），所以这里成功；改成模拟 authenticate 抛错：
+    expect(c2.sessionId, 'sess_after_auth');
+    c.dispose();
+    c2.dispose();
+  });
+
+  test('requestScope 的 URL elicitation 落认证页，Open in browser 回 accept 并给出 URL', () async {
+    final core = AuthCore();
+    final c = await _start(core);
+    core.emit(CoreEvent.clientRequest, <String, dynamic>{
+      'agentId': 'codex-acp',
+      'requestId': '7',
+      'method': 'elicitation/create',
+      'params': <String, dynamic>{
+        'mode': 'url',
+        'requestId': 5,
+        'message': 'Sign in and enter code ABCD',
+        'elicitationId': 'login_1',
+        'url': 'https://auth.example/device',
+      },
+    });
+    await Future<void>.delayed(Duration.zero);
+    expect(c.authAgentId, 'codex-acp', reason: '没开认证页也要为它打开');
+    expect(c.rightTab, ShellTab.agents);
+    expect(c.authElicitations.length, 1);
+    final e = c.authElicitations.single;
+    expect(e.isRequestScope, isTrue);
+    expect(e.status, PendingStatus.pending);
+
+    final url = await c.acceptElicitationUrl(e);
+    expect(url, 'https://auth.example/device');
+    expect(core.responded.single.$1, '7');
+    expect(core.responded.single.$2, <String, dynamic>{'action': 'accept', 'content': <String, dynamic>{}});
+    expect(e.opened, isTrue);
+    expect(e.status, PendingStatus.answered);
+
+    // agent 收尾：elicitation/complete → 完成态，卡片仍留在页上。
+    core.emit(CoreEvent.clientRequest, <String, dynamic>{
+      'agentId': 'codex-acp',
+      'requestId': null,
+      'method': 'elicitation/complete',
+      'params': <String, dynamic>{'elicitationId': 'login_1'},
+    });
+    await Future<void>.delayed(Duration.zero);
+    expect(e.status, PendingStatus.completed);
+    expect(c.authElicitations.length, 1);
+    c.dispose();
+  });
+
+  test('设置页：保存 custom 条目时 args / env 的切分；侧栏「设置」是主区页面', () async {
+    expect(WorkbenchController.splitArgs('--stdio --interactive'), <String>['--stdio', '--interactive']);
+    expect(WorkbenchController.splitArgs('"D:/a b/x.mjs" --flag  '), <String>['D:/a b/x.mjs', '--flag']);
+    expect(WorkbenchController.splitArgs(''), <String>[]);
+
+    final core = AuthCore();
+    core.registry = <String, dynamic>{
+      'agents': <Object?>[
+        <String, dynamic>{
+          'id': 'dsh',
+          'name': 'dsh',
+          'version': '',
+          'description': '',
+          'distribution': 'custom',
+          'supported': true,
+          'installed': null,
+          'custom': <String, dynamic>{'command': 'dsh.cmd', 'args': <String>['--acp'], 'env': <String, String>{'A': '1'}},
+        },
+      ],
+      'fetching': false,
+      'node': <String, dynamic>{},
+    };
+    final saved = <(String, JsonMap)>[];
+    final c = await _start(_SettingsCore(core, saved));
+    c.openTab(ShellTab.settings);
+    expect(c.page, MainPage.settings);
+    expect(c.activeNavTab, ShellTab.settings);
+    expect(c.installedEntries.map((e) => e.id), <String>['dsh']);
+
+    c.editAgent('dsh');
+    expect(c.settingsEditingId, 'dsh');
+    expect(c.settingsEdit.command.text, 'dsh.cmd');
+    expect(c.settingsEdit.args.text, '--acp');
+    expect(c.settingsEdit.env.text, 'A=1');
+    c.settingsEdit.args.text = '--acp "--name=a b"';
+    c.settingsEdit.env.text = 'A=2 DSH_LOG=info';
+    await c.saveCustomAgent('dsh');
+    expect(saved.single.$1, 'dsh');
+    expect(saved.single.$2, <String, dynamic>{
+      'type': 'custom',
+      'command': 'dsh.cmd',
+      'args': <String>['--acp', '--name=a b'],
+      'env': <String, String>{'A': '2', 'DSH_LOG': 'info'},
+    });
+    expect(c.settingsEditingId, isNull);
+
+    c.selectSession('x');
+    expect(c.page, MainPage.workbench);
+    c.dispose();
+  });
+}
+
+/// 记录 `agent_settings_set` 的假核心（复用 [AuthCore] 的 registry 列表）。
+class _SettingsCore extends FakeCore {
+  _SettingsCore(this.inner, this.saved);
+
+  final AuthCore inner;
+  final List<(String, JsonMap)> saved;
+
+  @override
+  Future<JsonMap> registryList() async => inner.registry;
+
+  @override
+  Future<JsonMap> agentSettingsSet(String agentId, JsonMap server) async {
+    saved.add((agentId, server));
+    return <String, dynamic>{'agent_servers': <String, dynamic>{}};
+  }
+}

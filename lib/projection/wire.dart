@@ -376,7 +376,13 @@ class ElicitationRequestWire {
 
   String? get sessionId => _asString(json['sessionId']);
   String? get toolCallId => _asString(json['toolCallId']);
-  String? get requestId => _asString(json['requestId']);
+
+  /// requestScope 的 `requestId` 是在途请求的 JSON-RPC id：线上可能是数字（codex-acp 的 `authenticate` 就是），
+  /// 统一按字符串形状给出（R5 修：只认字符串会把数字 id 判成「不是 requestScope」，认证阶段的 elicitation 就没落点）。
+  String? get requestId {
+    final v = json['requestId'];
+    return v == null ? null : (v is String ? v : v.toString());
+  }
 
   /// requestScope：没有会话（认证 / 配置阶段），落认证页而不是转录。
   bool get isRequestScope => sessionId == null && requestId != null;

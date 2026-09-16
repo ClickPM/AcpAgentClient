@@ -21,12 +21,16 @@ import '../projection/entries.dart';
 import '../projection/fixture_line.dart';
 import '../projection/fixture_replay.dart';
 import '../projection/pending.dart';
+import '../projection/registry.dart';
 import '../projection/session_store.dart';
+import '../projection/tool_calls.dart';
 import '../projection/traffic.dart';
 import '../projection/wire.dart';
 import '../theme/tokens.dart' as t;
 import '../ui/popovers/inline_menus.dart';
 import '../ui/popovers/topbar_popovers.dart';
+import '../ui/registry/auth_page.dart';
+import '../ui/settings/settings_page.dart';
 import '../ui/shell/popover_anchor.dart';
 import '../ui/shell/shell_common.dart';
 import '../ui/shell/sidebar.dart';
@@ -42,8 +46,8 @@ enum DataSource {
       const String.fromEnvironment('DATA_SOURCE') == 'fixtures' ? DataSource.fixtures : DataSource.bridge;
 }
 
-/// 主区显示什么：会话工作台，或 ACP 流量调试（画板 80，从画板 34 的「打开流量面板」进）。
-enum MainPage { workbench, traffic }
+/// 主区显示什么：会话工作台、ACP 流量调试（画板 80，从画板 34 的「打开流量面板」进）、设置（画板 70，从侧栏底部「设置」进）。
+enum MainPage { workbench, traffic, settings }
 
 /// 项目根下算作「规则文件」的名字（docs/design.md § 9 的 Rules 行，清单在 R3 任务卡定）。
 const List<String> ruleFileNames = <String>['AGENTS.md', 'CLAUDE.md', '.rules'];
@@ -99,6 +103,43 @@ class WorkbenchController extends ChangeNotifier {
 
   /// `@` / `/` 内联菜单（画板 42）：null = 不显示。
   Widget? inlineMenu;
+
+  // ---- registry 面板（画板 50 / 51，R5）
+  final RegistryState registry = RegistryState();
+  final TextEditingController registrySearch = TextEditingController();
+  final FocusNode registrySearchFocus = FocusNode();
+  String registryQuery = '';
+  RegistryFilter registryFilter = RegistryFilter.all;
+
+  /// 失败态展开了日志块的条目（「查看日志」切换）。
+  final Set<String> registryShowLog = <String>{};
+
+  /// 核心给的几个路径（画板 70）：`core_init` / `registry_list` 的 `paths`。
+  String? dataDir;
+  String? logPath;
+  String? zedSettingsPath;
+
+  // ---- 认证页（画板 52，R5）：右栏 Agents 标签里、对应 agent 的一页
+  String? authAgentId;
+  AuthPhase authPhase = AuthPhase.choose;
+  String? authMethodId;
+  String? authError;
+  String? authTerminalLabel;
+  String? _authRetryCwd;
+
+  /// 无会话阶段的 URL elicitation（挂起 / 已打开 / 已完成都留在页上，直到离开认证页）。
+  final List<ElicitationEntry> authElicitations = <ElicitationEntry>[];
+
+  // ---- 设置页（画板 70，R5）
+  String? settingsExpandedId;
+  String? settingsEditingId;
+  String? zedImportResult;
+  late final CustomEditFields settingsEdit = CustomEditFields(
+    command: TextEditingController(),
+    args: TextEditingController(),
+    env: TextEditingController(),
+    focus: FocusNode(),
+  );
 
   // ---- 输入控件
   final TextEditingController composer = TextEditingController();
@@ -217,16 +258,23 @@ class WorkbenchController extends ChangeNotifier {
         final json = e.json;
         if (json != null) traffic.apply(json);
       }),
+      b.on(CoreEvent.registryProgress).listen(_onRegistryProgress),
     ]);
     sessions.addListener(notifyListeners);
+    sessions.pending.addListener(_onPendingChanged);
     await _guard(() async {
-      await b.init(defaultDataDir());
+      final info = await b.init(defaultDataDir());
+      dataDir = info['dataDir'] as String? ?? defaultDataDir();
+      logPath = info['logPath'] as String?;
+      await refreshRegistry();
       await refreshAgents();
       await refreshSessionIndex();
       await _restoreLastProject();
       await _restoreUiState();
     });
     notifyListeners();
+    // registry.json 的联网刷新（1 小时节流）放到后台：断网时 30 秒超时不能挡住启动。
+    unawaited(refreshRegistry(network: true));
   }
 
   // ---------------------------------------------------------------- 分栏宽度（画板 04）
@@ -356,12 +404,20 @@ class WorkbenchController extends ChangeNotifier {
       s.cancel();
     }
     sessions.removeListener(notifyListeners);
-    for (final c in <TextEditingController>[composer, sidebarSearch, rename, projectSearch, branchInput, modelSearch, trafficFilter]) {
+    sessions.pending.removeListener(_onPendingChanged);
+    for (final c in <TextEditingController>[
+      composer, sidebarSearch, rename, projectSearch, branchInput, modelSearch, trafficFilter, registrySearch,
+      settingsEdit.command, settingsEdit.args, settingsEdit.env,
+    ]) {
       c.dispose();
     }
-    for (final f in <FocusNode>[composerFocus, sidebarSearchFocus, renameFocus, projectSearchFocus, branchFocus, modelSearchFocus, trafficFilterFocus]) {
+    for (final f in <FocusNode>[
+      composerFocus, sidebarSearchFocus, renameFocus, projectSearchFocus, branchFocus, modelSearchFocus, trafficFilterFocus,
+      registrySearchFocus, settingsEdit.focus,
+    ]) {
       f.dispose();
     }
+    registry.dispose();
     super.dispose();
   }
 
@@ -381,6 +437,12 @@ class WorkbenchController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  /// 关弹层：没在显示的不调 `hide()`——`OverlayPortalController.hide()` 在没挂到 widget 树、也没 show 过时会 assert
+  /// （无头实跑与单测里没有 Overlay；产品路径永远有锚点，`isShowing` 在未挂载时不会 assert）。
+  static void _hide(PopoverHandle handle) {
+    if (handle.isShowing) handle.hide();
+  }
+
   /// 组合根里的纯 UI 变化（弹层里的搜索框输入等）需要重建时调它。
   void refresh() => _touch();
 
@@ -394,8 +456,8 @@ class WorkbenchController extends ChangeNotifier {
     installedAgents = <AgentRef>[
       if (servers is Map)
         for (final id in servers.keys.cast<String>())
-          // 名字用 settings 里的键：协议里没有「展示名」，连上之后线程头才从 agentInfo 取（规则 2）。
-          AgentRef(id: id, name: id),
+          // 名字：registry 型用 registry.json 的展示名（R5），custom 型用 settings 里的键；连上之后线程头再从 agentInfo 取（规则 2）。
+          AgentRef(id: id, name: registry.byId(id)?.name ?? id),
     ];
   }
 
@@ -450,7 +512,7 @@ class WorkbenchController extends ChangeNotifier {
       ];
 
   Future<void> openProject(ProjectRef ref) async {
-    projectAnchor.hide();
+    _hide(projectAnchor);
     final b = bridge;
     if (b == null) {
       project = ref;
@@ -508,7 +570,7 @@ class WorkbenchController extends ChangeNotifier {
   }
 
   Future<void> switchBranch(String name) async {
-    branchAnchor.hide();
+    _hide(branchAnchor);
     branchInput.clear();
     final b = bridge;
     final cwd = project?.path;
@@ -521,7 +583,7 @@ class WorkbenchController extends ChangeNotifier {
   }
 
   Future<void> createBranch(String name) async {
-    branchAnchor.hide();
+    _hide(branchAnchor);
     branchInput.clear();
     final b = bridge;
     final cwd = project?.path;
@@ -536,7 +598,7 @@ class WorkbenchController extends ChangeNotifier {
   // ---------------------------------------------------------------- 会话
 
   Future<void> newSession(AgentRef agent) async {
-    newSessionAnchor.hide();
+    _hide(newSessionAnchor);
     final b = bridge;
     final cwd = project?.path;
     if (b == null || cwd == null) {
@@ -544,26 +606,52 @@ class WorkbenchController extends ChangeNotifier {
       _touch();
       return;
     }
-    await _guard(() async {
+    try {
       await b.agentConnect(agent.id, cwd: cwd);
-      final result = await b.sessionNew(agent.id, cwd);
-      final sid = result['sessionId'];
-      if (sid is! String) throw StateError('session/new 没有返回 sessionId');
-      agentId = agent.id;
-      sessionId = sid;
-      _sessionAgent[sid] = agent.id;
-      sessions.session(sid, agentId: agent.id)
-        ..cwd = cwd
-        ..applyNewSession(result);
-      page = MainPage.workbench;
-      await _saveIndex();
-    });
+      await _createSession(agent.id, cwd);
+    } on CoreCommandError catch (e) {
+      lastError = e.message;
+      switch (e.code) {
+        // `session/new` 回 -32000：认证页（画板 52），成功后自动重试这个 cwd 的新会话（docs/design.md § 5 第 5 条）。
+        case 'auth_required':
+          await openAuth(agent.id, retryCwd: cwd);
+        // npx 型 agent 缺 Node：Agents 面板顶上的受管 Node 提示卡（画板 51）。
+        case 'node_missing':
+          openTab(ShellTab.agents);
+        default:
+          break;
+      }
+    } catch (e) {
+      lastError = e.toString();
+      debugPrint('[workbench] newSession: $e');
+    }
     _touch();
+  }
+
+  /// 已连接的 agent 上开一个会话并切过去（`newSession` 的后半段；认证成功后的自动重试也走这里）。
+  Future<void> _createSession(String agent, String cwd) async {
+    final b = bridge;
+    if (b == null) return;
+    _adoptSession(agent, cwd, await b.sessionNew(agent, cwd));
+    await _saveIndex();
+  }
+
+  /// `session/new` 的结果落到投影层并切成当前会话。
+  void _adoptSession(String agent, String cwd, JsonMap result) {
+    final sid = result['sessionId'];
+    if (sid is! String) throw StateError('session/new 没有返回 sessionId');
+    agentId = agent;
+    sessionId = sid;
+    _sessionAgent[sid] = agent;
+    sessions.session(sid, agentId: agent)
+      ..cwd = cwd
+      ..applyNewSession(result);
+    page = MainPage.workbench;
   }
 
   /// 重载 agent（画板 01 / 41）：断开 + 重拉 + 新会话；旧会话的转录留在内存里只读（R6 接 `session/load` 后改成自动 load）。
   Future<void> reloadAgent() async {
-    threadMenuAnchor.hide();
+    _hide(threadMenuAnchor);
     final id = agentId;
     final b = bridge;
     final cwd = project?.path;
@@ -575,7 +663,7 @@ class WorkbenchController extends ChangeNotifier {
   }
 
   void selectSession(String id) {
-    if (page == MainPage.traffic) page = MainPage.workbench;
+    page = MainPage.workbench;
     sessionId = id;
     agentId = _sessionAgent[id] ?? agentId;
     _touch();
@@ -640,14 +728,14 @@ class WorkbenchController extends ChangeNotifier {
 
   void cancelDelete() {
     confirmingDeleteId = null;
-    deleteAnchor.hide();
+    _hide(deleteAnchor);
     _touch();
   }
 
   /// 本轮只从本地索引移除（向 agent 发 `session/delete` 是 R6）。
   Future<void> deleteSession(String id) async {
     confirmingDeleteId = null;
-    deleteAnchor.hide();
+    _hide(deleteAnchor);
     final b = bridge;
     if (b == null) return;
     await _guard(() async {
@@ -800,9 +888,9 @@ class WorkbenchController extends ChangeNotifier {
   // ---------------------------------------------------------------- 会话配置
 
   Future<void> setConfigOption(String configId, JsonMap value) async {
-    modelAnchor.hide();
-    thoughtAnchor.hide();
-    modeAnchor.hide();
+    _hide(modelAnchor);
+    _hide(thoughtAnchor);
+    _hide(modeAnchor);
     final s = store;
     final b = bridge;
     final id = agentId;
@@ -967,11 +1055,19 @@ class WorkbenchController extends ChangeNotifier {
     _touch();
   }
 
+  /// 侧栏底部导航 / 右栏标签：设置是主区页面（画板 70），其余三个是右栏标签（画板 03 / 50 / 60 / 61）。
   void openTab(ShellTab tab) {
+    if (tab == ShellTab.settings) {
+      openSettings();
+      return;
+    }
     if (!openTabs.contains(tab)) openTabs.add(tab);
     rightTab = tab;
     _touch();
   }
+
+  /// 侧栏底部导航的选中项：设置页打开时是「设置」，否则跟右栏当前标签。
+  ShellTab? get activeNavTab => page == MainPage.settings ? ShellTab.settings : rightTab;
 
   void closeTab(ShellTab tab) {
     openTabs.remove(tab);
@@ -1003,11 +1099,404 @@ class WorkbenchController extends ChangeNotifier {
     _touch();
   }
 
+  /// 画板 34 状态条的登录键：进认证页（画板 52），方法预选。
   Future<void> authenticate(String methodId) async {
-    final b = bridge;
     final id = agentId ?? connection?.agentId;
-    if (b == null || id == null) return;
-    await _guard(() => b.authenticate(id, methodId));
+    if (id == null) return;
+    await openAuth(id, retryCwd: project?.path, methodId: methodId);
+  }
+
+  // ---------------------------------------------------------------- registry 面板（画板 50 / 51，R5）
+
+  /// 过滤 + 搜索之后的条目。
+  List<RegistryEntryData> get visibleRegistryEntries => registry.visible(registryFilter, registryQuery);
+
+  /// `registry_list`（`network` = 先联网刷新，1 小时节流，`force` 跳过）。失败不清列表，错误进 `registry.fetchError` 或 [lastError]。
+  Future<void> refreshRegistry({bool network = false, bool force = false}) async {
+    final b = bridge;
+    if (b == null) return;
+    await _guard(() async {
+      final list = network ? await b.registryRefresh(force: force) : await b.registryList();
+      registry.applyList(list);
+      final paths = list['paths'];
+      if (paths is Map) {
+        dataDir = paths['dataDir'] as String? ?? dataDir;
+        logPath = paths['logPath'] as String? ?? logPath;
+        zedSettingsPath = paths['zedSettingsPath'] as String?;
+      }
+      // 展示名随 registry 来（画板 41 的新建会话弹层）。
+      await refreshAgents();
+    });
+    _touch();
+  }
+
+  void _onRegistryProgress(CoreEventRecord e) {
+    final json = e.json;
+    if (json == null) return;
+    final id = registry.applyProgress(json);
+    final step = json['step'];
+    if (step == 'done' || step == 'failed' || step == 'cancelled') {
+      // 装完 / 失败 / 取消：安装记录与 settings 都变了，重读列表（不联网）。
+      unawaited(refreshRegistry());
+      if (id != null && step == 'failed') registryShowLog.add(id);
+    }
+    _touch();
+  }
+
+  void setRegistryFilter(RegistryFilter filter) {
+    registryFilter = filter;
+    _touch();
+  }
+
+  void setRegistryQuery(String query) {
+    registryQuery = query;
+    _touch();
+  }
+
+  /// Install / 重试（失败态）。
+  Future<void> installAgent(String id) async {
+    final b = bridge;
+    if (b == null) return;
+    registryShowLog.remove(id);
+    await _guard(() => b.registryInstall(id));
+    _touch();
+  }
+
+  Future<void> cancelInstall(String id) async {
+    final b = bridge;
+    if (b == null) return;
+    await _guard(() => b.registryCancelInstall(id));
+    _touch();
+  }
+
+  void toggleInstallLog(String id) {
+    if (!registryShowLog.remove(id)) registryShowLog.add(id);
+    _touch();
+  }
+
+  /// Remove（画板 50 / 51 / 70）：registry 型走 `registry_remove`（settings 条目 + `agents/<id>/`），custom 型只删 settings 条目。
+  Future<void> removeAgent(String id) async {
+    final b = bridge;
+    if (b == null) return;
+    await _guard(() async {
+      final entry = registry.byId(id);
+      if (entry?.isCustom ?? false) {
+        await b.agentSettingsRemove(id);
+      } else {
+        await b.registryRemove(id);
+      }
+      if (agentId == id) {
+        agentId = null;
+        sessionId = null;
+      }
+      if (authAgentId == id) closeAuth();
+      if (settingsEditingId == id || settingsExpandedId == id) collapseSettingsEdit();
+      await refreshRegistry();
+    });
+    _touch();
+  }
+
+  /// 受管 Node（画板 51 提示卡 / 画板 70 的 Node 运行时）。进度经 `registry/progress`（`agentId: null`）。
+  Future<void> downloadNode() async {
+    final b = bridge;
+    if (b == null) return;
+    await _guard(() async {
+      await b.nodeDownload();
+      await refreshRegistry();
+    });
+    _touch();
+  }
+
+  // ---------------------------------------------------------------- 认证页（画板 52，R5）
+
+  AgentConnection? get authConnection => authAgentId == null ? null : sessions.agents[authAgentId!];
+
+  List<JsonMap> get authMethods => authConnection?.authMethods ?? const <JsonMap>[];
+
+  String get authAgentName {
+    final c = authConnection;
+    final id = authAgentId ?? '';
+    return c?.agentTitle ?? c?.agentName ?? registry.byId(id)?.name ?? id;
+  }
+
+  /// terminal 型认证的可见终端：核心的 `authenticating` 事件带 terminalId。
+  String? get authTerminalId => authConnection?.authenticatingTerminalId;
+
+  TerminalBuffer? get authTerminalBuffer {
+    final id = authTerminalId;
+    return id == null || authTerminalLabel == null ? null : sessions.terminals.ensure(id);
+  }
+
+  /// 进认证页：三个入口（`-32000`、画板 51 的登录键、画板 34 的登录键）都到这里。没连上的先 `initialize`（authMethods 从它来）。
+  Future<void> openAuth(String agent, {String? retryCwd, String? methodId}) async {
+    authAgentId = agent;
+    authPhase = AuthPhase.choose;
+    authError = null;
+    authTerminalLabel = null;
+    _authRetryCwd = retryCwd ?? project?.path;
+    authElicitations.clear();
+    openTab(ShellTab.agents);
+    final b = bridge;
+    if (b != null && authMethods.isEmpty) {
+      await _guard(() async {
+        final result = await b.agentConnect(agent, cwd: _authRetryCwd);
+        final init = result['initialize'];
+        if (init is Map) sessions.agents.applyInitializeResult(agent, init.cast<String, dynamic>());
+      });
+    }
+    authMethodId = methodId ?? authMethods.firstOrNull?['id'] as String?;
+    _touch();
+  }
+
+  void selectAuthMethod(String id) {
+    authMethodId = id;
+    _touch();
+  }
+
+  /// 开始认证：agent 型调 `authenticate`（URL elicitation 会经 requestScope 落到本页）；terminal 型在 pty 里重拉同一个 agent，
+  /// 核心等它退出后自动重试 `session/new`。成功后回到刚才的新会话，失败留在失败态（可重试、可换方式）。
+  Future<void> startAuth() async {
+    final b = bridge;
+    final agent = authAgentId;
+    final methodId = authMethodId ?? authMethods.firstOrNull?['id'] as String?;
+    if (b == null || agent == null || methodId == null) return;
+    final method = authMethods.where((m) => m['id'] == methodId).firstOrNull ?? const <String, dynamic>{};
+    final cwd = _authRetryCwd ?? project?.path;
+    authPhase = AuthPhase.running;
+    authError = null;
+    _touch();
+    try {
+      if (AuthPage.methodType(method) == 'terminal') {
+        if (cwd == null) throw StateError('先选一个项目目录，terminal auth 在它里面跑');
+        authTerminalLabel = method['name'] as String? ?? methodId;
+        _touch();
+        final result = await b.terminalAuthRun(agent, methodId, cwd);
+        authPhase = AuthPhase.succeeded;
+        _touch();
+        final session = result['session'];
+        if (session is Map) {
+          _adoptSession(agent, cwd, session.cast<String, dynamic>());
+          await _saveIndex();
+        } else {
+          await _createSession(agent, cwd);
+        }
+      } else {
+        await b.authenticate(agent, methodId);
+        authPhase = AuthPhase.succeeded;
+        _touch();
+        if (cwd != null) await _createSession(agent, cwd);
+      }
+      closeAuth();
+      page = MainPage.workbench;
+    } on CoreCommandError catch (e) {
+      authPhase = AuthPhase.failed;
+      authError = '${e.message} (${e.code})';
+    } catch (e) {
+      authPhase = AuthPhase.failed;
+      authError = e.toString();
+    }
+    _touch();
+  }
+
+  /// 失败态的「重试」：同一方法再来一次。
+  Future<void> retryAuth() => startAuth();
+
+  /// 失败态的「换一种方式」：回到选方法。
+  void changeAuthMethod() {
+    authPhase = AuthPhase.choose;
+    authError = null;
+    authTerminalLabel = null;
+    _touch();
+  }
+
+  /// 取消：terminal 在跑的先关掉（核心等到退出后照常重试 `session/new`，失败会以 failed 收尾）；回 registry 列表。
+  Future<void> cancelAuth() async {
+    final b = bridge;
+    final terminal = authTerminalId;
+    if (b != null && terminal != null && authPhase == AuthPhase.running) {
+      await _guard(() => b.terminalClose(terminal));
+    }
+    closeAuth();
+  }
+
+  void closeAuth() {
+    authAgentId = null;
+    authPhase = AuthPhase.choose;
+    authMethodId = null;
+    authError = null;
+    authTerminalLabel = null;
+    _authRetryCwd = null;
+    authElicitations.clear();
+    _touch();
+  }
+
+  Future<void> stopAuthTerminal() async {
+    final b = bridge;
+    final terminal = authTerminalId;
+    if (b == null || terminal == null) return;
+    await _guard(() => b.terminalClose(terminal));
+  }
+
+  Future<void> authTerminalInput(String data) async {
+    final b = bridge;
+    final terminal = authTerminalId;
+    if (b == null || terminal == null) return;
+    await _guard(() => b.terminalWrite(terminal, data));
+  }
+
+  /// requestScope 的 elicitation 到达：落认证页（没开的话打开对应 agent 的一页），不落转录（docs/design.md § 5 第 5 条）。
+  void _onPendingChanged() {
+    final pending = sessions.pending.requestScope;
+    if (pending.isEmpty) return;
+    var added = false;
+    for (final e in pending) {
+      if (authElicitations.any((x) => x.requestId == e.requestId)) continue;
+      authElicitations.add(e);
+      added = true;
+    }
+    if (!added) return;
+    final agent = pending.first.agentId;
+    if (authAgentId == null && agent != null) {
+      authAgentId = agent;
+      authPhase = AuthPhase.running;
+      authMethodId ??= authMethods.firstOrNull?['id'] as String?;
+      _authRetryCwd ??= project?.path;
+    }
+    if (rightTab != ShellTab.agents) openTab(ShellTab.agents);
+    _touch();
+  }
+
+  /// 「Open in browser」：回 `accept`（挂起的）并记已打开；返回要打开的 URL（打开本身由组合根的 `url_launcher` 做）。
+  Future<String?> acceptElicitationUrl(ElicitationEntry e) async {
+    final b = bridge;
+    final agent = e.agentId ?? authAgentId;
+    if (e.status == PendingStatus.pending && b != null && agent != null) {
+      final payload = sessions.pending.answerElicitation(e.requestId, 'accept', now: sessions.now);
+      if (payload != null) await _guard(() => b.acpRespond(agent, e.requestId, payload));
+    }
+    sessions.pending.markOpened(e.requestId);
+    _touch();
+    return e.wire.url;
+  }
+
+  /// 已打开后的 Cancel：挂起的回 `cancel`；已 accept 的只本地标 cancelled（没有第二个响应可发）。
+  Future<void> cancelElicitation(ElicitationEntry e) async {
+    final b = bridge;
+    final agent = e.agentId ?? authAgentId;
+    if (e.status == PendingStatus.pending && b != null && agent != null) {
+      final payload = sessions.pending.answerElicitation(e.requestId, 'cancel', now: sessions.now);
+      if (payload != null) await _guard(() => b.acpRespond(agent, e.requestId, payload));
+    } else {
+      sessions.pending.cancelRequest(e.requestId, now: sessions.now);
+    }
+    _touch();
+  }
+
+  // ---------------------------------------------------------------- 设置页（画板 70，R5）
+
+  /// 已安装的条目（registry 型 + custom 型），设置页的 agent 配置列表。
+  List<RegistryEntryData> get installedEntries => <RegistryEntryData>[
+        for (final e in registry.entries)
+          if (e.installed) e,
+      ];
+
+  void openSettings() {
+    page = MainPage.settings;
+    _touch();
+  }
+
+  /// 「编辑」：custom 型进行内编辑（cmd / args / env 填进输入框），registry 型只读展开拉起参数。
+  void editAgent(String id) {
+    final entry = registry.byId(id);
+    if (entry != null && entry.isCustom && entry.custom != null) {
+      settingsEditingId = id;
+      settingsExpandedId = null;
+      settingsEdit.command.text = entry.custom!.command;
+      settingsEdit.args.text = entry.custom!.argsText;
+      settingsEdit.env.text = entry.custom!.envText;
+    } else {
+      settingsExpandedId = settingsExpandedId == id ? null : id;
+      settingsEditingId = null;
+    }
+    _touch();
+  }
+
+  void collapseSettingsEdit() {
+    settingsEditingId = null;
+    settingsExpandedId = null;
+    _touch();
+  }
+
+  /// 「保存」：写回 `{type: custom, command, args, env}`（args 按空白分隔、双引号可包空格；env 是 `K=V` 空白分隔）。
+  Future<void> saveCustomAgent(String id) async {
+    final b = bridge;
+    if (b == null) return;
+    final command = settingsEdit.command.text.trim();
+    if (command.isEmpty) {
+      lastError = 'cmd 不能为空';
+      _touch();
+      return;
+    }
+    final env = <String, String>{};
+    for (final token in splitArgs(settingsEdit.env.text)) {
+      final i = token.indexOf('=');
+      if (i <= 0) continue;
+      env[token.substring(0, i)] = token.substring(i + 1);
+    }
+    await _guard(() async {
+      await b.agentSettingsSet(id, <String, dynamic>{
+        'type': 'custom',
+        'command': command,
+        'args': splitArgs(settingsEdit.args.text),
+        'env': env,
+      });
+      settingsEditingId = null;
+      await refreshRegistry();
+    });
+    _touch();
+  }
+
+  /// 按空白切分，双引号里的空格保留（`"C:\a b\x.cmd" --flag`）。
+  static List<String> splitArgs(String text) {
+    final out = <String>[];
+    final buf = StringBuffer();
+    var quoted = false;
+    var has = false;
+    for (final ch in text.runes) {
+      final c = String.fromCharCode(ch);
+      if (c == '"') {
+        quoted = !quoted;
+        has = true;
+      } else if (!quoted && c.trim().isEmpty) {
+        if (has) out.add(buf.toString());
+        buf.clear();
+        has = false;
+      } else {
+        buf.write(c);
+        has = true;
+      }
+    }
+    if (has) out.add(buf.toString());
+    return out;
+  }
+
+  /// 「从 Zed 导入」：结果文案留在行下（画板 70 的注释位）。
+  Future<void> importZed() async {
+    final b = bridge;
+    if (b == null) return;
+    await _guard(() async {
+      final result = await b.agentSettingsImportZed();
+      final report = result['report'];
+      if (report is Map) {
+        List<String> ids(Object? v) => v is List ? v.map((e) => e.toString()).toList() : const <String>[];
+        final imported = ids(report['imported']);
+        final skipped = ids(report['skipped']);
+        final invalid = ids(report['invalid']);
+        zedImportResult = '已导入 ${imported.length} 条${imported.isEmpty ? '' : '（${imported.join('、')}）'}，'
+            '跳过同名 ${skipped.length} 条${invalid.isEmpty ? '' : '，解不开 ${invalid.length} 条（${invalid.join('、')}）'}。';
+      }
+      await refreshRegistry();
+    });
     _touch();
   }
 }
