@@ -82,6 +82,99 @@ struct FakeState {
     elicitation_actions: Mutex<Vec<String>>,
     /// 当前回合的 prompt responder（cancel 时用）。
     cancel_flag: Mutex<Option<tokio::sync::watch::Sender<bool>>>,
+    /// `session/new` 给的 cwd（fs / terminal 场景要在它里面读写）。
+    session_cwd: Mutex<Option<std::path::PathBuf>>,
+    /// fs / terminal 场景里每个回调的结果（`{step, ok: <response json>}` 或 `{step, error: {code, message}}`）。
+    callback_log: Mutex<Vec<Value>>,
+}
+
+/// agent 侧发一个 client 请求并把结果记进日志（响应 serde 成 JSON，错误记 code / message）。
+async fn call<Req>(cx: &ConnectionTo<Client>, state: &FakeState, step: &str, req: Req) -> Value
+where
+    Req: agent_client_protocol::JsonRpcRequest + Send + 'static,
+    Req::Response: serde::Serialize,
+{
+    let outcome = match cx.send_request(req).block_task().await {
+        Ok(resp) => json!({ "step": step, "ok": serde_json::to_value(&resp).expect("json") }),
+        Err(e) => {
+            let v = serde_json::to_value(&e).expect("json");
+            json!({ "step": step, "error": { "code": v["code"], "message": e.message, "data": e.data } })
+        }
+    };
+    state.callback_log.lock().expect("lock").push(outcome.clone());
+    outcome
+}
+
+/// fs/* 与 terminal/* 七个回调的场景（R4）：写 → 读（1-based 行）→ 读不存在的 → 读 cwd 之外的 →
+/// 前台命令（create / wait / output / kill 空操作 / release / release 后 output 报错）→ 后台命令（create / kill / wait / output / release）。
+async fn run_fs_terminal_scenario(cx: &ConnectionTo<Client>, state: &FakeState, session_id: &str) {
+    let cwd = state.session_cwd.lock().expect("lock").clone().expect("session cwd recorded");
+    let file = cwd.join("r4 目录").join("r4.txt");
+    let file_str = file.to_string_lossy().into_owned();
+    let write: acp::WriteTextFileRequest =
+        serde_json::from_value(json!({ "sessionId": session_id, "path": file_str, "content": "第一行\n第二行\n" })).expect("req");
+    call(cx, state, "write", write).await;
+    let read: acp::ReadTextFileRequest =
+        serde_json::from_value(json!({ "sessionId": session_id, "path": file_str, "line": 2, "limit": 1 })).expect("req");
+    call(cx, state, "read_line2", read).await;
+    let missing: acp::ReadTextFileRequest =
+        serde_json::from_value(json!({ "sessionId": session_id, "path": cwd.join("nope.txt").to_string_lossy() })).expect("req");
+    call(cx, state, "read_missing", missing).await;
+    let outside_path = std::env::temp_dir().join("acp-core-r4-outside.txt");
+    let outside: acp::ReadTextFileRequest =
+        serde_json::from_value(json!({ "sessionId": session_id, "path": outside_path.to_string_lossy() })).expect("req");
+    call(cx, state, "read_outside", outside).await;
+    let beyond: acp::ReadTextFileRequest =
+        serde_json::from_value(json!({ "sessionId": session_id, "path": file_str, "line": 9 })).expect("req");
+    call(cx, state, "read_beyond", beyond).await;
+
+    // 前台命令：echo 在 PowerShell / cmd / sh 里都有。
+    let create: acp::CreateTerminalRequest = serde_json::from_value(json!({
+        "sessionId": session_id, "command": "echo", "args": ["r4-terminal-ok"], "outputByteLimit": 4096,
+        "env": [{ "name": "ACP_R4", "value": "1" }]
+    }))
+    .expect("req");
+    let created = call(cx, state, "create", create).await;
+    let tid = created["ok"]["terminalId"].as_str().unwrap_or_default().to_string();
+    let wait: acp::WaitForTerminalExitRequest = serde_json::from_value(json!({ "sessionId": session_id, "terminalId": tid })).expect("req");
+    call(cx, state, "wait", wait).await;
+    let output: acp::TerminalOutputRequest = serde_json::from_value(json!({ "sessionId": session_id, "terminalId": tid })).expect("req");
+    call(cx, state, "output", output).await;
+    let kill: acp::KillTerminalRequest = serde_json::from_value(json!({ "sessionId": session_id, "terminalId": tid })).expect("req");
+    call(cx, state, "kill_after_exit", kill).await;
+    let release: acp::ReleaseTerminalRequest = serde_json::from_value(json!({ "sessionId": session_id, "terminalId": tid })).expect("req");
+    call(cx, state, "release", release).await;
+    let after: acp::TerminalOutputRequest = serde_json::from_value(json!({ "sessionId": session_id, "terminalId": tid })).expect("req");
+    call(cx, state, "output_after_release", after).await;
+
+    // 后台命令：起一个长命令，看到输出后 kill，wait 拿到非零退出，output 仍在，release 收尾。
+    let (command, args): (&str, Vec<&str>) = if cfg!(windows) {
+        ("cmd", vec!["/c", "echo started && ping -n 30 127.0.0.1 > nul"])
+    } else {
+        ("sh", vec!["-c", "echo started; sleep 30"])
+    };
+    let create_bg: acp::CreateTerminalRequest =
+        serde_json::from_value(json!({ "sessionId": session_id, "command": command, "args": args, "cwd": cwd.to_string_lossy() })).expect("req");
+    let created = call(cx, state, "bg_create", create_bg).await;
+    let bg = created["ok"]["terminalId"].as_str().unwrap_or_default().to_string();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+    loop {
+        let out: acp::TerminalOutputRequest = serde_json::from_value(json!({ "sessionId": session_id, "terminalId": bg })).expect("req");
+        let v = call(cx, state, "bg_poll", out).await;
+        if v["ok"]["output"].as_str().is_some_and(|s| s.contains("started")) {
+            break;
+        }
+        assert!(tokio::time::Instant::now() < deadline, "background command never printed: {v}");
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    let kill: acp::KillTerminalRequest = serde_json::from_value(json!({ "sessionId": session_id, "terminalId": bg })).expect("req");
+    call(cx, state, "bg_kill", kill).await;
+    let wait: acp::WaitForTerminalExitRequest = serde_json::from_value(json!({ "sessionId": session_id, "terminalId": bg })).expect("req");
+    call(cx, state, "bg_wait", wait).await;
+    let out: acp::TerminalOutputRequest = serde_json::from_value(json!({ "sessionId": session_id, "terminalId": bg })).expect("req");
+    call(cx, state, "bg_output", out).await;
+    let release: acp::ReleaseTerminalRequest = serde_json::from_value(json!({ "sessionId": session_id, "terminalId": bg })).expect("req");
+    call(cx, state, "bg_release", release).await;
 }
 
 fn session_update(session_id: &str, update: Value) -> UntypedMessage {
@@ -127,7 +220,8 @@ fn spawn_fake_agent(state: Arc<FakeState>, transport: Channel, scenario: &'stati
                 agent_client_protocol::on_receive_request!(),
             )
             .on_receive_request(
-                async move |_req: acp::NewSessionRequest, responder: Responder<acp::NewSessionResponse>, _cx: ConnectionTo<Client>| {
+                async move |req: acp::NewSessionRequest, responder: Responder<acp::NewSessionResponse>, _cx: ConnectionTo<Client>| {
+                    *new_state.session_cwd.lock().expect("lock") = Some(req.cwd.clone());
                     let n = new_state.session_new_calls.fetch_add(1, Ordering::SeqCst);
                     if n == 0 {
                         responder.respond_with_error(acp::Error::new(-32000, "FAKE_KEY is not configured"))
@@ -145,6 +239,11 @@ fn spawn_fake_agent(state: Arc<FakeState>, transport: Channel, scenario: &'stati
                     *state.cancel_flag.lock().expect("lock") = Some(cancel_tx);
                     // 不能在 handler 里等自己发出的请求（SDK 的 dispatch 循环会死锁），整轮放到独立任务里跑。
                     tokio::spawn(async move {
+                        if scenario == "fs_terminal" {
+                            run_fs_terminal_scenario(&cx, &state, &session_id).await;
+                            responder.respond(acp::PromptResponse::new(acp::StopReason::EndTurn)).expect("respond");
+                            return;
+                        }
                         cx.send_notification(session_update(&session_id, json!({
                             "sessionUpdate": "agent_message_chunk",
                             "content": { "type": "text", "text": "hello" }
@@ -255,10 +354,33 @@ async fn connect(scenario: &'static str) -> (Arc<AgentConnection>, Arc<Events>, 
     let state = Arc::new(FakeState::default());
     let agent_task = spawn_fake_agent(state.clone(), agent_side, scenario);
     let events = Arc::new(Events::default());
-    let connection = AgentConnection::connect_with_transport("fake".into(), LaunchSpec::new("fake-agent"), events.clone(), client_side)
+    let connection = AgentConnection::connect_with_transport("fake".into(), LaunchSpec::new("fake-agent"), events.clone(), client_side, terminals(&events))
         .await
         .expect("connect");
     (connection, events, state, agent_task)
+}
+
+/// 终端表的出口：与 `Core` 的 `TerminalEvents` 同一形状（`{terminalId, source, bytes}` / `{…, exitStatus}`），落到同一个事件收集器。
+struct EventTerminals(Arc<Events>);
+
+impl pty::TerminalSink for EventTerminals {
+    fn output(&self, id: &str, source: pty::TerminalSource, bytes: &[u8]) {
+        let payload = json!({ "terminalId": id, "source": source.as_str(), "bytes": acp_core::core::base64_encode(bytes) });
+        self.0.emit(EventChannel::TerminalOutput, payload.to_string());
+    }
+
+    fn exited(&self, id: &str, source: pty::TerminalSource, status: &pty::ExitStatus) {
+        let payload = json!({
+            "terminalId": id,
+            "source": source.as_str(),
+            "exitStatus": { "exitCode": status.exit_code, "signal": status.signal },
+        });
+        self.0.emit(EventChannel::TerminalOutput, payload.to_string());
+    }
+}
+
+fn terminals(events: &Arc<Events>) -> Arc<pty::TerminalManager> {
+    Arc::new(pty::TerminalManager::new(Arc::new(EventTerminals(events.clone()))))
 }
 
 fn allow_once() -> Value {
@@ -472,12 +594,96 @@ async fn withdrawn_request_gets_request_cancelled_response_and_leaves_the_queue(
     connection.disconnect().await;
 }
 
+/// R4：七个 fs/* / terminal/* 回调走真实的 handler → fs / pty（规则 9：Windows 上经 PowerShell 拼命令，cwd 含空格与中文）。
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn fs_and_terminal_callbacks_through_the_client_handlers() {
+    let (connection, events, state, _agent_task) = connect("fs_terminal").await;
+    let cwd = std::env::temp_dir().join(format!("acp-core r4 会话目录-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&cwd);
+    std::fs::create_dir_all(&cwd).expect("mkdir");
+    let _ = connection.session_new(cwd.clone()).await.expect_err("auth required");
+    connection.session_new(cwd.clone()).await.expect("session");
+    let prompt = connection
+        .session_prompt("sess_fake", json!([{ "type": "text", "text": "fs + terminal" }]))
+        .await
+        .expect("prompt");
+    assert_eq!(prompt["stopReason"], "end_turn");
+
+    let log = state.callback_log.lock().expect("lock").clone();
+    let step = |name: &str| log.iter().find(|v| v["step"] == name).cloned().unwrap_or_else(|| panic!("no step {name} in {log:#?}"));
+
+    // fs/write_text_file：文件与父目录都被创建，内容一字不差。
+    assert!(step("write")["ok"].is_object() || step("write")["ok"].is_null(), "{}", step("write"));
+    assert_eq!(std::fs::read_to_string(cwd.join("r4 目录").join("r4.txt")).expect("written"), "第一行\n第二行\n");
+    // fs/read_text_file：1-based 的 line / limit。
+    assert_eq!(step("read_line2")["ok"]["content"], "第二行\n");
+    // 不存在 → -32002；cwd 之外 / 行号越界 → -32602。
+    assert_eq!(step("read_missing")["error"]["code"], -32002, "{}", step("read_missing"));
+    assert_eq!(step("read_outside")["error"]["code"], -32602, "{}", step("read_outside"));
+    assert_eq!(step("read_beyond")["error"]["code"], -32602, "{}", step("read_beyond"));
+
+    // 前台命令：create 拿到 id；wait 是退出码 0；output 含文本、不截断、带退出状态；退出后 kill 是空操作；
+    // release 之后 output 报 -32602（id 失效）。
+    let tid = step("create")["ok"]["terminalId"].as_str().expect("terminalId").to_string();
+    assert!(tid.starts_with("term_"), "{tid}");
+    assert_eq!(step("wait")["ok"]["exitCode"], 0, "{}", step("wait"));
+    let output = step("output");
+    assert!(output["ok"]["output"].as_str().is_some_and(|s| s.contains("r4-terminal-ok")), "{output}");
+    assert_eq!(output["ok"]["truncated"], false);
+    assert_eq!(output["ok"]["exitStatus"]["exitCode"], 0);
+    assert!(step("kill_after_exit")["ok"].is_object() || step("kill_after_exit")["ok"].is_null());
+    assert_eq!(step("output_after_release")["error"]["code"], -32602, "{}", step("output_after_release"));
+
+    // 后台命令：kill 之后 wait 返回非零、output 还在、release 收尾。
+    assert!(step("bg_wait")["ok"]["exitCode"] != 0, "{}", step("bg_wait"));
+    assert!(step("bg_output")["ok"]["output"].as_str().is_some_and(|s| s.contains("started")), "{}", step("bg_output"));
+    assert!(step("bg_output")["ok"]["exitStatus"].is_object());
+
+    // 终端输出也经 `acp/terminal_output`（source = agent）推给了前端；release 后本连接不再持有终端。
+    let terminal_events: Vec<Value> = events
+        .snapshot()
+        .into_iter()
+        .filter(|(c, _)| *c == EventChannel::TerminalOutput)
+        .map(|(_, v)| v)
+        .collect();
+    assert!(terminal_events.iter().any(|v| v["terminalId"] == tid.as_str() && v["source"] == "agent" && v["bytes"].is_string()), "{terminal_events:#?}");
+    assert!(terminal_events.iter().any(|v| v["terminalId"] == tid.as_str() && v["exitStatus"]["exitCode"] == 0), "{terminal_events:#?}");
+    assert!(connection.shared().owned_terminal_ids().is_empty());
+
+    connection.disconnect().await;
+    let _ = std::fs::remove_dir_all(&cwd);
+}
+
+/// agent 死了（或被断开）时它建的终端要一起释放，不能留孤儿进程。
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn owned_terminals_are_released_when_the_agent_disconnects() {
+    let (connection, _events, _state, _agent_task) = connect("full").await;
+    let cwd = std::env::temp_dir();
+    let _ = connection.session_new(cwd.clone()).await.expect_err("auth required");
+    connection.session_new(cwd.clone()).await.expect("session");
+    // 直接经 Shared 的 handler 建一个长命令的终端（与 agent 发请求走同一条路），不必再写一个 agent 场景。
+    let terminals = connection.shared().terminal_manager();
+    let (command, args): (&str, Vec<String>) = if cfg!(windows) {
+        ("cmd", vec!["/c".into(), "ping -n 30 127.0.0.1 > nul".into()])
+    } else {
+        ("sh", vec!["-c".into(), "sleep 30".into()])
+    };
+    let id = terminals
+        .spawn_shell_command(command, &args, Vec::new(), Some(cwd), None, pty::TerminalSource::Agent)
+        .expect("spawn");
+    connection.shared().adopt_terminal(&id);
+    assert_eq!(connection.shared().owned_terminal_ids(), vec![id.clone()]);
+    connection.disconnect().await;
+    assert!(connection.shared().owned_terminal_ids().is_empty());
+    assert!(matches!(terminals.output(&id), Err(pty::PtyError::UnknownTerminal(_))), "terminal must be released");
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn initialize_failure_when_agent_side_closes_immediately() {
     let (client_side, agent_side) = Channel::duplex();
     drop(agent_side);
     let events = Arc::new(Events::default());
-    let err = AgentConnection::connect_with_transport("dead".into(), LaunchSpec::new("dead"), events.clone(), client_side)
+    let err = AgentConnection::connect_with_transport("dead".into(), LaunchSpec::new("dead"), events.clone(), client_side, terminals(&events))
         .await
         .expect_err("must fail");
     assert!(matches!(err, CoreError::Exited { .. } | CoreError::Transport(_) | CoreError::Acp { .. }), "{err:?}");

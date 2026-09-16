@@ -28,6 +28,8 @@ serde_json = { version = "1", features = ["preserve_order"] }
 futures = { version = "0.3", default-features = false, features = ["std", "async-await"] }
 # CLAUDE.md 规则 1 通用库清单内：terminal auth 的可见终端与 terminal/* 回调（docs/design.md § 7）。
 portable-pty = "0.9"
+# CLAUDE.md 规则 1 通用库清单内：文件面板的目录监视（R4）。默认后端（Windows 用 ReadDirectoryChangesW）。
+notify = "8"
 
 acp-core = { path = "acp-core" }
 registry = { path = "registry" }

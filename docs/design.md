@@ -65,8 +65,9 @@ Flutter 宿主进程（Dart）
 - 连接与会话：`agent_connect`、`agent_disconnect`、`session_new`、`session_load`、`session_list`（cursor 分页）、`session_resume`、`session_close`、`session_delete`、`session_prompt`、`session_cancel`、`session_set_mode`、`session_set_config_option`、`acp_respond`
 - 认证：`authenticate`（agent 类型）、`terminal_auth_run`（terminal 类型；完成后核心自动重试 `session/new`）
 - registry、Node 与设置：`registry_refresh`、`registry_list`、`registry_install`、`registry_cancel_install`、`registry_remove`、`node_status`、`node_download`、`agent_settings_get/set`、`agent_settings_import_zed`
-- 文件面板与 git：`fs_list_dir`、`fs_read`、`fs_watch`、`fs_search`、`git_status`（文件树徽章）、`git_branches`、`git_switch`、`git_create_branch`、`git_diff`（Branch Diff 上下文）
-- 本地 shell（终端面板）：`terminal_open`、`terminal_write`、`terminal_resize`、`terminal_close`；输出走 `acp/terminal_output`（`terminal_write` 在 R1 先出：terminal auth 的可见终端要接键盘输入）
+- 文件面板与 git：`fs_list_dir`、`fs_read`（查看器：`{path, text, size, lines, binary, truncated}`，超 2 MiB 只给前一段）、`fs_watch` / `fs_unwatch`（R4：`fs_watch` 是**流命令**——frb 的 `StreamSink`，每批去抖后的变化推一条 `{root, dirs: [绝对路径…], git}`，`dirs` 是内容变了的目录、`git` = `.git` 之下有变化；取消流即停，不另开事件通道）、`fs_search`、`git_status`（文件树徽章：`{available, isRepo, root, entries: [{path, badge, code}]}`）、`git_branches`、`git_switch`、`git_create_branch`、`git_diff`（Branch Diff 上下文）
+- 本地 shell 与终端控制（终端面板）：`terminal_open`（`{terminalId, cwd, program}`，系统默认 shell）、`terminal_write`、`terminal_resize`、`terminal_close`（kill + 释放）、`terminal_kill`（R4：只结束进程不释放 = `terminal/kill` 语义；画板 23 的停止方块对 agent 建的终端也用它）；输出走 `acp/terminal_output`（`terminal_write` 在 R1 先出：terminal auth 的可见终端要接键盘输入）
+- 退出收尾：`core_shutdown`（R4：释放全部终端、断开全部 agent、停掉目录监视；Dart 在 `AppLifecycleListener.onExitRequested` 里等它回来再放行）
 - 项目与本地索引：`workspace_recent`、`workspace_open`、`session_index_list/upsert/remove`（会话索引：agentId + sessionId + 标题 + cwd + 时间 + 消息计数）
 - 窗口 UI 状态：`ui_state_get`、`ui_state_set`（合并写；载荷 `{sidebarWidth?, rightPanelWidth?}`，缺省与夹取范围都在前端 token，核心不存第二份）
 
@@ -99,6 +100,8 @@ Flutter 宿主进程（Dart）
 
 **入站 `_meta` 识别键（所有者裁定 2026-09-15）**：上面的清单是我们**发出**的 `_meta`。前端**读取**的入站 `_meta` 键也只有这一份清单：`claudeCode.parentToolUseId` / `claudeCode.subagent` / `claudeCode.toolName`（claude-agent-acp 的子代理标记）与 `dsh_subagent`（dsh-acp-interactive）。投影层只按「键是否存在」把工具调用归到子代理卡（画板 24）之下，不按 agent 名判；其余入站 `_meta` 原样保留、不解释。增减键改本段并进所有者裁定。
 
+**终端 provider 通道（R4 按推荐项开工，所有者裁定待确认）**：`tool_call` / `tool_call_update` 的 `_meta.terminal_info {terminal_id, cwd?}` / `terminal_output {terminal_id, data}` / `terminal_exit {terminal_id, exit_code? | signal?}`。这是 Zed `agent_servers/acp.rs` `handle_session_notification` 的 post-handle 读的三键；钉版本的 claude-agent-acp、dsh-acp-interactive、codex-acp 都**不调 `terminal/create`**，而是在自己进程里跑命令、经这三键把输出送来（客户端声明 `_meta.terminal_output: true` 时）。投影层只按键存在处理：`terminal_output.data` 追加进该 `terminal_id` 的终端缓冲（与 `terminal/create` 路径同一份 `TerminalBuffer`，画板 22 / 23 不分数据源）、`terminal_exit` 收尾、`terminal_info.cwd` 作卡片副标题；不按 agent 名判。
+
 ## 5. 认证流程
 
 1. `session/new` 返回 `AuthRequired` → 展示 `initialize` 返回的 `authMethods`。
@@ -116,8 +119,8 @@ Flutter 宿主进程（Dart）
 
 ## 7. 终端与 fs
 
-- pty：portable-pty；每个终端有输出字节上限；`terminal/wait_for_exit`、`terminal/kill`、`terminal/release` 语义转写自 `acp_thread/terminal.rs`；Windows 下 `.cmd` 包装与引号处理必须实测。
-- fs：路径必须是绝对路径且在会话工作目录之内；`line` / `limit` 是 1-based；写文件直接落盘（temp + rename）。
+- pty：portable-pty；每个终端有输出字节上限（`terminal/create.outputByteLimit`，缺省只受 4 MiB 的绝对上限约束）；**截断从头截、落在 UTF-8 字符边界**（规范原文；Zed 的 `truncated_output` 是从尾截，本项目按规范）；`terminal/output` 返回的文本去掉 ANSI 转义、`\r\n` 归一成 `\n`；`terminal/kill` 结束进程但句柄与输出留存，`terminal/release` 才释放（还在跑的先 kill）；**终端嵌进工具卡后即使 release 也继续显示输出**——前端的 `TerminalBuffer` 跟工具卡走、自己留存一份，核心侧 release 后不再持有。agent 只许碰自己建的终端；agent 断开 / 退出时它建的终端一并释放。命令经系统默认 shell 拼装（`rust/pty/src/shell.rs`，转写 Zed `ShellBuilder`：Windows 首选 PowerShell `-C "$null | & {<command> <args>}"`，退到 `cmd /S /C`；其他平台 `sh -c "exec </dev/null\n…"`），`.cmd` 包装与引号处理在 Windows 实测（R4 任务卡）。
+- fs：路径必须是绝对路径且在会话工作目录之内（越界 `-32602`）；`line` / `limit` 是 1-based（行的口径照 Zed：末尾换行之后算一个空行，起点落在最后一行之后 `-32602`）；文件不存在 `-32002`；写文件不存在则创建、父目录一并创建，直接落盘（temp + rename）。
 
 ## 8. zed-agent-acp sidecar
 

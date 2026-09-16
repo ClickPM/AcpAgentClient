@@ -12,6 +12,12 @@
 //   --crash-on-prompt     → 收到 session/prompt 时往 stderr 写一行并以退出码 3 退出（回合中途死掉）
 //   --hang-on-prompt      → 收到 session/prompt 后永不回应（给外部 taskkill 留时间）
 //   --stderr-noise        → 每次 prompt 往 stderr 写一行（验 traffic 的 stderr 路）
+//   --fs                  → （R4）回合开头先 fs/write_text_file 写 <cwd>/fake-agent.txt、再 fs/read_text_file 读第 2 行，
+//                           结果写进最后那条 agent_message_chunk
+//   --terminal            → （R4）回合里跑一条前台命令：terminal/create（echo）→ 工具卡嵌 terminal → wait_for_exit →
+//                           output → release → 工具卡 completed（release 后输出仍留在卡上）
+//   --terminal-bg         → （R4）另起一条后台长命令（ping / sleep 30）嵌进工具卡并 wait_for_exit：等客户端用停止方块 kill，
+//                           退出后工具卡 failed
 // 密钥字段只放明显的假值（规则 8 的脱敏验收看 traffic 里是否变成 ***）。
 
 import { createInterface } from 'node:readline'
@@ -119,7 +125,46 @@ function serve() {
     turns.set(sessionId, turn)
     const reply = (result) => send({ jsonrpc: '2.0', id: msg.id, result })
     if (flag('--stderr-noise')) process.stderr.write('[fake-agent] turn started; token=FAKE-TOKEN-FOR-REDACTION-TEST\n')
-    update(sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Let me edit the file.' } })
+    const cwd = msg.params?.cwd ?? process.cwd()
+    let fsNote = ''
+    if (flag('--fs')) {
+      const path = join(cwd, 'fake-agent.txt')
+      update(sessionId, { sessionUpdate: 'tool_call', toolCallId: 'call_fs_write', title: 'Write fake-agent.txt', kind: 'edit', status: 'in_progress', locations: [{ path }] })
+      const w = await request('fs/write_text_file', { sessionId, path, content: '第一行\n第二行\n第三行\n' })
+      update(sessionId, { sessionUpdate: 'tool_call_update', toolCallId: 'call_fs_write', status: w?.error ? 'failed' : 'completed',
+        content: [{ type: 'diff', path, oldText: null, newText: '第一行\n第二行\n第三行\n' }] })
+      update(sessionId, { sessionUpdate: 'tool_call', toolCallId: 'call_fs_read', title: 'Read fake-agent.txt', kind: 'read', status: 'in_progress', locations: [{ path, line: 2 }], rawInput: { path, offset: 2, limit: 1 } })
+      const r = await request('fs/read_text_file', { sessionId, path, line: 2, limit: 1 })
+      update(sessionId, { sessionUpdate: 'tool_call_update', toolCallId: 'call_fs_read', status: r?.error ? 'failed' : 'completed',
+        content: [{ type: 'content', content: { type: 'text', text: r?.content ?? JSON.stringify(r) } }] })
+      fsNote = ` fs=${JSON.stringify({ write: w, read: r })}`
+    }
+    if (flag('--terminal')) {
+      update(sessionId, { sessionUpdate: 'tool_call', toolCallId: 'call_term_fg', title: 'echo fake-terminal-ok', kind: 'execute', status: 'pending', rawInput: { command: 'echo fake-terminal-ok', cwd } })
+      const created = await request('terminal/create', { sessionId, command: 'echo', args: ['fake-terminal-ok'], cwd, outputByteLimit: 65536 })
+      const terminalId = created?.terminalId
+      update(sessionId, { sessionUpdate: 'tool_call_update', toolCallId: 'call_term_fg', status: 'in_progress', content: [{ type: 'terminal', terminalId }] })
+      const exit = await request('terminal/wait_for_exit', { sessionId, terminalId })
+      const out = await request('terminal/output', { sessionId, terminalId })
+      await request('terminal/release', { sessionId, terminalId })
+      update(sessionId, { sessionUpdate: 'tool_call_update', toolCallId: 'call_term_fg', status: exit?.exitCode === 0 ? 'completed' : 'failed' })
+      fsNote += ` terminal=${JSON.stringify({ exit, truncated: out?.truncated, sawOutput: typeof out?.output === 'string' && out.output.includes('fake-terminal-ok') })}`
+    }
+    if (flag('--terminal-bg')) {
+      const [command, args] = process.platform === 'win32'
+        ? ['cmd', ['/c', 'echo background started && ping -n 60 127.0.0.1 > nul']]
+        : ['sh', ['-c', 'echo background started; sleep 60']]
+      update(sessionId, { sessionUpdate: 'tool_call', toolCallId: 'call_term_bg', title: 'background job', kind: 'execute', status: 'pending', rawInput: { command: `${command} ${args.join(' ')}`, cwd } })
+      const created = await request('terminal/create', { sessionId, command, args, cwd })
+      const terminalId = created?.terminalId
+      update(sessionId, { sessionUpdate: 'tool_call_update', toolCallId: 'call_term_bg', status: 'in_progress', content: [{ type: 'terminal', terminalId }] })
+      const exit = await request('terminal/wait_for_exit', { sessionId, terminalId })
+      const out = await request('terminal/output', { sessionId, terminalId })
+      await request('terminal/release', { sessionId, terminalId })
+      update(sessionId, { sessionUpdate: 'tool_call_update', toolCallId: 'call_term_bg', status: exit?.exitCode === 0 ? 'completed' : 'failed' })
+      fsNote += ` background=${JSON.stringify({ exit, sawOutput: typeof out?.output === 'string' && out.output.includes('background started') })}`
+    }
+    update(sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Let me edit the file.' + fsNote } })
     update(sessionId, { sessionUpdate: 'notice', severity: 'warning', title: 'model degraded', description: 'fallback model in use' })
     update(sessionId, { sessionUpdate: 'tool_call', toolCallId: 'call_edit_1', title: 'edit README', kind: 'edit', status: 'pending' })
     const permission = await request('session/request_permission', {

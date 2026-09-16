@@ -1,5 +1,6 @@
 //! 桥命令与事件流（docs/design.md § 3）。R0 打通 `core_init` / `ping` 与五条事件流的注册；
-//! R1 加连接 / 会话 / 认证 / 设置命令；R3 加工作区文件、git、项目与会话索引。
+//! R1 加连接 / 会话 / 认证 / 设置命令；R3 加工作区文件、git、项目与会话索引；
+//! R4 加查看器读文件、目录监视（流命令）、git 状态、本地 shell 与终端控制、退出收尾。
 //! 返回值一律 JSON `String`，结构化入参也是 JSON `String`（桥上不做类型镜像）。
 //! 本模块是 frb 的扫描入口（flutter_rust_bridge.yaml `rust_input: crate::api`），只放要暴露给 Dart 的东西。
 //!
@@ -192,6 +193,36 @@ pub async fn terminal_write(terminal_id: String, data: String) -> Result<String,
     on_core(|core| async move { core.terminal_write(&terminal_id, data.as_bytes()) }).await
 }
 
+// ---- 本地交互 shell 与终端控制（R4，画板 61；docs/design.md § 3「本地 shell」）
+
+/// 开一个本地 shell（系统默认 shell）：输出经 `acp/terminal_output`（source = local）推出。
+/// `cols` / `rows` 是初始尺寸（之后由 `terminal_resize` 跟着视口走）。返回 `{terminalId, cwd, program}`。
+pub async fn terminal_open(cwd: String, cols: u16, rows: u16) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.terminal_open(PathBuf::from(cwd), cols, rows).await }).await
+}
+
+/// 视口尺寸变化（xterm 报出的列 × 行）。
+pub async fn terminal_resize(terminal_id: String, cols: u16, rows: u16) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.terminal_resize(&terminal_id, cols, rows) }).await
+}
+
+/// 结束终端里的进程但不释放（画板 23 的停止方块 = `terminal/kill` 语义；退出状态仍经 `acp/terminal_output` 推出）。
+/// agent 建的终端也可以用它停（agent 的 `terminal/wait_for_exit` 会随之返回）。
+pub async fn terminal_kill(terminal_id: String) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.terminal_kill(&terminal_id) }).await
+}
+
+/// 关掉一个本地 shell 标签：还在跑就先结束进程，然后释放句柄。
+pub async fn terminal_close(terminal_id: String) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.terminal_close(&terminal_id) }).await
+}
+
+/// 应用退出前的收尾：释放全部终端（还在跑的先结束）、断开全部 agent（超时结束进程树）、停掉目录监视。
+/// 返回 `{terminals, agents}`。Dart 侧在 `AppLifecycleListener.onExitRequested` 里等它回来再放行退出。
+pub async fn core_shutdown() -> Result<String, BridgeError> {
+    on_core(|core| async move { core.core_shutdown().await }).await
+}
+
 // ---- 设置
 
 /// 读 `settings.json`（不存在 → `{agent_servers: {}}`）。
@@ -222,6 +253,33 @@ pub async fn fs_list_dir(root: String, path: String) -> Result<String, BridgeErr
 /// 按名字子串搜索（`@` 提及）。返回 `{files, directories, truncated}`；`query` 为空时不遍历、直接回空。
 pub async fn fs_search(root: String, query: String, limit: u32) -> Result<String, BridgeError> {
     on_core(|core| async move { core.fs_search(PathBuf::from(root), query, limit as usize).await }).await
+}
+
+/// 查看器读文件（画板 60，R4）：`{path, text, size, lines, binary, truncated}`；超过 2 MiB 只给前一段并标 `truncated`，
+/// 含 NUL 的按二进制处理（`text` 为空）。`path` 必须在 `root` 之内。
+pub async fn fs_read(root: String, path: String) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.fs_read(PathBuf::from(root), PathBuf::from(path)).await }).await
+}
+
+/// 监视项目目录（R4）：流命令——每批去抖后的变化推一条 `{root, dirs: [绝对路径…], git}`（`dirs` 是内容变了的目录，
+/// `git` = `.git` 之下有变化）；Dart 侧取消流即停止。同一 `root` 再次调用替换旧监视器。
+#[frb(sync)]
+pub fn fs_watch(root: String, sink: StreamSink<String>) -> Result<(), BridgeError> {
+    guarded(|| {
+        core()?.fs_watch(PathBuf::from(root), move |payload| sink.add(payload).is_ok())?;
+        Ok(())
+    })
+}
+
+/// 停掉某个根的监视；没在监视也不报错。返回 `{root, removed}`。
+pub async fn fs_unwatch(root: String) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.fs_unwatch(PathBuf::from(root)) }).await
+}
+
+/// 文件树的 git 状态徽章（画板 60，所有者裁定 2026-09-15）：`{available, isRepo, root, entries: [{path, badge, code}]}`。
+/// 非仓库 / 无 git 不报错，`entries` 为空。
+pub async fn git_status(cwd: String) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.git_status(PathBuf::from(cwd)).await }).await
 }
 
 /// 本地分支列表：`{available, isRepo, current, branches: [{name, author, when, subject}]}`。

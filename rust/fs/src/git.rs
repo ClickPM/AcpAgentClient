@@ -6,7 +6,7 @@
 //! Windows（规则 9）：一律用 `-C <path>` 传目录、参数直接进 `Command`（不过 shell），
 //! 所以路径里的空格与中文不需要引号处理。
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -62,6 +62,38 @@ pub struct Diff {
 
 /// Branch Diff 的输出上限：超出截断（整份 diff 进 prompt 会顶爆上下文）。
 pub const DIFF_LIMIT: usize = 200 * 1024;
+
+/// `git status --porcelain` 的一条（画板 60 的状态徽章，所有者裁定 2026-09-15 保留）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StatusEntry {
+    /// 绝对路径（porcelain 给的是相对仓库根的路径，这里已经拼回绝对）。
+    pub path: String,
+    /// 徽章用的单字母：`?` 未跟踪、`M` 改过、`A` 新增、`D` 删除、`R` 改名、`C` 复制、`U` 冲突、`T` 类型变了。
+    pub badge: String,
+    /// porcelain 的两位状态码原文（`XY`）。
+    pub code: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitStatus {
+    pub available: bool,
+    pub is_repo: bool,
+    /// 仓库根（绝对路径）；非仓库为 null。
+    pub root: Option<String>,
+    pub entries: Vec<StatusEntry>,
+}
+
+impl GitStatus {
+    fn unavailable() -> Self {
+        Self { available: false, is_repo: false, root: None, entries: Vec::new() }
+    }
+
+    fn not_a_repo() -> Self {
+        Self { available: true, is_repo: false, root: None, entries: Vec::new() }
+    }
+}
 
 /// `for-each-ref` 的字段分隔符：用 `\x1f`（单元分隔符），提交主题里不会出现。
 const SEP: char = '\u{1f}';
@@ -187,6 +219,72 @@ fn run_switch(cwd: &Path, args: &[&str]) -> Result<BranchList> {
     branches(cwd)
 }
 
+/// 工作区状态（`git_status`）：`git status --porcelain=v1 -z --untracked-files=all`，路径拼回绝对。
+/// 非仓库 / 无 git 不报错（`isRepo` / `available` 为 false，前端不显示徽章）。
+pub fn status(cwd: &Path) -> Result<GitStatus> {
+    match is_repo(cwd)? {
+        None => return Ok(GitStatus::unavailable()),
+        Some(false) => return Ok(GitStatus::not_a_repo()),
+        Some(true) => {}
+    }
+    let Some(top) = git(cwd, &["rev-parse", "--show-toplevel"])? else {
+        return Ok(GitStatus::unavailable());
+    };
+    if !top.ok {
+        return Ok(GitStatus::not_a_repo());
+    }
+    // `--show-toplevel` 在 Windows 上给的是正斜杠路径；转成本机形状好与 fs_list_dir 的路径比对。
+    let root = PathBuf::from(top.stdout.trim().replace('/', std::path::MAIN_SEPARATOR_STR));
+    let Some(out) = git(cwd, &["status", "--porcelain=v1", "-z", "--untracked-files=all"])? else {
+        return Ok(GitStatus::unavailable());
+    };
+    if !out.ok {
+        let msg = if out.stderr.trim().is_empty() { out.stdout } else { out.stderr };
+        return Err(FsError::Git(msg.trim().to_string()));
+    }
+    Ok(GitStatus {
+        available: true,
+        is_repo: true,
+        root: Some(root.to_string_lossy().into_owned()),
+        entries: parse_porcelain_z(&root, &out.stdout),
+    })
+}
+
+/// `-z` 格式：`XY path<NUL>`；改名 / 复制是 `XY new<NUL>old<NUL>`（两个字段）。徽章优先看工作区那一位（Y），
+/// 没改动时看暂存区那一位（X）；`??` 是未跟踪，`!!` 是被忽略的（`--untracked-files=all` 下不会出现，出现也跳过）。
+pub fn parse_porcelain_z(root: &Path, out: &str) -> Vec<StatusEntry> {
+    let mut entries = Vec::new();
+    let mut fields = out.split('\0');
+    while let Some(field) = fields.next() {
+        if field.len() < 4 {
+            continue;
+        }
+        let (code, rest) = field.split_at(2);
+        let path = rest.strip_prefix(' ').unwrap_or(rest);
+        let x = code.chars().next().unwrap_or(' ');
+        let y = code.chars().nth(1).unwrap_or(' ');
+        if x == 'R' || x == 'C' {
+            // 下一个字段是旧名，不进列表。
+            let _ = fields.next();
+        }
+        let badge = if code == "??" {
+            '?'
+        } else if code == "!!" {
+            continue;
+        } else if y != ' ' {
+            y
+        } else {
+            x
+        };
+        entries.push(StatusEntry {
+            path: root.join(path.replace('/', std::path::MAIN_SEPARATOR_STR)).to_string_lossy().into_owned(),
+            badge: badge.to_string(),
+            code: code.to_string(),
+        });
+    }
+    entries
+}
+
 /// `git diff`：给了 `base` 就是 `git diff <base>...HEAD`（三点：与共同祖先比），否则是工作区相对 HEAD 的改动。
 pub fn diff(cwd: &Path, base: Option<&str>) -> Result<Diff> {
     // 先校验入参再看是不是仓库：以 `-` 开头的 base 会被 git 当选项（审查 finding P2）。
@@ -300,6 +398,58 @@ mod tests {
         assert!(d.is_repo && !d.truncated);
         assert!(d.text.contains("说明.md"), "diff should mention the changed file: {}", d.text);
 
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 状态徽章：改过的、新增未跟踪的、改名的各一条；`-z` 的改名字段对要成对吃掉。
+    #[test]
+    fn porcelain_z_parses_badges_and_rename_pairs() {
+        let root = Path::new(if cfg!(windows) { r"D:\repo" } else { "/repo" });
+        let out = " M docs/a.md\0?? new.txt\0R  renamed.md\0old.md\0A  added.rs\0MM both.rs\0!! ignored\0";
+        let entries = parse_porcelain_z(root, out);
+        let badges: Vec<(String, String)> = entries.iter().map(|e| (e.path.clone(), e.badge.clone())).collect();
+        let p = |rel: &str| root.join(rel.replace('/', std::path::MAIN_SEPARATOR_STR)).to_string_lossy().into_owned();
+        assert_eq!(
+            badges,
+            vec![
+                (p("docs/a.md"), "M".to_string()),
+                (p("new.txt"), "?".to_string()),
+                (p("renamed.md"), "R".to_string()),
+                (p("added.rs"), "A".to_string()),
+                (p("both.rs"), "M".to_string()),
+            ]
+        );
+        assert_eq!(entries[2].code, "R ");
+    }
+
+    /// 真仓库：改一个文件 + 新建一个文件，徽章是 M 与 ?；路径是绝对的、与工作区一致（规则 9：路径含空格与中文）。
+    #[test]
+    fn status_of_a_real_repo() {
+        let dir = std::env::temp_dir().join(format!("acp git status 测试-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        let run = |args: &[&str]| Command::new("git").arg("-C").arg(&dir).args(args).output();
+        let Ok(init) = run(&["init", "-q", "-b", "main"]) else {
+            eprintln!("git not on PATH; skipping");
+            return;
+        };
+        assert!(init.status.success());
+        let _ = run(&["config", "user.name", "acp-test"]);
+        let _ = run(&["config", "user.email", "acp-test@example.invalid"]);
+        std::fs::write(dir.join("说明.md"), "内容").expect("write");
+        let _ = run(&["add", "-A"]);
+        let _ = run(&["commit", "-q", "-m", "初始提交"]);
+        std::fs::write(dir.join("说明.md"), "改过").expect("write");
+        std::fs::write(dir.join("新文件.txt"), "x").expect("write");
+
+        let st = status(&dir).expect("status");
+        assert!(st.available && st.is_repo);
+        let canonical = |p: &Path| std::fs::canonicalize(p).map(|c| c.to_string_lossy().to_lowercase()).unwrap_or_default();
+        let mut found: Vec<(String, String)> = st.entries.iter().map(|e| (canonical(Path::new(&e.path)), e.badge.clone())).collect();
+        found.sort();
+        let mut expected = vec![(canonical(&dir.join("说明.md")), "M".to_string()), (canonical(&dir.join("新文件.txt")), "?".to_string())];
+        expected.sort();
+        assert_eq!(found, expected, "{st:?}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

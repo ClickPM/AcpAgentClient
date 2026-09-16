@@ -60,6 +60,20 @@ abstract interface class CoreCommands {
   Future<JsonMap> sessionIndexRemove(String agentId, String sessionId);
   Future<JsonMap> uiStateGet();
   Future<JsonMap> uiStateSet(JsonMap patch);
+
+  // ---- R4：文件面板、目录监视、git 徽章、本地 shell 与终端控制、退出收尾
+  Future<JsonMap> fsRead(String root, String path);
+
+  /// 流命令：每批变化一条 `{root, dirs, git}`；取消订阅即停。
+  Stream<JsonMap> fsWatch(String root);
+  Future<JsonMap> fsUnwatch(String root);
+  Future<JsonMap> gitStatus(String cwd);
+  Future<JsonMap> terminalOpen(String cwd, {required int cols, required int rows});
+  Future<JsonMap> terminalWrite(String terminalId, String data);
+  Future<JsonMap> terminalResize(String terminalId, {required int cols, required int rows});
+  Future<JsonMap> terminalKill(String terminalId);
+  Future<JsonMap> terminalClose(String terminalId);
+  Future<JsonMap> coreShutdown();
 }
 
 class CoreBridge implements CoreCommands {
@@ -202,6 +216,41 @@ class CoreBridge implements CoreCommands {
 
   @override
   Future<JsonMap> uiStateSet(JsonMap patch) async => _decode(await api.uiStateSet(patch: jsonEncode(patch)));
+
+  // ---- R4
+
+  @override
+  Future<JsonMap> fsRead(String root, String path) async => _decode(await api.fsRead(root: root, path: path));
+
+  @override
+  Stream<JsonMap> fsWatch(String root) => api.fsWatch(root: root).map(_decode);
+
+  @override
+  Future<JsonMap> fsUnwatch(String root) async => _decode(await api.fsUnwatch(root: root));
+
+  @override
+  Future<JsonMap> gitStatus(String cwd) async => _decode(await api.gitStatus(cwd: cwd));
+
+  @override
+  Future<JsonMap> terminalOpen(String cwd, {required int cols, required int rows}) async =>
+      _decode(await api.terminalOpen(cwd: cwd, cols: cols, rows: rows));
+
+  @override
+  Future<JsonMap> terminalWrite(String terminalId, String data) async =>
+      _decode(await api.terminalWrite(terminalId: terminalId, data: data));
+
+  @override
+  Future<JsonMap> terminalResize(String terminalId, {required int cols, required int rows}) async =>
+      _decode(await api.terminalResize(terminalId: terminalId, cols: cols, rows: rows));
+
+  @override
+  Future<JsonMap> terminalKill(String terminalId) async => _decode(await api.terminalKill(terminalId: terminalId));
+
+  @override
+  Future<JsonMap> terminalClose(String terminalId) async => _decode(await api.terminalClose(terminalId: terminalId));
+
+  @override
+  Future<JsonMap> coreShutdown() async => _decode(await api.coreShutdown());
 
   JsonMap _decode(String raw) {
     final decoded = jsonDecode(raw);
