@@ -456,6 +456,22 @@ cursor CLI `cursor-grok-4.6-high`，`-Scope branch`（`main...HEAD`，本分支�
   否则两条用例对同一段位移得出不同的数。另外每次 pointer down 都会给双击识别器起一个 40ms 计时器，
   用例收尾要 `pump(kDoubleTapTimeout)`，不然报 pending timer。
 
+### 代码审查
+
+cursor CLI `cursor-grok-4.6-high`。
+
+**第 1 轮**（`-Scope branch`，`main...4e59ef3`）→ `.claude/reviews/20260916-101632-review.out.md`，
+**2 条（high 0 / P2 2）**，都是「测试断言假通过」，全部采纳整改：
+
+1. `splitter_test` 的「先压右栏、再压侧栏」在默认 800 视口下拦不住把压缩顺序写反——两栏都设成上限时，
+   无论先压哪边结果都是 220 / 360。整改：改成两条用例，第一条把视口放到 1200（缺省两栏加中栏下限只差 22），
+   断言侧栏一动不动、右栏正好让 22；顺序对调时侧栏会变成 258，断言直接红。第二条保留「都压到下限也不溢出」。
+2. wiring 用例在 `resetSidebarWidth()` 之后又补了一次 `await saveUiState()`，把复位里那次落盘删掉仍然绿。
+   整改：去掉补的那次，改成 `pumpEventQueue()` 之后直接断言 `core.uiState['sidebarWidth']`；
+   删掉复位落盘时拿到的是上一次拖出来的 480，断言红。
+
+两条整改都逐条注入缺陷验证过「能红」。
+
 ### 门禁
 
 `scripts/validate.ps1` 全绿（13 项）、`flutter test` 109 passed、`cargo test --workspace` 全绿。

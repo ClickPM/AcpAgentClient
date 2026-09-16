@@ -74,26 +74,44 @@ void main() {
     await tester.pump(kDoubleTapTimeout);
   });
 
-  testWidgets('窗口装不下时先压右栏、再压侧栏（不溢出）', (tester) async {
-    // 两栏都顶到上限，中栏一点不剩：不夹的话 Row 会报 overflow。
-    await tester.pumpWidget(
-      Directionality(
-        textDirection: TextDirection.ltr,
-        child: AppShell(
-          sidebar: const SizedBox.shrink(),
-          main: const SizedBox.shrink(),
-          rightPanel: const SizedBox.shrink(),
-          sidebarWidth: t.Geometry.sidebarMaxWidth,
-          rightPanelWidth: t.Geometry.rightPanelMaxWidth,
-        ),
-      ),
-    );
-    expect(tester.takeException(), isNull, reason: '压不下也不能溢出');
+  group('窗口装不下时的夹取（AppShell._fit）', () {
+    const Key sideKey = Key('sidebar');
+    const Key rightKey = Key('rightPanel');
 
-    // 测试视口 800 宽、外框吃掉 2：右栏先被压到下限，侧栏再让出剩下的。
-    final sizes = tester.widgetList<SizedBox>(find.byType(SizedBox)).map((w) => w.width).whereType<double>().toList();
-    expect(sizes, contains(t.Geometry.rightPanelMinWidth), reason: '右栏先压到下限');
-    expect(sizes, contains(t.Geometry.sidebarMinWidth), reason: '还不够就接着压侧栏');
+    Future<(double, double)> pumpAt(WidgetTester tester, double viewport, double side, double right) async {
+      tester.view.physicalSize = Size(viewport, 600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: AppShell(
+            sidebar: const SizedBox.expand(key: sideKey),
+            main: const SizedBox.shrink(),
+            rightPanel: const SizedBox.expand(key: rightKey),
+            sidebarWidth: side,
+            rightPanelWidth: right,
+          ),
+        ),
+      );
+      return (tester.getSize(find.byKey(sideKey)).width, tester.getSize(find.byKey(rightKey)).width);
+    }
+
+    testWidgets('只差一点时只压右栏，侧栏一动不动', (tester) async {
+      // 内宽 = 1200 − 2（外框）= 1198；缺省两栏加中栏下限 = 280 + 580 + 360 = 1220，差 22。
+      // 压缩顺序写反的话让位的就是侧栏，所以这两条断言钉的正是「先右后左」。
+      final (side, right) = await pumpAt(tester, 1200, t.Geometry.sidebarWidth, t.Geometry.rightPanelWidth);
+      expect(side, closeTo(t.Geometry.sidebarWidth, 0.01), reason: '还轮不到压侧栏');
+      expect(right, closeTo(t.Geometry.rightPanelWidth - 22, 0.01), reason: '差多少右栏让多少');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('右栏压到下限还不够，才接着压侧栏', (tester) async {
+      final (side, right) = await pumpAt(tester, 800, t.Geometry.sidebarMaxWidth, t.Geometry.rightPanelMaxWidth);
+      expect(right, closeTo(t.Geometry.rightPanelMinWidth, 0.01), reason: '右栏先压到下限');
+      expect(side, closeTo(t.Geometry.sidebarMinWidth, 0.01), reason: '还不够就接着压侧栏');
+      expect(tester.takeException(), isNull, reason: '压不下也不能溢出');
+    });
   });
 }
 

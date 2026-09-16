@@ -343,7 +343,10 @@ void main() {
 
     c.resetSidebarWidth();
     expect(c.sidebarWidth, t.Geometry.sidebarWidth, reason: '双击复位到画板缺省');
-    await c.saveUiState();
+    // 复位自己就该落盘（双击之后没有「松手」）。这里不能再补一次 saveUiState：
+    // 补了的话，把复位里那次落盘删掉，这条用例照样绿。
+    await pumpEventQueue();
+    expect(core.uiState['sidebarWidth'], t.Geometry.sidebarWidth, reason: '复位要自己落盘');
     c.dispose();
 
     final next = WorkbenchController(source: DataSource.bridge, bridge: core);
