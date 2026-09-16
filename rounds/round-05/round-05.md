@@ -83,7 +83,20 @@ Remove、受管 Node），认证页覆盖 agent 型、terminal 型与 requestSco
 
 ## 代码审查
 
-<!-- 完成后回填。 -->
+- 审查方式：`powershell -File .claude\cursor-review.ps1 -Note "<要点>"`（默认档，全量分支 diff，后台跑；要点列了安装编排与取消、
+  requestScope 路由、settings 写入不覆盖、系统 tar 与 sha256、日志脱敏、规则 3 / 6）
+- 审查器与模型：cursor CLI `cursor-grok-4.6-high`（`--mode ask`），没有回落
+- 审查范围与基准提交：**第 1 轮** `main...HEAD`（HEAD = `3bacb8c`），产物 `.claude/reviews/20260916-130408-review.out.md`，约 9 分钟
+
+**第 1 轮：3 条（high 1 / P2 2），全部采纳**（整改提交 `d6fdf0a`）
+
+| # | 级别 | finding | 处理 |
+|---|---|---|---|
+| 1 | high | 认证页的「取消」/ 收起 / 从另一入口重开都只清空 `authElicitations`，不回应挂起的 requestScope elicitation；agent 在途的 `authenticate` 永远等这条 JSON-RPC 回应 | 采纳。`closeAuth` / `openAuth` 清空前走 `_cancelAuthElicitations`：pending 的逐条经现有 `cancelElicitation` 回 `{action: cancel}`；已 accept 的（浏览器已开）没有第二个响应，只从页上拿掉。新增用例：取消后 `acpRespond` 收到 cancel；accept 一条 + 新挂一条后 `openAuth` 重开，只有挂起那条回 cancel |
+| 2 | P2 | npx 安装在 `write_settings` 之后才握手，握手不看 CancelToken：取消把装好的结果报成 cancelled；`registry_remove` 等 5 s 就删目录，晚到的 `manifest.save` 会把 `install.json` 写回；initialize 永不返回时 in-flight 表不摘键 | 采纳。写入 settings 定为提交点：之后不再 `token.check()`；握手用 `tokio::select!` 与 `token.cancelled()` 赛跑——核过 `agent.rs`：connect 的 future 被丢掉时它持有的 kill 通道发送端析构，`exit_watcher` 立刻 `kill_tree`，不是原注释说的「会留孤儿」；握手失败 / 取消回滚成没装过（删 `agents/<id>/`，settings 条目只删本次新建的，原有的带用户 env 不动）；`registry_remove` 宽限期后安装仍在途 → 返回错误「安装还没退出，稍后再试」而不是删目录。`docs/design.md` § 6 第 3 条补了口径 |
+| 3 | P2 | 设置页「保存」只回写 `{type, command, args, env}`，`upsert` 整条替换，从 Zed 导入的 `default_config_options` 等 extra 被写空 | 采纳。`agent_settings_set` 收到不带 extra 的 custom 条目时沿用旧条目的 extra（Rust 侧一处判断，前端不用知道这些字段）；加单测：带 `default_config_options` 写入后只改 command，字段仍在 |
+
+整改后 `cargo test -p acp-core`（16 + 4 个用例）、`cargo clippy --workspace -D warnings`、`flutter test test/app/`（17 个用例）全过。
 
 ## 失败处理
 
