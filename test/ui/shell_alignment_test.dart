@@ -70,7 +70,7 @@ void main() {
       await tester.runAsync(loadGalleryFonts);
       await pump(
         tester,
-        const RightPanel(tabs: <ShellTab>[ShellTab.files], active: ShellTab.files),
+        const RightPanel(tabs: <PanelTab>[PanelTab.shell(ShellTab.files)], active: PanelTab.shell(ShellTab.files)),
         width: t.Geometry.rightPanelWidth,
         height: height,
       );
@@ -79,7 +79,7 @@ void main() {
 
       await pump(
         tester,
-        const RightPanel(tabs: ShellTab.values, active: ShellTab.terminal),
+        const RightPanel(tabs: <PanelTab>[PanelTab.shell(ShellTab.settings), PanelTab.shell(ShellTab.files), PanelTab.shell(ShellTab.agents), PanelTab.shell(ShellTab.terminal)], active: PanelTab.shell(ShellTab.terminal)),
         width: t.Geometry.rightPanelWidth,
         height: height,
       );
@@ -97,7 +97,7 @@ void main() {
       row1['顶栏'] = tester.getSize(find.byType(TopBar)).height;
       await pump(
         tester,
-        const RightPanel(tabs: <ShellTab>[ShellTab.files], active: ShellTab.files),
+        const RightPanel(tabs: <PanelTab>[PanelTab.shell(ShellTab.files)], active: PanelTab.shell(ShellTab.files)),
         width: t.Geometry.rightPanelWidth,
         height: 400,
       );

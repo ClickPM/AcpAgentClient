@@ -53,6 +53,7 @@
 | `25-config-options.jsonl` | （R3）画板 40：`config_option_update` 全量——model 三分组、thought_level 六档、mode 三档、三条 boolean、两条未知 category（`sandbox` / `_codex_reasoning`）、一条未知 type（`slider`，整条忽略）；第二条演示「改一个值也回整份列表」 |
 | `24-terminal-git-log.jsonl` | （R2）画板 22：git log 的 ANSI 彩色输出（黄 / 绿 / 青）、wait_for_exit、release 后输出留存 |
 | `26-auth-url-elicitation.jsonl` | （R5）画板 52：`authenticate`（agent 型）在途时到达的 **requestScope** URL elicitation（无 sessionId，`requestId` 是 authenticate 的数字 id）→ 用户 accept → `elicitation/complete` → authenticate 返回；方法表补 `authenticate` |
+| `27-terminal-meta.jsonl` | （R4）画板 22 / 23 的另一条数据源：`tool_call_update._meta.{terminal_info, terminal_output, terminal_exit}`（Zed 读的终端 provider 通道；钉版本的 claude-agent-acp / dsh / codex-acp 都走它、不调 `terminal/create`）——追加语义、退出码或信号二选一；所有者裁定待确认（`docs/design.md` § 4） |
 | `90-rejected.jsonl` | `notice`（sdk 的 unstable 伞不转发）、假想的未来变体 `artifact_update` —— Rust 侧必须失败 |
 
 R2 起的文件由 `scratchpad` 里的生成脚本一次性产出后入库（脚本不入库）；改动直接改 `.jsonl`。

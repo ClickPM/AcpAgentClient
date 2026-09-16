@@ -74,12 +74,6 @@ class FakeCore implements CoreCommands {
       <String, dynamic>{'terminalId': 'term_fake', 'exitStatus': <String, dynamic>{'exitCode': 0}, 'session': <String, dynamic>{'sessionId': 'sess_fake'}};
 
   @override
-  Future<JsonMap> terminalWrite(String terminalId, String data) async => <String, dynamic>{};
-
-  @override
-  Future<JsonMap> terminalClose(String terminalId) async => <String, dynamic>{};
-
-  @override
   Future<JsonMap> agentSettingsGet() async => <String, dynamic>{'agent_servers': <String, dynamic>{}};
 
   @override
@@ -148,5 +142,58 @@ class FakeCore implements CoreCommands {
 
   @override
   Future<JsonMap> sessionIndexRemove(String agentId, String sessionId) async => <String, dynamic>{'sessions': <Object?>[]};
-}
 
+  // ---- R4：文件面板 / 终端 / 退出收尾，测试里只记账。
+  final List<String> killedTerminals = <String>[];
+  final List<String> closedTerminals = <String>[];
+  final List<(String, String)> writtenToTerminal = <(String, String)>[];
+  int shutdowns = 0;
+  int openedTerminals = 0;
+
+  @override
+  Future<JsonMap> fsRead(String root, String path) async =>
+      <String, dynamic>{'path': path, 'text': '', 'size': 0, 'lines': 0, 'binary': false, 'truncated': false};
+
+  @override
+  Stream<JsonMap> fsWatch(String root) => const Stream<JsonMap>.empty();
+
+  @override
+  Future<JsonMap> fsUnwatch(String root) async => <String, dynamic>{'root': root, 'removed': false};
+
+  @override
+  Future<JsonMap> gitStatus(String cwd) async => <String, dynamic>{'available': false, 'isRepo': false, 'entries': <Object?>[]};
+
+  @override
+  Future<JsonMap> terminalOpen(String cwd, {required int cols, required int rows}) async {
+    openedTerminals++;
+    return <String, dynamic>{'terminalId': 'term_fake_$openedTerminals', 'cwd': cwd, 'program': 'fake-shell'};
+  }
+
+  @override
+  Future<JsonMap> terminalWrite(String terminalId, String data) async {
+    writtenToTerminal.add((terminalId, data));
+    return <String, dynamic>{'terminalId': terminalId, 'written': data.length};
+  }
+
+  @override
+  Future<JsonMap> terminalResize(String terminalId, {required int cols, required int rows}) async =>
+      <String, dynamic>{'terminalId': terminalId, 'cols': cols, 'rows': rows};
+
+  @override
+  Future<JsonMap> terminalKill(String terminalId) async {
+    killedTerminals.add(terminalId);
+    return <String, dynamic>{'terminalId': terminalId};
+  }
+
+  @override
+  Future<JsonMap> terminalClose(String terminalId) async {
+    closedTerminals.add(terminalId);
+    return <String, dynamic>{'terminalId': terminalId};
+  }
+
+  @override
+  Future<JsonMap> coreShutdown() async {
+    shutdowns++;
+    return <String, dynamic>{'terminals': 0, 'agents': 0};
+  }
+}

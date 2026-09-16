@@ -78,9 +78,13 @@ class TranscriptList extends StatelessWidget {
     this.onAnswerPermission,
     this.onAnswerElicitation,
     this.onSelectionChanged,
+    this.onKillTerminal,
   });
 
   final SessionStore store;
+
+  /// 画板 23 的停止方块：结束该终端里的进程（`terminal_kill`；R4 接线）。
+  final void Function(String terminalId)? onKillTerminal;
 
   /// 跨消息选择的结果（SelectableRegion）。
   final ValueChanged<SelectedContent?>? onSelectionChanged;
@@ -193,7 +197,13 @@ class TranscriptList extends StatelessWidget {
     if (tc.isSubagent) return SubagentCard(tc, cwd: cwd, onLink: onLink);
     final terminalId = tc.terminalIds.isEmpty ? null : tc.terminalIds.first;
     if (terminalId != null) {
-      return TerminalCard(tc, buffer: store.terminals.ensure(terminalId), cwd: cwd);
+      final buffer = store.terminals.ensure(terminalId);
+      return TerminalCard(
+        tc,
+        buffer: buffer,
+        cwd: buffer.cwd ?? cwd,
+        onKill: onKillTerminal == null ? null : () => onKillTerminal!(terminalId),
+      );
     }
     final diffs = tc.diffs.toList();
     if (diffs.isNotEmpty) {

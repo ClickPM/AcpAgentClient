@@ -8,6 +8,8 @@ publish.workspace = true
 
 [dependencies]
 serde.workspace = true
+# CLAUDE.md 规则 1 通用库清单内：文件面板的目录监视（docs/design.md § 2「文件面板」；R4）。
+notify.workspace = true
 
 [lints]
 workspace = true

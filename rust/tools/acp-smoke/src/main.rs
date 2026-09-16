@@ -320,7 +320,7 @@ fn run_agent(opts: RunArgs) -> i32 {
                                     });
                                     if matches!(due, Ok(true)) {
                                         let data = format!("{input}\r");
-                                        match core.terminal_write(&id, data.as_bytes()) {
+                                        match core.runtime().block_on(core.terminal_write(&id, data.as_bytes())) {
                                             Ok(v) => print_result("terminal_write(auth-input-delay)", v),
                                             Err(e) => eprintln!("terminal_write failed: {e}"),
                                         }
@@ -346,7 +346,7 @@ fn run_agent(opts: RunArgs) -> i32 {
                         };
                         if let Some(id) = write_to {
                             let data = format!("{input}\r");
-                            if let Err(e) = core.terminal_write(&id, data.as_bytes()) {
+                            if let Err(e) = core.runtime().block_on(core.terminal_write(&id, data.as_bytes())) {
                                 eprintln!("terminal_write failed: {e}");
                             }
                         }
@@ -493,7 +493,7 @@ fn spawn_stdin_relay(core: Arc<Core>, reactor: Arc<Mutex<Reactor>>) {
                 std::thread::sleep(Duration::from_millis(50));
             };
             let data = format!("{line}\r");
-            if let Err(e) = core.terminal_write(&id, data.as_bytes()) {
+            if let Err(e) = core.runtime().block_on(core.terminal_write(&id, data.as_bytes())) {
                 eprintln!("terminal_write failed: {e}");
             }
         }

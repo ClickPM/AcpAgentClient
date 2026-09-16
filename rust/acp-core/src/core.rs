@@ -32,6 +32,8 @@ pub struct Core {
     ui_state: UiStateStore,
     terminals: Arc<pty::TerminalManager>,
     agents: Mutex<HashMap<String, Arc<AgentConnection>>>,
+    /// 文件面板的目录监视（R4），按项目根去重；drop 即停。
+    watchers: Mutex<HashMap<PathBuf, fs::watch::DirWatcher>>,
     // ---- R5：registry / 安装 / 受管 Node / 日志（编排在 registry_ops.rs）
     registry_dirs: RegistryDirs,
     registry_index: registry::index::IndexStore,
@@ -143,6 +145,7 @@ impl Core {
             ping_seq: AtomicU64::new(0),
             terminals,
             agents: Mutex::new(HashMap::new()),
+            watchers: Mutex::new(HashMap::new()),
             registry_dirs,
             registry_index,
             http,
@@ -188,6 +191,10 @@ impl Core {
 
     pub fn log_path(&self) -> &Path {
         &self.log_path
+    }
+
+    pub(crate) fn terminal_manager(&self) -> Arc<pty::TerminalManager> {
+        self.terminals.clone()
     }
 
     pub(crate) fn event_sink(&self) -> Arc<dyn EventSink> {
@@ -265,7 +272,7 @@ impl Core {
         if let Some(previous) = previous {
             previous.disconnect().await;
         }
-        let connection = AgentConnection::connect(agent_id.to_string(), launch, cwd, self.sink.clone()).await?;
+        let connection = AgentConnection::connect(agent_id.to_string(), launch, cwd, self.sink.clone(), self.terminals.clone()).await?;
         lock(&self.agents).insert(agent_id.to_string(), connection.clone());
         Ok(json!({ "agentId": agent_id, "initialize": connection.initialize }))
     }
@@ -370,17 +377,84 @@ impl Core {
     }
 
     /// 往终端写键盘输入（terminal auth 的可见终端；R4 的本地 shell 同一条命令）。
-    pub fn terminal_write(&self, terminal_id: &str, bytes: &[u8]) -> Result<Value> {
-        self.terminals.write(terminal_id, bytes)?;
-        Ok(json!({ "terminalId": terminal_id, "written": bytes.len() }))
+    /// ConPTY 的 `write_all` 会阻塞（子进程不读 stdin 时），走 `spawn_blocking`（审查 finding，2026-09-16）。
+    pub async fn terminal_write(&self, terminal_id: &str, bytes: &[u8]) -> Result<Value> {
+        let terminals = self.terminals.clone();
+        let id = terminal_id.to_string();
+        let data = bytes.to_vec();
+        let written = data.len();
+        tokio::task::spawn_blocking(move || terminals.write(&id, &data))
+            .await
+            .map_err(|e| CoreError::Pty(format!("write task failed: {e}")))??;
+        Ok(json!({ "terminalId": terminal_id, "written": written }))
     }
 
-    /// 关掉一个终端（认证页的停止方块；R4 的本地 shell 同一条命令）：结束进程再释放表项。
+    // ---- 本地交互 shell（R4，画板 61；docs/design.md § 3「本地 shell」，所有者裁定 2026-09-15）
+
+    /// 开一个本地 shell（系统默认：Windows 上 pwsh → powershell → cmd；其他平台 `$SHELL`），输出走 `acp/terminal_output`
+    /// （source = local）。返回 `{terminalId, cwd, program}`。
+    pub async fn terminal_open(&self, cwd: PathBuf, cols: u16, rows: u16) -> Result<Value> {
+        if !cwd.is_absolute() {
+            return Err(CoreError::InvalidArgument(format!("cwd must be absolute: {}", cwd.display())));
+        }
+        let terminals = self.terminals.clone();
+        let cwd_for_spec = cwd.clone();
+        let (program, terminal_id) = tokio::task::spawn_blocking(move || {
+            let (program, kind) = pty::shell::default_shell();
+            let mut spec = pty::SpawnSpec::new(program.clone());
+            spec.args = pty::shell::interactive_args(kind);
+            spec.cwd = Some(cwd_for_spec);
+            spec.cols = cols.max(1);
+            spec.rows = rows.max(1);
+            terminals.spawn(spec, pty::TerminalSource::Local).map(|id| (program, id))
+        })
+        .await
+        .map_err(|e| CoreError::Pty(format!("spawn task failed: {e}")))??;
+        Ok(json!({ "terminalId": terminal_id, "cwd": cwd.to_string_lossy(), "program": program }))
+    }
+
+    /// 视口尺寸变化（xterm 报出的列 × 行）。
+    pub fn terminal_resize(&self, terminal_id: &str, cols: u16, rows: u16) -> Result<Value> {
+        self.terminals.resize(terminal_id, rows.max(1), cols.max(1))?;
+        Ok(json!({ "terminalId": terminal_id, "cols": cols, "rows": rows }))
+    }
+
+    /// 结束进程但不释放（终端卡的停止方块 → `terminal/kill` 语义；输出与退出码仍可读）。
+    /// `pty::TerminalManager::kill` 要等进程真的退出，走 `spawn_blocking`。
+    pub async fn terminal_kill(&self, terminal_id: &str) -> Result<Value> {
+        let terminals = self.terminals.clone();
+        let id = terminal_id.to_string();
+        tokio::task::spawn_blocking(move || terminals.kill(&id))
+            .await
+            .map_err(|e| CoreError::Pty(format!("kill task failed: {e}")))??;
+        Ok(json!({ "terminalId": terminal_id }))
+    }
+
+    /// 关掉一个终端（认证页的停止方块与 R4 的本地 shell 标签同一条命令）：还在跑就先 kill，然后释放句柄。
     /// 退出事件仍经 `acp/terminal_output` 推出；`terminal_auth_run` 那边等到退出后照常重试 `session/new`。
     pub fn terminal_close(&self, terminal_id: &str) -> Result<Value> {
-        let _ = self.terminals.kill(terminal_id);
         self.terminals.release(terminal_id)?;
         Ok(json!({ "terminalId": terminal_id, "closed": true }))
+    }
+
+    /// 应用退出前的收尾：全部终端释放（还在跑的 kill）、全部 agent 断开（各自最多等 `DISCONNECT_GRACE` 后结束进程树）、
+    /// 监视器停掉。返回 `{terminals, agents}` 计数。
+    pub async fn core_shutdown(&self) -> Result<Value> {
+        let terminal_ids = self.terminals.ids();
+        for id in &terminal_ids {
+            let _ = self.terminals.release(id);
+        }
+        lock(&self.watchers).clear();
+        let agents: Vec<Arc<AgentConnection>> = lock(&self.agents).drain().map(|(_, c)| c).collect();
+        let count = agents.len();
+        let mut tasks = Vec::new();
+        for connection in agents {
+            tasks.push(tokio::spawn(async move { connection.disconnect().await }));
+        }
+        for t in tasks {
+            let _ = t.await;
+        }
+        Ok(json!({ "terminals": terminal_ids.len(), "agents": count }))
     }
 
     // ---- 设置
@@ -420,6 +494,39 @@ impl Core {
     /// 按名字子串搜索（`fs_search`，`@` 提及用）。
     pub async fn fs_search(&self, root: PathBuf, query: String, limit: usize) -> Result<Value> {
         blocking(move || Ok(serde_json::to_value(fs::search(&root, &query, limit)?)?)).await
+    }
+
+    /// 查看器读文件（`fs_read`，R4）：`{path, text, size, lines, binary, truncated}`。
+    pub async fn fs_read(&self, root: PathBuf, path: PathBuf) -> Result<Value> {
+        blocking(move || Ok(serde_json::to_value(fs::read_file(&root, &path)?)?)).await
+    }
+
+    /// 监视项目目录（`fs_watch`，R4）：每批变化以 `{root, dirs: [绝对路径…], git}` 的 JSON 交给 `deliver`；
+    /// `deliver` 返回 false（接收方已取消）时停止。同一 root 再次调用替换旧监视器。返回 `{root}`。
+    pub fn fs_watch(&self, root: PathBuf, deliver: impl Fn(String) -> bool + Send + 'static) -> Result<Value> {
+        let root_key = root.clone();
+        let root_for_payload = root.to_string_lossy().into_owned();
+        let watcher = fs::watch::DirWatcher::start(&root, move |changes| {
+            let payload = json!({
+                "root": root_for_payload,
+                "dirs": changes.dirs.iter().map(|d| d.to_string_lossy().into_owned()).collect::<Vec<_>>(),
+                "git": changes.git,
+            });
+            deliver(payload.to_string())
+        })?;
+        lock(&self.watchers).insert(root_key, watcher);
+        Ok(json!({ "root": root.to_string_lossy() }))
+    }
+
+    /// 停掉某个根的监视（`fs_unwatch`）。没在监视也不报错。
+    pub fn fs_unwatch(&self, root: PathBuf) -> Result<Value> {
+        let removed = lock(&self.watchers).remove(&root).is_some();
+        Ok(json!({ "root": root.to_string_lossy(), "removed": removed }))
+    }
+
+    /// 文件树的 git 状态徽章（`git_status`，R4）：`{available, isRepo, root, entries: [{path, badge, code}]}`。
+    pub async fn git_status(&self, cwd: PathBuf) -> Result<Value> {
+        blocking(move || Ok(serde_json::to_value(fs::git::status(&cwd)?)?)).await
     }
 
     /// 本地分支列表（`git_branches`）。找不到 `git` 或目录不是仓库时不报错，`available` / `isRepo` 为 false。

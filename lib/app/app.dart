@@ -1,6 +1,8 @@
 // 组合根：默认接 Rust 核心（bridge），`--dart-define=DATA_SOURCE=fixtures` 时回放 test/fixtures（gallery 与开发用）。
 // R0 的 SmokeScreen 已被会话工作台壳取代；无头自检仍走 `ACP_SMOKE_REPORT`（lib/main.dart → lib/app/smoke.dart）。
 
+import 'dart:ui' show AppExitResponse;
+
 import 'package:flutter/material.dart';
 
 import '../theme/tokens.dart' as t;
@@ -25,14 +27,29 @@ class _AcpAppState extends State<AcpApp> {
     bridge: widget.bridge,
   );
 
+  /// 关窗前的收尾（R4 验收 4：应用退出时子进程全部回收）：Windows 引擎把 `WM_CLOSE` 转成 `System.requestAppExit`，
+  /// 这里等核心 `core_shutdown`（释放终端、断开 agent）回来再放行。
+  late final AppLifecycleListener _lifecycle = AppLifecycleListener(onExitRequested: _onExitRequested);
+  bool _shuttingDown = false;
+
+  Future<AppExitResponse> _onExitRequested() async {
+    if (!_shuttingDown) {
+      _shuttingDown = true;
+      await _controller.shutdown();
+    }
+    return AppExitResponse.exit;
+  }
+
   @override
   void initState() {
     super.initState();
+    _lifecycle;
     _controller.start();
   }
 
   @override
   void dispose() {
+    _lifecycle.dispose();
     _controller.dispose();
     super.dispose();
   }

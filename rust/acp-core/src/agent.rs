@@ -7,7 +7,7 @@
 //! 线程模型：所有 future 跑在 `Core` 的 tokio 多线程 runtime 上；SDK 的 handler 必须 `Send`，
 //! 共享状态全在 [`Shared`]（`Arc` + `Mutex`）。handler 只做「入队 + 发事件」，不阻塞 SDK 的 dispatch 循环。
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::future::Future;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -96,6 +96,9 @@ pub struct Shared {
     exit: watch::Sender<Option<ExitInfo>>,
     /// 有子进程时退出由进程监视决定；无子进程（测试传输）时由传输结束决定。
     has_process: bool,
+    /// 终端表（核心共享）与本连接经 `terminal/create` 建的终端 id（R4）：agent 只许碰自己建的；断开 / 退出时一并释放。
+    terminals: Arc<pty::TerminalManager>,
+    owned_terminals: Mutex<HashSet<String>>,
 }
 
 impl std::fmt::Debug for Shared {
@@ -112,7 +115,7 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 }
 
 impl Shared {
-    fn new(agent_id: String, sink: Arc<dyn EventSink>, has_process: bool) -> Self {
+    fn new(agent_id: String, sink: Arc<dyn EventSink>, has_process: bool, terminals: Arc<pty::TerminalManager>) -> Self {
         Self {
             agent_id,
             sink,
@@ -124,6 +127,31 @@ impl Shared {
             transport_error: Mutex::new(None),
             exit: watch::Sender::new(None),
             has_process,
+            terminals,
+            owned_terminals: Mutex::new(HashSet::new()),
+        }
+    }
+
+    /// 本连接建过、还没 release 的终端 id（测试 / 排查）。
+    pub fn owned_terminal_ids(&self) -> Vec<String> {
+        lock(&self.owned_terminals).iter().cloned().collect()
+    }
+
+    /// 核心共享的终端表（测试用）。
+    pub fn terminal_manager(&self) -> Arc<pty::TerminalManager> {
+        self.terminals.clone()
+    }
+
+    /// 把一个已建的终端记到本连接名下（测试用：不经 agent 发 `terminal/create` 也能验断开时的释放）。
+    pub fn adopt_terminal(&self, terminal_id: &str) {
+        lock(&self.owned_terminals).insert(terminal_id.to_string());
+    }
+
+    /// 断开 / 退出：agent 建的终端全部释放（还在跑的先 kill）。规范说 agent MUST release，但它死了就轮到我们。
+    fn release_owned_terminals(&self) {
+        let ids: Vec<String> = lock(&self.owned_terminals).drain().collect();
+        for id in ids {
+            let _ = self.terminals.release(&id);
         }
     }
 
@@ -255,6 +283,7 @@ impl Shared {
             return;
         }
         lock(&self.pending).clear();
+        self.release_owned_terminals();
         self.emit_state(
             "exited",
             json!({
@@ -386,6 +415,263 @@ impl Shared {
             }),
         );
     }
+
+    // ---- fs/* 与 terminal/* 回调（R4；docs/design.md § 7）。handler 里只起任务，文件 / 子进程 / 阻塞等待都在任务里做，
+    //      不占 SDK 的 dispatch 循环。sessionId 不认识 → invalid params；路径越界 / 文件不存在 / 行号越界按 fs 的错误映射。
+
+    fn session_cwd_or_error(&self, session_id: &acp::SessionId) -> std::result::Result<PathBuf, acp::Error> {
+        let id = session_id.0.to_string();
+        self.session_cwd(&id)
+            .ok_or_else(|| acp::Error::invalid_params().data(format!("unknown session {id}")))
+    }
+
+    fn on_read_text_file(self: &Arc<Self>, request: acp::ReadTextFileRequest, responder: Responder<acp::ReadTextFileResponse>) {
+        let shared = self.clone();
+        tokio::spawn(async move {
+            let cwd = match shared.session_cwd_or_error(&request.session_id) {
+                Ok(cwd) => cwd,
+                Err(e) => {
+                    let _ = responder.respond_with_error(e);
+                    return;
+                }
+            };
+            let path = request.path.clone();
+            let (line, limit) = (request.line, request.limit);
+            let result = tokio::task::spawn_blocking(move || fs::read_text_file(&cwd, &path, line, limit)).await;
+            match result {
+                Ok(Ok(content)) => {
+                    let _ = responder.respond(acp::ReadTextFileResponse::new(content));
+                }
+                Ok(Err(e)) => {
+                    let _ = responder.respond_with_error(fs_error(e, &request.path));
+                }
+                Err(join) => {
+                    let _ = responder.respond_with_error(acp::Error::internal_error().data(join.to_string()));
+                }
+            }
+        });
+    }
+
+    fn on_write_text_file(self: &Arc<Self>, request: acp::WriteTextFileRequest, responder: Responder<acp::WriteTextFileResponse>) {
+        let shared = self.clone();
+        tokio::spawn(async move {
+            let cwd = match shared.session_cwd_or_error(&request.session_id) {
+                Ok(cwd) => cwd,
+                Err(e) => {
+                    let _ = responder.respond_with_error(e);
+                    return;
+                }
+            };
+            let path = request.path.clone();
+            let content = request.content;
+            let result = tokio::task::spawn_blocking(move || fs::write_text_file(&cwd, &path, &content)).await;
+            match result {
+                Ok(Ok(())) => {
+                    let _ = responder.respond(acp::WriteTextFileResponse::default());
+                }
+                Ok(Err(e)) => {
+                    let _ = responder.respond_with_error(fs_error(e, &request.path));
+                }
+                Err(join) => {
+                    let _ = responder.respond_with_error(acp::Error::internal_error().data(join.to_string()));
+                }
+            }
+        });
+    }
+
+    fn on_create_terminal(self: &Arc<Self>, request: acp::CreateTerminalRequest, responder: Responder<acp::CreateTerminalResponse>) {
+        let shared = self.clone();
+        tokio::spawn(async move {
+            let session_cwd = match shared.session_cwd_or_error(&request.session_id) {
+                Ok(cwd) => cwd,
+                Err(e) => {
+                    let _ = responder.respond_with_error(e);
+                    return;
+                }
+            };
+            // `cwd` 缺省是会话目录；给了就得是绝对路径（规范）。
+            let cwd = match request.cwd {
+                Some(p) if !p.is_absolute() => {
+                    let _ = responder.respond_with_error(acp::Error::invalid_params().data(format!("cwd must be absolute: {}", p.display())));
+                    return;
+                }
+                Some(p) => p,
+                None => session_cwd,
+            };
+            let env: Vec<(String, String)> = request.env.into_iter().map(|v| (v.name, v.value)).collect();
+            let terminals = shared.terminals.clone();
+            let (command, args, limit) = (request.command, request.args, request.output_byte_limit);
+            let spawned = tokio::task::spawn_blocking(move || {
+                terminals.spawn_shell_command(&command, &args, env, Some(cwd), limit, pty::TerminalSource::Agent)
+            })
+            .await;
+            match spawned {
+                Ok(Ok(id)) => {
+                    // 审查 finding（2026-09-16）：拉起期间这条连接可能已经 finish()（agent 退出 / 断开）并把 owned 集合
+                    // 释放过一轮，之后没人再释放这条终端。exit 与登记在同一把锁下判：已退出就当场释放、回错误。
+                    let registered = {
+                        let mut owned = lock(&shared.owned_terminals);
+                        if shared.exit_info().is_some() {
+                            false
+                        } else {
+                            owned.insert(id.clone());
+                            true
+                        }
+                    };
+                    if !registered {
+                        let _ = shared.terminals.release(&id);
+                        let _ = responder.respond_with_error(
+                            acp::Error::internal_error().data("agent connection closed while creating the terminal"),
+                        );
+                        return;
+                    }
+                    let _ = responder.respond(acp::CreateTerminalResponse::new(acp::TerminalId::new(id)));
+                }
+                Ok(Err(e)) => {
+                    let _ = responder.respond_with_error(acp::Error::internal_error().data(e.to_string()));
+                }
+                Err(join) => {
+                    let _ = responder.respond_with_error(acp::Error::internal_error().data(join.to_string()));
+                }
+            }
+        });
+    }
+
+    /// agent 只许碰自己建的终端；release 过的 id 也算不认识（规范：release 后 id 失效）。
+    fn owned_terminal(&self, terminal_id: &acp::TerminalId) -> std::result::Result<String, acp::Error> {
+        let id = terminal_id.0.to_string();
+        if lock(&self.owned_terminals).contains(&id) {
+            Ok(id)
+        } else {
+            Err(acp::Error::invalid_params().data(format!("unknown terminal {id}")))
+        }
+    }
+
+    fn on_terminal_output(self: &Arc<Self>, request: acp::TerminalOutputRequest, responder: Responder<acp::TerminalOutputResponse>) {
+        let shared = self.clone();
+        tokio::spawn(async move {
+            let id = match shared.owned_terminal(&request.terminal_id) {
+                Ok(id) => id,
+                Err(e) => {
+                    let _ = responder.respond_with_error(e);
+                    return;
+                }
+            };
+            // 最多 4 MiB 的缓冲要 lossy 解码 + 去 ANSI，不占 SDK 分发线程（审查 finding，2026-09-16）。
+            let terminals = shared.terminals.clone();
+            match tokio::task::spawn_blocking(move || terminals.output(&id)).await {
+                Ok(Ok(out)) => {
+                    let mut response = acp::TerminalOutputResponse::new(out.text, out.truncated);
+                    if let Some(status) = out.exit {
+                        response = response.exit_status(exit_status(&status));
+                    }
+                    let _ = responder.respond(response);
+                }
+                Ok(Err(e)) => {
+                    let _ = responder.respond_with_error(acp::Error::internal_error().data(e.to_string()));
+                }
+                Err(join) => {
+                    let _ = responder.respond_with_error(acp::Error::internal_error().data(join.to_string()));
+                }
+            }
+        });
+    }
+
+    fn on_wait_for_terminal_exit(
+        self: &Arc<Self>,
+        request: acp::WaitForTerminalExitRequest,
+        responder: Responder<acp::WaitForTerminalExitResponse>,
+    ) {
+        let shared = self.clone();
+        tokio::spawn(async move {
+            let id = match shared.owned_terminal(&request.terminal_id) {
+                Ok(id) => id,
+                Err(e) => {
+                    let _ = responder.respond_with_error(e);
+                    return;
+                }
+            };
+            let terminals = shared.terminals.clone();
+            match tokio::task::spawn_blocking(move || terminals.wait(&id)).await {
+                Ok(Ok(status)) => {
+                    let _ = responder.respond(acp::WaitForTerminalExitResponse::new(exit_status(&status)));
+                }
+                Ok(Err(e)) => {
+                    let _ = responder.respond_with_error(acp::Error::internal_error().data(e.to_string()));
+                }
+                Err(join) => {
+                    let _ = responder.respond_with_error(acp::Error::internal_error().data(join.to_string()));
+                }
+            }
+        });
+    }
+
+    fn on_kill_terminal(self: &Arc<Self>, request: acp::KillTerminalRequest, responder: Responder<acp::KillTerminalResponse>) {
+        let shared = self.clone();
+        tokio::spawn(async move {
+            let id = match shared.owned_terminal(&request.terminal_id) {
+                Ok(id) => id,
+                Err(e) => {
+                    let _ = responder.respond_with_error(e);
+                    return;
+                }
+            };
+            // kill 要等进程真的退出（pty 层说明），不占 SDK 的分发线程。
+            let terminals = shared.terminals.clone();
+            match tokio::task::spawn_blocking(move || terminals.kill(&id)).await {
+                Ok(Ok(())) => {
+                    let _ = responder.respond(acp::KillTerminalResponse::default());
+                }
+                Ok(Err(e)) => {
+                    let _ = responder.respond_with_error(acp::Error::internal_error().data(e.to_string()));
+                }
+                Err(join) => {
+                    let _ = responder.respond_with_error(acp::Error::internal_error().data(join.to_string()));
+                }
+            }
+        });
+    }
+
+    fn on_release_terminal(self: &Arc<Self>, request: acp::ReleaseTerminalRequest, responder: Responder<acp::ReleaseTerminalResponse>) {
+        let shared = self.clone();
+        tokio::spawn(async move {
+            let id = match shared.owned_terminal(&request.terminal_id) {
+                Ok(id) => id,
+                Err(e) => {
+                    let _ = responder.respond_with_error(e);
+                    return;
+                }
+            };
+            lock(&shared.owned_terminals).remove(&id);
+            // release 对还在跑的进程先 kill，不占 SDK 分发线程。
+            let terminals = shared.terminals.clone();
+            match tokio::task::spawn_blocking(move || terminals.release(&id)).await {
+                Ok(Ok(())) => {
+                    let _ = responder.respond(acp::ReleaseTerminalResponse::default());
+                }
+                Ok(Err(e)) => {
+                    let _ = responder.respond_with_error(acp::Error::internal_error().data(e.to_string()));
+                }
+                Err(join) => {
+                    let _ = responder.respond_with_error(acp::Error::internal_error().data(join.to_string()));
+                }
+            }
+        });
+    }
+}
+
+/// `pty::ExitStatus` → 协议的 `TerminalExitStatus`。
+fn exit_status(status: &pty::ExitStatus) -> acp::TerminalExitStatus {
+    acp::TerminalExitStatus::new().exit_code(status.exit_code).signal(status.signal.clone())
+}
+
+/// fs 的错误 → JSON-RPC 错误：不存在 `-32002`、越界 / 行号不合法 `-32602`、其余 `-32603`。
+fn fs_error(e: fs::FsError, path: &std::path::Path) -> acp::Error {
+    match e {
+        fs::FsError::NotFound(_) => acp::Error::resource_not_found(Some(path.display().to_string())),
+        fs::FsError::OutsideWorkspace(_) | fs::FsError::InvalidParams(_) => acp::Error::invalid_params().data(e.to_string()),
+        other => acp::Error::internal_error().data(other.to_string()),
+    }
 }
 
 /// 一条已完成 `initialize` 的连接。
@@ -406,9 +692,15 @@ impl std::fmt::Debug for AgentConnection {
 }
 
 impl AgentConnection {
-    /// 拉起子进程并完成 `initialize`。`cwd` 是 agent 进程的工作目录。
-    pub async fn connect(agent_id: String, launch: LaunchSpec, cwd: Option<PathBuf>, sink: Arc<dyn EventSink>) -> Result<Arc<Self>> {
-        let shared = Arc::new(Shared::new(agent_id, sink, true));
+    /// 拉起子进程并完成 `initialize`。`cwd` 是 agent 进程的工作目录；`terminals` 是核心共享的终端表（`terminal/*` 回调用）。
+    pub async fn connect(
+        agent_id: String,
+        launch: LaunchSpec,
+        cwd: Option<PathBuf>,
+        sink: Arc<dyn EventSink>,
+        terminals: Arc<pty::TerminalManager>,
+    ) -> Result<Arc<Self>> {
+        let shared = Arc::new(Shared::new(agent_id, sink, true, terminals));
         let mut cmd = command::build_command(&launch, cwd.as_deref());
         let mut child = cmd.spawn().map_err(|e| CoreError::Spawn(format!("{}: {e}", launch.program)))?;
         let stdin = child.stdin.take().ok_or_else(|| CoreError::Spawn("stdin not piped".into()))?;
@@ -439,8 +731,9 @@ impl AgentConnection {
         launch: LaunchSpec,
         sink: Arc<dyn EventSink>,
         transport: impl ConnectTo<Client> + 'static,
+        terminals: Arc<pty::TerminalManager>,
     ) -> Result<Arc<Self>> {
-        let shared = Arc::new(Shared::new(agent_id, sink, false));
+        let shared = Arc::new(Shared::new(agent_id, sink, false, terminals));
         Self::connect_transport(shared, launch, transport, None).await
     }
 
@@ -455,6 +748,13 @@ impl AgentConnection {
         let permission_shared = shared.clone();
         let elicitation_shared = shared.clone();
         let notification_shared = shared.clone();
+        let read_shared = shared.clone();
+        let write_shared = shared.clone();
+        let create_shared = shared.clone();
+        let output_shared = shared.clone();
+        let wait_shared = shared.clone();
+        let kill_shared = shared.clone();
+        let release_shared = shared.clone();
         let io = Client
             .builder()
             .name("acp-agent-client")
@@ -468,6 +768,58 @@ impl AgentConnection {
                 async move |request: acp::CreateElicitationRequest,
                             responder: Responder<acp::CreateElicitationResponse>,
                             _cx: ConnectionTo<Agent>| { elicitation_shared.on_elicitation(request, responder) },
+                agent_client_protocol::on_receive_request!(),
+            )
+            // fs/* 与 terminal/*（R4）：handler 只起任务，立刻返回。
+            .on_receive_request(
+                async move |request: acp::ReadTextFileRequest, responder: Responder<acp::ReadTextFileResponse>, _cx: ConnectionTo<Agent>| {
+                    read_shared.on_read_text_file(request, responder);
+                    Ok(())
+                },
+                agent_client_protocol::on_receive_request!(),
+            )
+            .on_receive_request(
+                async move |request: acp::WriteTextFileRequest, responder: Responder<acp::WriteTextFileResponse>, _cx: ConnectionTo<Agent>| {
+                    write_shared.on_write_text_file(request, responder);
+                    Ok(())
+                },
+                agent_client_protocol::on_receive_request!(),
+            )
+            .on_receive_request(
+                async move |request: acp::CreateTerminalRequest, responder: Responder<acp::CreateTerminalResponse>, _cx: ConnectionTo<Agent>| {
+                    create_shared.on_create_terminal(request, responder);
+                    Ok(())
+                },
+                agent_client_protocol::on_receive_request!(),
+            )
+            .on_receive_request(
+                async move |request: acp::TerminalOutputRequest, responder: Responder<acp::TerminalOutputResponse>, _cx: ConnectionTo<Agent>| {
+                    output_shared.on_terminal_output(request, responder);
+                    Ok(())
+                },
+                agent_client_protocol::on_receive_request!(),
+            )
+            .on_receive_request(
+                async move |request: acp::WaitForTerminalExitRequest,
+                            responder: Responder<acp::WaitForTerminalExitResponse>,
+                            _cx: ConnectionTo<Agent>| {
+                    wait_shared.on_wait_for_terminal_exit(request, responder);
+                    Ok(())
+                },
+                agent_client_protocol::on_receive_request!(),
+            )
+            .on_receive_request(
+                async move |request: acp::KillTerminalRequest, responder: Responder<acp::KillTerminalResponse>, _cx: ConnectionTo<Agent>| {
+                    kill_shared.on_kill_terminal(request, responder);
+                    Ok(())
+                },
+                agent_client_protocol::on_receive_request!(),
+            )
+            .on_receive_request(
+                async move |request: acp::ReleaseTerminalRequest, responder: Responder<acp::ReleaseTerminalResponse>, _cx: ConnectionTo<Agent>| {
+                    release_shared.on_release_terminal(request, responder);
+                    Ok(())
+                },
                 agent_client_protocol::on_receive_request!(),
             )
             .on_receive_notification(

@@ -373,6 +373,34 @@ abstract final class Geometry {
   /// 01–03：中栏无论怎么拖都要留下的宽度（窗口变窄时先压右栏、再压侧栏）。
   static const double mainMinWidth = 360;
 
+  // ---- R4（画板 60 / 61 量得的单点尺寸；查看器头行取 03 的 36 = [barHeight]，见 rounds/round-04 任务卡）
+
+  /// 60：右栏里文件树那一列的宽度。
+  static const double filesTreeWidth = 240;
+
+  /// 60 / 61：面板内的头行（树列的「文件浏览器」标签行、终端的状态行）。
+  static const double panelHeaderHeight = 28;
+
+  /// 60：面板头行里的小图标按钮（搜索 / 全部折叠 / 刷新）见方。
+  static const double panelIconButton = 20;
+
+  /// 60：文件树一行的高度。
+  static const double treeRowHeight = 24;
+
+  /// 60：文件树每深一层的缩进（顶层 8、次层 20）。
+  static const double treeIndent = 12;
+
+  /// 60：Source / Preview 分段控件——外框 [Controls.compact] 高、内缩 2，分段本身 20 高。
+  static const double segmentedInset = 2;
+  static const double segmentHeight = 20;
+
+  /// 61：终端状态行的运行 / 退出圆点直径。
+  static const double terminalDot = 6;
+
+  /// 61：本地 shell 初始尺寸（列 × 行）；真实尺寸由 xterm 按视口回报后 `terminal_resize`。
+  static const int terminalCols = 100;
+  static const int terminalRows = 30;
+
   // ---- R5（画板 50 / 51 / 52 / 70 量得的单点尺寸）
 
   /// 50 / 51 / 70：agent 图标框（28 见方）与框内菱形（10）。

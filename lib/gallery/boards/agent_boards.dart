@@ -178,8 +178,8 @@ final List<GalleryBoard> agentBoards = <GalleryBoard>[
         ),
       ),
       rightPanel: RightPanel(
-        tabs: const <ShellTab>[ShellTab.agents],
-        active: ShellTab.agents,
+        tabs: const <PanelTab>[PanelTab.shell(ShellTab.agents)],
+        active: const PanelTab.shell(ShellTab.agents),
         body: RegistryPanel(
           entries: _registry,
           searchController: _c(),

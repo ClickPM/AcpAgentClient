@@ -32,9 +32,12 @@ import '../ui/popovers/topbar_popovers.dart';
 import '../ui/registry/auth_page.dart';
 import '../ui/settings/settings_page.dart';
 import '../ui/shell/popover_anchor.dart';
+import '../ui/shell/right_panel.dart';
 import '../ui/shell/shell_common.dart';
 import '../ui/shell/sidebar.dart';
 import 'core_bridge.dart';
+import 'files_state.dart';
+import 'local_terminals.dart';
 import 'paths.dart';
 
 enum DataSource {
@@ -92,6 +95,20 @@ class WorkbenchController extends ChangeNotifier {
   double rightPanelWidth = t.Geometry.rightPanelWidth;
   final List<ShellTab> openTabs = <ShellTab>[];
   ShellTab? rightTab;
+
+  /// 右栏当前是某个本地终端标签（画板 61）；null = 显示 [rightTab] 那个面板。
+  String? activeTerminalId;
+
+  /// Follow（画板 40 的提示；客户端本地开关）：开着时 `locations[]` 到达即在文件面板定位。
+  bool follow = false;
+  String? _lastFollowed;
+
+  /// 文件面板（画板 60）与终端面板（画板 61）的接线状态（R4）。
+  late final FilesState files = FilesState(bridge: bridge);
+  late final LocalTerminals terminals = LocalTerminals(bridge: bridge);
+
+  /// agent 终端（`acp/terminal_output` source = agent / auth）的分块 UTF-8 解码：跨块的多字节字符不能逐块 `utf8.decode`。
+  final Map<String, ChunkedUtf8> _agentTerminalText = <String, ChunkedUtf8>{};
   MainPage page = MainPage.workbench;
   String search = '';
   String? renamingSessionId;
@@ -252,11 +269,13 @@ class WorkbenchController extends ChangeNotifier {
     final b = bridge;
     if (b == null) return;
     _subs.addAll(<StreamSubscription<CoreEventRecord>>[
-      b.on(CoreEvent.sessionUpdate).listen((e) => _enqueue(e, (json) => sessions.applySessionUpdateEnvelope(json))),
+      b.on(CoreEvent.sessionUpdate).listen((e) => _enqueue(e, (json) {
+            sessions.applySessionUpdateEnvelope(json);
+            _followLocations(json);
+          })),
       b.on(CoreEvent.clientRequest).listen((e) => _enqueue(e, (json) => sessions.applyClientRequestEnvelope(json))),
       b.on(CoreEvent.agentState).listen((e) => _enqueue(e, (json) => sessions.applyAgentState(json))),
-      b.on(CoreEvent.terminalOutput)
-          .listen((e) => _enqueue(e, (json) => sessions.applyTerminalOutputEvent(json, decode: _decodeBase64))),
+      b.on(CoreEvent.terminalOutput).listen((e) => _enqueue(e, _onTerminalOutput)),
       b.on(CoreEvent.traffic).listen((e) {
         final json = e.json;
         if (json != null) traffic.apply(json);
@@ -265,6 +284,8 @@ class WorkbenchController extends ChangeNotifier {
     ]);
     sessions.addListener(notifyListeners);
     sessions.pending.addListener(_onPendingChanged);
+    files.addListener(notifyListeners);
+    terminals.addListener(notifyListeners);
     await _guard(() async {
       final info = await b.init(defaultDataDir());
       dataDir = info['dataDir'] as String? ?? defaultDataDir();
@@ -392,13 +413,6 @@ class WorkbenchController extends ChangeNotifier {
   /// 无头实跑用：微任务里刷，不依赖帧。
   static void scheduleOnMicrotask(void Function() flush) => scheduleMicrotask(flush);
 
-  static String _decodeBase64(String b64) {
-    try {
-      return utf8.decode(base64Decode(b64), allowMalformed: true);
-    } on FormatException {
-      return '';
-    }
-  }
 
   @override
   void dispose() {
@@ -408,6 +422,10 @@ class WorkbenchController extends ChangeNotifier {
     }
     sessions.removeListener(notifyListeners);
     sessions.pending.removeListener(_onPendingChanged);
+    files.removeListener(notifyListeners);
+    terminals.removeListener(notifyListeners);
+    files.dispose();
+    terminals.dispose();
     for (final c in <TextEditingController>[
       composer, sidebarSearch, rename, projectSearch, branchInput, modelSearch, trafficFilter, registrySearch,
       settingsEdit.command, settingsEdit.args, settingsEdit.env,
@@ -429,8 +447,8 @@ class WorkbenchController extends ChangeNotifier {
     try {
       return await body();
     } catch (e) {
-      lastError = e.toString();
-      debugPrint('[workbench] $e');
+      lastError = describeError(e);
+      debugPrint('[workbench] ${describeError(e)}');
       if (!_disposed) notifyListeners();
       return null;
     }
@@ -529,6 +547,7 @@ class WorkbenchController extends ChangeNotifier {
       recentProjects = _toProjects(result['projects']);
       await refreshBranches();
       await refreshRules();
+      await files.setProject(project?.path);
     });
     _touch();
   }
@@ -790,8 +809,8 @@ class WorkbenchController extends ChangeNotifier {
         // 之后的 Restore 还会拿新连接去操作一个 agent 侧已不存在的 sessionId（审查第 2 轮 finding P2，2026-09-15）。
         // `stopReason` 留空：连接断了本来就没有协议给的结束值，不编一个（规则 2）。
         s.endTurn();
-        lastError = e.toString();
-        debugPrint('[workbench] session/prompt failed: $e');
+        lastError = describeError(e);
+        debugPrint('[workbench] session/prompt failed: ${describeError(e)}');
       }
     }();
     _turnInFlight = turn;
@@ -1063,19 +1082,48 @@ class WorkbenchController extends ChangeNotifier {
     _touch();
   }
 
-  /// 侧栏底部导航 / 右栏标签：设置是主区页面（画板 70），其余三个是右栏标签（画板 03 / 50 / 60 / 61）。
+  // ---------------------------------------------------------------- 右栏（画板 03 / 50 / 60 / 61）
+
+  /// 标签条：面板标签在前、每个本地终端一个标签在后（画板 60 / 61）。侧栏的「终端」入口不作面板标签，它开的是终端实例。
+  List<PanelTab> get panelTabs => <PanelTab>[
+        for (final tab in openTabs) PanelTab.shell(tab),
+        for (final term in terminals.tabs) PanelTab.terminal(term.id, term.title),
+      ];
+
+  PanelTab? get activePanel {
+    final tid = activeTerminalId;
+    if (tid != null) {
+      final term = terminals.byId(tid);
+      if (term != null) return PanelTab.terminal(term.id, term.title);
+    }
+    return rightTab == null ? null : PanelTab.shell(rightTab!);
+  }
+
+  bool get rightPanelOpen => activePanel != null;
+
+  /// 侧栏底部导航 / 右栏标签：设置是主区页面（画板 70）；终端开一个本地 shell 标签（已有就切到最近那个，画板 61）；
+  /// 文件 / Agents 是右栏标签（画板 03 / 50 / 60）。
   void openTab(ShellTab tab) {
     if (tab == ShellTab.settings) {
       openSettings();
       return;
     }
+    if (tab == ShellTab.terminal) {
+      openTerminalTab();
+      return;
+    }
     if (!openTabs.contains(tab)) openTabs.add(tab);
     rightTab = tab;
+    activeTerminalId = null;
     _touch();
   }
 
-  /// 侧栏底部导航的选中项：设置页打开时是「设置」，否则跟右栏当前标签。
-  ShellTab? get activeNavTab => page == MainPage.settings ? ShellTab.settings : rightTab;
+  /// 侧栏底部导航的选中项：设置页打开时是「设置」；终端标签活着时是「终端」；否则跟右栏当前标签。
+  ShellTab? get activeNavTab {
+    if (page == MainPage.settings) return ShellTab.settings;
+    if (activeTerminalId != null && terminals.byId(activeTerminalId!) != null) return ShellTab.terminal;
+    return rightTab;
+  }
 
   void closeTab(ShellTab tab) {
     openTabs.remove(tab);
@@ -1083,17 +1131,161 @@ class WorkbenchController extends ChangeNotifier {
     _touch();
   }
 
-  void closeRightPanel() {
+  /// 点标签条上的标签。
+  void selectPanel(PanelTab tab) {
+    if (tab.isTerminal) {
+      activeTerminalId = tab.terminalId;
+    } else {
+      activeTerminalId = null;
+      if (tab.shell != null) openTab(tab.shell!);
+    }
+    _touch();
+  }
+
+  /// 标签条上的关闭键：终端标签 = 关掉那个 shell；面板标签 = 收起该面板。
+  Future<void> closePanel(PanelTab tab) async {
+    if (tab.isTerminal) {
+      await closeTerminalTab(tab.terminalId!);
+      return;
+    }
+    if (tab.shell != null) closeTab(tab.shell!);
+  }
+
+  /// 整个右栏收起：面板标签清空、本地 shell 全部关掉。
+  Future<void> closeRightPanel() async {
     openTabs.clear();
     rightTab = null;
+    activeTerminalId = null;
+    final ids = <String>[for (final term in terminals.tabs) term.id];
+    for (final id in ids) {
+      await terminals.close(id);
+    }
     _touch();
   }
 
   void toggleRightPanel() {
-    if (rightTab != null) {
+    if (rightPanelOpen) {
       closeRightPanel();
     } else {
       openTab(ShellTab.files);
+    }
+  }
+
+  // ---------------------------------------------------------------- 本地终端（画板 61）
+
+  /// 开一个本地 shell（cwd = 当前项目）并切到它；已有标签时（侧栏入口）切到最近的那个而不是再开一个。
+  Future<void> openTerminalTab({bool forceNew = false}) async {
+    if (!forceNew && terminals.tabs.isNotEmpty) {
+      activeTerminalId = terminals.tabs.last.id;
+      _touch();
+      return;
+    }
+    final cwd = project?.path;
+    if (cwd == null) {
+      lastError = '先选一个项目目录，终端在它里面打开';
+      _touch();
+      return;
+    }
+    final id = await terminals.open(cwd);
+    if (id != null) activeTerminalId = id;
+    lastError = terminals.lastError ?? lastError;
+    _touch();
+  }
+
+  Future<void> closeTerminalTab(String id) async {
+    final wasActive = activeTerminalId == id;
+    await terminals.close(id);
+    if (wasActive) activeTerminalId = terminals.tabs.isEmpty ? null : terminals.tabs.last.id;
+    _touch();
+  }
+
+  Future<void> stopTerminalTab(String id) => terminals.stop(id);
+
+  void clearTerminalTab(String id) => terminals.clear(id);
+
+  Future<void> restartTerminalTab(String id) async {
+    final wasActive = activeTerminalId == id;
+    final fresh = await terminals.restart(id);
+    if (wasActive) activeTerminalId = fresh ?? (terminals.tabs.isEmpty ? null : terminals.tabs.last.id);
+    _touch();
+  }
+
+  /// 画板 23 的停止方块（agent 建的终端）：`terminal_kill` = `terminal/kill` 语义，退出状态随 `acp/terminal_output` 回来。
+  Future<void> killTerminal(String terminalId) async {
+    final b = bridge;
+    if (b == null) return;
+    try {
+      await b.terminalKill(terminalId);
+    } catch (e) {
+      // `_meta` 通道喂出来的终端 id 是 agent 的 toolUseId，核心没有这个 pty：协议里没有能停它的动作，
+      // 不算错误、也不标 killed（审查 finding，2026-09-16）。
+      final text = describeError(e);
+      if (!text.contains('unknown terminal')) {
+        lastError = text;
+        _touch();
+      }
+      return;
+    }
+    store?.markTerminalKilled(terminalId);
+  }
+
+  /// `acp/terminal_output`：source = local 的进终端面板，其余（agent / auth）进转录里的终端卡。
+  void _onTerminalOutput(JsonMap json) {
+    if (json['source'] == 'local') {
+      terminals.applyOutput(json);
+      return;
+    }
+    final id = json['terminalId'];
+    if (id is! String) return;
+    sessions.applyTerminalOutputEvent(json, decode: (b64) => _agentTerminalText.putIfAbsent(id, ChunkedUtf8.new).decode(b64));
+    if (json['exitStatus'] is Map) _agentTerminalText.remove(id);
+  }
+
+  // ---------------------------------------------------------------- 定位与 Follow（画板 18 / 21 / 11 / 40）
+
+  /// 「Go to File」/ diff 行 / `@` 芯片：右栏切到文件面板并打开该文件（给了行就切 Source 高亮那一行）。
+  Future<void> goToFile(String path, {int? line}) async {
+    var p = path;
+    if (p.startsWith('file:///')) p = Uri.parse(p).toFilePath(windows: Platform.isWindows);
+    openTab(ShellTab.files);
+    await files.openPath(p, line: line);
+  }
+
+  void toggleFollow() {
+    follow = !follow;
+    if (!follow) _lastFollowed = null;
+    _touch();
+  }
+
+  /// Follow 开着时，当前会话的 `tool_call` / `tool_call_update` 带 `locations[]` 就跟到第一条（同一位置不重复跳）。
+  void _followLocations(JsonMap envelope) {
+    if (!follow || envelope['sessionId'] != sessionId) return;
+    final update = envelope['update'];
+    if (update is! Map) return;
+    final kind = update['sessionUpdate'];
+    if (kind != 'tool_call' && kind != 'tool_call_update') return;
+    final locations = update['locations'];
+    if (locations is! List || locations.isEmpty) return;
+    final first = locations.first;
+    if (first is! Map || first['path'] is! String) return;
+    final path = first['path'] as String;
+    final line = first['line'];
+    final key = '$path:${line ?? ''}';
+    if (key == _lastFollowed) return;
+    _lastFollowed = key;
+    unawaited(goToFile(path, line: line is num ? line.toInt() : null));
+  }
+
+  // ---------------------------------------------------------------- 退出收尾
+
+  /// 应用退出前：释放全部终端、断开全部 agent（核心侧 `core_shutdown`）。超时也放行，别把窗口卡住。
+  Future<void> shutdown() async {
+    final b = bridge;
+    if (b == null) return;
+    try {
+      await b.coreShutdown().timeout(const Duration(seconds: 8));
+    } catch (e) {
+      debugPrint('[workbench] shutdown: $e');
     }
   }
 
@@ -1524,5 +1716,27 @@ class WorkbenchController extends ChangeNotifier {
       await refreshRegistry();
     });
     _touch();
+  }
+}
+
+/// 一个终端的 base64 字节流 → 文本：分块 UTF-8 解码，跨块的多字节字符不会被切成 U+FFFD（R3 逐块 `utf8.decode` 的隐患）。
+class ChunkedUtf8 {
+  ChunkedUtf8() {
+    _sink = const Utf8Decoder(allowMalformed: true).startChunkedConversion(StringConversionSink.fromStringSink(_out));
+  }
+
+  final StringBuffer _out = StringBuffer();
+  late final ByteConversionSink _sink;
+
+  /// 解一块，返回这一块新解出来的文本（可能为空：字符还没凑齐）。
+  String decode(String base64) {
+    try {
+      _sink.add(base64Decode(base64));
+    } on FormatException {
+      return '';
+    }
+    final text = _out.toString();
+    _out.clear();
+    return text;
   }
 }

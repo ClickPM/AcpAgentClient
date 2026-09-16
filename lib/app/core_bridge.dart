@@ -44,6 +44,9 @@ class CoreCommandError implements Exception {
   String toString() => '$code: $message';
 }
 
+/// 记进 `lastError` 的一行文案：核心错误带上短码，其余照 `toString()`。
+String describeError(Object e) => e is CoreCommandError ? '${e.code}: ${e.message}' : e.toString();
+
 /// 组合根用到的核心接口（事件订阅 + 命令面）。抽出来是为了让 `lib/app/` 的接线能在
 /// `flutter test` 里用假实现驱动（cdylib 在 flutter_tester 里加载不了），真实实现只有 [CoreBridge]。
 abstract interface class CoreCommands {
@@ -87,6 +90,18 @@ abstract interface class CoreCommands {
   Future<JsonMap> sessionIndexRemove(String agentId, String sessionId);
   Future<JsonMap> uiStateGet();
   Future<JsonMap> uiStateSet(JsonMap patch);
+
+  // ---- R4：文件面板、目录监视、git 徽章、本地 shell 与终端控制、退出收尾
+  Future<JsonMap> fsRead(String root, String path);
+
+  /// 流命令：每批变化一条 `{root, dirs, git}`；取消订阅即停。
+  Stream<JsonMap> fsWatch(String root);
+  Future<JsonMap> fsUnwatch(String root);
+  Future<JsonMap> gitStatus(String cwd);
+  Future<JsonMap> terminalOpen(String cwd, {required int cols, required int rows});
+  Future<JsonMap> terminalResize(String terminalId, {required int cols, required int rows});
+  Future<JsonMap> terminalKill(String terminalId);
+  Future<JsonMap> coreShutdown();
 }
 
 class CoreBridge implements CoreCommands {
@@ -265,6 +280,34 @@ class CoreBridge implements CoreCommands {
   @override
   Future<JsonMap> uiStateSet(JsonMap patch) => _run(() => api.uiStateSet(patch: jsonEncode(patch)));
 
+  // ---- R4：文件面板 / 终端 / 退出收尾
+
+  @override
+  Future<JsonMap> fsRead(String root, String path) => _run(() => api.fsRead(root: root, path: path));
+
+  @override
+  Stream<JsonMap> fsWatch(String root) => api.fsWatch(root: root).map(_decodeObject);
+
+  @override
+  Future<JsonMap> fsUnwatch(String root) => _run(() => api.fsUnwatch(root: root));
+
+  @override
+  Future<JsonMap> gitStatus(String cwd) => _run(() => api.gitStatus(cwd: cwd));
+
+  @override
+  Future<JsonMap> terminalOpen(String cwd, {required int cols, required int rows}) =>
+      _run(() => api.terminalOpen(cwd: cwd, cols: cols, rows: rows));
+
+  @override
+  Future<JsonMap> terminalResize(String terminalId, {required int cols, required int rows}) =>
+      _run(() => api.terminalResize(terminalId: terminalId, cols: cols, rows: rows));
+
+  @override
+  Future<JsonMap> terminalKill(String terminalId) => _run(() => api.terminalKill(terminalId: terminalId));
+
+  @override
+  Future<JsonMap> coreShutdown() => _run(api.coreShutdown);
+
   /// 跑一条命令：解码 JSON；核心的 `BridgeError` 翻成 [CoreCommandError]（组合根按 `code` 分流，不碰生成物）。
   Future<JsonMap> _run(Future<String> Function() call) async {
     final String raw;
@@ -273,6 +316,11 @@ class CoreBridge implements CoreCommands {
     } on api.BridgeError catch (e) {
       throw CoreCommandError(e.code, e.message);
     }
+    return _decodeObject(raw);
+  }
+
+  /// 流命令的每一条（`fs_watch`）与 `_run` 共用的解码。
+  static JsonMap _decodeObject(String raw) {
     final decoded = jsonDecode(raw);
     if (decoded is Map) return decoded.cast<String, dynamic>();
     throw FormatException('core returned non-object JSON', raw);

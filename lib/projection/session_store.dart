@@ -180,6 +180,8 @@ class SessionStore extends ChangeNotifier {
           _ensureParent(entry.parentToolCallId, now);
           _place(entry, now);
         }
+        // 终端 provider 通道（待确认）：update 自带的 `_meta.terminal_*` 直接进终端缓冲，与 Zed 的 post-handle 同序。
+        _applyTerminalMeta(u.meta);
       case SessionUpdateKind.plan:
         final r = plans.applyStable(u.planEntries, now: now, newId: () => _newId('plan'));
         if (r.created) _place(r.entry, now);
@@ -495,6 +497,21 @@ class SessionStore extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------- 终端输出（§ 4 / § 7 第 5 条）
+
+  /// `tool_call` / `tool_call_update` 的 `_meta.terminal_info / terminal_output / terminal_exit`（docs/design.md § 4 入站识别键，R4）。
+  void _applyTerminalMeta(JsonMap? meta) {
+    for (final ev in TerminalMetaEvent.parse(meta)) {
+      final buffer = terminals.ensure(ev.terminalId);
+      switch (ev.kind) {
+        case TerminalMetaKind.info:
+          if (ev.cwd != null) buffer.cwd = ev.cwd;
+        case TerminalMetaKind.output:
+          buffer.append(ev.data ?? '');
+        case TerminalMetaKind.exit:
+          buffer.exit(code: ev.exitCode, sig: ev.signal);
+      }
+    }
+  }
 
   void applyTerminalText(String terminalId, String text) {
     terminals.ensure(terminalId).append(text);

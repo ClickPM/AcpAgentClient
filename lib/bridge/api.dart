@@ -122,10 +122,38 @@ Future<String> terminalWrite({
   data: data,
 );
 
-/// 关掉一个终端（结束进程 + 释放）。R4 的本地 shell 四命令之一，认证页的停止方块需要它所以 R5 先出。
-/// 退出事件仍经 `acp/terminal_output` 推出。
+/// 开一个本地 shell（系统默认 shell）：输出经 `acp/terminal_output`（source = local）推出。
+/// `cols` / `rows` 是初始尺寸（之后由 `terminal_resize` 跟着视口走）。返回 `{terminalId, cwd, program}`。
+Future<String> terminalOpen({
+  required String cwd,
+  required int cols,
+  required int rows,
+}) =>
+    RustLib.instance.api.crateApiTerminalOpen(cwd: cwd, cols: cols, rows: rows);
+
+/// 视口尺寸变化（xterm 报出的列 × 行）。
+Future<String> terminalResize({
+  required String terminalId,
+  required int cols,
+  required int rows,
+}) => RustLib.instance.api.crateApiTerminalResize(
+  terminalId: terminalId,
+  cols: cols,
+  rows: rows,
+);
+
+/// 结束终端里的进程但不释放（画板 23 的停止方块 = `terminal/kill` 语义；退出状态仍经 `acp/terminal_output` 推出）。
+/// agent 建的终端也可以用它停（agent 的 `terminal/wait_for_exit` 会随之返回）。
+Future<String> terminalKill({required String terminalId}) =>
+    RustLib.instance.api.crateApiTerminalKill(terminalId: terminalId);
+
+/// 关掉一个终端（认证页的停止方块与本地 shell 标签同一条命令）：还在跑就先结束进程，然后释放句柄；退出事件仍经 `acp/terminal_output` 推出。
 Future<String> terminalClose({required String terminalId}) =>
     RustLib.instance.api.crateApiTerminalClose(terminalId: terminalId);
+
+/// 应用退出前的收尾：释放全部终端（还在跑的先结束）、断开全部 agent（超时结束进程树）、停掉目录监视。
+/// 返回 `{terminals, agents}`。Dart 侧在 `AppLifecycleListener.onExitRequested` 里等它回来再放行退出。
+Future<String> coreShutdown() => RustLib.instance.api.crateApiCoreShutdown();
 
 /// 读 `settings.json`（不存在 → `{agent_servers: {}}`）。
 Future<String> agentSettingsGet() =>
@@ -198,6 +226,25 @@ Future<String> fsSearch({
   query: query,
   limit: limit,
 );
+
+/// 查看器读文件（画板 60，R4）：`{path, text, size, lines, binary, truncated}`；超过 2 MiB 只给前一段并标 `truncated`，
+/// 含 NUL 的按二进制处理（`text` 为空）。`path` 必须在 `root` 之内。
+Future<String> fsRead({required String root, required String path}) =>
+    RustLib.instance.api.crateApiFsRead(root: root, path: path);
+
+/// 监视项目目录（R4）：流命令——每批去抖后的变化推一条 `{root, dirs: [绝对路径…], git}`（`dirs` 是内容变了的目录，
+/// `git` = `.git` 之下有变化）；Dart 侧取消流即停止。同一 `root` 再次调用替换旧监视器。
+Stream<String> fsWatch({required String root}) =>
+    RustLib.instance.api.crateApiFsWatch(root: root);
+
+/// 停掉某个根的监视；没在监视也不报错。返回 `{root, removed}`。
+Future<String> fsUnwatch({required String root}) =>
+    RustLib.instance.api.crateApiFsUnwatch(root: root);
+
+/// 文件树的 git 状态徽章（画板 60，所有者裁定 2026-09-15）：`{available, isRepo, root, entries: [{path, badge, code}]}`。
+/// 非仓库 / 无 git 不报错，`entries` 为空。
+Future<String> gitStatus({required String cwd}) =>
+    RustLib.instance.api.crateApiGitStatus(cwd: cwd);
 
 /// 本地分支列表：`{available, isRepo, current, branches: [{name, author, when, subject}]}`。
 /// 找不到 `git`（`available: false`）或目录不是仓库（`isRepo: false`）都不是错误——前端据此把顶栏分支区整块隐藏。

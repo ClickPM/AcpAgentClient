@@ -25,7 +25,7 @@
 | 00 | Token 表 | 全局 | round-design | `design/round-design/00-tokens.dc.html` | `design/round-design/00-tokens.png` | — | 已实现（R0） | 首版 token 表（浅色 + 深色色阶、accent、语义色、字阶、圆角、间距、kbd、动效） |
 | 01 | 工作台 · 新会话 | 会话工作台 | round-design | `design/round-design/01-workbench-empty.dc.html` | `design/round-design/01-workbench-empty.png` | — | 已实现（R3） | — |
 | 02 | 工作台 · 进行中的一轮 | 会话工作台 | round-design | `design/round-design/02-workbench-running.dc.html` | `design/round-design/02-workbench-running.png` | — | 已实现（R3） | — |
-| 03 | 工作台 · 回合结束 + 右栏展开 | 会话工作台 + 文件面板 | round-design | `design/round-design/03-workbench-done.dc.html` | `design/round-design/03-workbench-done.png` | — | 已实现（R3） | — |
+| 03 | 工作台 · 回合结束 + 右栏展开 | 会话工作台 + 文件面板 | round-design | `design/round-design/03-workbench-done.dc.html` | `design/round-design/03-workbench-done.png` | — | 已实现（R3）· 右栏内容已实现（R4） | — |
 | 04 | 侧栏与顶栏状态 | 会话工作台 | round-design | `design/round-design/04-sidebar-states.dc.html` | `design/round-design/04-sidebar-states.png` | — | 已实现（R3） | — |
 | 10 | Restore Checkpoint 分隔线 | 转录 | round-design | `design/round-design/10-checkpoint.dc.html` | `design/round-design/10-checkpoint.png` | — | 已实现（R2） | — |
 | 11 | 用户消息气泡 | 转录 | round-design | `design/round-design/11-user-message.dc.html` | `design/round-design/11-user-message.png` | — | 已实现（R2） | — |
@@ -58,8 +58,8 @@
 | 50 | Agents 面板（ACP Registry） | agent 管理 | round-design | `design/round-design/50-registry.dc.html` | `design/round-design/50-registry.png` | — | 已实现（R5） | — |
 | 51 | Registry 条目状态 | agent 管理 | round-design | `design/round-design/51-registry-states.dc.html` | `design/round-design/51-registry-states.png` | — | 已实现（R5） | — |
 | 52 | agent 认证 | agent 管理 | round-design | `design/round-design/52-auth.dc.html` | `design/round-design/52-auth.png` | — | 已实现（R5） | — |
-| 60 | 文件面板 | 文件面板 | round-design | `design/round-design/60-files-panel.dc.html` | `design/round-design/60-files-panel.png` | — | 待实现 | — |
-| 61 | 终端面板 | 文件面板（右栏） | round-design | `design/round-design/61-terminal-panel.dc.html` | `design/round-design/61-terminal-panel.png` | — | 待实现 | — |
+| 60 | 文件面板 | 文件面板 | round-design | `design/round-design/60-files-panel.dc.html` | `design/round-design/60-files-panel.png` | — | 已实现（R4） | — |
+| 61 | 终端面板 | 文件面板（右栏） | round-design | `design/round-design/61-terminal-panel.dc.html` | `design/round-design/61-terminal-panel.png` | — | 已实现（R4） | — |
 | 70 | 设置 | 设置 | round-design | `design/round-design/70-settings.dc.html` | `design/round-design/70-settings.png` | — | 已实现（R5） | — |
 | 80 | ACP 流量调试 | ACP 流量调试 | round-design | `design/round-design/80-traffic.dc.html` | `design/round-design/80-traffic.png` | — | 已实现（R3） | — |
 

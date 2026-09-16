@@ -179,7 +179,7 @@ impl Core {
                     // 首次拉起并 initialize：拿 agentInfo（展示名 / 版本）。与取消赛跑是安全的：connect 的 future 被丢掉时，
                     // 它持有的 kill 通道发送端随之析构，exit_watcher 立刻结束子进程树（agent.rs），不留孤儿。
                     let connection = tokio::select! {
-                        connected = AgentConnection::connect(entry.id.clone(), launch, None, self.event_sink()) => connected?,
+                        connected = AgentConnection::connect(entry.id.clone(), launch, None, self.event_sink(), self.terminal_manager()) => connected?,
                         _ = token.cancelled() => return Err(RegistryError::Cancelled.into()),
                     };
                     manifest.agent_info = connection.initialize.get("agentInfo").cloned();

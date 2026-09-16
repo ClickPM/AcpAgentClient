@@ -1,6 +1,6 @@
-//! `fs/read_text_file`、`fs/write_text_file`（docs/design.md § 7），工作区文件树与搜索，
-//! 以及 git CLI 子进程薄封装（分支 / 切换 / 新建 / Branch Diff，见 [`git`]）。
-//! R3 落 `list_dir` / `search` 与 git；R4 补 `fs/*` 回调与 `notify`。
+//! `fs/read_text_file`、`fs/write_text_file`（docs/design.md § 7），工作区文件树 / 搜索 / 查看器读文件 / 目录监视（[`watch`]），
+//! 以及 git CLI 子进程薄封装（分支 / 切换 / 新建 / Branch Diff / 状态徽章，见 [`git`]）。
+//! R3 落 `list_dir` / `search` 与 git；R4 落 `fs/*` 回调、`read_file`、`notify` 与 `git status`。
 //! 写文件一律「临时文件 + rename」（CLAUDE.md 规则 7）。
 
 use std::fmt;
@@ -9,12 +9,17 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 
 pub mod git;
+pub mod watch;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum FsError {
     /// 路径不是绝对路径，或不在会话工作目录之内。
     OutsideWorkspace(PathBuf),
+    /// 文件不存在（`fs/read_text_file` 回 `-32002` resource not found）。
+    NotFound(PathBuf),
+    /// 入参不合规范（例如从文件末尾之后开始读；回 `-32602` invalid params）。
+    InvalidParams(String),
     Io(String),
     /// git 子进程返回非零，消息是它自己的 stderr。
     Git(String),
@@ -27,6 +32,8 @@ impl fmt::Display for FsError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             FsError::OutsideWorkspace(p) => write!(f, "fs: path outside workspace: {}", p.display()),
+            FsError::NotFound(p) => write!(f, "fs: not found: {}", p.display()),
+            FsError::InvalidParams(e) => write!(f, "fs: invalid params: {e}"),
             FsError::Io(e) => write!(f, "fs: io: {e}"),
             FsError::Git(e) => write!(f, "git: {e}"),
             FsError::GitUnavailable => write!(f, "git: executable not found on PATH"),
@@ -45,23 +52,184 @@ pub fn ensure_inside(cwd: &Path, path: &Path) -> Result<()> {
     let has_parent = path
         .components()
         .any(|c| matches!(c, std::path::Component::ParentDir));
-    if path.is_absolute() && !has_parent && path.starts_with(cwd) {
-        Ok(())
-    } else {
-        Err(FsError::OutsideWorkspace(path.to_path_buf()))
+    if !(path.is_absolute() && !has_parent && path.starts_with(cwd)) {
+        return Err(FsError::OutsideWorkspace(path.to_path_buf()));
     }
+    // 词法在里面还不够：cwd 之下通往 path 的每一级已存在的分量都不能是链接 / 联接，否则 `std::fs` 跟过去就读写到
+    // 工作区外（审查 finding，2026-09-16；与 `list_dir` 的 [`entry_is_dir`] 同一判断）。不存在的尾段（要新建的文件
+    // 与父目录）不用看。
+    let mut cur = cwd.to_path_buf();
+    if let Ok(rel) = path.strip_prefix(cwd) {
+        for component in rel.components() {
+            cur.push(component);
+            match std::fs::symlink_metadata(&cur) {
+                Ok(meta) if is_link(&meta) => return Err(FsError::OutsideWorkspace(path.to_path_buf())),
+                Ok(_) => {}
+                Err(_) => break,
+            }
+        }
+    }
+    Ok(())
 }
 
-/// `fs/read_text_file`：`line` / `limit` 是 1-based。R4。
-pub fn read_text_file(cwd: &Path, path: &Path, _line: Option<u32>, _limit: Option<u32>) -> Result<String> {
-    ensure_inside(cwd, path)?;
-    Err(FsError::NotImplemented("R4"))
+/// 符号链接，或 Windows 的目录联接 / 挂载点（对联接 `is_symlink()` 是 false，只能看 `FILE_ATTRIBUTE_REPARSE_POINT`）。
+/// 传入的 metadata 必须来自 `symlink_metadata` / `DirEntry::metadata`（不跟随链接）。
+fn is_link(meta: &std::fs::Metadata) -> bool {
+    if meta.file_type().is_symlink() {
+        return true;
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        /// `winnt.h`。
+        const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
+        if meta.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+            return true;
+        }
+    }
+    false
 }
 
-/// `fs/write_text_file`：不存在则创建；临时文件 + rename。R4。
-pub fn write_text_file(cwd: &Path, path: &Path, _content: &str) -> Result<()> {
+/// `fs/read_text_file`（docs/design.md § 7）：`line` / `limit` 都是 1-based；`line` 缺省从第一行起、`limit` 缺省到文件尾。
+/// 行的口径照 Zed `acp_thread.rs::read_text_file`：按 `\n` 切成「行」（文件末尾的换行之后算一个空行），
+/// 起点落在最后一行之后 → invalid params「Attempting to read beyond the end of the file」；返回的片段保留每行自己的换行。
+/// 文件不存在 → [`FsError::NotFound`]（agent 侧收到 `-32002`）。不是合法 UTF-8 的字节按 lossy 解码。
+pub fn read_text_file(cwd: &Path, path: &Path, line: Option<u32>, limit: Option<u32>) -> Result<String> {
     ensure_inside(cwd, path)?;
-    Err(FsError::NotImplemented("R4"))
+    let bytes = match std::fs::read(path) {
+        Ok(b) => b,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Err(FsError::NotFound(path.to_path_buf())),
+        Err(e) => return Err(FsError::Io(format!("{}: {e}", path.display()))),
+    };
+    let text = String::from_utf8_lossy(&bytes);
+    slice_lines(&text, line, limit)
+}
+
+/// 纯函数便于测试：`text` 按 1-based 的 `line` / `limit` 取行。
+pub fn slice_lines(text: &str, line: Option<u32>, limit: Option<u32>) -> Result<String> {
+    // Zed：args 是 1-based，转 0-based；`line: 0` 与缺省同义。
+    let start = line.unwrap_or_default().saturating_sub(1) as usize;
+    let rows: Vec<&str> = text.split('\n').collect();
+    let last_row = rows.len() - 1;
+    if start > last_row {
+        return Err(FsError::InvalidParams(format!(
+            "Attempting to read beyond the end of the file, line {}:{}",
+            last_row + 1,
+            rows[last_row].len()
+        )));
+    }
+    let end = match limit {
+        Some(n) => start.saturating_add(n as usize).min(rows.len()),
+        None => rows.len(),
+    };
+    // 逐行拼回：除最后一行外每行带自己的 `\n`；切到文件尾时最后那个尾块不补换行。
+    let mut out = String::new();
+    for (i, row) in rows[start..end].iter().enumerate() {
+        out.push_str(row);
+        if start + i < last_row {
+            out.push('\n');
+        }
+    }
+    Ok(out)
+}
+
+/// `fs/write_text_file`（docs/design.md § 7）：不存在则创建（规范 MUST），父目录不存在一并创建；临时文件 + rename（规则 7）。
+pub fn write_text_file(cwd: &Path, path: &Path, content: &str) -> Result<()> {
+    ensure_inside(cwd, path)?;
+    write_atomic(path, content.as_bytes())
+}
+
+/// 临时文件 + rename：同目录写 `<name>.tmp-<pid>-<nanos>` 再原子替换；目标目录不存在时创建。
+/// （与 `rust/settings` 的同名函数一个口径；fs 不依赖 settings，各自一份。）
+pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
+    let dir = path.parent().ok_or_else(|| FsError::Io(format!("{} has no parent", path.display())))?;
+    std::fs::create_dir_all(dir).map_err(|e| FsError::Io(format!("{}: {e}", dir.display())))?;
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let file_name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let tmp = dir.join(format!("{file_name}.tmp-{}-{nanos}", std::process::id()));
+    std::fs::write(&tmp, bytes).map_err(|e| FsError::Io(format!("{}: {e}", tmp.display())))?;
+    if let Err(e) = std::fs::rename(&tmp, path) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(FsError::Io(format!("rename {} -> {}: {e}", tmp.display(), path.display())));
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------- 查看器读文件（画板 60，`fs_read`）
+
+/// 查看器一次最多拿的字节数：更大的文件只给前一段并标 `truncated`（超大文件整份进 Dart 没有意义）。
+pub const READ_FILE_LIMIT: usize = 2 * 1024 * 1024;
+
+/// 二进制判定只看开头这么多字节里有没有 NUL。
+const BINARY_SNIFF: usize = 8 * 1024;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileContent {
+    pub path: String,
+    /// 文本内容（二进制文件为空串；超限时是按字符边界截断的前一段）。
+    pub text: String,
+    /// 整个文件的字节数。
+    pub size: u64,
+    /// 行数（按 `\n` 计；空文件 0；末尾没有换行的最后一行也算一行）。
+    pub lines: usize,
+    pub binary: bool,
+    pub truncated: bool,
+}
+
+/// 读一个文件给查看器（`fs_read`）。`path` 必须在 `root` 之内。
+pub fn read_file(root: &Path, path: &Path) -> Result<FileContent> {
+    ensure_inside(root, path)?;
+    let meta = match std::fs::metadata(path) {
+        Ok(m) => m,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Err(FsError::NotFound(path.to_path_buf())),
+        Err(e) => return Err(FsError::Io(format!("{}: {e}", path.display()))),
+    };
+    if meta.is_dir() {
+        return Err(FsError::InvalidParams(format!("{} is a directory", path.display())));
+    }
+    use std::io::Read;
+    let mut file = std::fs::File::open(path).map_err(|e| FsError::Io(format!("{}: {e}", path.display())))?;
+    let mut bytes = Vec::with_capacity((meta.len() as usize).min(READ_FILE_LIMIT + 1));
+    file.by_ref()
+        .take(READ_FILE_LIMIT as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| FsError::Io(format!("{}: {e}", path.display())))?;
+    let truncated = bytes.len() > READ_FILE_LIMIT;
+    if truncated {
+        bytes.truncate(READ_FILE_LIMIT);
+    }
+    let binary = bytes[..bytes.len().min(BINARY_SNIFF)].contains(&0);
+    let text = if binary {
+        String::new()
+    } else {
+        match String::from_utf8(bytes) {
+            Ok(s) => s,
+            Err(e) => {
+                // 截断切在多字节字符中间会走到这里：只保留合法前缀（文件本身不是 UTF-8 也一样，不猜编码）。
+                let valid = e.utf8_error().valid_up_to();
+                let mut bytes = e.into_bytes();
+                bytes.truncate(valid);
+                String::from_utf8(bytes).unwrap_or_default()
+            }
+        }
+    };
+    let lines = if binary || text.is_empty() {
+        0
+    } else {
+        text.matches('\n').count() + usize::from(!text.ends_with('\n'))
+    };
+    Ok(FileContent {
+        path: path.to_string_lossy().into_owned(),
+        text,
+        size: meta.len(),
+        lines,
+        binary,
+        truncated,
+    })
 }
 
 // ---------------------------------------------------------------- 目录列举与按名搜索（R3）
@@ -111,19 +279,7 @@ pub struct SearchResult {
 /// `is_dir()` 是 true**，只能看 `FILE_ATTRIBUTE_REPARSE_POINT`（审查第 2 轮 finding P2，2026-09-15）。
 /// `DirEntry::metadata` 不跟随链接，拿到的就是链接本身的属性。
 fn entry_is_dir(meta: &std::fs::Metadata) -> bool {
-    if !meta.is_dir() {
-        return false;
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::MetadataExt;
-        /// `winnt.h`。
-        const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
-        if meta.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
-            return false;
-        }
-    }
-    !meta.file_type().is_symlink()
+    meta.is_dir() && !is_link(meta)
 }
 
 fn relative_parent(root: &Path, dir: &Path) -> String {
@@ -317,6 +473,52 @@ mod tests {
         let _ = std::fs::remove_dir_all(&outside);
     }
 
+    /// 工作区里的目录链接（Windows 用 `mklink /J` 建联接，其他平台用符号链接）指向工作区外：
+    /// `fs/read_text_file`、`fs/write_text_file`、查看器的 `read_file` 都得拒绝，外面的文件一个字节都不能动。
+    #[test]
+    fn links_inside_the_workspace_do_not_escape_read_or_write() {
+        let dir = sandbox("link-escape");
+        let outside = std::env::temp_dir().join(format!("acp-fs-outside-rw-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&outside);
+        std::fs::create_dir_all(&outside).expect("mkdir");
+        std::fs::write(outside.join("secret.txt"), "outside").expect("write");
+        let link = dir.join("link-out");
+        let linked = {
+            #[cfg(windows)]
+            {
+                std::process::Command::new("cmd")
+                    .args(["/c", "mklink", "/J"])
+                    .arg(&link)
+                    .arg(&outside)
+                    .output()
+                    .map(|o| o.status.success())
+                    .unwrap_or(false)
+            }
+            #[cfg(not(windows))]
+            {
+                std::os::unix::fs::symlink(&outside, &link).is_ok()
+            }
+        };
+        // 这是越界回归用例：建不出链接就得红，不能「环境不行就 return」让断言一行都不跑（审查第 2 轮 finding，2026-09-16）。
+        assert!(linked, "cannot create the directory link this regression test depends on: {}", link.display());
+
+        let target = link.join("secret.txt");
+        assert!(matches!(read_text_file(&dir, &target, None, None), Err(FsError::OutsideWorkspace(_))));
+        assert!(matches!(read_file(&dir, &target), Err(FsError::OutsideWorkspace(_))));
+        assert!(matches!(write_text_file(&dir, &target, "changed"), Err(FsError::OutsideWorkspace(_))));
+        // 在链接之下新建同样拒绝：父目录就是链接。
+        assert!(matches!(write_text_file(&dir, &link.join("new.txt"), "x"), Err(FsError::OutsideWorkspace(_))));
+        assert_eq!(std::fs::read_to_string(outside.join("secret.txt")).expect("read"), "outside");
+        assert!(!outside.join("new.txt").exists());
+        // 工作区里正常的文件照常能写能读。
+        write_text_file(&dir, &dir.join("ok.txt"), "fine").expect("write inside");
+        assert_eq!(read_text_file(&dir, &dir.join("ok.txt"), None, None).expect("read inside"), "fine");
+
+        let _ = std::fs::remove_dir_all(&link);
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&outside);
+    }
+
     #[test]
     fn search_matches_names_and_splits_files_and_dirs() {
         let dir = sandbox("search");
@@ -336,6 +538,123 @@ mod tests {
         let one = search(&dir, "validate", 1).expect("search");
         assert_eq!(one.files.len(), 1);
         assert!(one.truncated);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ---- R4：fs/read_text_file 的 1-based 行口径（照 Zed 的测试用例）
+
+    #[test]
+    fn slice_lines_is_one_based_and_keeps_newlines() {
+        let text = "line 1\nline 2\nline 3\nline 4\nline 5\n";
+        assert_eq!(slice_lines(text, None, None).expect("all"), text);
+        assert_eq!(slice_lines(text, Some(3), None).expect("from 3"), "line 3\nline 4\nline 5\n");
+        assert_eq!(slice_lines(text, None, Some(2)).expect("first 2"), "line 1\nline 2\n");
+        assert_eq!(slice_lines(text, Some(2), Some(2)).expect("2..3"), "line 2\nline 3\n");
+        // 第 6 行是文件末尾换行之后的空行：合法，读到空串。
+        assert_eq!(slice_lines(text, Some(6), Some(2)).expect("tail"), "");
+        // 第 7 行不存在。
+        let err = slice_lines(text, Some(7), None).expect_err("beyond eof");
+        assert!(matches!(err, FsError::InvalidParams(_)), "{err:?}");
+        // `line: 0` 与缺省同义。
+        assert_eq!(slice_lines(text, Some(0), Some(1)).expect("zero"), "line 1\n");
+        // 末尾没有换行的文件：最后一行不补换行。
+        let no_nl = "a\nb";
+        assert_eq!(slice_lines(no_nl, None, None).expect("all"), "a\nb");
+        assert_eq!(slice_lines(no_nl, Some(2), None).expect("last"), "b");
+        assert_eq!(slice_lines(no_nl, Some(1), Some(1)).expect("first"), "a\n");
+        assert!(slice_lines("", None, None).expect("empty").is_empty());
+    }
+
+    #[test]
+    fn read_and_write_text_file_stay_inside_cwd_and_write_atomically() {
+        let dir = sandbox("rw");
+        // 不存在 → NotFound（agent 侧是 -32002）。
+        let missing = dir.join("nope.txt");
+        assert!(matches!(read_text_file(&dir, &missing, None, None), Err(FsError::NotFound(_))));
+        // 相对路径 / cwd 之外 → OutsideWorkspace。
+        assert!(matches!(read_text_file(&dir, Path::new("README.md"), None, None), Err(FsError::OutsideWorkspace(_))));
+        let outside = std::env::temp_dir().join("acp-fs-outside.txt");
+        assert!(matches!(write_text_file(&dir, &outside, "x"), Err(FsError::OutsideWorkspace(_))));
+        assert!(!outside.exists());
+
+        // 父目录不存在：一并创建（规范只说文件 MUST 创建，父目录是本项目的口径）。
+        let nested = dir.join("new").join("deep").join("说明.md");
+        write_text_file(&dir, &nested, "第一行\n第二行\n").expect("write");
+        assert_eq!(std::fs::read_to_string(&nested).expect("read"), "第一行\n第二行\n");
+        assert_eq!(read_text_file(&dir, &nested, Some(2), Some(1)).expect("line 2"), "第二行\n");
+        // 覆盖已有文件，且没有残留的临时文件（临时文件 + rename）。
+        write_text_file(&dir, &nested, "改过\n").expect("overwrite");
+        assert_eq!(read_text_file(&dir, &nested, None, None).expect("read"), "改过\n");
+        let leftovers: Vec<_> = std::fs::read_dir(nested.parent().expect("parent"))
+            .expect("dir")
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|n| n.contains(".tmp-"))
+            .collect();
+        assert!(leftovers.is_empty(), "temp files left behind: {leftovers:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 临时文件的名字形状（`<name>.tmp-<pid>-<nanos>`）与 rename 的目标：写到一半失败不能留半个文件在目标名上。
+    #[test]
+    fn write_atomic_uses_temp_name_in_same_dir() {
+        let dir = sandbox("atomic");
+        let target = dir.join("a.txt");
+        std::fs::write(&target, "old").expect("seed");
+        // 目标是目录时 rename 失败：临时文件必须被清掉、旧内容不动。
+        let blocked = dir.join("blocked");
+        std::fs::create_dir_all(&blocked).expect("mkdir");
+        let err = write_atomic(&blocked, b"x").expect_err("dir target");
+        assert!(matches!(err, FsError::Io(_)));
+        let leftovers: Vec<_> = std::fs::read_dir(&dir)
+            .expect("dir")
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|n| n.contains(".tmp-"))
+            .collect();
+        assert!(leftovers.is_empty(), "temp files left behind: {leftovers:?}");
+        assert_eq!(std::fs::read_to_string(&target).expect("read"), "old");
+        write_atomic(&target, b"new").expect("write");
+        assert_eq!(std::fs::read_to_string(&target).expect("read"), "new");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn read_file_reports_size_lines_binary_and_truncation() {
+        let dir = sandbox("readfile");
+        let text = dir.join("t.md");
+        std::fs::write(&text, "# 标题\n\n正文\n").expect("write");
+        let c = read_file(&dir, &text).expect("read");
+        assert_eq!(c.lines, 3);
+        assert_eq!(c.size, "# 标题\n\n正文\n".len() as u64);
+        assert!(!c.binary && !c.truncated);
+        assert_eq!(c.text, "# 标题\n\n正文\n");
+
+        let no_nl = dir.join("n.txt");
+        std::fs::write(&no_nl, "a\nb").expect("write");
+        assert_eq!(read_file(&dir, &no_nl).expect("read").lines, 2);
+        assert_eq!(read_file(&dir, &dir.join("scripts").join("validate.ps1")).expect("read").lines, 1);
+
+        let bin = dir.join("b.bin");
+        std::fs::write(&bin, [0x89, b'P', b'N', b'G', 0, 1, 2]).expect("write");
+        let b = read_file(&dir, &bin).expect("read");
+        assert!(b.binary);
+        assert!(b.text.is_empty());
+        assert_eq!(b.lines, 0);
+
+        // 超限：只拿前一段，且不切坏多字节字符。
+        let big = dir.join("big.txt");
+        let unit = "汉字abc\n"; // 10 字节
+        let repeats = READ_FILE_LIMIT / unit.len() + 5;
+        std::fs::write(&big, unit.repeat(repeats)).expect("write");
+        let t = read_file(&dir, &big).expect("read");
+        assert!(t.truncated);
+        assert!(t.text.len() <= READ_FILE_LIMIT);
+        assert!(std::str::from_utf8(t.text.as_bytes()).is_ok());
+        assert!(t.text.ends_with('\n') || t.text.ends_with('c') || t.text.ends_with('字') || t.text.ends_with('汉') || t.text.ends_with('a') || t.text.ends_with('b'));
+
+        assert!(matches!(read_file(&dir, &dir.join("scripts")), Err(FsError::InvalidParams(_))));
+        assert!(matches!(read_file(&dir, Path::new("relative.md")), Err(FsError::OutsideWorkspace(_))));
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
