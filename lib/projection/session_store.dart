@@ -735,7 +735,8 @@ class Sessions extends ChangeNotifier {
     if (s == null) return;
     s.removeListener(notifyListeners);
     pending.forgetSession(sessionId);
-    s.dispose();
+    // 不 dispose：在途的那一轮（`session/prompt` 还没返回）还握着这个 store，回来时会调 `endTurn()`；
+    // 对 dispose 过的 ChangeNotifier 再 notify 会 assert。摘掉监听就够了，没有别的资源要释放。
     notifyListeners();
   }
 

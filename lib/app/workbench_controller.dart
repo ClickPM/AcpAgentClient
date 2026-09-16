@@ -754,7 +754,8 @@ class WorkbenchController extends ChangeNotifier {
       }
       await _connect(b, id, cwd);
       if (!canLoadSessionOf(id) || !await loadSession(id, previous, sessions.maybe(previous)?.cwd ?? cwd)) {
-        // 重连成功但不支持 / 载不回来：退回新会话，旧转录留着只读。
+        // 不支持 loadSession：开新会话，旧转录留在内存里只读（R3 的做法）。
+        // 支持但载失败：`loadSession` 已经把那条从内存里拿掉了（转录已清，留空壳会挡住下次重试），这里同样开新会话。
         await _createSession(id, cwd);
       }
     });
@@ -826,10 +827,11 @@ class WorkbenchController extends ChangeNotifier {
     if (b == null) return false;
     final s = sessions.session(id, agentId: agent)..cwd = cwd;
     _sessionAgent[id] = agent;
+    // hold 与 release 必须严格配对：中间任何一步抛出都得 release，否则 UI 从此不再刷新。
     batcher.hold();
-    // 清空排进同一条挂起队列：清空与重放在 UI 上是一步，中间不会闪一下空转录。
-    batcher.enqueue(s.resetForReplay);
     try {
+      // 清空排进同一条挂起队列：清空与重放在 UI 上是一步，中间不会闪一下空转录。
+      batcher.enqueue(s.resetForReplay);
       final result = await b.sessionLoad(agent, id, cwd);
       batcher.enqueue(() => s.applyLoadSession(result));
       _closedSessions.remove(id);

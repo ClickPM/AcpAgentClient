@@ -237,14 +237,22 @@ impl Shared {
         String::from_utf8_lossy(tail.make_contiguous()).into_owned()
     }
 
+    /// 记 / 更新会话的 cwd。已经在账上的只改 cwd，不碰 `cancel_pending`——
+    /// 那是回合级的标志，`session/load` / `resume` 不该把它清掉（R6）。
     fn record_session(&self, session_id: &str, cwd: PathBuf) {
-        lock(&self.sessions).insert(
-            session_id.to_string(),
-            SessionState {
-                cwd,
-                cancel_pending: false,
-            },
-        );
+        let mut sessions = lock(&self.sessions);
+        match sessions.get_mut(session_id) {
+            Some(existing) => existing.cwd = cwd,
+            None => {
+                sessions.insert(
+                    session_id.to_string(),
+                    SessionState {
+                        cwd,
+                        cancel_pending: false,
+                    },
+                );
+            }
+        }
     }
 
     pub fn session_cwd(&self, session_id: &str) -> Option<PathBuf> {
@@ -936,13 +944,16 @@ impl AgentConnection {
         T: serde::Serialize,
         F: Future<Output = std::result::Result<T, acp::Error>>,
     {
-        let was_known = self.shared.session_cwd(session_id).is_some();
+        let previous = self.shared.session_cwd(session_id);
         self.shared.record_session(session_id, cwd);
         match race_exit(&self.shared, request).await {
             Ok(response) => Ok(serde_json::to_value(&response)?),
             Err(e) => {
-                if !was_known {
-                    self.shared.forget_session(session_id);
+                // 失败就把记账退回原样：本来不在账上的删掉，本来在的把 cwd 还回去，
+                // 免得留一个「这个会话可以读写那个目录」的陈旧条目。
+                match previous {
+                    Some(cwd) => self.shared.record_session(session_id, cwd),
+                    None => self.shared.forget_session(session_id),
                 }
                 Err(e)
             }
