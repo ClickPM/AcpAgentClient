@@ -85,7 +85,7 @@
 
 ## 代码审查
 
-- 审查方式：`powershell -File .claude\cursor-review.ps1 -Note "<本轮要点>"`（默认档，全量分支 diff，后台跑）
+- 审查方式：`powershell -File .claude\cursor-review.ps1 -Note "<本轮要点>"`（默认档；第 3 轮起加 `-Scope since -Base <上一轮已审提交>`，后台跑）
 - 审查器与模型：cursor CLI `cursor-grok-4.6-high`（`--mode ask`），没有回落
 - 审查范围与基准提交：第 1–2 轮全量 `main...HEAD`（`8106248` / `2659074`），第 3–4 轮只审整改 diff
   （`-Scope since -Base 2659074` / `-Base 02756a4`）。耗时：第 1 轮 **12 分 03 秒**（30 文件 / 2,831 行），
@@ -135,8 +135,17 @@
 ② 两条新用例不是假通过 —— 把 `cancel()` 或 `setConfigOption` / `setMode` 的门删掉那条会红，把 `_blockedByClose()`
 写成无条件 `true` 反向那条会红。
 
-- 结论：**整改后 PASS**（四轮共 12 条：high 2 / P2 8 / P3 2；11 条采纳整改并补了用例，1 条是设计取舍留所有者裁定；
-  第 4 轮 0 条，缺陷门禁收口）。
+### 第 5 轮（只审裁定落地的 diff `9519981..HEAD`）：**0 条**
+
+裁定之后那两笔里 `b7b90cc` 带了代码改动（≡ 回退），不能靠「只是回退」免审。审查者核了三件事：
+回退没留悬空引用（`_renameFromMenu` / `_deleteFromMenu` 已删且无残留、`canResumeSession` / `canCloseSession`
+仍被 controller / 单测 / headless 用着、`ThreadMenuPopover` 只在 gallery 出样张）；
+`docs/design.md` § 3 新加的三句与代码实际行为逐句对得上（载回的历史里 `turnOf` 找不到 `TurnEntry` →
+Restore / Regenerate 的回调本来就是 null，检查点分隔线也不出现）。
+顺带指出 `ROUNDS.md` 进度表还留着「≡ 归属待裁定」的过时字样（不是缺陷），已改。
+
+- 结论：**整改后 PASS**（五轮共 12 条：high 2 / P2 8 / P3 2；11 条采纳整改并补了用例，1 条是设计取舍、所有者已裁定；
+  第 4、5 轮各 0 条，缺陷门禁收口）。
   收口时的复核：`flutter test` 186 条全过、Rust 10 条脚本化用例全过、`validate.ps1` 13 项全 PASS；
   fake-agent 离线全链与 claude-agent-acp 真跑各复跑一次（reopen / close / resume / delete 全绿）。
 
