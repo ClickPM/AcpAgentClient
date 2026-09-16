@@ -98,6 +98,20 @@ Remove、受管 Node），认证页覆盖 agent 型、terminal 型与 requestSco
 
 整改后 `cargo test -p acp-core`（16 + 4 个用例）、`cargo clippy --workspace -D warnings`、`flutter test test/app/`（17 个用例）全过。
 
+**第 2 轮：2 条（high 0 / P2 2），全部采纳**（范围仍是全量 `main...HEAD`，HEAD = `23e3864`；产物 `.claude/reviews/20260916-132130-review.out.md`，约 11 分钟；
+整改提交 `d44d20b`，夹具提交 `05baaa8`）
+
+第 1 轮三条的整改经复核成立（`e.agentId` 在 `closeAuth` 清掉 `authAgentId` 之后仍可用；`settings_created` 只在新建时为 true；
+select 丢掉 connect 的 future → `kill_tx` 析构 → `exit_watcher` 走 `kill_tree`，进程侧收尾成立）。新出的两条：
+
+| # | 级别 | finding | 处理 |
+|---|---|---|---|
+| 1 | P2 | 取消 / 失败后立刻 `rollback_install`，不等另一个 task 里的 `kill_tree` 结束；Windows 上握手子进程还占着 `agents/<id>/node_modules/…`，`remove_dir_all` 失败被 `let _` 吞掉 → settings 已删、`install.json` 还在、列表显示「已安装」而 `agent_connect` 报 `agent_not_configured` | 采纳（按 finding 给的第二种最小修法）。回滚改成先删 `install.json`（`is_intact` 立刻为假，状态先变真）、再删本次新建的 settings 条目、最后 `remove_dir_all` 最多 20 × 250 ms 重试；重试用尽不当成功——剩下的目录由下一次安装覆盖 |
+| 2 | P2 | `closeAuth` / `openAuth` 之后在途的 `startAuth` 仍无条件写 `authPhase`，成功路径再 `closeAuth()` + 切工作台：认证中取消再从列表点登录，旧的失败画到新页上、旧的成功把新页清掉 | 采纳。认证页加代际计数（`openAuth` / `closeAuth` 各加一），`startAuth` 每个 await 之后核对，过期就 return；新增用例两条路径（`authenticate` 挂门，页收起再重开后才放行：失败不改 phase / 成功不建会话不切页） |
+
+整改后 `cargo test -p acp-core`、`cargo clippy --workspace -D warnings`、`flutter analyze`（与门禁一致的 9 条 info）、`flutter test test/app/`（19 个用例）全过；
+Windows 实测见下表「取消与回滚」行（两条整改都靠真跑验证过落点）。
+
 ## 失败处理
 
 同一验收项针对性整改后连续 2 次验证仍不过 → 写 `rounds/round-05/BLOCKED.md`，停下呼人。禁止放宽验收标准自我通过。
@@ -236,6 +250,7 @@ registry 型四条按 id 对上 registry 条目、因为没有安装记录显示
 | 受管 Node | `node-v24.11.0-win-x64.zip` → `node\node-v24.11.0-win-x64\node.exe --version` = `v24.11.0`；不改 PATH，只在拉起 npx 型 agent 时把该目录插到子进程的 PATH 前面 |
 | 子进程无控制台 | registry crate 的 npm / node / tar / taskkill 都带 `CREATE_NO_WINDOW`（与 acp-core 同一口径） |
 | 数据目录路径 | 实跑数据目录在 `D:\cargo-target\AcpAgentClient\r5-data\<name>\AcpAgentClient`（ASCII）；含中文的路径只在 tar 单测里盖到，agent 安装到含中文数据目录下的整链没有真跑（本机 `%APPDATA%` 是 ASCII） |
+| 取消与回滚（审查整改后，提交 `d44d20b` + `05baaa8` 的构建） | `ACP_R5_CANCEL_AT=handshake`（codex-acp，`run-cancel-at-hs.log`）：`handshake` 事件到即取消，子进程 `spawned` 后 274 ms 收到 `cancelled`，`agents/` 空、`settings.json` 为 `{"agent_servers": {}}`、`installed: false`，事后没有新起的 node / codex 进程；核心日志里子进程因回滚删文件先报 `MODULE_NOT_FOUND` 退出（回滚与 `kill_tree` 并发，这次是删目录赢了，重试循环没用上）。`ACP_R5_CANCEL_AT=resolve`（`run-cancel-at-resolve.log`）：npm 在 574 ms 内被结束，没有 settings 条目，`agents/codex-acp/` 留着半个 npm 目录（提交点之前，记 BACKLOG）。定时取消（`ACP_R5_CANCEL_AFTER=7` / `13`，`run-cancel-hs3.log` / `run-cancel-hs7.log`）两次都落在 `initialized` 之后：按设计不再取消，`done` + 已安装 + `session/new` 成功——握手可取消的窗口只有 spawn → initialize 的 1.6 s，所以夹具加了按步骤取消。整改前的构建（`run-cancel-hs2.log`，取消落在 spawn 后 0.5 s）同样回滚干净，子进程 0.74 s 后 `exited code=1` |
 
 ### 已知限制与需所有者手测
 
