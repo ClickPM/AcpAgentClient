@@ -39,6 +39,8 @@ pub enum CoreError {
     Fs(String),
     /// 传输层错误（连接句柄丢失、发送失败）。
     Transport(String),
+    /// registry / 安装 / 受管 Node（`rust/registry`）；`Cancelled` 单独给 `cancelled` 码。
+    Registry(registry::RegistryError),
 }
 
 impl CoreError {
@@ -61,6 +63,9 @@ impl CoreError {
             CoreError::Pty(_) => "pty",
             CoreError::Fs(_) => "fs",
             CoreError::Transport(_) => "transport",
+            CoreError::Registry(registry::RegistryError::Cancelled) => "cancelled",
+            CoreError::Registry(registry::RegistryError::Node(_)) => "node_missing",
+            CoreError::Registry(_) => "registry",
         }
     }
 }
@@ -90,6 +95,7 @@ impl fmt::Display for CoreError {
             CoreError::Pty(e) => write!(f, "{e}"),
             CoreError::Fs(e) => write!(f, "{e}"),
             CoreError::Transport(e) => write!(f, "transport error: {e}"),
+            CoreError::Registry(e) => write!(f, "{e}"),
         }
     }
 }
@@ -117,6 +123,12 @@ impl From<settings::SettingsError> for CoreError {
 impl From<pty::PtyError> for CoreError {
     fn from(e: pty::PtyError) -> Self {
         CoreError::Pty(e.to_string())
+    }
+}
+
+impl From<registry::RegistryError> for CoreError {
+    fn from(e: registry::RegistryError) -> Self {
+        CoreError::Registry(e)
     }
 }
 

@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
+use registry::manifest::AuthStatus;
+use registry::{CancelToken, RegistryDirs};
 use serde_json::{Value, json};
 use settings::index::{IndexStore, SessionEntry};
 use settings::ui_state::{UiState, UiStateStore};
@@ -15,6 +17,7 @@ use crate::agent::AgentConnection;
 use crate::command::LaunchSpec;
 use crate::error::{CoreError, Result};
 use crate::events::{EventChannel, EventSink};
+use crate::log::LoggingSink;
 use crate::terminal_auth;
 
 pub const CORE_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -29,6 +32,14 @@ pub struct Core {
     ui_state: UiStateStore,
     terminals: Arc<pty::TerminalManager>,
     agents: Mutex<HashMap<String, Arc<AgentConnection>>>,
+    // ---- R5：registry / 安装 / 受管 Node / 日志（编排在 registry_ops.rs）
+    registry_dirs: RegistryDirs,
+    registry_index: registry::index::IndexStore,
+    http: registry::HttpClient,
+    /// 正在跑的安装任务（agentId → 取消令牌）。
+    installs: Mutex<HashMap<String, Arc<CancelToken>>>,
+    node_download: Mutex<Option<Arc<CancelToken>>>,
+    log_path: PathBuf,
 }
 
 impl std::fmt::Debug for Core {
@@ -39,11 +50,16 @@ impl std::fmt::Debug for Core {
     }
 }
 
-fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+pub(crate) fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     match m.lock() {
         Ok(g) => g,
         Err(poisoned) => poisoned.into_inner(),
     }
+}
+
+/// 当前时间（Unix 毫秒）。
+pub fn now_ms() -> i64 {
+    settings::index::now_ms()
 }
 
 /// 终端字节 → `acp/terminal_output`：`{terminalId, source, bytes}`（base64）与 `{terminalId, source, exitStatus}`。
@@ -103,6 +119,10 @@ impl Core {
         }
         std::fs::create_dir_all(data_dir)
             .map_err(|e| CoreError::InvalidDataDir(format!("{}: {e}", data_dir.display())))?;
+        // 事件先过一遍日志（`logs/acp-<日期>.log`，docs/design.md § 10），再到桥的 sink。
+        let logging = Arc::new(LoggingSink::new(sink, data_dir.join("logs")));
+        let log_path = logging.log_path().to_path_buf();
+        let sink: Arc<dyn EventSink> = logging;
         // SDK 的 dispatch 链在 debug 构建里每条入站消息要约 0.5 MiB 栈（Zed 实测），worker 栈给足。
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .thread_name("acp-core")
@@ -110,6 +130,9 @@ impl Core {
             .enable_all()
             .build()?;
         let terminals = Arc::new(pty::TerminalManager::new(Arc::new(TerminalEvents { sink: sink.clone() })));
+        let registry_dirs = RegistryDirs::new(data_dir);
+        let http = registry::download::client();
+        let registry_index = registry::index::IndexStore::new(registry_dirs.clone(), http.clone());
         let core = Self {
             data_dir: data_dir.to_path_buf(),
             settings: SettingsStore::new(data_dir.to_path_buf()),
@@ -120,6 +143,12 @@ impl Core {
             ping_seq: AtomicU64::new(0),
             terminals,
             agents: Mutex::new(HashMap::new()),
+            registry_dirs,
+            registry_index,
+            http,
+            installs: Mutex::new(HashMap::new()),
+            node_download: Mutex::new(None),
+            log_path,
         };
         core.announce_ready();
         Ok(core)
@@ -145,11 +174,44 @@ impl Core {
         &self.index
     }
 
-    /// `{dataDir, coreVersion}`。
+    pub fn registry_dirs(&self) -> &RegistryDirs {
+        &self.registry_dirs
+    }
+
+    pub fn registry_index(&self) -> &registry::index::IndexStore {
+        &self.registry_index
+    }
+
+    pub fn http(&self) -> &registry::HttpClient {
+        &self.http
+    }
+
+    pub fn log_path(&self) -> &Path {
+        &self.log_path
+    }
+
+    pub(crate) fn event_sink(&self) -> Arc<dyn EventSink> {
+        self.sink.clone()
+    }
+
+    pub(crate) fn installs(&self) -> &Mutex<HashMap<String, Arc<CancelToken>>> {
+        &self.installs
+    }
+
+    pub(crate) fn node_download_token(&self) -> &Mutex<Option<Arc<CancelToken>>> {
+        &self.node_download
+    }
+
+    pub(crate) fn agents(&self) -> &Mutex<HashMap<String, Arc<AgentConnection>>> {
+        &self.agents
+    }
+
+    /// `{dataDir, coreVersion, logPath}`。
     pub fn describe(&self) -> Value {
         json!({
             "dataDir": self.data_dir.to_string_lossy(),
             "coreVersion": CORE_VERSION,
+            "logPath": self.log_path.to_string_lossy(),
         })
     }
 
@@ -194,7 +256,11 @@ impl Core {
             .settings
             .get(agent_id)?
             .ok_or_else(|| CoreError::AgentNotConfigured(agent_id.to_string()))?;
-        let launch = LaunchSpec::from_server(agent_id, &server)?;
+        // registry 型：安装记录 + Node（R5）；custom 型：settings 里的 command / args / env。
+        let launch = match &server {
+            AgentServer::Registry { env, .. } => self.registry_launch(agent_id, env).await?,
+            AgentServer::Custom { .. } => LaunchSpec::from_server(agent_id, &server)?,
+        };
         let previous = lock(&self.agents).remove(agent_id);
         if let Some(previous) = previous {
             previous.disconnect().await;
@@ -221,7 +287,14 @@ impl Core {
         if !cwd.is_absolute() {
             return Err(CoreError::InvalidArgument(format!("cwd must be absolute: {}", cwd.display())));
         }
-        self.agent(agent_id)?.session_new(cwd).await
+        let result = self.agent(agent_id)?.session_new(cwd).await;
+        // 认证状态是本地态（docs/design.md § 5 第 5 条）：成功 = 已登录，-32000 = 需要认证；只对 registry 型的安装记录生效。
+        match &result {
+            Ok(_) => self.record_auth_status(agent_id, AuthStatus::Authenticated),
+            Err(CoreError::AuthRequired { .. }) => self.record_auth_status(agent_id, AuthStatus::NeedsAuth),
+            Err(_) => {}
+        }
+        result
     }
 
     pub async fn session_prompt(&self, agent_id: &str, session_id: &str, prompt: Value) -> Result<Value> {
@@ -282,7 +355,13 @@ impl Core {
             .await
             .map_err(|e| CoreError::Pty(format!("wait task failed: {e}")))??;
         let _ = self.terminals.release(&terminal_id);
-        let session = connection.session_new(cwd).await?;
+        let session = connection.session_new(cwd).await;
+        match &session {
+            Ok(_) => self.record_auth_status(agent_id, AuthStatus::Authenticated),
+            Err(CoreError::AuthRequired { .. }) => self.record_auth_status(agent_id, AuthStatus::NeedsAuth),
+            Err(_) => {}
+        }
+        let session = session?;
         Ok(json!({
             "terminalId": terminal_id,
             "exitStatus": exit_status_json(&status),
@@ -294,6 +373,14 @@ impl Core {
     pub fn terminal_write(&self, terminal_id: &str, bytes: &[u8]) -> Result<Value> {
         self.terminals.write(terminal_id, bytes)?;
         Ok(json!({ "terminalId": terminal_id, "written": bytes.len() }))
+    }
+
+    /// 关掉一个终端（认证页的停止方块；R4 的本地 shell 同一条命令）：结束进程再释放表项。
+    /// 退出事件仍经 `acp/terminal_output` 推出；`terminal_auth_run` 那边等到退出后照常重试 `session/new`。
+    pub fn terminal_close(&self, terminal_id: &str) -> Result<Value> {
+        let _ = self.terminals.kill(terminal_id);
+        self.terminals.release(terminal_id)?;
+        Ok(json!({ "terminalId": terminal_id, "closed": true }))
     }
 
     // ---- 设置
