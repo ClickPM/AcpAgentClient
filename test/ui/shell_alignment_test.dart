@@ -18,6 +18,8 @@ import 'package:acp_agent_client/ui/transcript/icons.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../gallery_harness.dart';
+
 void main() {
   // 测试视口默认 800×600 逻辑像素，被测件必须放得下，否则量到的是被裁掉的位置。
   Future<void> pump(WidgetTester tester, Widget child, {required double width, double? height}) {
@@ -63,6 +65,9 @@ void main() {
     double controlsLeft(WidgetTester tester) => tester.getTopLeft(find.byType(WindowControls)).dx;
 
     testWidgets('面板关闭键紧挨窗口控制，不随标签数量漂移', (tester) async {
+      // 四个标签全开时标签条接近 580 的宽：flutter_tester 的占位字体每个字形都是方块（12px 的 "ACP Registry" 量成 144），
+      // 会把 Row 撑溢出、关闭键被顶出去；按真实字体量（R5 把 Agents 标签文案对齐画板 50 的「ACP Registry」后触发）。
+      await tester.runAsync(loadGalleryFonts);
       await pump(
         tester,
         const RightPanel(tabs: <PanelTab>[PanelTab.shell(ShellTab.files)], active: PanelTab.shell(ShellTab.files)),

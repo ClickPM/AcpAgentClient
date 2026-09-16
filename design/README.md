@@ -55,12 +55,12 @@
 | 40 | 输入框弹层合集 | 会话工作台 | round-design | `design/round-design/40-composer-popovers.dc.html` | `design/round-design/40-composer-popovers.png` | — | 已实现（R3） | — |
 | 41 | 顶栏与侧栏弹层合集 | 会话工作台 | round-design | `design/round-design/41-topbar-popovers.dc.html` | `design/round-design/41-topbar-popovers.png` | — | 已实现（R3） | — |
 | 42 | 输入框内联菜单 | 会话工作台 | round-design | `design/round-design/42-inline-menus.dc.html` | `design/round-design/42-inline-menus.png` | — | 已实现（R3） | — |
-| 50 | Agents 面板（ACP Registry） | agent 管理 | round-design | `design/round-design/50-registry.dc.html` | `design/round-design/50-registry.png` | — | 待实现 | — |
-| 51 | Registry 条目状态 | agent 管理 | round-design | `design/round-design/51-registry-states.dc.html` | `design/round-design/51-registry-states.png` | — | 待实现 | — |
-| 52 | agent 认证 | agent 管理 | round-design | `design/round-design/52-auth.dc.html` | `design/round-design/52-auth.png` | — | 待实现 | — |
+| 50 | Agents 面板（ACP Registry） | agent 管理 | round-design | `design/round-design/50-registry.dc.html` | `design/round-design/50-registry.png` | — | 已实现（R5） | — |
+| 51 | Registry 条目状态 | agent 管理 | round-design | `design/round-design/51-registry-states.dc.html` | `design/round-design/51-registry-states.png` | — | 已实现（R5） | — |
+| 52 | agent 认证 | agent 管理 | round-design | `design/round-design/52-auth.dc.html` | `design/round-design/52-auth.png` | — | 已实现（R5） | — |
 | 60 | 文件面板 | 文件面板 | round-design | `design/round-design/60-files-panel.dc.html` | `design/round-design/60-files-panel.png` | — | 已实现（R4） | — |
 | 61 | 终端面板 | 文件面板（右栏） | round-design | `design/round-design/61-terminal-panel.dc.html` | `design/round-design/61-terminal-panel.png` | — | 已实现（R4） | — |
-| 70 | 设置 | 设置 | round-design | `design/round-design/70-settings.dc.html` | `design/round-design/70-settings.png` | — | 待实现 | — |
+| 70 | 设置 | 设置 | round-design | `design/round-design/70-settings.dc.html` | `design/round-design/70-settings.png` | — | 已实现（R5） | — |
 | 80 | ACP 流量调试 | ACP 流量调试 | round-design | `design/round-design/80-traffic.dc.html` | `design/round-design/80-traffic.png` | — | 已实现（R3） | — |
 
 状态取值：`待实现` / `已实现（R<N>）` / `已废弃`。

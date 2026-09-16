@@ -1,5 +1,5 @@
 // R4：终端 provider 通道（`tool_call_update._meta.{terminal_info, terminal_output, terminal_exit}`，docs/design.md § 4 入站识别键，
-// 所有者裁定待确认）。回放 test/fixtures/26-terminal-meta.jsonl：输出追加、退出码 / 信号二选一、cwd 进缓冲；
+// 所有者裁定待确认）。回放 test/fixtures/27-terminal-meta.jsonl：输出追加、退出码 / 信号二选一、cwd 进缓冲；
 // 键存在但没有 terminal_id 的整项跳过；与 terminal/create 路径共用同一份 TerminalBuffer（画板 22 / 23 不分数据源）。
 
 import 'package:acp_agent_client/gallery/fixtures_source.dart';
@@ -9,8 +9,8 @@ import 'package:acp_agent_client/projection/wire.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('26-terminal-meta：两张终端卡的缓冲由 _meta 填满', () {
-    final r = FixtureReplay.replay(<String>['01-connect', '26-terminal-meta']);
+  test('27-terminal-meta：两张终端卡的缓冲由 _meta 填满', () {
+    final r = FixtureReplay.replay(<String>['01-connect', '27-terminal-meta']);
     final s = r.session;
     final first = r.tool('toolu_meta_1');
     expect(first.terminalIds, <String>['toolu_meta_1']);

@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod index;
 pub mod ui_state;
+pub mod zed_import;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -36,14 +37,16 @@ impl std::error::Error for SettingsError {}
 pub type Result<T> = std::result::Result<T, SettingsError>;
 
 /// `agent_servers` 的一条，与钉版本 Zed `crates/settings_content/src/agent.rs` 的 `CustomAgentServerSettings` 同形：
-/// `custom` 是扁平的 `command`（程序路径字符串）+ `args` + `env`；Zed 另有 `default_mode` / `default_config_options` 等字段，
-/// R5 按需补，未知字段 serde 默认忽略。
+/// `custom` 是扁平的 `command`（程序路径字符串）+ `args` + `env`；两型都还有 `default_mode` / `default_config_options` /
+/// `favorite_config_option_values`（R5 起经 `extra` 原样保留——本客户端不解释它们，但从 Zed 导入的条目不能被我们改写丢掉）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AgentServer {
     Registry {
-        #[serde(default)]
+        #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
         env: BTreeMap<String, String>,
+        #[serde(flatten)]
+        extra: BTreeMap<String, serde_json::Value>,
     },
     Custom {
         #[serde(rename = "command")]
@@ -52,7 +55,22 @@ pub enum AgentServer {
         args: Vec<String>,
         #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
         env: BTreeMap<String, String>,
+        #[serde(flatten)]
+        extra: BTreeMap<String, serde_json::Value>,
     },
+}
+
+impl AgentServer {
+    pub fn is_registry(&self) -> bool {
+        matches!(self, AgentServer::Registry { .. })
+    }
+
+    /// 两型共有的 `env`。
+    pub fn env(&self) -> &BTreeMap<String, String> {
+        match self {
+            AgentServer::Registry { env, .. } | AgentServer::Custom { env, .. } => env,
+        }
+    }
 }
 
 /// `settings.json` 的顶层。
@@ -99,6 +117,15 @@ impl SettingsStore {
         self.save(&settings)?;
         Ok(settings)
     }
+
+    /// 删掉一条并落盘（不存在也算成功），返回落盘后的全量设置。
+    pub fn remove(&self, agent_id: &str) -> Result<Settings> {
+        let mut settings = self.load()?;
+        if settings.agent_servers.remove(agent_id).is_some() {
+            self.save(&settings)?;
+        }
+        Ok(settings)
+    }
 }
 
 /// 临时文件 + rename。目标目录不存在时创建（数据目录由核心保证存在，这里兜底）。
@@ -139,16 +166,19 @@ mod tests {
         }}"#;
         let s: Settings = serde_json::from_str(json).expect("parse");
         match s.agent_servers.get("dsh") {
-            Some(AgentServer::Custom { path, args, env }) => {
+            Some(AgentServer::Custom { path, args, env, extra }) => {
                 assert_eq!(path, "dsh-acp");
                 assert_eq!(args, &vec!["--acp".to_string()]);
                 assert_eq!(env.get("A").map(String::as_str), Some("1"));
+                assert_eq!(extra.get("default_mode"), Some(&serde_json::Value::String("ask".into())), "未知字段原样保留");
             }
             other => panic!("unexpected: {other:?}"),
         }
         assert!(matches!(s.agent_servers.get("claude"), Some(AgentServer::Registry { .. })));
         let back = serde_json::to_value(&s).expect("serialize");
         assert_eq!(back["agent_servers"]["dsh"]["command"], "dsh-acp");
+        assert_eq!(back["agent_servers"]["dsh"]["default_mode"], "ask");
+        assert_eq!(back["agent_servers"]["claude"]["type"], "registry");
     }
 
     #[test]
@@ -162,11 +192,15 @@ mod tests {
             path: "C:/tools/agent.cmd".into(),
             args: vec!["--acp".into()],
             env: BTreeMap::from([("K".to_string(), "v".to_string())]),
+            extra: BTreeMap::new(),
         };
         let after = store.upsert("dsh", server.clone()).expect("upsert");
         assert_eq!(after.agent_servers.get("dsh"), Some(&server));
         assert_eq!(store.get("dsh").expect("get"), Some(server));
         assert_eq!(store.get("nope").expect("get"), None);
+        let after = store.remove("dsh").expect("remove");
+        assert!(after.agent_servers.is_empty());
+        assert!(store.remove("dsh").expect("idempotent").agent_servers.is_empty());
         // 没有残留的临时文件。
         let leftovers: Vec<_> = std::fs::read_dir(&dir)
             .expect("dir")
@@ -184,7 +218,7 @@ mod tests {
         let store = SettingsStore::new(dir.clone());
         std::fs::write(&store.path, "{ not json").expect("write");
         assert!(matches!(store.load(), Err(SettingsError::Json(_))));
-        assert!(matches!(store.upsert("x", AgentServer::Registry { env: BTreeMap::new() }), Err(SettingsError::Json(_))));
+        assert!(matches!(store.upsert("x", AgentServer::Registry { env: BTreeMap::new(), extra: BTreeMap::new() }), Err(SettingsError::Json(_))));
         assert_eq!(std::fs::read_to_string(&store.path).expect("read"), "{ not json");
         let _ = std::fs::remove_dir_all(&dir);
     }

@@ -7,6 +7,15 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["fs", "net"] }
+# CLAUDE.md 规则 1 通用库清单内：registry.json / 图标 / 压缩包 / 受管 Node 的下载（R5）。默认 TLS（Windows 上是 schannel，
+# 不带任何 vendored 证书或 OpenSSL），不开 stream 特性：逐块读用 `Response::chunk()` 就够，省掉 futures-util 这一层。
+reqwest = { version = "0.12", default-features = false, features = ["native-tls", "http2", "charset"] }
+# 规则 1 清单内：binary 型压缩包的 sha256 校验（R5）。
+sha2 = "0.10"
+settings.workspace = true
 
 [lints]
 workspace = true

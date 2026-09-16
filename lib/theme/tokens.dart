@@ -400,4 +400,31 @@ abstract final class Geometry {
   /// 61：本地 shell 初始尺寸（列 × 行）；真实尺寸由 xterm 按视口回报后 `terminal_resize`。
   static const int terminalCols = 100;
   static const int terminalRows = 30;
+
+  // ---- R5（画板 50 / 51 / 52 / 70 量得的单点尺寸）
+
+  /// 50 / 51 / 70：agent 图标框（28 见方）与框内菱形（10）。
+  static const double agentIconBox = 28;
+  static const double agentIconDot = 10;
+
+  /// 50：右栏展开成 Agents 面板时的宽度（画板里中栏 480、右栏占余下 680）。
+  static const double registryPanelWidth = 680;
+
+  /// 51 / 52：条目状态卡与认证卡的宽度（合集画板里一张卡的宽）。
+  static const double stateCardWidth = 560;
+
+  /// 51：安装进度条的高度。
+  static const double installProgressHeight = 3;
+
+  /// 52：认证方式单选圆（14）与圆点（6）。
+  static const double radioSize = 14;
+  static const double radioDot = 6;
+
+  /// 52：terminal auth 可见终端的高度（画板只画了四行输出，xterm 要一个固定高）。
+  static const double authTerminalHeight = 240;
+
+  /// 70：设置页内容列宽、行标签列宽、custom 编辑块里 cmd / args / env 的标签宽。
+  static const double settingsContentWidth = 860;
+  static const double settingsLabelWidth = 160;
+  static const double settingsFieldLabelWidth = 56;
 }

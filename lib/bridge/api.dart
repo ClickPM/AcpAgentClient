@@ -11,7 +11,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `fmt`, `from`
 
 /// 初始化核心。`data_dir` 是 docs/design.md § 10 的数据目录（Windows：%APPDATA%/AcpAgentClient）。
-/// 幂等：热重启后再次调用只重发一条 `acp/agent_state: core_ready`。返回 JSON `{dataDir, coreVersion}`。
+/// 幂等：热重启后再次调用只重发一条 `acp/agent_state: core_ready`。返回 JSON `{dataDir, coreVersion, logPath}`。
 Future<String> coreInit({required String dataDir}) =>
     RustLib.instance.api.crateApiCoreInit(dataDir: dataDir);
 
@@ -147,7 +147,7 @@ Future<String> terminalResize({
 Future<String> terminalKill({required String terminalId}) =>
     RustLib.instance.api.crateApiTerminalKill(terminalId: terminalId);
 
-/// 关掉一个本地 shell 标签：还在跑就先结束进程，然后释放句柄。
+/// 关掉一个终端（认证页的停止方块与本地 shell 标签同一条命令）：还在跑就先结束进程，然后释放句柄；退出事件仍经 `acp/terminal_output` 推出。
 Future<String> terminalClose({required String terminalId}) =>
     RustLib.instance.api.crateApiTerminalClose(terminalId: terminalId);
 
@@ -169,8 +169,47 @@ Future<String> agentSettingsSet({
   server: server,
 );
 
+/// 删掉 `agent_servers[agent_id]`（custom 型从设置页删除；registry 型请走 `registry_remove`，它还会清 `agents/<id>/`）。
+/// 已连接的先断开。返回落盘后的全量设置。
+Future<String> agentSettingsRemove({required String agentId}) =>
+    RustLib.instance.api.crateApiAgentSettingsRemove(agentId: agentId);
+
+/// 从 Zed 的 `settings.json` 导入 `agent_servers`（JSONC，同名不覆盖）。返回 `{report: {path, imported, skipped, invalid}, settings}`；
+/// 找不到 Zed 的文件时抛 `settings`。
+Future<String> agentSettingsImportZed() =>
+    RustLib.instance.api.crateApiAgentSettingsImportZed();
+
 /// 开发期排查：每个已连接 agent 的 droppedUpdates / 退出状态 / 挂起请求。
 Future<String> agentsStatus() => RustLib.instance.api.crateApiAgentsStatus();
+
+/// registry 列表：`{agents: [{id, name, version, description, repository?, website?, iconSvg?, distribution, supported, package?,
+/// installed: {kind, version, installedVersion?, command, args, env, authStatus, agentInfo?, installedAt} | null, installing, custom: {command, args, env} | null}],
+/// fetching, fetchError?, fetchedAt?, node: {system?, systemError?, managed?, minVersion}, paths: {dataDir, logPath, zedSettingsPath?}}`。
+/// 只读缓存，不联网（联网是 `registry_refresh`）；已安装 / custom 条目排前面。
+Future<String> registryList() => RustLib.instance.api.crateApiRegistryList();
+
+/// 联网拉 `registry.json`（1 小时节流，`force` 跳过）并顺手补图标；失败不清缓存、错误进 `fetchError`。返回同 `registry_list`。
+Future<String> registryRefresh({required bool force}) =>
+    RustLib.instance.api.crateApiRegistryRefresh(force: force);
+
+/// 后台安装一个 registry 条目（npx：resolve / write_settings / handshake；binary：download / verify / extract），立即返回
+/// `{agentId, started}`；进度与收尾（done / failed / cancelled）经 `registry/progress` 推出。已在安装中抛 `invalid_argument`。
+Future<String> registryInstall({required String agentId}) =>
+    RustLib.instance.api.crateApiRegistryInstall(agentId: agentId);
+
+/// 取消正在跑的安装；返回 `{agentId, cancelled}`（没有在装的 `cancelled: false`）。
+Future<String> registryCancelInstall({required String agentId}) =>
+    RustLib.instance.api.crateApiRegistryCancelInstall(agentId: agentId);
+
+/// Remove：取消安装、断开连接、删 settings 条目、只删 `agents/<id>/`（规则 7）。返回同 `registry_list` 再加 `removed`。
+Future<String> registryRemove({required String agentId}) =>
+    RustLib.instance.api.crateApiRegistryRemove(agentId: agentId);
+
+/// Node 状态：`{system: {version, path}?, systemError?, managed: {version, path}?, minVersion}`。
+Future<String> nodeStatus() => RustLib.instance.api.crateApiNodeStatus();
+
+/// 下载受管 Node v24.11.0 到数据目录 `node/`（进度 `agentId: null`，步骤 node_download / node_extract），完成后返回 Node 状态。
+Future<String> nodeDownload() => RustLib.instance.api.crateApiNodeDownload();
 
 /// 列一层目录。`root` 是当前项目目录，`path` 必须在它之内（越界报 `fs`）。
 /// 返回 `{path, entries: [{name, path, parent, isDir, size}]}`，目录在前、各自按名排序。
@@ -278,6 +317,10 @@ Stream<String> terminalOutputStream() =>
 
 /// `acp/traffic`：`{agentId, direction, line, ts}`，`line` 是脱敏后的原始 JSON-RPC 行（或 stderr 行）。
 Stream<String> trafficStream() => RustLib.instance.api.crateApiTrafficStream();
+
+/// `registry/progress`：`{agentId?, kind, step, done?, total?, detail?, error?}`（R5；`agentId` 为 null 是受管 Node）。
+Stream<String> registryProgressStream() =>
+    RustLib.instance.api.crateApiRegistryProgressStream();
 
 /// 未送达（Dart 未订阅或流已关闭）的事件计数，供开发期排查。
 BigInt droppedEventCount() => RustLib.instance.api.crateApiDroppedEventCount();

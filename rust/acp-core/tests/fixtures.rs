@@ -43,6 +43,7 @@ fn parse_request(method: &str, params: &Value) -> Result<(), String> {
         "session/cancel" => cast::<acp::CancelNotification>(params),
         "session/update" => cast::<acp::SessionNotification>(params),
         "session/request_permission" => cast::<acp::RequestPermissionRequest>(params),
+        "authenticate" => cast::<acp::AuthenticateRequest>(params),
         "elicitation/create" => cast::<acp::CreateElicitationRequest>(params),
         // 两条不需要回应的通知（R3 补表，R2 的 BACKLOG 条目）：URL elicitation 收尾与 agent 撤回自己的请求。
         "elicitation/complete" => cast::<acp::CompleteElicitationNotification>(params),
@@ -64,6 +65,7 @@ fn parse_response(method: &str, result: &Value) -> Result<(), String> {
         "session/new" => cast::<acp::NewSessionResponse>(result),
         "session/prompt" => cast::<acp::PromptResponse>(result),
         "session/request_permission" => cast::<acp::RequestPermissionResponse>(result),
+        "authenticate" => cast::<acp::AuthenticateResponse>(result),
         "elicitation/create" => cast::<acp::CreateElicitationResponse>(result),
         "fs/read_text_file" => cast::<acp::ReadTextFileResponse>(result),
         "fs/write_text_file" => cast::<acp::WriteTextFileResponse>(result),

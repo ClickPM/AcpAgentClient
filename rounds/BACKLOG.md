@@ -58,3 +58,14 @@
 - [x] R3 左右侧栏不能自定义宽度（所有者手测 2026-09-16）→ 所有者裁定 2026-09-16 按「我改设计源、和分割线一起做」：画板 04 加分栏把手样张、01–03 加注脚，`docs/design.md` § 9 / § 10 写明范围与落盘；R3 整改分支已落（`ui-state.json` + `ui_state_get/set`） (2026-09-16)
 - [x] R3 画板 03 右栏的面板内头行（R4 的文件面板标题行）本轮随分割线一起抬到 36：R4 实现文件面板时按新 PNG 来，别再取 `Controls.input` (2026-09-16) → R4 已按 03 的新源：查看器头行 `Geometry.barHeight`（36），树列头行仍是画板给的 28（`Geometry.panelHeaderHeight`）
 - [ ] R3 窗口没有最小尺寸：三栏都顶到下限要 220 + 360 + 360 = 940，窗口比这窄时 `AppShell._fit` 压不动了只能裁切。要么在 Windows runner 上设 `WM_GETMINMAXINFO`，要么窄窗时自动折叠侧栏；两条都得先改设计稿 (2026-09-16)
+- [ ] R5 画板 51 npx 安装第二步写的是「写入 agents.json」，数据目录里没有这个文件（`docs/design.md` § 10）：实际写的是 settings.json 的 registry 条目 + `agents/<id>/install.json`，实现显示「写入 settings.json」；下个设计轮改字 (2026-09-16)
+- [ ] R5 画板 51「需要认证」条目的描述写死了「ChatGPT 登录」，规则 2 不按 agent 特判，实现显示「需要先完成认证」；画板 52 的方法名（Sign in with ChatGPT / Codex CLI）也是 codex 专属样例，实现按 `authMethods` 原名列出；下个设计轮把样例换成通用措辞或注明是样例 (2026-09-16)
+- [ ] R5 画板 50 的未安装行没有分发方式芯片、画板 51 的未安装卡有；实现统一按 51。两张画板下个设计轮对齐一下 (2026-09-16)
+- [ ] R5 画板 70 头注写「registry 型只读」但每行都有「编辑」键；实现里 registry 型点「编辑」只读展开拉起参数。设计稿要么去掉 registry 行的「编辑」、要么改成「查看」 (2026-09-16)
+- [ ] R5 `logs/acp-<日期>.log` 的日期按 UTC（不引 chrono）；跨日的两小时里文件名与本地日期对不上。要本地日期得裁定引 chrono 或自写时区读取 (2026-09-16)
+- [ ] R5 registry 型 agent 的更新：registry.json 里版本升了，已安装的条目仍是旧版本（`install.json` 记的），面板上只显示 registry 的最新版本、没有「有新版本」提示与升级动作（Zed 有 `new_version_available`）。要做先改设计稿加一个升级态 (2026-09-16)
+- [ ] R5 codex-acp 的 `api-key` 方法带 `_meta["api-key"]`（客户端可在 `authenticate` 的 `_meta` 里直接递密钥）与 `gateway` 方法（需客户端声明 `auth._meta.gateway`）：两者都要新增 `_meta` 键（规则 2 / `docs/design.md` § 4），本轮只走环境变量 `OPENAI_API_KEY` / `CODEX_API_KEY`（agent 自己从 env 读）；要做先裁定 (2026-09-16)
+- [ ] R5 `docs/design.md` § 2 的「Node 与下载」行原定直接 git 依赖 Zed `node_runtime` 等 crate，R5 改为参考转写（理由见 `rounds/round-05/round-05.md` 偏离 1），待所有者确认后把 § 2 那一行改成定稿措辞 (2026-09-16)
+- [ ] R5 npx 安装在提交点之前取消 / 失败（`npm install` 阶段）时 `agents/<id>/` 留着半个 npm 目录：没有 `install.json` 所以列表是「未安装」、下一次安装会覆盖，只是占磁盘；binary 型的 staging 目录已会清掉。要一致的话在 `registry_install` 的收尾里对未提交的失败也调 `install::remove` (2026-09-16)
+- [ ] R5 无头实跑以 `exit()` 结束进程时不走 `agent_disconnect`，Cursor 的 `cursor-agent.cmd`（cmd.exe 包装）随进程一起没了、它拉的 `dist-package
+ode.exe` 却留成孤儿（实测 PID 42768，手动 `taskkill /T`）。R4 验收 4「应用退出时子进程全部回收」要把桌面应用的关闭路径（`AcpApp.dispose` / Windows runner 的 `WM_CLOSE`）与无头口子都接到 `agent_disconnect`（`taskkill /F /T`） (2026-09-16)

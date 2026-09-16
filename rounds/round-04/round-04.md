@@ -52,7 +52,7 @@
   Source 用 `re_highlight`（`highlightCode`）。
 - `lib/ui/terminal/terminal_panel.dart`（61）：状态行（运行中 / 已退出 · exitCode · signal）、cwd 常显、停止方块 / 清屏 / 重启、`xterm` 渲染、
   退出后的 Exit Code · 耗时行。
-- `lib/projection/tool_calls.dart` + `session_store.dart`：入站 `_meta.terminal_*` 三键 → 终端缓冲（待确认）；`test/fixtures/26-terminal-meta.jsonl` 新增该场景。
+- `lib/projection/tool_calls.dart` + `session_store.dart`：入站 `_meta.terminal_*` 三键 → 终端缓冲（待确认）；`test/fixtures/27-terminal-meta.jsonl` 新增该场景。
 - `lib/gallery/boards/panel_boards.dart`：60（整窗 + 查看器空态）/ 61（整窗 + 已退出）四张样张。
 
 ### 接线阶段（只换数据源）

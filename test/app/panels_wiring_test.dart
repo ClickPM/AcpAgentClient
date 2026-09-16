@@ -17,7 +17,7 @@ import 'package:acp_agent_client/ui/shell/right_panel.dart';
 import 'package:acp_agent_client/ui/shell/shell_common.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'workbench_wiring_test.dart' show FakeCore;
+import 'fake_core.dart';
 
 const String root = 'D:/ws/proj';
 
@@ -46,15 +46,9 @@ class PanelsCore extends FakeCore {
   };
   Map<String, String> badges = <String, String>{};
   final StreamController<JsonMap> watch = StreamController<JsonMap>.broadcast();
-  final StreamController<CoreEventRecord> events = StreamController<CoreEventRecord>.broadcast();
   final List<String> listed = <String>[];
   final List<String> read = <String>[];
   int gitStatusCalls = 0;
-
-  @override
-  Stream<CoreEventRecord> on(CoreEvent channel) => events.stream.where((e) => e.channel == channel);
-
-  void emit(CoreEvent channel, JsonMap json) => events.add(CoreEventRecord(channel, jsonEncode(json), json));
 
   @override
   Future<JsonMap> fsListDir(String r, String path) async {
@@ -215,13 +209,13 @@ void main() {
 
       c.openTab(ShellTab.files);
       expect(c.activePanel, const PanelTab.shell(ShellTab.files));
-      expect(c.navActiveTab, ShellTab.files);
+      expect(c.activeNavTab, ShellTab.files);
 
       c.openTab(ShellTab.terminal);
       await Future<void>.delayed(Duration.zero);
       expect(c.activeTerminalId, 'term_fake_1');
       expect(c.activePanel!.isTerminal, isTrue);
-      expect(c.navActiveTab, ShellTab.terminal);
+      expect(c.activeNavTab, ShellTab.terminal);
       expect(c.panelTabs, <PanelTab>[const PanelTab.shell(ShellTab.files), const PanelTab.terminal('term_fake_1', 'proj')]);
       // 再点侧栏「终端」：切到已有的，不再开一个。
       c.openTab(ShellTab.terminal);
