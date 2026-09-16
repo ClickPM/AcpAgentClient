@@ -30,6 +30,7 @@ import 'dart:io';
 import '../projection/agent_state.dart';
 import '../projection/entries.dart';
 import '../projection/session_store.dart';
+import '../projection/wire.dart';
 import '../theme/tokens.dart' as t;
 import '../ui/files/file_tree.dart';
 import '../ui/popovers/composer_popovers.dart';
@@ -41,6 +42,330 @@ import 'workbench_controller.dart';
 
 const String r3ReportEnv = 'ACP_R3_REPORT';
 const String r5ReportEnv = 'ACP_R5_REPORT';
+const String r6ReportEnv = 'ACP_R6_REPORT';
+
+String? r6ReportPathFromEnvironment() {
+  final v = Platform.environment[r6ReportEnv];
+  return (v == null || v.trim().isEmpty) ? null : v.trim();
+}
+
+/// R6 的无头实跑（验收 1 / 2 / 4 / 5 / 6）：驱动 [WorkbenchController] 走一遍会话生命周期——
+/// 连接 → 新会话 → 一轮 → `session/list` 校对 → **断开重连（等价于关掉应用重开）** → 侧栏点击 → `session/load`
+/// 重放 → 转录比对 → resume / close / delete，每步结果写 JSON。与 R3 / R5 是同一个口子的第四个模式。
+///
+/// 环境变量（都可选，除 REPORT 外都有缺省）：
+///   ACP_R6_REPORT      报告文件路径（必填，给了才进本模式）
+///   ACP_R6_AGENT       agent id，缺省取 settings.json 里的第一个
+///   ACP_R6_CWD         项目目录，缺省取 projects.json 里最近的一个
+///   ACP_R6_PROMPT      第一轮提示词（不给就只验生命周期，不发 prompt）
+///   ACP_R6_PROMPT2     第二轮提示词（重连 + load 之后发，验「载回来的会话还能接着对话」）
+///   ACP_R6_PROMPT3     第三轮提示词（发出后到点发 `session/cancel`，验收 5 的 `cancelled`）
+///   ACP_R6_CANCEL_AFTER 第三轮多久后取消（秒；0 = 不做）
+///   ACP_R6_PERMISSION  allow_once | allow_always | reject_once | reject_always | none（缺省 allow_once）
+///   ACP_R6_MODE        切到这个模式（走 configOptions 或 modes 回退，报告里记走了哪条）
+///   ACP_R6_RELOAD      `1` = 先验一次「重载 agent」（声明 loadSession 的应当自动 load 回原会话）
+///   ACP_R6_CLOSE       `1` = 末尾 `session/close`
+///   ACP_R6_RESUME      `1` = close 之后再 `session/resume` 挂回来（要配 ACP_R6_CLOSE，且 agent 声明 resume）
+///   ACP_R6_DELETE      `1` = 末尾删除会话（有 delete 能力就连 agent 侧一起删）
+///   ACP_R6_TIMEOUT     单步超时（秒，缺省 180）
+Future<void> runR6({required String reportPath}) async {
+  final report = <String, dynamic>{'ok': false, 'steps': <String, dynamic>{}};
+  final steps = report['steps'] as Map<String, dynamic>;
+  final timeout = Duration(seconds: _envInt('ACP_R6_TIMEOUT', 180));
+  final trace = _tracer(reportPath);
+  var exitCode = 1;
+  WorkbenchController? controller;
+  try {
+    trace('load bridge');
+    final bridge = await CoreBridge.load();
+    final c = WorkbenchController(source: DataSource.bridge, bridge: bridge, scheduler: WorkbenchController.scheduleOnMicrotask);
+    controller = c;
+    await c.start();
+    final cwd = _env('ACP_R6_CWD');
+    if (cwd != null) await c.openProject(_projectOf(cwd));
+    final agentId = _env('ACP_R6_AGENT') ?? (c.installedAgents.isEmpty ? null : c.installedAgents.first.id);
+    if (agentId == null) throw StateError('settings.json 里没有 agent_servers，也没有给 ACP_R6_AGENT');
+    if (c.project == null) throw StateError('没有项目目录：给 ACP_R6_CWD 或先打开一个项目');
+
+    // ---- 新会话（顺带把能力声明记下来：矩阵的「能力」列与 ≡ 菜单裁剪都看它）
+    trace('newSession');
+    await c.newSession(_agentOf(agentId)).timeout(timeout);
+    if (c.sessionId == null) throw StateError('新会话失败：${c.lastError}');
+    final sessionId = c.sessionId!;
+    steps['capabilities'] = _capabilitySummary(c);
+    steps['newSession'] = <String, dynamic>{
+      'agentId': c.agentId,
+      'sessionId': sessionId,
+      'cwd': c.store?.cwd,
+      'agentName': c.connection?.agentName,
+      'threadTitle': c.threadTitle,
+      'commands': <String?>[for (final x in c.store!.commands) x.name],
+      'modeDropdown': _modeDropdownSummary(c),
+    };
+
+    // ---- 第一轮（验收 5 / 6：stopReason 与回合级 usage 在真实 agent 上各出现一次）
+    final answers = <Map<String, dynamic>>[];
+    final watcher = _AutoAnswer(c, _env('ACP_R6_PERMISSION') ?? 'allow_once', answers)..attach();
+    final prompt1 = _env('ACP_R6_PROMPT');
+    if (prompt1 != null) {
+      trace('turn1');
+      c.composer.text = prompt1;
+      await c.send().timeout(timeout);
+      steps['turn1'] = _turnSummary(c, prompt1)..['answers'] = List<Map<String, dynamic>>.of(answers);
+    }
+
+    // ---- 模式（configOptions 优先，没有就走 modes 回退 → session/set_mode）
+    final mode = _env('ACP_R6_MODE');
+    if (mode != null) {
+      trace('setMode');
+      final option = c.optionOf('mode');
+      if (option != null) await c.selectConfigValue(option.id ?? '', mode).timeout(timeout);
+      steps['setMode'] = <String, dynamic>{
+        'requested': mode,
+        'via': option?.id == SessionStore.modeFallbackId ? 'session/set_mode（modes 回退）' : 'session/set_config_option',
+        'currentModeId': c.store?.currentModeId,
+        'dropdown': _modeDropdownSummary(c),
+        'error': c.lastError,
+      };
+    }
+
+    // ---- session/list 校对（侧栏以本地索引为准，只补标题）
+    if (c.canListSessions) {
+      trace('reconcile');
+      final listed = <Map<String, dynamic>>[];
+      String? cursor;
+      for (var page = 0; page < 20; page++) {
+        final result = await bridge.sessionList(agentId, cwd: c.project?.path, cursor: cursor).timeout(timeout);
+        listed.add(<String, dynamic>{
+          'cursor': cursor,
+          'sessions': <String?>[
+            for (final s in (result['sessions'] as List? ?? const <Object?>[]))
+              if (s is Map) '${s['sessionId']}｜${s['title'] ?? ''}',
+          ],
+          'nextCursor': result['nextCursor'],
+        });
+        final next = result['nextCursor'];
+        if (next is! String || next.isEmpty) break;
+        cursor = next;
+      }
+      await c.reconcileSessions();
+      steps['sessionList'] = <String, dynamic>{
+        'pages': listed,
+        'containsCurrent': listed.any((p) => (p['sessions'] as List).any((s) => '$s'.startsWith(sessionId))),
+        'sidebar': <String>[for (final s in c.sidebarSessions) '${s.id}｜${s.title}'],
+        'missingOnAgent': c.missingOnAgent.toList(),
+      };
+    }
+
+    // ---- 重载 agent（声明 loadSession 的应当重连后自动 load 回原会话）
+    if (_env('ACP_R6_RELOAD') == '1') {
+      trace('reloadAgent');
+      final before = _transcriptDigest(c.store!);
+      await c.reloadAgent().timeout(timeout);
+      final after = c.sessionId == sessionId ? _transcriptDigest(c.store!) : null;
+      steps['reloadAgent'] = <String, dynamic>{
+        'sessionIdBefore': sessionId,
+        'sessionIdAfter': c.sessionId,
+        'sameSession': c.sessionId == sessionId,
+        'digestMatches': after == before,
+        // 重放来自 agent 侧的历史，客户端本地态（轮边界 TurnEntry、权限 / elicitation 卡）不在里面：
+        // 两份摘要都记下来，差在哪一眼能看出来，不靠一个 bool 下结论。
+        'beforeDigest': before,
+        'afterDigest': after,
+        'error': c.lastError,
+      };
+    }
+
+    // ---- 关掉应用重开（验收 2）：断开 agent、忘掉内存里的转录，再照侧栏点击那条路走一遍
+    trace('reconnect');
+    final before = _transcriptDigest(c.store!);
+    final beforeEntries = c.store!.entries.length;
+    await bridge.agentDisconnect(agentId);
+    c.sessions.forget(sessionId);
+    c.sessionId = null;
+    await c.selectSession(sessionId).timeout(timeout);
+    final after = c.sessions.maybe(sessionId);
+    // agent 可以在 `session/load` 返回之后才补发 `available_commands_update`（pi-acp 就是这样，2026-09-16 实测），
+    // 立刻取样会看到空的 `/` 菜单：等一小会儿再照一张，两张都记。
+    final commandsAtReturn = <String?>[for (final x in after?.commands ?? const <AvailableCommandWire>[]) x.name];
+    await Future<void>.delayed(const Duration(seconds: 3));
+    c.batcher.flush();
+    final afterDigest = after == null ? null : _transcriptDigest(after);
+    steps['reopen'] = <String, dynamic>{
+      'loadSessionDeclared': c.canLoadSessionOf(agentId),
+      'sessionId': c.sessionId,
+      'beforeEntries': beforeEntries,
+      'afterEntries': after?.entries.length,
+      'digestMatches': afterDigest == before,
+      'beforeDigest': before,
+      'afterDigest': afterDigest,
+      'title': after?.title,
+      'commandsAtReturn': commandsAtReturn,
+      'commands': <String?>[for (final x in after?.commands ?? const <AvailableCommandWire>[]) x.name],
+      'modeDropdown': _modeDropdownSummary(c),
+      'error': c.lastError,
+    };
+
+    // ---- 载回来的会话还能接着对话
+    final prompt2 = _env('ACP_R6_PROMPT2');
+    if (prompt2 != null && c.sessionId != null) {
+      trace('turn2');
+      c.composer.text = prompt2;
+      await c.send().timeout(timeout);
+      steps['turn2AfterLoad'] = _turnSummary(c, prompt2)..['answers'] = List<Map<String, dynamic>>.of(answers);
+    }
+
+    // ---- 取消一轮（验收 5 的 `cancelled`：五种 stopReason 要在真实 agent 上见到）
+    final prompt3 = _env('ACP_R6_PROMPT3');
+    final cancelAfter = _envInt('ACP_R6_CANCEL_AFTER', 0);
+    if (prompt3 != null && cancelAfter > 0 && c.sessionId != null) {
+      trace('cancel');
+      c.lastError = null;
+      c.composer.text = prompt3;
+      Timer(Duration(seconds: cancelAfter), () => c.cancel());
+      await c.send().timeout(timeout);
+      steps['cancelledTurn'] = _turnSummary(c, prompt3)
+        ..['cancelAfterSeconds'] = cancelAfter
+        ..['cancelledToolCalls'] = <String>[
+          for (final e in c.store!.entries)
+            if (e is ToolCallEntry && e.cancelledLocally) e.toolCallId,
+        ];
+    }
+
+    // ---- close → resume → delete（按能力）。顺序不能反：`session/resume` 是给「没在本连接上活着的会话」
+    // 重新挂上下文用的，活着的会话上发它 dsh 1.3.0 直接回 -32602（2026-09-16 实测）。
+    if (_env('ACP_R6_CLOSE') == '1' && c.canCloseSession) {
+      trace('close');
+      c.lastError = null;
+      await c.closeSession().timeout(timeout);
+      steps['close'] = <String, dynamic>{
+        'sessionIdAfter': c.sessionId,
+        'closed': c.sessionClosed,
+        'canResumeNow': c.canResumeSession,
+        'canCloseNow': c.canCloseSession,
+        'error': c.lastError,
+      };
+    }
+    if (_env('ACP_R6_RESUME') == '1' && c.canResumeSession) {
+      trace('resume');
+      c.lastError = null;
+      final entriesBefore = c.store!.entries.length;
+      await c.resumeSession().timeout(timeout);
+      steps['resume'] = <String, dynamic>{
+        'entriesBefore': entriesBefore,
+        'entriesAfter': c.store?.entries.length,
+        'noReplay': c.store?.entries.length == entriesBefore,
+        'closedAfter': c.sessionClosed,
+        'error': c.lastError,
+      };
+    }
+    if (_env('ACP_R6_DELETE') == '1') {
+      trace('delete');
+      c.lastError = null;
+      final onAgent = c.deletesOnAgent(sessionId);
+      await c.deleteSession(sessionId).timeout(timeout);
+      final listedAfter = <String>[];
+      if (c.canListSessions) {
+        String? cursor;
+        for (var page = 0; page < 20; page++) {
+          final result = await bridge.sessionList(agentId, cwd: c.project?.path, cursor: cursor).timeout(timeout);
+          for (final s in (result['sessions'] as List? ?? const <Object?>[])) {
+            if (s is Map && s['sessionId'] is String) listedAfter.add(s['sessionId'] as String);
+          }
+          final next = result['nextCursor'];
+          if (next is! String || next.isEmpty) break;
+          cursor = next;
+        }
+      }
+      steps['delete'] = <String, dynamic>{
+        'sentToAgent': onAgent,
+        'inSidebar': c.sidebarSessions.any((s) => s.id == sessionId),
+        'inAgentList': listedAfter.contains(sessionId),
+        'agentListAfter': listedAfter,
+        'error': c.lastError,
+      };
+    }
+    watcher.detach();
+    report['ok'] = true;
+    exitCode = 0;
+  } catch (e, st) {
+    report['error'] = e.toString();
+    report['stack'] = st.toString();
+    report['lastError'] = controller?.lastError;
+  }
+  try {
+    await controller?.shutdown();
+  } on Object catch (e) {
+    report['shutdownError'] = e.toString();
+  }
+  controller?.dispose();
+  final file = File(reportPath);
+  file.parent.createSync(recursive: true);
+  file.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(report));
+  stderr.writeln('[r6] report → $reportPath (ok=${report['ok']})');
+  exit(exitCode);
+}
+
+/// 能力声明（矩阵与 ≡ 菜单裁剪的依据；不按 agent 名判，规则 2）。
+/// `declared` 是 agent 自己说的，`menuNow` 是这一刻 ≡ 菜单会不会渲染那一行——
+/// Resume / Close 还要看会话是死是活，两者不是一回事。
+Map<String, dynamic> _capabilitySummary(WorkbenchController c) {
+  final raw = c.connection?.agentCapabilities?['sessionCapabilities'];
+  final keys = raw is Map ? raw.keys.map((k) => '$k').toList() : const <String>[];
+  return <String, dynamic>{
+    'loadSession': c.canLoadSession,
+    'declared': keys,
+    'menuNow': <String, bool>{
+      'list': c.canListSessions,
+      'resume': c.canResumeSession,
+      'close': c.canCloseSession,
+      'delete': c.canDeleteSession,
+    },
+    'raw': raw,
+  };
+}
+
+/// 模式下拉：走 configOptions 还是 modes 回退，当前值与候选。
+Map<String, dynamic> _modeDropdownSummary(WorkbenchController c) {
+  final option = c.optionOf('mode');
+  return <String, dynamic>{
+    'id': option?.id,
+    'source': option == null
+        ? null
+        : (option.id == SessionStore.modeFallbackId ? 'modes（回退）' : 'configOptions'),
+    'current': option?.currentValue,
+    'values': <Object?>[for (final o in option?.options ?? const <JsonMap>[]) o['value']],
+  };
+}
+
+/// 转录摘要：只留协议给的东西（条目类型 + 文本 + 工具卡 id / 状态），不含本地时间戳与本地序号，
+/// 所以「关掉重开 + session/load 重放」的结果可以和关闭前逐字比。
+String _transcriptDigest(SessionStore store) {
+  final parts = <String>[];
+  for (final e in store.entries) {
+    switch (e) {
+      case final MessageEntry m:
+        parts.add('${m.role.name}:${m.text}');
+      case final ThoughtEntry t:
+        parts.add('thought:${t.text}');
+      case final ToolCallEntry tc:
+        parts.add('tool:${tc.toolCallId}:${tc.status.wire}:${tc.title}');
+      case final PlanCardEntry p:
+        parts.add('plan:${p.planId}:${p.items.length}');
+      case final CompactionEntry cp:
+        parts.add('compaction:${cp.compactionId}:${cp.status}');
+      case final PermissionEntry p:
+        parts.add('permission:${p.toolCallId ?? ''}');
+      case final ElicitationEntry el:
+        parts.add('elicitation:${el.wire.mode ?? ''}');
+      case final TurnEntry t:
+        parts.add('turn:${t.n}:${t.stopReason ?? ''}');
+      default:
+        parts.add(e.runtimeType.toString());
+    }
+  }
+  return parts.join('\n');
+}
 
 String? r5ReportPathFromEnvironment() {
   final v = Platform.environment[r5ReportEnv];
@@ -737,7 +1062,11 @@ class _AutoAnswer {
   final WorkbenchController c;
   final String permission;
   final List<Map<String, dynamic>> log;
-  final Set<String> _done = <String>{};
+
+  /// 已代答过的队列项，**按对象身份**去重而不是 requestId：agent 重连后 JSON-RPC id 从头再来
+  /// （fake-agent 每个进程都从 100 开始），按 id 去重会把重连后的第一批请求当成「答过了」而不再回，
+  /// agent 就一直等着（R6 实测 2026-09-16：载回会话后的第二轮 prompt 因此超时）。
+  final Set<Object> _done = Set<Object>.identity();
 
   void attach() => c.sessions.pending.addListener(_tick);
 
@@ -750,7 +1079,7 @@ class _AutoAnswer {
     // 但不回应 agent 会一直等，所以验收脚本这里一并代答，并在报告里标出来。
     final queue = <TranscriptEntry>[...store.pending.forSession(store.sessionId), ...c.sessions.pending.requestScope];
     for (final e in queue) {
-      if (e is PermissionEntry && _done.add(e.requestId)) {
+      if (e is PermissionEntry && _done.add(e)) {
         if (permission == 'none') continue;
         final option = _pick(e);
         log.add(<String, dynamic>{
@@ -761,7 +1090,7 @@ class _AutoAnswer {
           'answered': option,
         });
         if (option != null) unawaited(c.answerPermission(e.requestId, option));
-      } else if (e is ElicitationEntry && _done.add(e.requestId)) {
+      } else if (e is ElicitationEntry && _done.add(e)) {
         log.add(<String, dynamic>{
           'kind': 'elicitation',
           'requestId': e.requestId,

@@ -1,7 +1,8 @@
 //! 桥命令与事件流（docs/design.md § 3）。R0 打通 `core_init` / `ping` 与五条事件流的注册；
 //! R1 加连接 / 会话 / 认证 / 设置命令；R3 加工作区文件、git、项目与会话索引；
 //! R4 加查看器读文件、目录监视（流命令）、git 状态、本地 shell 与终端控制、退出收尾；
-//! R5 加 registry / 受管 Node / 设置页命令与第六条事件流 `registry/progress`。
+//! R5 加 registry / 受管 Node / 设置页命令与第六条事件流 `registry/progress`；
+//! R6 加会话生命周期 `session_list` / `session_load` / `session_resume` / `session_close` / `session_delete`。
 //! 返回值一律 JSON `String`，结构化入参也是 JSON `String`（桥上不做类型镜像）。
 //! 本模块是 frb 的扫描入口（flutter_rust_bridge.yaml `rust_input: crate::api`），只放要暴露给 Dart 的东西。
 //!
@@ -137,6 +138,38 @@ pub async fn agent_disconnect(agent_id: String) -> Result<String, BridgeError> {
 /// 返回 NewSessionResponse 原样 JSON。
 pub async fn session_new(agent_id: String, cwd: String) -> Result<String, BridgeError> {
     on_core(|core| async move { core.session_new(&agent_id, PathBuf::from(cwd)).await }).await
+}
+
+/// `session/list`（R6）：`cwd` 给了就按工作目录过滤（必须是绝对路径），`cursor` 是上一页返回的 `nextCursor`。
+/// 返回 ListSessionsResponse 原样 JSON：`{sessions: [{sessionId, cwd, title?, updatedAt?, …}], nextCursor?}`。
+/// 侧栏不直接消费它——本地索引是侧栏的事实来源，这条只用来校对存在性与补标题（docs/design.md § 3 末条）。
+pub async fn session_list(agent_id: String, cwd: Option<String>, cursor: Option<String>) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.session_list(&agent_id, cwd.map(PathBuf::from), cursor).await }).await
+}
+
+/// `session/load`（R6）：agent 用 `session/update` 把整段历史重放完本命令才返回，所以返回时
+/// `acp/session_update` 已经把历史全推给前端了（前端在整段重放里只刷新一次，见 lib/app/workbench_controller.dart）。
+/// 返回 LoadSessionResponse 原样 JSON（`{modes?, configOptions?}`）。agent 没声明 `loadSession` 时由前端不给入口。
+pub async fn session_load(agent_id: String, session_id: String, cwd: String) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.session_load(&agent_id, &session_id, PathBuf::from(cwd)).await }).await
+}
+
+/// `session/resume`（R6）：只恢复上下文，**不**重放历史。返回 ResumeSessionResponse 原样 JSON。
+pub async fn session_resume(agent_id: String, session_id: String, cwd: String) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.session_resume(&agent_id, &session_id, PathBuf::from(cwd)).await }).await
+}
+
+/// `session/close`（R6）：等价于先 cancel 再释放。发请求之前核心先把这个会话挂起的 `session/request_permission`
+/// 回 `cancelled`（不然 agent 挂在那条请求上，连 close 都不处理）；**elicitation 核心不代答，前端必须自己回**，
+/// 与 `session_cancel` 同一条规矩。返回 CloseSessionResponse 原样 JSON 再加 `cancelledRequestIds`。
+pub async fn session_close(agent_id: String, session_id: String) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.session_close(&agent_id, &session_id).await }).await
+}
+
+/// `session/delete`（R6）：只删 agent 侧；本地索引由前端在成功后再调 `session_index_remove` 删。
+/// 挂起请求的收尾与 `session_close` 相同。返回 DeleteSessionResponse 原样 JSON 再加 `cancelledRequestIds`。
+pub async fn session_delete(agent_id: String, session_id: String) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.session_delete(&agent_id, &session_id).await }).await
 }
 
 /// `session/prompt`。`prompt` 是 `ContentBlock[]` 的 JSON 字符串；本轮的 `session/update` 经事件流推出，

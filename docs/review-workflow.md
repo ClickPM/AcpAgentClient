@@ -55,7 +55,10 @@ powershell -File .claude\cursor-review.ps1 -Wait
   判死活看进程树：`Get-CimInstance Win32_Process -Filter "Name='node.exe'"` 里找命令行带 `index.js -p` 的那个。
 - 轮询 `.out.md` 非空，或 `tasklist /FI "PID eq <pid>"`（脚本打印的 pid 是 `cmd` 壳，真正干活的是它的 node 子进程）；
   **Git Bash 里先 `export MSYS_NO_PATHCONV=1`**，否则 `/FI` 被当路径改写、永远报「进程已死」。
-- **耗时基线**（本项目待首轮回填；agent-xray 同机实测：单文件 diff 5 分钟，13 文件 / 825 行的全量分支 diff 7 分 35 秒）。
+- **耗时基线**（本项目 R6 实测 2026-09-16，同机）：30 文件 / 约 +2,800 行的全量分支 diff **12 分 03 秒**；
+  同一分支多 300 行的第 2 轮全量 **11 分 26 秒**。（agent-xray 同机：单文件 diff 5 分钟，13 文件 / 825 行的全量分支 diff 7 分 35 秒。）
+- **「等待期间不要改仓库里的文件」是认真的**（R6 第 1 轮踩到）：审查者按自己的节奏读工作树，中途改动会让它报出你已经修掉的东西，
+  收 findings 时得逐条拿当前代码核对才分得清「真缺陷」与「你看到的是旧版」。要自查就等审查结束再动。
 
 ### 六条容易踩的
 

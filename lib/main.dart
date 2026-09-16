@@ -27,6 +27,12 @@ Future<void> main() async {
     await runR5(reportPath: r5Report);
     return;
   }
+  // R6 的无头实跑（验收 1 / 2 / 4 / 5 / 6）：会话生命周期 —— 新会话 → 一轮 → list 校对 → 重连 → load 重放 → resume / close / delete。
+  final r6Report = r6ReportPathFromEnvironment();
+  if (r6Report != null) {
+    await runR6(reportPath: r6Report);
+    return;
+  }
   final source = DataSource.fromEnvironment();
   final bridge = source == DataSource.bridge ? await CoreBridge.load() : null;
   runApp(AcpApp(source: source, bridge: bridge));

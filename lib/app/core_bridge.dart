@@ -57,6 +57,13 @@ abstract interface class CoreCommands {
   Future<JsonMap> agentConnect(String agentId, {String? cwd});
   Future<JsonMap> agentDisconnect(String agentId);
   Future<JsonMap> sessionNew(String agentId, String cwd);
+
+  // ---- R6：会话生命周期（docs/design.md § 3；能力门在组合根，桥层只转发）
+  Future<JsonMap> sessionList(String agentId, {String? cwd, String? cursor});
+  Future<JsonMap> sessionLoad(String agentId, String sessionId, String cwd);
+  Future<JsonMap> sessionResume(String agentId, String sessionId, String cwd);
+  Future<JsonMap> sessionClose(String agentId, String sessionId);
+  Future<JsonMap> sessionDelete(String agentId, String sessionId);
   Future<JsonMap> sessionPrompt(String agentId, String sessionId, List<Object?> prompt);
   Future<JsonMap> sessionCancel(String agentId, String sessionId);
   Future<JsonMap> sessionSetConfigOption(String agentId, String sessionId, String configId, JsonMap value);
@@ -173,6 +180,24 @@ class CoreBridge implements CoreCommands {
 
   @override
   Future<JsonMap> sessionNew(String agentId, String cwd) => _run(() => api.sessionNew(agentId: agentId, cwd: cwd));
+
+  @override
+  Future<JsonMap> sessionList(String agentId, {String? cwd, String? cursor}) =>
+      _run(() => api.sessionList(agentId: agentId, cwd: cwd, cursor: cursor));
+
+  @override
+  Future<JsonMap> sessionLoad(String agentId, String sessionId, String cwd) =>
+      _run(() => api.sessionLoad(agentId: agentId, sessionId: sessionId, cwd: cwd));
+
+  @override
+  Future<JsonMap> sessionResume(String agentId, String sessionId, String cwd) =>
+      _run(() => api.sessionResume(agentId: agentId, sessionId: sessionId, cwd: cwd));
+
+  @override
+  Future<JsonMap> sessionClose(String agentId, String sessionId) => _run(() => api.sessionClose(agentId: agentId, sessionId: sessionId));
+
+  @override
+  Future<JsonMap> sessionDelete(String agentId, String sessionId) => _run(() => api.sessionDelete(agentId: agentId, sessionId: sessionId));
 
   @override
   Future<JsonMap> sessionPrompt(String agentId, String sessionId, List<Object?> prompt) =>

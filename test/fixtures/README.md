@@ -54,6 +54,7 @@
 | `24-terminal-git-log.jsonl` | （R2）画板 22：git log 的 ANSI 彩色输出（黄 / 绿 / 青）、wait_for_exit、release 后输出留存 |
 | `26-auth-url-elicitation.jsonl` | （R5）画板 52：`authenticate`（agent 型）在途时到达的 **requestScope** URL elicitation（无 sessionId，`requestId` 是 authenticate 的数字 id）→ 用户 accept → `elicitation/complete` → authenticate 返回；方法表补 `authenticate` |
 | `27-terminal-meta.jsonl` | （R4）画板 22 / 23 的另一条数据源：`tool_call_update._meta.{terminal_info, terminal_output, terminal_exit}`（Zed 读的终端 provider 通道；钉版本的 claude-agent-acp / dsh / codex-acp 都走它、不调 `terminal/create`）——追加语义、退出码或信号二选一；所有者裁定待确认（`docs/design.md` § 4） |
+| `28-session-load.jsonl` | （R6）会话生命周期：`session/list`（cwd 过滤 + `nextCursor` 两页）、`session/load`（整段历史用 `session/update` 重放完才返回，会话 `sess_loaded_1`，只给 `modes` 不给 `configOptions` —— modes 回退路径）、`session/resume`（不重放）、`session/close`、`session/delete`；方法表补这五条 |
 | `90-rejected.jsonl` | `notice`（sdk 的 unstable 伞不转发）、假想的未来变体 `artifact_update` —— Rust 侧必须失败 |
 
 R2 起的文件由 `scratchpad` 里的生成脚本一次性产出后入库（脚本不入库）；改动直接改 `.jsonl`。

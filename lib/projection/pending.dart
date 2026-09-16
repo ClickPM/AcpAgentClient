@@ -190,6 +190,29 @@ class PendingQueue extends ChangeNotifier {
     return null;
   }
 
+  /// `session/load` 重放前清空这个会话的队列项（R6）：它们属于重放之前那一份转录，
+  /// agent 已经不会再等我们的回应（`session/load` 之前要么断开过、要么 agent 自己把旧回合收了）。
+  /// requestScope 的（无 sessionId，认证页）不动。返回被移除的 requestId。
+  List<String> forgetSession(String sessionId) {
+    final removed = <String>[
+      for (final e in _order)
+        if (_sessionOf(e) == sessionId) _requestIdOf(e),
+    ];
+    if (removed.isEmpty) return removed;
+    _order.removeWhere((e) => _sessionOf(e) == sessionId);
+    for (final id in removed) {
+      _byRequestId.remove(id);
+    }
+    notifyListeners();
+    return removed;
+  }
+
+  static String _requestIdOf(TranscriptEntry e) => switch (e) {
+        final PermissionEntry p => p.requestId,
+        final ElicitationEntry el => el.requestId,
+        _ => '',
+      };
+
   void _add(String requestId, TranscriptEntry e) {
     _byRequestId[requestId] = e;
     _order.add(e);

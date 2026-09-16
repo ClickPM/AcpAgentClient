@@ -42,6 +42,9 @@ class FixtureReplayer {
   /// 最近一次 prompt 所属的会话（local / stderr 行没有 sessionId 时用）。
   String? lastSessionId;
   String? _newSessionCwd;
+
+  /// 在途的 `session/delete`：响应到达才真的把会话从表里拿掉。
+  String? _deleting;
   int fed = 0;
 
   void feedAll(Iterable<FixtureLine> lines) {
@@ -91,6 +94,21 @@ class FixtureReplayer {
           if (sid is String) sessions.session(sid, agentId: agentId).cancel();
         case 'session/new':
           _newSessionCwd = params?['cwd'] as String?;
+        // R6：`session/load` 前清空该会话的转录（agent 会把整段历史重新发一遍），与接线侧同一口径。
+        case 'session/load':
+          final sid = params?['sessionId'];
+          if (sid is String) {
+            lastSessionId = sid;
+            sessions.session(sid, agentId: agentId)
+              ..cwd = params?['cwd'] as String?
+              ..resetForReplay();
+          }
+        case 'session/resume':
+          final sid = params?['sessionId'];
+          if (sid is String) lastSessionId = sid;
+        case 'session/delete':
+          final sid = params?['sessionId'];
+          if (sid is String) _deleting = sid;
         default:
           break;
       }
@@ -195,6 +213,17 @@ class FixtureReplayer {
           sessions.session(sid, agentId: agentId)
             ..cwd = _newSessionCwd
             ..applyNewSession(result);
+        }
+      // R6：load / resume 的返回形状一样（`{modes?, configOptions?}`）。
+      case 'session/load':
+      case 'session/resume':
+        final sid = call.params?['sessionId'];
+        if (sid is String) sessions.session(sid, agentId: agentId).applyLoadSession(result);
+      case 'session/delete':
+        final sid = _deleting;
+        if (sid != null) {
+          sessions.forget(sid);
+          _deleting = null;
         }
       default:
         break;

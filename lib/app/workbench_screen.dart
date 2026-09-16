@@ -294,7 +294,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       controller: c.composer,
       focusNode: c.composerFocus,
       placeholder: c.composerPlaceholder,
-      enabled: c.hasAgent,
+      // 关掉的会话转录只读（画板 41 的 Close；R6 审查 finding P2）。
+      enabled: c.hasAgent && !c.sessionClosed,
       running: c.isRunning,
       usage: store?.usage,
       model: _currentName('model'),
@@ -457,8 +458,12 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         ));
   }
 
+  /// 线程头 ≡：右栏开关（画板 03 是右栏展开的选中态）。
+  /// 画板 41 里同一个 ≡ 又是会话菜单，两张画板对它的语义冲突；**所有者裁定 2026-09-16：≡ 保持右栏开关，
+  /// 会话菜单要另开入口得先改设计稿**。所以 R6 只接通菜单的动作（`resumeSession` / `closeSession` /
+  /// `deleteSession` 与能力裁剪都在组合根里、有单测覆盖），产品里的入口留到改完画板的那一轮。
+  /// 现有入口：删除走侧栏的删除图标（画板 04）；Resume / Close 本轮在产品 UI 上没有入口（见任务卡「已知限制」）。
   void _openThreadMenu() {
-    // ≡ 同时是右栏开关（画板 03 是选中态）：先开右栏，菜单从会话项的 ≡ 走。
     c.toggleRightPanel();
   }
 

@@ -237,18 +237,32 @@ impl Shared {
         String::from_utf8_lossy(tail.make_contiguous()).into_owned()
     }
 
+    /// 记 / 更新会话的 cwd。已经在账上的只改 cwd，不碰 `cancel_pending`——
+    /// 那是回合级的标志，`session/load` / `resume` 不该把它清掉（R6）。
     fn record_session(&self, session_id: &str, cwd: PathBuf) {
-        lock(&self.sessions).insert(
-            session_id.to_string(),
-            SessionState {
-                cwd,
-                cancel_pending: false,
-            },
-        );
+        let mut sessions = lock(&self.sessions);
+        match sessions.get_mut(session_id) {
+            Some(existing) => existing.cwd = cwd,
+            None => {
+                sessions.insert(
+                    session_id.to_string(),
+                    SessionState {
+                        cwd,
+                        cancel_pending: false,
+                    },
+                );
+            }
+        }
     }
 
     pub fn session_cwd(&self, session_id: &str) -> Option<PathBuf> {
         lock(&self.sessions).get(session_id).map(|s| s.cwd.clone())
+    }
+
+    /// `session/close` / `session/delete` 之后忘掉这个会话：之后 agent 再拿这个 id 调 `fs/*` 或 `terminal/*`
+    /// 就越界了（`session_cwd_or_error` 会回 `-32602`），不能继续用陈旧的 cwd 放行（R6）。
+    fn forget_session(&self, session_id: &str) {
+        lock(&self.sessions).remove(session_id);
     }
 
     fn set_cancel_pending(&self, session_id: &str, value: bool) {
@@ -897,6 +911,81 @@ impl AgentConnection {
         Ok(serde_json::to_value(&response)?)
     }
 
+    /// `session/list`（`cwd` 过滤 + cursor 分页）。返回 `ListSessionsResponse` 原样 JSON
+    /// （`{sessions: [{sessionId, cwd, title?, updatedAt?, …}], nextCursor?}`）。能力门在前端（规则 2 不特判）。
+    pub async fn session_list(&self, cwd: Option<PathBuf>, cursor: Option<String>) -> Result<Value> {
+        let mut request = acp::ListSessionsRequest::new();
+        request.cwd = cwd;
+        request.cursor = cursor;
+        let response = race_exit(&self.shared, self.connection.send_request(request).block_task()).await?;
+        Ok(serde_json::to_value(&response)?)
+    }
+
+    /// `session/load`：agent **MUST** 用 `session/update` 把整段历史重放完再返回（acp-projection.md § 5），
+    /// 所以本函数返回时重放已经全部经 `acp/session_update` 推给前端了。返回 `LoadSessionResponse`（modes + configOptions）。
+    pub async fn session_load(&self, session_id: &str, cwd: PathBuf) -> Result<Value> {
+        let request = acp::LoadSessionRequest::new(acp::SessionId::new(session_id), cwd.clone());
+        // 重放期间到达的 `fs/*` / `terminal/*` 回调也要能过越界判定，所以 cwd 在**请求之前**就得记上；
+        // 请求失败且这个会话本来不在账上时撤回，免得留一个能放行 fs 越界判定的陈旧条目。
+        self.attach_session(session_id, cwd, self.connection.send_request(request).block_task())
+            .await
+    }
+
+    /// `session/resume`：只恢复上下文，**MUST NOT** 重放（acp-projection.md § 5）。返回 `ResumeSessionResponse`。
+    pub async fn session_resume(&self, session_id: &str, cwd: PathBuf) -> Result<Value> {
+        let request = acp::ResumeSessionRequest::new(acp::SessionId::new(session_id), cwd.clone());
+        self.attach_session(session_id, cwd, self.connection.send_request(request).block_task())
+            .await
+    }
+
+    /// load / resume 共用：先记 cwd 再发请求，失败且原先不在账上就撤回。
+    async fn attach_session<T, F>(&self, session_id: &str, cwd: PathBuf, request: F) -> Result<Value>
+    where
+        T: serde::Serialize,
+        F: Future<Output = std::result::Result<T, acp::Error>>,
+    {
+        let previous = self.shared.session_cwd(session_id);
+        self.shared.record_session(session_id, cwd);
+        match race_exit(&self.shared, request).await {
+            Ok(response) => Ok(serde_json::to_value(&response)?),
+            Err(e) => {
+                // 失败就把记账退回原样：本来不在账上的删掉，本来在的把 cwd 还回去，
+                // 免得留一个「这个会话可以读写那个目录」的陈旧条目。
+                match previous {
+                    Some(cwd) => self.shared.record_session(session_id, cwd),
+                    None => self.shared.forget_session(session_id),
+                }
+                Err(e)
+            }
+        }
+    }
+
+    /// `session/close`：等价于先 cancel 再释放。**发请求之前**先把这个会话挂起的权限请求回 `cancelled`——
+    /// agent 挂在那条请求上时连 `session/close` 都不会处理（R6 审查 finding high）。成功后本地忘掉这个会话（cwd 记账）。
+    /// 返回 CloseSessionResponse 原样 JSON 再加 `cancelledRequestIds`。
+    pub async fn session_close(&self, session_id: &str) -> Result<Value> {
+        // 先置 cancel 期再排空队列：agent 在读到 close 之前可能又发一条权限请求，
+        // 不置标志的话它进队列没人回，客户端等 CloseSessionResponse、agent 等权限回应，双方挂死
+        // （审查第 2 轮 P2）。成功后 `forget_session` 会把标志随会话一起丢掉。
+        self.shared.set_cancel_pending(session_id, true);
+        let cancelled = self.cancel_pending_permissions(session_id)?;
+        let request = acp::CloseSessionRequest::new(acp::SessionId::new(session_id));
+        let response = race_exit(&self.shared, self.connection.send_request(request).block_task()).await?;
+        self.shared.forget_session(session_id);
+        Ok(with_cancelled(serde_json::to_value(&response)?, cancelled))
+    }
+
+    /// `session/delete`：agent 侧删除会话。同样先收挂起的权限请求。
+    /// 成功后本地忘掉这个会话（本地索引由前端删，核心不碰）。
+    pub async fn session_delete(&self, session_id: &str) -> Result<Value> {
+        self.shared.set_cancel_pending(session_id, true);
+        let cancelled = self.cancel_pending_permissions(session_id)?;
+        let request = acp::DeleteSessionRequest::new(acp::SessionId::new(session_id));
+        let response = race_exit(&self.shared, self.connection.send_request(request).block_task()).await?;
+        self.shared.forget_session(session_id);
+        Ok(with_cancelled(serde_json::to_value(&response)?, cancelled))
+    }
+
     /// `prompt` 是 `ContentBlock[]` 的 JSON。返回 `PromptResponse`（stopReason + usage）。
     pub async fn session_prompt(&self, session_id: &str, prompt: Value) -> Result<Value> {
         let blocks: Vec<acp::ContentBlock> = serde_json::from_value(prompt)
@@ -911,9 +1000,10 @@ impl AgentConnection {
         Ok(serde_json::to_value(&response)?)
     }
 
-    /// 发 `session/cancel`；挂起的权限请求立刻回 `cancelled`，之后到本轮结束前到达的也自动回 `cancelled`。
-    pub fn session_cancel(&self, session_id: &str) -> Result<Value> {
-        self.shared.set_cancel_pending(session_id, true);
+    /// 把某个会话挂起的 `session/request_permission` 全部以 `cancelled` 回掉（acp-projection.md § 3.1）。
+    /// cancel / close / delete 三条路共用：不回的话 agent 会一直挂在那条 JSON-RPC 上，
+    /// 连后面的 `session/close` 都不处理（R6 审查 finding high）。elicitation 由前端回（核心不代答，见 api.rs 的契约）。
+    fn cancel_pending_permissions(&self, session_id: &str) -> Result<Vec<String>> {
         let to_cancel: Vec<Pending> = {
             let mut pending = lock(&self.shared.pending);
             let ids: Vec<String> = pending
@@ -930,6 +1020,13 @@ impl AgentConnection {
             let _ = p.responder.respond(cancelled.clone());
             auto_cancelled.push(id);
         }
+        Ok(auto_cancelled)
+    }
+
+    /// 发 `session/cancel`；挂起的权限请求立刻回 `cancelled`，之后到本轮结束前到达的也自动回 `cancelled`。
+    pub fn session_cancel(&self, session_id: &str) -> Result<Value> {
+        self.shared.set_cancel_pending(session_id, true);
+        let auto_cancelled = self.cancel_pending_permissions(session_id)?;
         self.connection
             .send_notification(acp::CancelNotification::new(acp::SessionId::new(session_id)))
             .map_err(|e| CoreError::Transport(e.to_string()))?;
@@ -992,6 +1089,18 @@ impl AgentConnection {
     /// 关 stdin 让 agent 自行退出；超时结束进程树。幂等。
     pub async fn disconnect(&self) {
         disconnect(&self.shared, &self.shutdown, &self.kill).await;
+    }
+}
+
+/// 把 `cancelledRequestIds` 并进响应 JSON（响应本身可能是 `{}` 或 `{"_meta": …}`）。
+fn with_cancelled(mut response: Value, cancelled: Vec<String>) -> Value {
+    let ids = Value::Array(cancelled.into_iter().map(Value::String).collect());
+    match &mut response {
+        Value::Object(map) => {
+            map.insert("cancelledRequestIds".to_string(), ids);
+            response
+        }
+        _ => json!({ "response": response, "cancelledRequestIds": ids }),
     }
 }
 

@@ -18,10 +18,23 @@
 //                           output → release → 工具卡 completed（release 后输出仍留在卡上）
 //   --terminal-bg         → （R4）另起一条后台长命令（ping / sleep 30）嵌进工具卡并 wait_for_exit：等客户端用停止方块 kill，
 //                           退出后工具卡 failed
+//   --sessions            → （R6）会话持久化：会话与整段历史落 <cwd>/.fake-agent-sessions.json，
+//                           打开 session/list（cwd 过滤 + 每页一条的 cursor 分页）、session/load（重放完整历史再返回）、
+//                           session/resume（不重放）、session/close、session/delete；sessionId 随机生成
+//   --caps a,b,c          → （R6）声明哪些 sessionCapabilities（默认 list,resume,close,delete；`--caps ""` 一个都不声明）
+//   --modes-only          → （R6）session/new / load 只给 modes 不给 configOptions（modes 回退路径），
+//                           set_mode 成功后补一条 current_mode_update
+//   --sessions            → （R6）会话持久化：会话与整段历史落 <cwd>/.fake-agent-sessions.json，
+//                           打开 session/list（cwd 过滤 + 每页一条的 cursor 分页）、session/load（重放完整历史再返回）、
+//                           session/resume（不重放）、session/close、session/delete；sessionId 随机生成
+//   --caps a,b,c          → （R6）声明哪些 sessionCapabilities（默认 list,resume,close,delete；给空串就一个都不声明）
+//   --modes-only          → （R6）session/new / load 只给 modes 不给 configOptions（modes 回退路径），
+//                           set_mode 成功后补一条 current_mode_update
 // 密钥字段只放明显的假值（规则 8 的脱敏验收看 traffic 里是否变成 ***）。
 
 import { createInterface } from 'node:readline'
-import { existsSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync, renameSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 
 const argv = process.argv.slice(2)
@@ -60,9 +73,50 @@ function serve() {
     send({ jsonrpc: '2.0', id, method, params })
   })
   const notify = (method, params) => send({ jsonrpc: '2.0', method, params })
-  const update = (sessionId, u) => notify('session/update', { sessionId, update: u })
   const turns = new Map() // sessionId → { cancelled }
   let authedInProcess = false // R5：agent 型认证成功后本进程内放行 session/new
+
+  // ---- R6 会话持久化（--sessions）：整段历史落盘，重开后 session/load 能重放回来。
+  const persist = flag('--sessions')
+  const modesOnly = flag('--modes-only')
+  const capsArg = value('--caps')
+  const caps = (capsArg === undefined ? 'list,resume,close,delete' : capsArg).split(',').map((s) => s.trim()).filter(Boolean)
+  const storePath = (cwd) => join(cwd, '.fake-agent-sessions.json')
+  const readStore = (cwd) => {
+    try { return JSON.parse(readFileSync(storePath(cwd), 'utf8')) } catch { return {} }
+  }
+  const writeStore = (cwd, data) => {
+    // 临时文件 + rename（CLAUDE.md 规则 7 的写法，夹具也照做）。
+    const tmp = storePath(cwd) + '.tmp'
+    writeFileSync(tmp, JSON.stringify(data, null, 2))
+    renameSync(tmp, storePath(cwd))
+  }
+  const sessionCwd = new Map() // sessionId → cwd（本进程内建过 / 载过的会话）
+  const recordUpdate = (sessionId, u) => {
+    if (!persist) return
+    const cwd = sessionCwd.get(sessionId)
+    if (cwd === undefined) return
+    const data = readStore(cwd)
+    const entry = data[sessionId]
+    if (entry === undefined) return
+    entry.history.push(u)
+    entry.updatedAt = new Date().toISOString()
+    if (u.sessionUpdate === 'user_message_chunk' && entry.title === null) {
+      entry.title = String(u.content?.text ?? '').slice(0, 40)
+    }
+    writeStore(cwd, data)
+  }
+  const update = (sessionId, u) => { recordUpdate(sessionId, u); notify('session/update', { sessionId, update: u }) }
+
+  // session/new / load / resume 共用的会话配置（--modes-only 只给 modes，走 modes 回退路径）。
+  const modeState = (current) => ({ currentModeId: current, availableModes: [{ id: 'ask', name: 'Ask' }, { id: 'code', name: 'Code' }] })
+  const configOptionsFor = (current) => [
+    { id: 'mode', name: 'Mode', category: 'mode', type: 'select', currentValue: current, options: [{ value: 'ask', name: 'Ask' }, { value: 'code', name: 'Code' }] },
+    { id: 'auto_approve_reads', name: 'Auto approve reads', type: 'boolean', currentValue: false },
+  ]
+  const sessionConfig = (current) => modesOnly
+    ? { modes: modeState(current) }
+    : { modes: modeState(current), configOptions: configOptionsFor(current) }
 
   const rl = createInterface({ input: process.stdin })
   rl.on('line', (line) => {
@@ -81,7 +135,11 @@ function serve() {
         reply({
           protocolVersion: 1,
           agentInfo: { name: 'fake-agent', title: 'Fake Agent', version: '0.0.1' },
-          agentCapabilities: { loadSession: false, promptCapabilities: { image: false, embeddedContext: false } },
+          agentCapabilities: {
+            loadSession: persist,
+            promptCapabilities: { image: false, embeddedContext: false },
+            ...(persist && caps.length > 0 ? { sessionCapabilities: Object.fromEntries(caps.map((k) => [k, {}])) } : {}),
+          },
           authMethods: [
             { type: 'terminal', id: 'fake-setup', name: 'Configure fake API key', description: 'runs --setup', args: ['--setup'] },
             // R5：agent 型方法，authenticate 时发一条 requestScope 的 URL elicitation（照 codex-acp 的 device code 路径：
@@ -107,14 +165,92 @@ function serve() {
       case 'session/new': {
         const authed = authedInProcess || process.env.FAKE_AGENT_AUTHED === '1' || existsSync(join(msg.params.cwd, MARKER))
         if (!authed) { fail(-32000, 'FAKE_API_KEY is not configured. Run --setup.'); break }
-        reply({
-          sessionId: 'sess_fake_1',
-          modes: { currentModeId: 'ask', availableModes: [{ id: 'ask', name: 'Ask' }, { id: 'code', name: 'Code' }] },
-          configOptions: [
-            { id: 'mode', name: 'Mode', category: 'mode', type: 'select', currentValue: 'ask', options: [{ value: 'ask', name: 'Ask' }, { value: 'code', name: 'Code' }] },
-            { id: 'auto_approve_reads', name: 'Auto approve reads', type: 'boolean', currentValue: false },
+        const cwd = msg.params.cwd
+        let sessionId = 'sess_fake_1'
+        if (persist) {
+          sessionId = 'sess_' + randomUUID()
+          const data = readStore(cwd)
+          data[sessionId] = { cwd, title: null, updatedAt: new Date().toISOString(), closed: false, history: [] }
+          writeStore(cwd, data)
+          sessionCwd.set(sessionId, cwd)
+        }
+        reply({ sessionId, ...sessionConfig('ask') })
+        // 斜杠命令（画板 42）：走 update() 入库，session/load 重放后 `/` 菜单还在。
+        update(sessionId, {
+          sessionUpdate: 'available_commands_update',
+          availableCommands: [
+            { name: 'review', description: '审一遍改动' },
+            { name: 'compact', description: '压缩上下文' },
           ],
         })
+        break
+      }
+      // ---- R6 会话生命周期。没开 --sessions 时这五条一律 -32601（能力也没声明，客户端本来就不该发）。
+      case 'session/list': {
+        if (!persist) { fail(-32601, 'session/list needs --sessions'); break }
+        const cwd = msg.params?.cwd ?? process.cwd()
+        const data = readStore(cwd)
+        const ids = Object.keys(data)
+          .filter((id) => msg.params?.cwd === undefined || msg.params.cwd === null || data[id].cwd === msg.params.cwd)
+          .sort()
+        // 每页一条：客户端必须按 nextCursor 取完才看得到全部。
+        const from = msg.params?.cursor === undefined || msg.params.cursor === null ? 0 : Number(msg.params.cursor)
+        if (!Number.isInteger(from) || from < 0 || from > ids.length) { fail(-32602, 'bad cursor ' + msg.params?.cursor); break }
+        const page = ids.slice(from, from + 1)
+        const next = from + 1 < ids.length ? String(from + 1) : undefined
+        reply({
+          sessions: page.map((id) => ({ sessionId: id, cwd: data[id].cwd, title: data[id].title ?? undefined, updatedAt: data[id].updatedAt })),
+          ...(next === undefined ? {} : { nextCursor: next }),
+        })
+        break
+      }
+      case 'session/load': {
+        if (!persist) { fail(-32601, 'session/load needs --sessions'); break }
+        const cwd = msg.params.cwd
+        const data = readStore(cwd)
+        const entry = data[msg.params.sessionId]
+        if (entry === undefined) { fail(-32602, 'no such session ' + msg.params.sessionId); break }
+        sessionCwd.set(msg.params.sessionId, cwd)
+        entry.closed = false
+        writeStore(cwd, data)
+        // 规范：整段历史 MUST 用 session/update 重放完再返回（重放本身不再入库，所以绕开 update()）。
+        for (const u of entry.history) notify('session/update', { sessionId: msg.params.sessionId, update: u })
+        reply(sessionConfig('ask'))
+        break
+      }
+      case 'session/resume': {
+        if (!persist) { fail(-32601, 'session/resume needs --sessions'); break }
+        const cwd = msg.params.cwd
+        const data = readStore(cwd)
+        const entry = data[msg.params.sessionId]
+        if (entry === undefined) { fail(-32602, 'no such session ' + msg.params.sessionId); break }
+        sessionCwd.set(msg.params.sessionId, cwd)
+        entry.closed = false
+        writeStore(cwd, data)
+        reply({}) // MUST NOT 重放
+        break
+      }
+      case 'session/close': {
+        if (!persist) { fail(-32601, 'session/close needs --sessions'); break }
+        const cwd = sessionCwd.get(msg.params.sessionId)
+        if (cwd === undefined) { fail(-32602, 'no such session ' + msg.params.sessionId); break }
+        const t = turns.get(msg.params.sessionId)
+        if (t) t.cancelled = true
+        const data = readStore(cwd)
+        if (data[msg.params.sessionId] !== undefined) { data[msg.params.sessionId].closed = true; writeStore(cwd, data) }
+        sessionCwd.delete(msg.params.sessionId)
+        reply({})
+        break
+      }
+      case 'session/delete': {
+        if (!persist) { fail(-32601, 'session/delete needs --sessions'); break }
+        const cwd = sessionCwd.get(msg.params.sessionId) ?? process.cwd()
+        const data = readStore(cwd)
+        if (data[msg.params.sessionId] === undefined) { fail(-32602, 'no such session ' + msg.params.sessionId); break }
+        delete data[msg.params.sessionId]
+        writeStore(cwd, data)
+        sessionCwd.delete(msg.params.sessionId)
+        reply({})
         break
       }
       case 'session/prompt':
@@ -129,6 +265,8 @@ function serve() {
       }
       case 'session/set_mode':
         reply({})
+        // R6 modes 回退：客户端发起的切换成功即生效；这里再补一条 agent 侧通知（Zed / dsh 都这么干）。
+        if (modesOnly) update(msg.params.sessionId, { sessionUpdate: 'current_mode_update', currentModeId: msg.params.modeId })
         break
       case 'session/set_config_option':
         reply({ configOptions: [{ id: 'mode', name: 'Mode', category: 'mode', type: 'select', currentValue: msg.params.value, options: [{ value: 'ask', name: 'Ask' }, { value: 'code', name: 'Code' }] }] })
@@ -206,10 +344,14 @@ function serve() {
     }
     update(sessionId, { sessionUpdate: 'tool_call_update', toolCallId: 'call_edit_1', status: 'in_progress' })
     update(sessionId, { sessionUpdate: 'plan', entries: [{ content: 'edit README', priority: 'high', status: 'in_progress' }] })
-    update(sessionId, { sessionUpdate: 'config_option_update', configOptions: [
-      { id: 'mode', name: 'Mode', category: 'mode', type: 'select', currentValue: 'code', options: [{ value: 'ask', name: 'Ask' }, { value: 'code', name: 'Code' }] },
-      { id: 'auto_approve_reads', name: 'Auto approve reads', type: 'boolean', currentValue: true },
-    ] })
+    // --modes-only 的 agent 一辈子不发 configOptions（R6 的 modes 回退路径就是这种 agent），
+    // 回合里也不能破例，否则模式下拉会中途从 modes 切成 configOptions。
+    if (!modesOnly) {
+      update(sessionId, { sessionUpdate: 'config_option_update', configOptions: [
+        { id: 'mode', name: 'Mode', category: 'mode', type: 'select', currentValue: 'code', options: [{ value: 'ask', name: 'Ask' }, { value: 'code', name: 'Code' }] },
+        { id: 'auto_approve_reads', name: 'Auto approve reads', type: 'boolean', currentValue: true },
+      ] })
+    }
     const form = await request('elicitation/create', {
       mode: 'form', sessionId, message: 'Commit after editing?',
       requestedSchema: { type: 'object', properties: { commit: { type: 'boolean', title: 'Commit', default: true }, note: { type: 'string', title: 'Note', maxLength: 40 } }, required: ['commit'] },

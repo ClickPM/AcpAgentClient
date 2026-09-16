@@ -17,6 +17,9 @@ class PlanStore {
   PlanCardEntry? operator [](String planId) => _byId[planId];
   Iterable<PlanCardEntry> get all => _byId.values;
 
+  /// `session/load` 重放前清空（R6）。
+  void clear() => _byId.clear();
+
   /// 稳定 `plan`：整份替换。
   PlanApplyResult applyStable(List<PlanEntryWire> entries, {required DateTime now, required String Function() newId}) {
     final r = _ensure(PlanCardEntry.stablePlanId, isStable: true, now: now, newId: newId);
