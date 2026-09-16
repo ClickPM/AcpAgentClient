@@ -964,6 +964,10 @@ impl AgentConnection {
     /// agent 挂在那条请求上时连 `session/close` 都不会处理（R6 审查 finding high）。成功后本地忘掉这个会话（cwd 记账）。
     /// 返回 CloseSessionResponse 原样 JSON 再加 `cancelledRequestIds`。
     pub async fn session_close(&self, session_id: &str) -> Result<Value> {
+        // 先置 cancel 期再排空队列：agent 在读到 close 之前可能又发一条权限请求，
+        // 不置标志的话它进队列没人回，客户端等 CloseSessionResponse、agent 等权限回应，双方挂死
+        // （审查第 2 轮 P2）。成功后 `forget_session` 会把标志随会话一起丢掉。
+        self.shared.set_cancel_pending(session_id, true);
         let cancelled = self.cancel_pending_permissions(session_id)?;
         let request = acp::CloseSessionRequest::new(acp::SessionId::new(session_id));
         let response = race_exit(&self.shared, self.connection.send_request(request).block_task()).await?;
@@ -974,6 +978,7 @@ impl AgentConnection {
     /// `session/delete`：agent 侧删除会话。同样先收挂起的权限请求。
     /// 成功后本地忘掉这个会话（本地索引由前端删，核心不碰）。
     pub async fn session_delete(&self, session_id: &str) -> Result<Value> {
+        self.shared.set_cancel_pending(session_id, true);
         let cancelled = self.cancel_pending_permissions(session_id)?;
         let request = acp::DeleteSessionRequest::new(acp::SessionId::new(session_id));
         let response = race_exit(&self.shared, self.connection.send_request(request).block_task()).await?;

@@ -402,11 +402,32 @@ fn spawn_fake_agent(state: Arc<FakeState>, transport: Channel, scenario: &'stati
                 agent_client_protocol::on_receive_request!(),
             )
             .on_receive_request(
-                async move |req: acp::CloseSessionRequest, responder: Responder<acp::CloseSessionResponse>, _cx: ConnectionTo<Client>| {
+                async move |req: acp::CloseSessionRequest, responder: Responder<acp::CloseSessionResponse>, cx: ConnectionTo<Client>| {
+                    let session_id = req.session_id.0.to_string();
                     close_state.lifecycle.lock().expect("lock").push(json!({
-                        "method": "session/close", "sessionId": req.session_id.0.to_string(),
+                        "method": "session/close", "sessionId": session_id,
                     }));
-                    responder.respond(acp::CloseSessionResponse::new())
+                    if scenario != "close_race" {
+                        return responder.respond(acp::CloseSessionResponse::new());
+                    }
+                    // 审查第 2 轮 P2 的场景：agent 在读到 close 之前又发了一条权限请求。
+                    // 核心必须就地回 cancelled（cancel 期已置），否则这条 block_task 永远不回，
+                    // close 也就永远回不去，双方挂死。
+                    let state = close_state.clone();
+                    tokio::spawn(async move {
+                        let permission = cx
+                            .send_request(permission_request(&session_id, "call_close_race"))
+                            .block_task()
+                            .await
+                            .expect("late permission");
+                        let outcome = serde_json::to_value(&permission).expect("json")["outcome"]["outcome"]
+                            .as_str()
+                            .unwrap_or_default()
+                            .to_string();
+                        state.permission_outcomes.lock().expect("lock").push(outcome);
+                        responder.respond(acp::CloseSessionResponse::new()).expect("respond");
+                    });
+                    Ok(())
                 },
                 agent_client_protocol::on_receive_request!(),
             )
@@ -842,6 +863,30 @@ async fn session_lifecycle_list_load_resume_close_delete() {
     connection.disconnect().await;
 }
 
+/// `session/close` 在途时 agent 又发一条权限请求：核心必须就地回 `cancelled`，
+/// 不然客户端等 CloseSessionResponse、agent 等权限回应，双方挂死（审查第 2 轮 P2）。
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn permission_arriving_while_close_is_in_flight_is_auto_cancelled() {
+    let (connection, events, state, _agent_task) = connect("close_race").await;
+    let cwd = std::env::temp_dir();
+    let _ = connection.session_new(cwd.clone()).await.expect_err("auth required");
+    let session = connection.session_new(cwd.clone()).await.expect("session");
+    let session_id = session["sessionId"].as_str().expect("sessionId").to_string();
+
+    let before = events.client_requests().len();
+    // 没有超时兜底：挂死的话这条 await 就回不来，测试超时即失败。
+    connection.session_close(&session_id).await.expect("close must not hang");
+
+    assert_eq!(
+        state.permission_outcomes.lock().expect("lock").last().map(String::as_str),
+        Some("cancelled"),
+        "close 在途时到达的权限请求要自动回 cancelled"
+    );
+    assert_eq!(events.client_requests().len(), before, "自动回掉的请求不该进前端队列");
+    assert_eq!(connection.shared().session_cwd(&session_id), None);
+    connection.disconnect().await;
+}
+
 /// load 失败时不能留下陈旧的 cwd 记账（否则 agent 拿这个 id 调 `fs/*` 会被放行）。
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn failed_delete_keeps_the_error_and_load_of_unknown_session_is_not_recorded() {
@@ -910,6 +955,7 @@ async fn close_and_delete_cancel_pending_permission_requests() {
     }
     // close 之后账上没有这个会话了。
     assert_eq!(connection.shared().session_cwd(&session_id), None);
+
 
     // delete 走同一条收尾（这时已经没有挂起项，只验字段在）。
     let deleted = connection.session_delete(&session_id).await.expect("delete");

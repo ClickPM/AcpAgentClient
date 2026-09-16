@@ -910,7 +910,7 @@ class WorkbenchController extends ChangeNotifier {
     final agent = agentId;
     if (b == null || id == null || agent == null) return;
     await _guard(() async {
-      await _releasePendingElicitations(b, agent, id);
+      await _releaseSessionRequests(b, agent, id);
       await b.sessionClose(agent, id);
       _closeEpoch[id] = (_closeEpoch[id] ?? 0) + 1;
       _closedSessions.add(id);
@@ -918,13 +918,18 @@ class WorkbenchController extends ChangeNotifier {
     _touch();
   }
 
-  /// close / delete 之前把这个会话挂起的 elicitation 逐条回 `cancel`（与 [cancel] 同一条规矩）：
-  /// **核心只自动回权限请求，elicitation 不回 agent 会一直等**，agent 挂在那条 JSON-RPC 上时
-  /// 连后面的 `session/close` 都不处理（R6 审查 finding high）。
-  Future<void> _releasePendingElicitations(CoreCommands b, String agent, String id) async {
+  /// close / delete 之前把这个会话挂起的 client 请求收干净——与 [cancel] **同一条规矩**
+  /// （`session/close` 按规范就等价于「先 cancel 再释放」）：
+  /// - 权限请求：核心那边已经自动回 `cancelled` 了，这里把转录上的卡也标成 cancelled，
+  ///   否则卡还停在 pending、用户点 Allow 会撞 `unknown_request`（审查第 2 轮 P2）；
+  /// - elicitation：**核心不代答**，必须逐条回，不回 agent 会一直等，连后面的 `session/close` 都不处理
+  ///   （审查第 1 轮 finding high）；
+  /// - 未完成的工具卡一并本地标 cancelled（`SessionStore.cancel()` 的既有语义）。
+  Future<void> _releaseSessionRequests(CoreCommands b, String agent, String id) async {
     final s = sessions.maybe(id);
     if (s == null) return;
-    for (final requestId in s.pending.cancelSessionElicitations(id, now: sessions.now)) {
+    final result = s.cancel();
+    for (final requestId in result.cancelledElicitationIds) {
       await _guard(() => b.acpRespond(agent, requestId, PendingQueue.cancelledAction));
     }
   }
@@ -1068,7 +1073,7 @@ class WorkbenchController extends ChangeNotifier {
     final onAgent = deletesOnAgent(id);
     await _guard(() async {
       if (onAgent) {
-        await _releasePendingElicitations(b, owner, id);
+        await _releaseSessionRequests(b, owner, id);
         await b.sessionDelete(owner, id);
         // agent 侧已经删掉了：本地那步万一失败，重试不能再往 agent 发一次（它会以「没有这条」拒绝，
         // 于是本地索引永远删不掉、两边永远岔开，审查 finding P2）。
@@ -1090,17 +1095,21 @@ class WorkbenchController extends ChangeNotifier {
 
   // ---------------------------------------------------------------- 一轮对话
 
+  /// `session/close` 之后这条会话是**只读**的：所有会往它发命令的入口共用这一道门
+  /// （prompt / Restore / Regenerate / 三个下拉；审查第 2 轮 P2：第 1 轮只挡住了 `send()`）。
+  bool _blockedByClose() {
+    if (!sessionClosed) return false;
+    lastError = '这个会话已经关闭；用 ≡ 菜单的 Resume 挂回来，或新建一个会话';
+    _touch();
+    return true;
+  }
+
   Future<void> send() async {
     final s = store;
     final b = bridge;
     final id = agentId;
     if (s == null || b == null || id == null) return;
-    // `session/close` 之后转录只读：往已经释放掉的会话发 prompt 只会拿一个 agent 错误回来（审查 finding P2）。
-    if (sessionClosed) {
-      lastError = '这个会话已经关闭；用 ≡ 菜单的 Resume 挂回来，或新建一个会话';
-      _touch();
-      return;
-    }
+    if (_blockedByClose()) return;
     final text = composer.text;
     final blocks = _promptBlocks(text);
     if (blocks.isEmpty) return;
@@ -1195,6 +1204,9 @@ class WorkbenchController extends ChangeNotifier {
   Future<void> restore(TurnEntry turn, {String? newText}) async {
     final s = store;
     if (s == null) return;
+    // 关掉的会话不能 Restore / Regenerate：`restoreTo` 会先把本地转录截断，随后的 `session/prompt`
+    // 必然失败，本地就少了一截而 agent 侧还是关闭前那份（审查第 2 轮 P2）。
+    if (_blockedByClose()) return;
     // 先把在途的那一轮收干净（发 cancel 并等 session/prompt 真正返回），再截断重发。
     if (s.isRunning) {
       await cancel();
@@ -1243,6 +1255,7 @@ class WorkbenchController extends ChangeNotifier {
     final b = bridge;
     final id = agentId;
     if (s == null || b == null || id == null) return;
+    if (_blockedByClose()) return;
     await _guard(() async {
       final result = await b.sessionSetConfigOption(id, s.sessionId, configId, value);
       s.applyConfigOptionsResponse(result);
@@ -1264,6 +1277,7 @@ class WorkbenchController extends ChangeNotifier {
     final b = bridge;
     final id = agentId;
     if (s == null || b == null || id == null) return;
+    if (_blockedByClose()) return;
     await _guard(() async {
       await b.sessionSetMode(id, s.sessionId, modeId);
       s.applyModeSelected(modeId);

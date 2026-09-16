@@ -2,7 +2,7 @@
 
 <!-- 保存为 rounds/round-06/round-06.md；该轮其他管理产出放同一目录。 -->
 
-> 状态：进行中（实现与验收已完成，待独立审查收口）
+> 状态：已完成（两轮审查收口，待所有者裁定 ≡ 的归属后合并 `main`）
 
 ## 目标
 
@@ -101,7 +101,26 @@
 | 6 | P2 | `_guard` 不是互斥：load 与 close 可重叠，load 成功会无条件把会话从「已关闭」里拿掉 | **采纳整改**。加 `_closeEpoch`（每次 close +1）：load 成功只在 epoch 没变时才清「已关闭」；同一条会话用 `_loadsInFlight` 挡住并发 load。新增用例 |
 | 7 | P3 | 线程头 ≡ 从右栏开关改成画板 41 菜单（设计层面） | **不采纳整改，等裁定**：审查者明确说「不在这里替所有者选」。任务卡「已知限制」2 已给推荐项与备选，留所有者裁定 |
 
-- 结论：待第 2 轮复审（全量，`main...HEAD`）后回填。
+### 第 2 轮（全量 `main...HEAD` @ `2659074`，3 条：high 0 / P2 3 / P3 0；耗时 11 分 26 秒）
+
+审查者先抽查了第 1 轮的整改并确认自洽（`skipReset` 闭包与 `_updateArrivals` 在「0 条 / 半截 / 成功」三条路径上、
+`cancel_pending_permissions` 的三条路、`_deletedOnAgent` 不会挡住下次真删），再报了三条新的——全部指向**同一个根**：
+「关掉的会话」这条新状态只堵住了一半的出口。
+
+| # | 级别 | finding | 处理 |
+|---|---|---|---|
+| 8 | P2 | `sessionClosed` 只挡住了 `send()`：Restore / Regenerate 与 model / thought / mode 三个下拉仍会往已关闭会话发命令。Restore 更糟——`restoreTo` 先把本地转录截断，随后的 `session/prompt` 必然失败，本地就少了一截而 agent 侧还是关闭前那份 | **采纳整改**。抽出 `_blockedByClose()` 一道门，`send` / `restore` / `setConfigOption` / `setMode` 共用。新增用例（关闭后连点五个入口，`prompts` 为空且转录条数不变） |
+| 9 | P2 | close / delete 只让核心回掉挂起的权限请求，**前端的权限卡还停在 pending**：用户点 Allow 会撞 `unknown_request` | **采纳整改**。`_releasePendingElicitations` 改成 `_releaseSessionRequests`，走 `SessionStore.cancel()`（与 `cancel()` 同一条规矩：权限卡标 cancelled、未完成的工具卡标 cancelled、elicitation 逐条回）。新增用例 |
+| 10 | P2 | 核心 close / delete 抽了 `cancel_pending_permissions` 却没置 `set_cancel_pending`：agent 在读到 close 之前又发一条权限请求时，客户端等 `CloseSessionResponse`、agent 等权限回应，**双方挂死** | **采纳整改**。`session_close` / `session_delete` 在排空队列之前同样 `set_cancel_pending(true)`（成功 `forget_session` 时标志随会话一起丢掉）。新增脚本化用例 `permission_arriving_while_close_is_in_flight_is_auto_cancelled`，并**反证过**：去掉那一行后这条用例 150 s 不返回（真的挂死） |
+
+- 结论：**整改后 PASS**（两轮共 10 条：high 2 / P2 7 / P3 1；9 条采纳整改并补了用例，1 条是设计取舍留所有者裁定）。
+  整改后复核：`flutter test` 185 条全过、Rust 10 条脚本化用例全过、`validate.ps1` 13 项全 PASS；
+  fake-agent 离线全链与 claude-agent-acp 真跑各复跑一次（reopen / close / resume / delete 全绿）。
+
+### 一条流程教训
+
+第 1 轮审查跑着的时候我在改仓库（自查的三处硬化，提交 `001a7d2`），`cursor-review.ps1` 的提示明写「等待期间不要改仓库里的文件」。
+后果是 finding 4 报的是我已经修掉的代码，得逐条拿当前代码核对才能分清「真缺陷」与「你看到的是旧版」。**下一轮审查期间不动仓库。**
 
 ## 失败处理
 

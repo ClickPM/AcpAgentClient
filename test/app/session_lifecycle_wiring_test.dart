@@ -10,6 +10,7 @@
 
 import 'package:acp_agent_client/app/core_bridge.dart';
 import 'package:acp_agent_client/app/workbench_controller.dart';
+import 'package:acp_agent_client/projection/entries.dart';
 import 'package:acp_agent_client/projection/session_store.dart';
 import 'package:acp_agent_client/projection/wire.dart';
 import 'package:acp_agent_client/ui/popovers/topbar_popovers.dart';
@@ -262,17 +263,54 @@ void main() {
     c.dispose();
   });
 
-  test('关掉的会话不能再发 prompt', () async {
+  test('关掉的会话是只读的：prompt / Restore / Regenerate / 三个下拉全都发不出去', () async {
     final (c, core) = await _connected();
     c.sessionId = _session;
-    c.sessions.session(_session, agentId: _agent).cwd = _cwd;
+    final store = c.sessions.session(_session, agentId: _agent)..cwd = _cwd;
+    final turn = store.startTurn(<ContentBlockWire>[
+      const ContentBlockWire(<String, dynamic>{'type': 'text', 'text': '关闭前的那一轮'}),
+    ]);
+    store.endTurn(stopReason: 'end_turn');
+    final entriesBefore = store.entries.length;
     await c.closeSession();
 
     c.composer.text = '还想说点什么';
     await c.send();
+    await c.restore(turn);
+    await c.restore(turn, newText: '换个说法');
+    await c.selectConfigValue('model', 'gpt');
+    await c.setMode('code');
 
-    expect(core.prompts, isEmpty);
+    expect(core.prompts, isEmpty, reason: '一条 session/prompt 都不该发出去');
+    expect(store.entries, hasLength(entriesBefore), reason: 'Restore 不能把本地转录截断了却发不出去');
     expect(c.lastError, contains('已经关闭'));
+    c.dispose();
+  });
+
+  test('close 把挂起的权限卡也标成 cancelled（核心那边已经回过 cancelled 了）', () async {
+    final (c, core) = await _connected();
+    c.sessionId = _session;
+    final store = c.sessions.session(_session, agentId: _agent)..cwd = _cwd;
+    c.sessions.applyClientRequestEnvelope(<String, dynamic>{
+      'agentId': _agent,
+      'requestId': 'req_perm',
+      'method': 'session/request_permission',
+      'params': <String, dynamic>{
+        'sessionId': _session,
+        'toolCall': <String, dynamic>{'toolCallId': 'call_1', 'title': '删文件'},
+        'options': <Object?>[
+          <String, dynamic>{'optionId': 'ok', 'name': 'Allow', 'kind': 'allow_once'},
+        ],
+      },
+    });
+    expect(store.pending.forSession(_session), hasLength(1));
+
+    await c.closeSession();
+
+    expect(store.pending.forSession(_session), isEmpty, reason: '卡还停在 pending 的话用户点 Allow 会撞 unknown_request');
+    expect((store.pending.byRequestId('req_perm')! as PermissionEntry).status, PendingStatus.cancelled);
+    // 权限请求由核心自动回；前端不能再回一遍。
+    expect(core.responded, isEmpty);
     c.dispose();
   });
 
