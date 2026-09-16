@@ -477,10 +477,74 @@ class SessionStore extends ChangeNotifier {
     _changed();
   }
 
+  /// `session/load` / `session/resume` 的返回（R6）：形状是 `{modes?, configOptions?}`，与 `session/new` 少一个 sessionId。
+  /// 与 `session/new` 的差别是**缺省不清空**：`ResumeSessionResponse` 经常是空对象（两个字段都可选），
+  /// 那时候不能把 `session/load` 刚重放出来的 modes / configOptions 抹掉。
+  void applyLoadSession(JsonMap result) {
+    if (result['modes'] is Map) {
+      modes = (result['modes'] as Map).cast<String, dynamic>();
+      currentModeId = modes?['currentModeId'] as String?;
+    }
+    _setConfigOptions(result['configOptions']);
+    _changed();
+  }
+
+  /// `session/load` 的重放之前把转录与派生态清空（R6）：agent 会把整段历史重新发一遍，
+  /// 不清就会和内存里已有的那份叠起来。会话身份（sessionId / agentId / cwd）与本地索引里的标题不动。
+  /// **不发通知**：清空与随后的重放要在 UI 上是一步（接线侧把它排在挂起的 batcher 队列里，一起刷）。
+  void resetForReplay() {
+    entries.clear();
+    toolCalls.clear();
+    plans.clear();
+    compactions.clear();
+    pending.forgetSession(sessionId);
+    terminals.clear();
+    dropped.clear();
+    seen.clear();
+    usage = null;
+    currentTurn = null;
+    turnCount = 0;
+    _seq = 0;
+  }
+
+  /// `session/set_mode` 成功后的本地同步（R6 modes 回退路径）：SetSessionModeResponse 是空的，
+  /// 规范里客户端发起的切换成功即生效（agent 自己改模式才发 `current_mode_update`）。
+  void applyModeSelected(String modeId) {
+    currentModeId = modeId;
+    _changed();
+  }
+
   /// `session/set_config_option` 的响应（`{configOptions}`，全量替换）。与 `config_option_update` 同一口径。
   void applyConfigOptionsResponse(JsonMap result) {
     _setConfigOptions(result['configOptions']);
     _changed();
+  }
+
+  /// modes 回退（R6，ROUNDS § 3）：只发 `current_mode_update` / 只在 `session/new` 里给 `modes`、不发 configOptions 的 agent，
+  /// 模式下拉用这里合成的一条 select；`configOptions` 里已经有 `category == mode` 的条目时返回 null（两者都有只用 configOptions）。
+  /// `id` 是本地哨兵，**不会发给 agent**——选中走 `session/set_mode`（见 lib/app/workbench_controller.dart）。
+  static const String modeFallbackId = 'acp.modes';
+
+  ConfigOptionWire? get modeFallbackOption {
+    if (configOptions.any((o) => o.category == 'mode')) return null;
+    final available = modes?['availableModes'];
+    if (available is! List || available.isEmpty) return null;
+    return ConfigOptionWire(<String, dynamic>{
+      'id': modeFallbackId,
+      'name': 'Mode',
+      'category': 'mode',
+      'type': 'select',
+      'currentValue': currentModeId,
+      'options': <JsonMap>[
+        for (final m in available)
+          if (m is Map)
+            <String, dynamic>{
+              'value': m['id'],
+              'name': m['name'] ?? m['id'],
+              if (m['description'] != null) 'description': m['description'],
+            },
+      ],
+    });
   }
 
   void _setConfigOptions(Object? opts) {
@@ -663,6 +727,17 @@ class Sessions extends ChangeNotifier {
   DateTime get now => _clock();
   Iterable<SessionStore> get all => _byId.values;
   SessionStore? maybe(String sessionId) => _byId[sessionId];
+
+  /// 忘掉一个会话（R6）：`session/delete` 成功后、或 `session/load` 失败要把刚建的空壳收回时用。
+  /// 队列里属于它的挂起项一并清掉（agent 已经不会再等回应了）。
+  void forget(String sessionId) {
+    final s = _byId.remove(sessionId);
+    if (s == null) return;
+    s.removeListener(notifyListeners);
+    pending.forgetSession(sessionId);
+    s.dispose();
+    notifyListeners();
+  }
 
   SessionStore session(String sessionId, {String? agentId}) {
     final s = _byId.putIfAbsent(sessionId, () {

@@ -59,6 +59,49 @@ class FakeCore implements CoreCommands {
   @override
   Future<JsonMap> sessionNew(String agentId, String cwd) async => <String, dynamic>{'sessionId': 'sess_fake'};
 
+  // ---- R6：会话生命周期。只记账；`sessionLoad` 可以由用例注入「重放」（往事件流里塞 session/update）。
+  final List<(String agentId, String? cwd, String? cursor)> listedSessions = <(String, String?, String?)>[];
+  final List<(String agentId, String sessionId, String cwd)> loadedSessions = <(String, String, String)>[];
+  final List<(String agentId, String sessionId, String cwd)> resumedSessions = <(String, String, String)>[];
+  final List<(String agentId, String sessionId)> closedSessions = <(String, String)>[];
+  final List<(String agentId, String sessionId)> deletedSessions = <(String, String)>[];
+
+  /// `session/list` 的返回（用例按需覆盖；默认空）。多页时按 `cursor` 取。
+  JsonMap Function(String? cursor) sessionListResult = (_) => <String, dynamic>{'sessions': <Object?>[]};
+
+  /// `session/load` 期间的重放：用例在这里往事件流里塞 `acp/session_update`，返回 LoadSessionResponse。
+  Future<JsonMap> Function(String agentId, String sessionId)? onSessionLoad;
+
+  @override
+  Future<JsonMap> sessionList(String agentId, {String? cwd, String? cursor}) async {
+    listedSessions.add((agentId, cwd, cursor));
+    return sessionListResult(cursor);
+  }
+
+  @override
+  Future<JsonMap> sessionLoad(String agentId, String sessionId, String cwd) async {
+    loadedSessions.add((agentId, sessionId, cwd));
+    return await onSessionLoad?.call(agentId, sessionId) ?? <String, dynamic>{};
+  }
+
+  @override
+  Future<JsonMap> sessionResume(String agentId, String sessionId, String cwd) async {
+    resumedSessions.add((agentId, sessionId, cwd));
+    return <String, dynamic>{};
+  }
+
+  @override
+  Future<JsonMap> sessionClose(String agentId, String sessionId) async {
+    closedSessions.add((agentId, sessionId));
+    return <String, dynamic>{};
+  }
+
+  @override
+  Future<JsonMap> sessionDelete(String agentId, String sessionId) async {
+    deletedSessions.add((agentId, sessionId));
+    return <String, dynamic>{};
+  }
+
   @override
   Future<JsonMap> sessionSetConfigOption(String agentId, String sessionId, String configId, JsonMap value) async =>
       <String, dynamic>{'configOptions': <Object?>[]};
@@ -134,14 +177,31 @@ class FakeCore implements CoreCommands {
   @override
   Future<JsonMap> workspaceOpen(String path) async => <String, dynamic>{'projects': <Object?>[]};
 
-  @override
-  Future<JsonMap> sessionIndexList() async => <String, dynamic>{'sessions': <Object?>[]};
+  /// 本地会话索引（`sessions.json` 的替身）：upsert / remove 真的改它，接线测试才能验「删完不再列出」。
+  final List<JsonMap> sessionIndex = <JsonMap>[];
+
+  JsonMap get _indexResult => <String, dynamic>{'sessions': <Object?>[...sessionIndex]};
 
   @override
-  Future<JsonMap> sessionIndexUpsert(JsonMap entry) async => <String, dynamic>{'sessions': <Object?>[]};
+  Future<JsonMap> sessionIndexList() async => _indexResult;
 
   @override
-  Future<JsonMap> sessionIndexRemove(String agentId, String sessionId) async => <String, dynamic>{'sessions': <Object?>[]};
+  Future<JsonMap> sessionIndexUpsert(JsonMap entry) async {
+    final i = sessionIndex.indexWhere((e) => e['agentId'] == entry['agentId'] && e['sessionId'] == entry['sessionId']);
+    final merged = <String, dynamic>{'updatedAt': 0, 'createdAt': 0, ...entry};
+    if (i < 0) {
+      sessionIndex.add(merged);
+    } else {
+      sessionIndex[i] = <String, dynamic>{...sessionIndex[i], ...merged};
+    }
+    return _indexResult;
+  }
+
+  @override
+  Future<JsonMap> sessionIndexRemove(String agentId, String sessionId) async {
+    sessionIndex.removeWhere((e) => e['agentId'] == agentId && e['sessionId'] == sessionId);
+    return _indexResult;
+  }
 
   // ---- R4：文件面板 / 终端 / 退出收尾，测试里只记账。
   final List<String> killedTerminals = <String>[];

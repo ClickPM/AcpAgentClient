@@ -251,6 +251,12 @@ impl Shared {
         lock(&self.sessions).get(session_id).map(|s| s.cwd.clone())
     }
 
+    /// `session/close` / `session/delete` 之后忘掉这个会话：之后 agent 再拿这个 id 调 `fs/*` 或 `terminal/*`
+    /// 就越界了（`session_cwd_or_error` 会回 `-32602`），不能继续用陈旧的 cwd 放行（R6）。
+    fn forget_session(&self, session_id: &str) {
+        lock(&self.sessions).remove(session_id);
+    }
+
     fn set_cancel_pending(&self, session_id: &str, value: bool) {
         if let Some(session) = lock(&self.sessions).get_mut(session_id) {
             session.cancel_pending = value;
@@ -894,6 +900,68 @@ impl AgentConnection {
         let request = acp::NewSessionRequest::new(cwd.clone());
         let response = race_exit(&self.shared, self.connection.send_request(request).block_task()).await?;
         self.shared.record_session(response.session_id.0.as_ref(), cwd);
+        Ok(serde_json::to_value(&response)?)
+    }
+
+    /// `session/list`（`cwd` 过滤 + cursor 分页）。返回 `ListSessionsResponse` 原样 JSON
+    /// （`{sessions: [{sessionId, cwd, title?, updatedAt?, …}], nextCursor?}`）。能力门在前端（规则 2 不特判）。
+    pub async fn session_list(&self, cwd: Option<PathBuf>, cursor: Option<String>) -> Result<Value> {
+        let mut request = acp::ListSessionsRequest::new();
+        request.cwd = cwd;
+        request.cursor = cursor;
+        let response = race_exit(&self.shared, self.connection.send_request(request).block_task()).await?;
+        Ok(serde_json::to_value(&response)?)
+    }
+
+    /// `session/load`：agent **MUST** 用 `session/update` 把整段历史重放完再返回（acp-projection.md § 5），
+    /// 所以本函数返回时重放已经全部经 `acp/session_update` 推给前端了。返回 `LoadSessionResponse`（modes + configOptions）。
+    pub async fn session_load(&self, session_id: &str, cwd: PathBuf) -> Result<Value> {
+        let request = acp::LoadSessionRequest::new(acp::SessionId::new(session_id), cwd.clone());
+        // 重放期间到达的 `fs/*` / `terminal/*` 回调也要能过越界判定，所以 cwd 在**请求之前**就得记上；
+        // 请求失败且这个会话本来不在账上时撤回，免得留一个能放行 fs 越界判定的陈旧条目。
+        self.attach_session(session_id, cwd, self.connection.send_request(request).block_task())
+            .await
+    }
+
+    /// `session/resume`：只恢复上下文，**MUST NOT** 重放（acp-projection.md § 5）。返回 `ResumeSessionResponse`。
+    pub async fn session_resume(&self, session_id: &str, cwd: PathBuf) -> Result<Value> {
+        let request = acp::ResumeSessionRequest::new(acp::SessionId::new(session_id), cwd.clone());
+        self.attach_session(session_id, cwd, self.connection.send_request(request).block_task())
+            .await
+    }
+
+    /// load / resume 共用：先记 cwd 再发请求，失败且原先不在账上就撤回。
+    async fn attach_session<T, F>(&self, session_id: &str, cwd: PathBuf, request: F) -> Result<Value>
+    where
+        T: serde::Serialize,
+        F: Future<Output = std::result::Result<T, acp::Error>>,
+    {
+        let was_known = self.shared.session_cwd(session_id).is_some();
+        self.shared.record_session(session_id, cwd);
+        match race_exit(&self.shared, request).await {
+            Ok(response) => Ok(serde_json::to_value(&response)?),
+            Err(e) => {
+                if !was_known {
+                    self.shared.forget_session(session_id);
+                }
+                Err(e)
+            }
+        }
+    }
+
+    /// `session/close`：等价于先 cancel 再释放。成功后本地忘掉这个会话（cwd 记账）。
+    pub async fn session_close(&self, session_id: &str) -> Result<Value> {
+        let request = acp::CloseSessionRequest::new(acp::SessionId::new(session_id));
+        let response = race_exit(&self.shared, self.connection.send_request(request).block_task()).await?;
+        self.shared.forget_session(session_id);
+        Ok(serde_json::to_value(&response)?)
+    }
+
+    /// `session/delete`：agent 侧删除会话。成功后本地忘掉这个会话（本地索引由前端删，核心不碰）。
+    pub async fn session_delete(&self, session_id: &str) -> Result<Value> {
+        let request = acp::DeleteSessionRequest::new(acp::SessionId::new(session_id));
+        let response = race_exit(&self.shared, self.connection.send_request(request).block_task()).await?;
+        self.shared.forget_session(session_id);
         Ok(serde_json::to_value(&response)?)
     }
 

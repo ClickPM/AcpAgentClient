@@ -25,7 +25,7 @@ void main() {
   });
 
   test('every fixture line parses and classifies', () {
-    expect(lines.length, 227); // R0 61 行 + R2 新增 148 行（10–24）+ R3 新增 5 行（16 补两条通知与被撤回的请求、25 两条 config）+ R5 新增 5 行（26 requestScope 认证）+ R4 新增 8 行（27 终端 _meta 通道）
+    expect(lines.length, 246); // R0 61 行 + R2 新增 148 行（10–24）+ R3 新增 5 行（16 补两条通知与被撤回的请求、25 两条 config）+ R5 新增 5 行（26 requestScope 认证）+ R4 新增 8 行（27 终端 _meta 通道）+ R6 新增 19 行（28 会话生命周期）
     expect(lines.where((l) => l.dir == FixtureDir.unknown), isEmpty);
     expect(lines.where((l) => l.dir == FixtureDir.local).map((l) => l.localKind).toSet(), {'terminal_output', 'terminal_exit'});
     expect(lines.where((l) => l.dir == FixtureDir.stderr).single.line, contains('turn finished'));
@@ -36,7 +36,8 @@ void main() {
     for (final l in updates) {
       final k = l.sessionNotification!.update.kind;
       kinds[k] = (kinds[k] ?? 0) + 1;
-      expect(l.sessionNotification!.sessionId, 'sess_9f3c21a7');
+      // 28-session-load 的重放属于另一个会话（`session/load` 载回来的那条）。
+      expect(l.sessionNotification!.sessionId, anyOf('sess_9f3c21a7', 'sess_loaded_1'));
     }
     final unknownLines = updates.where((l) => l.sessionNotification!.update.kind == SessionUpdateKind.unknown).toList();
     expect(unknownLines.map((l) => l.tag), unorderedEquals(<String>['notice', 'artifact_update']));
@@ -100,7 +101,7 @@ void main() {
     expect(byKind[SessionUpdateKind.planRemoved]!.first.planId, 'plan_validate');
     expect(byKind[SessionUpdateKind.availableCommandsUpdate]!.single.availableCommands.map((c) => c.name), ['review', 'compact', 'plan']);
     expect(byKind[SessionUpdateKind.availableCommandsUpdate]!.single.availableCommands.first.inputHint, '可选：范围');
-    expect(byKind[SessionUpdateKind.currentModeUpdate]!.single.currentModeId, 'code');
+    expect(byKind[SessionUpdateKind.currentModeUpdate]!.map((u) => u.currentModeId), everyElement('code'));
     // 05-elicitation-config 的那条（文件序在 25-config-options 之前）。
     final cfg = byKind[SessionUpdateKind.configOptionUpdate]!.first.configOptions;
     expect(cfg.map((c) => c.category), ['mode', 'model', null, 'thought_level']);
@@ -110,7 +111,7 @@ void main() {
     expect(cfg40.map((c) => c.category), containsAll(<String>['model', 'thought_level', 'mode', 'sandbox', '_codex_reasoning']));
     expect(cfg40.where((c) => c.type == 'boolean').length, 3);
     expect(cfg40.where((c) => c.type != 'select' && c.type != 'boolean').single.type, 'slider');
-    final info = byKind[SessionUpdateKind.sessionInfoUpdate]!.single;
+    final info = byKind[SessionUpdateKind.sessionInfoUpdate]!.first;
     expect(info.hasTitle && info.hasUpdatedAt, isTrue);
     final usage = byKind[SessionUpdateKind.usageUpdate]!;
     expect(usage.length, greaterThanOrEqualTo(2));

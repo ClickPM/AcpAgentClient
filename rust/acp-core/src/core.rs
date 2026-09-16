@@ -304,6 +304,47 @@ impl Core {
         result
     }
 
+    /// `session/list`（R6）：`cwd` 过滤（给了就必须是绝对路径）+ cursor 分页。侧栏不直接消费它——
+    /// 本地索引才是侧栏的事实来源，这条只用来校对存在性与补标题（docs/design.md § 3 末条）。
+    pub async fn session_list(&self, agent_id: &str, cwd: Option<PathBuf>, cursor: Option<String>) -> Result<Value> {
+        if let Some(cwd) = &cwd
+            && !cwd.is_absolute()
+        {
+            return Err(CoreError::InvalidArgument(format!("cwd must be absolute: {}", cwd.display())));
+        }
+        self.agent(agent_id)?.session_list(cwd, cursor).await
+    }
+
+    /// `session/load`（R6）：整段历史经 `acp/session_update` 重放完本命令才返回。
+    pub async fn session_load(&self, agent_id: &str, session_id: &str, cwd: PathBuf) -> Result<Value> {
+        Self::require_absolute(&cwd)?;
+        self.agent(agent_id)?.session_load(session_id, cwd).await
+    }
+
+    /// `session/resume`（R6）：只恢复上下文，不重放。
+    pub async fn session_resume(&self, agent_id: &str, session_id: &str, cwd: PathBuf) -> Result<Value> {
+        Self::require_absolute(&cwd)?;
+        self.agent(agent_id)?.session_resume(session_id, cwd).await
+    }
+
+    /// `session/close`（R6）。
+    pub async fn session_close(&self, agent_id: &str, session_id: &str) -> Result<Value> {
+        self.agent(agent_id)?.session_close(session_id).await
+    }
+
+    /// `session/delete`（R6）：只管 agent 侧；本地索引由前端在成功后再删（`session_index_remove`）。
+    pub async fn session_delete(&self, agent_id: &str, session_id: &str) -> Result<Value> {
+        self.agent(agent_id)?.session_delete(session_id).await
+    }
+
+    fn require_absolute(cwd: &Path) -> Result<()> {
+        if cwd.is_absolute() {
+            Ok(())
+        } else {
+            Err(CoreError::InvalidArgument(format!("cwd must be absolute: {}", cwd.display())))
+        }
+    }
+
     pub async fn session_prompt(&self, agent_id: &str, session_id: &str, prompt: Value) -> Result<Value> {
         self.agent(agent_id)?.session_prompt(session_id, prompt).await
     }

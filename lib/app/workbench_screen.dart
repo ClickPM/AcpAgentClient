@@ -457,9 +457,35 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         ));
   }
 
+  /// 线程头 ≡：画板 41 的会话菜单（R6 接通动作）。
+  /// 画板 03 里 ≡ 是「右栏展开」的选中态，画板 41 里同一个 ≡ 又是这个菜单——R3 先按前者接成右栏开关，
+  /// 菜单一直没有入口；R6 的交付物要求菜单的动作全部可用，所以改成开菜单，`menuSelected` 仍绑右栏是否展开
+  /// （画板 03 的视觉不变），右栏开合走侧栏底部四个入口与标签条的关闭键（都已有）。待所有者裁定。
   void _openThreadMenu() {
-    // ≡ 同时是右栏开关（画板 03 是选中态）：先开右栏，菜单从会话项的 ≡ 走。
-    c.toggleRightPanel();
+    c.threadMenuAnchor.toggle((_) => ListenableBuilder(
+          listenable: c,
+          builder: (context, _) => ThreadMenuPopover(
+            canRename: c.hasAgent,
+            canResume: c.canResumeSession,
+            canClose: c.canCloseSession,
+            canDelete: c.canDeleteSession,
+            onRename: c.sessionId == null ? null : () => _renameFromMenu(c.sessionId!),
+            onReload: c.reloadAgent,
+            onResume: c.resumeSession,
+            onCloseSession: c.closeSession,
+            onDelete: c.sessionId == null ? null : () => _deleteFromMenu(c.sessionId!),
+          ),
+        ), targetAnchor: Alignment.bottomRight, followerAnchor: Alignment.topRight);
+  }
+
+  void _renameFromMenu(String id) {
+    c.threadMenuAnchor.hide();
+    c.startRename(id);
+  }
+
+  void _deleteFromMenu(String id) {
+    c.threadMenuAnchor.hide();
+    _askDelete(id);
   }
 
   // ---------------------------------------------------------------- 右栏与流量面板（画板 03 / 80）

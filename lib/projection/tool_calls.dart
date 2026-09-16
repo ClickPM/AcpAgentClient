@@ -115,6 +115,9 @@ class ToolCallStore {
   Iterable<ToolCallEntry> get all => _byId.values;
   bool contains(String id) => _byId.containsKey(id);
 
+  /// `session/load` 重放前清空（R6）。
+  void clear() => _byId.clear();
+
   /// `tool_call` / `tool_call_update` 的总入口。`newId` 由调用方分配本地序号。
   ToolCallApplyResult apply(
     ToolCallWire w, {
@@ -276,4 +279,7 @@ class TerminalStore {
 
   TerminalBuffer? operator [](String id) => _byId[id];
   Iterable<TerminalBuffer> get all => _byId.values;
+
+  /// `session/load` 重放前清空（R6）：终端缓冲跟着工具卡走，卡没了缓冲也不该留。
+  void clear() => _byId.clear();
 }

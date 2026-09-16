@@ -86,6 +86,8 @@ struct FakeState {
     session_cwd: Mutex<Option<std::path::PathBuf>>,
     /// fs / terminal 场景里每个回调的结果（`{step, ok: <response json>}` 或 `{step, error: {code, message}}`）。
     callback_log: Mutex<Vec<Value>>,
+    /// R6：收到的会话生命周期请求，按到达顺序记 `{method, sessionId?, cwd?, cursor?}`。
+    lifecycle: Mutex<Vec<Value>>,
 }
 
 /// agent 侧发一个 client 请求并把结果记进日志（响应 serde 成 JSON，错误记 code / message）。
@@ -199,6 +201,11 @@ fn spawn_fake_agent(state: Arc<FakeState>, transport: Channel, scenario: &'stati
     let new_state = state.clone();
     let prompt_state = state.clone();
     let cancel_state = state.clone();
+    let list_state = state.clone();
+    let load_state = state.clone();
+    let resume_state = state.clone();
+    let close_state = state.clone();
+    let delete_state = state.clone();
     tokio::spawn(async move {
         let result = Agent
             .builder()
@@ -209,7 +216,11 @@ fn spawn_fake_agent(state: Arc<FakeState>, transport: Channel, scenario: &'stati
                     let response: acp::InitializeResponse = serde_json::from_value(json!({
                         "protocolVersion": 1,
                         "agentInfo": { "name": "fake-agent", "version": "0.0.1" },
-                        "agentCapabilities": { "loadSession": false },
+                        // R6：会话生命周期五件事都声明（能力门在前端，核心只转发）。
+                        "agentCapabilities": {
+                            "loadSession": true,
+                            "sessionCapabilities": { "list": {}, "delete": {}, "resume": {}, "close": {} }
+                        },
                         "authMethods": [
                             { "type": "terminal", "id": "fake-setup", "name": "Configure key", "args": ["--setup"] }
                         ]
@@ -329,6 +340,87 @@ fn spawn_fake_agent(state: Arc<FakeState>, transport: Channel, scenario: &'stati
                         responder.respond(response).expect("respond");
                     });
                     Ok(())
+                },
+                agent_client_protocol::on_receive_request!(),
+            )
+            // ---- R6 会话生命周期。`session/load` 按规范先把整段历史用 `session/update` 重放完再返回；
+            // `session/resume` 一条都不发。两者都在 handler 里直接发通知（不等回应，不会卡住 dispatch 循环）。
+            .on_receive_request(
+                async move |req: acp::ListSessionsRequest, responder: Responder<acp::ListSessionsResponse>, _cx: ConnectionTo<Client>| {
+                    let cursor = req.cursor.clone();
+                    list_state.lifecycle.lock().expect("lock").push(json!({
+                        "method": "session/list",
+                        "cwd": req.cwd.as_ref().map(|p| p.to_string_lossy().into_owned()),
+                        "cursor": cursor,
+                    }));
+                    let cwd = req.cwd.clone().unwrap_or_else(std::env::temp_dir);
+                    // 两页：第一页给 nextCursor，第二页收尾（验分页取完）。
+                    let (ids, next): (Vec<&str>, Option<&str>) = match cursor.as_deref() {
+                        None => (vec!["sess_fake"], Some("page2")),
+                        Some("page2") => (vec!["sess_old"], None),
+                        Some(_) => (vec![], None),
+                    };
+                    let response: acp::ListSessionsResponse = serde_json::from_value(json!({
+                        "sessions": ids.iter().map(|id| json!({
+                            "sessionId": id, "cwd": cwd.to_string_lossy(), "title": format!("title of {id}")
+                        })).collect::<Vec<Value>>(),
+                        "nextCursor": next,
+                    }))
+                    .expect("list response");
+                    responder.respond(response)
+                },
+                agent_client_protocol::on_receive_request!(),
+            )
+            .on_receive_request(
+                async move |req: acp::LoadSessionRequest, responder: Responder<acp::LoadSessionResponse>, cx: ConnectionTo<Client>| {
+                    let session_id = req.session_id.0.to_string();
+                    load_state.lifecycle.lock().expect("lock").push(json!({
+                        "method": "session/load", "sessionId": session_id, "cwd": req.cwd.to_string_lossy(),
+                    }));
+                    for i in 0..3 {
+                        cx.send_notification(session_update(&session_id, json!({
+                            "sessionUpdate": "agent_message_chunk",
+                            "content": { "type": "text", "text": format!("replay {i}") }
+                        })))
+                        .expect("send");
+                    }
+                    let response: acp::LoadSessionResponse = serde_json::from_value(json!({
+                        "modes": { "currentModeId": "ask", "availableModes": [{ "id": "ask", "name": "Ask" }] }
+                    }))
+                    .expect("load response");
+                    responder.respond(response)
+                },
+                agent_client_protocol::on_receive_request!(),
+            )
+            .on_receive_request(
+                async move |req: acp::ResumeSessionRequest, responder: Responder<acp::ResumeSessionResponse>, _cx: ConnectionTo<Client>| {
+                    resume_state.lifecycle.lock().expect("lock").push(json!({
+                        "method": "session/resume", "sessionId": req.session_id.0.to_string(), "cwd": req.cwd.to_string_lossy(),
+                    }));
+                    responder.respond(acp::ResumeSessionResponse::new())
+                },
+                agent_client_protocol::on_receive_request!(),
+            )
+            .on_receive_request(
+                async move |req: acp::CloseSessionRequest, responder: Responder<acp::CloseSessionResponse>, _cx: ConnectionTo<Client>| {
+                    close_state.lifecycle.lock().expect("lock").push(json!({
+                        "method": "session/close", "sessionId": req.session_id.0.to_string(),
+                    }));
+                    responder.respond(acp::CloseSessionResponse::new())
+                },
+                agent_client_protocol::on_receive_request!(),
+            )
+            .on_receive_request(
+                async move |req: acp::DeleteSessionRequest, responder: Responder<acp::DeleteSessionResponse>, _cx: ConnectionTo<Client>| {
+                    let session_id = req.session_id.0.to_string();
+                    delete_state.lifecycle.lock().expect("lock").push(json!({
+                        "method": "session/delete", "sessionId": session_id,
+                    }));
+                    if session_id == "sess_missing" {
+                        responder.respond_with_error(acp::Error::new(-32602, "no such session"))
+                    } else {
+                        responder.respond(acp::DeleteSessionResponse::new())
+                    }
                 },
                 agent_client_protocol::on_receive_request!(),
             )
@@ -689,4 +781,79 @@ async fn initialize_failure_when_agent_side_closes_immediately() {
     assert!(matches!(err, CoreError::Exited { .. } | CoreError::Transport(_) | CoreError::Acp { .. }), "{err:?}");
     let states = events.states();
     assert!(!states.contains(&"initialized".to_string()), "{states:?}");
+}
+
+// ---- R6 会话生命周期
+
+/// `session/list` 分页取完、`session/load` 的整段重放经 `acp/session_update` 推出并把 cwd 记进账、
+/// `session/resume` 一条 update 都不发、`close` / `delete` 之后核心忘掉这个会话（fs 越界判定不再放行）。
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn session_lifecycle_list_load_resume_close_delete() {
+    let (connection, events, state, _agent_task) = connect("full").await;
+    let cwd = std::env::temp_dir();
+
+    // list：两页，第二页没有 nextCursor。
+    let page1 = connection.session_list(Some(cwd.clone()), None).await.expect("list page 1");
+    assert_eq!(page1["sessions"][0]["sessionId"], "sess_fake");
+    assert_eq!(page1["sessions"][0]["title"], "title of sess_fake");
+    let cursor = page1["nextCursor"].as_str().expect("nextCursor").to_string();
+    let page2 = connection.session_list(Some(cwd.clone()), Some(cursor)).await.expect("list page 2");
+    assert_eq!(page2["sessions"][0]["sessionId"], "sess_old");
+    assert!(page2["nextCursor"].is_null(), "{page2}");
+
+    // load：返回时整段重放已经推完；cwd 记账，fs 回调才不会把这个会话判成越界。
+    let before = events.updates().len();
+    let loaded = connection.session_load("sess_old", cwd.clone()).await.expect("load");
+    assert_eq!(loaded["modes"]["currentModeId"], "ask");
+    let replayed: Vec<Value> = events
+        .snapshot()
+        .into_iter()
+        .filter(|(c, v)| *c == EventChannel::SessionUpdate && v["sessionId"] == "sess_old")
+        .map(|(_, v)| v)
+        .collect();
+    assert_eq!(replayed.len(), 3, "整段历史必须在 session/load 返回前推完：{replayed:#?}");
+    assert_eq!(events.updates().len(), before + 3);
+    assert_eq!(connection.shared().session_cwd("sess_old"), Some(cwd.clone()));
+
+    // resume：不重放。
+    let count_before_resume = events.updates().len();
+    connection.session_resume("sess_resumed", cwd.clone()).await.expect("resume");
+    assert_eq!(events.updates().len(), count_before_resume, "session/resume 不得重放历史");
+    assert_eq!(connection.shared().session_cwd("sess_resumed"), Some(cwd.clone()));
+
+    // close / delete：成功后核心忘掉这个会话。
+    connection.session_close("sess_resumed").await.expect("close");
+    assert_eq!(connection.shared().session_cwd("sess_resumed"), None);
+    connection.session_delete("sess_old").await.expect("delete");
+    assert_eq!(connection.shared().session_cwd("sess_old"), None);
+
+    let methods: Vec<String> = state
+        .lifecycle
+        .lock()
+        .expect("lock")
+        .iter()
+        .filter_map(|v| v["method"].as_str().map(str::to_string))
+        .collect();
+    assert_eq!(
+        methods,
+        vec!["session/list", "session/list", "session/load", "session/resume", "session/close", "session/delete"]
+    );
+
+    connection.disconnect().await;
+}
+
+/// load 失败时不能留下陈旧的 cwd 记账（否则 agent 拿这个 id 调 `fs/*` 会被放行）。
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn failed_delete_keeps_the_error_and_load_of_unknown_session_is_not_recorded() {
+    let (connection, _events, _state, _agent_task) = connect("full").await;
+    let cwd = std::env::temp_dir();
+    let err = connection.session_delete("sess_missing").await.expect_err("agent rejects");
+    assert!(matches!(err, CoreError::Acp { .. }), "{err:?}");
+    // 相对路径由 Core 挡下（连接层不校验）；这里验的是核心层。
+    assert_eq!(connection.shared().session_cwd("sess_missing"), None);
+    // 断开后再 load：请求失败，账上不能留这个会话。
+    connection.disconnect().await;
+    let err = connection.session_load("sess_never", cwd).await.expect_err("agent is gone");
+    assert!(matches!(err, CoreError::Exited { .. } | CoreError::Transport(_) | CoreError::Acp { .. }), "{err:?}");
+    assert_eq!(connection.shared().session_cwd("sess_never"), None);
 }

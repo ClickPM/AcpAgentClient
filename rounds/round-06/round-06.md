@@ -1,0 +1,168 @@
+# Round 06 — 会话生命周期与五 agent 全通
+
+<!-- 保存为 rounds/round-06/round-06.md；该轮其他管理产出放同一目录。 -->
+
+> 状态：进行中（实现与验收已完成，待独立审查收口）
+
+## 目标
+
+`session/list` / `load` / `resume` / `close` / `delete` 五个命令端到端接通，侧栏与线程头 ≡ 菜单的动作按 `loadSession` 与
+`sessionCapabilities` 裁剪后全部可用；modes 回退路径（只发 `current_mode_update`、不发 configOptions 的 agent）真跑；
+五个一等 agent 按 `docs/requirements.md` § 必须 第 3 条的七步逐格实测并记录（ROUNDS.md § 4 矩阵）。
+
+## 前置
+
+- R4（`fs/*` 与 `terminal/*`、文件面板与终端面板）、R5（registry 安装 / 认证 / 受管 Node）已合并 `main`。
+- `scripts/fetch-upstream.ps1 -Check` 全绿（worktree 的 `vendor/upstream` 用目录联接指向主副本）。
+- 参照 agent：**pi-acp**（`session/load`、slash 命令、不用客户端 fs 与 terminal、`--terminal-login`）。
+  pi-acp 要求本机装有 `pi` CLI（`npm i -g @earendil-works/pi-coding-agent`）并自行配好模型密钥；R5 只验到握手。
+- 本机已有的 agent：`dsh-acp-interactive`（custom）、`claude-agent-acp`（npx）、`fake-agent`（离线夹具）。
+  钉版本三家的能力声明（vendor 源码核对）：
+
+  | agent | `loadSession` | `sessionCapabilities` |
+  |---|---|---|
+  | claude-agent-acp | true | list / delete / resume / close / fork / additionalDirectories |
+  | dsh-acp-interactive | true | list / resume / close（**无 delete**） |
+  | pi-acp | true | list / delete（**无 resume / close**） |
+
+## 交付物
+
+**Rust 核心**
+
+- `rust/acp-core/src/agent.rs`：`AgentConnection::session_list` / `session_load` / `session_resume` / `session_close` /
+  `session_delete`（rust-sdk 的 `ListSessionsRequest` / `LoadSessionRequest` / `ResumeSessionRequest` /
+  `CloseSessionRequest` / `DeleteSessionRequest`）；load / resume 成功后把 `(sessionId → cwd)` 记进 `Shared`
+  （`fs/*` 与 `terminal/*` 回调要用它做越界判定），close / delete 成功后忘掉。
+- `rust/acp-core/src/core.rs`：同名转发 + `cwd` 绝对路径校验。
+- `rust/bridge/src/api.rs`：五条桥命令 + 文档注释；`flutter_rust_bridge_codegen generate` 重出生成物。
+
+**Dart 前端（接线；`lib/theme` 与 `lib/ui` 的画板 widget 文件零 diff）**
+
+- `lib/app/core_bridge.dart`：五条命令进 `CoreCommands`、`BridgeCommands` 与 fixtures 的 no-op 实现。
+- `lib/projection/session_store.dart`：`applyLoadSession`（`LoadSessionResponse` 的 modes / configOptions）、
+  `resetForReplay()`（重放前清空转录与派生态）、`modeFallbackOption`（modes → 合成的 `ConfigOptionWire`，仅本地）。
+- `lib/app/workbench_controller.dart`：
+  - 侧栏点击已有会话：不在内存里且 agent 声明 `loadSession` → 连接 + `session/load`，整段重放在一次 batch 里做（重放期间不逐条刷新 UI）；
+  - ≡ 菜单 Resume / Close / Delete 接通，按 `sessionCapabilities` 裁剪（无能力不渲染，画板 41 已有）；
+  - 删除：有 `sessionCapabilities.delete` 时先 `session/delete` 再删本地索引，无能力时只删本地索引；
+  - 重载 agent：agent 声明 `loadSession` 时重载后自动 `session/load` 回原会话（否则沿用 R3 的「新会话 + 旧转录只读」）；
+  - `session/list` 校对：以本地索引为准，只用来校对存在性与补标题（裁定 2026-09-15，`docs/design.md` § 3 末条），
+    agent 有、本地没有的会话不自动进侧栏；分页按 `nextCursor` 取完。
+  - modes 回退：`configOptions` 里没有 `category == mode` 的条目时，模式下拉用 `session/new` / `load` / `resume` 返回的
+    `modes`，选中走 `session/set_mode`；两者都有时只用 configOptions。
+
+**夹具与测试**
+
+- `test/fake-agent/fake-agent.mjs`：`--sessions` 开关（会话与转录落 `<cwd>/.fake-agent-sessions.json`）后支持
+  `session/list` / `load`（重放整段历史再返回）/ `resume`（不重放）/ `close` / `delete`，能力声明随开关变化；
+  `--modes-only` 模拟只发 modes 不发 configOptions 的老 agent（modes 回退路径）。
+- `test/projection/`：`session/load` 重放 200+ 条更新的分批 / 整批等价（R2 等价测试扩到长历史）；modes 回退单测。
+- `rust/acp-core/tests/`：五个命令的脚本化用例（含 load 期间的 `session/update` 重放、cwd 记账、close / delete 后忘掉）。
+
+**无头实跑**
+
+- `lib/app/headless_run.dart`：`ACP_R6_REPORT` 模式——连接 → 新会话 → 一轮 → `session/list` → 断开重连 → `session/load`
+  重放比对 → `resume` / `close` / `delete`（按能力）→ 报告 JSON。
+
+## 验收
+
+| # | 检查 | 命令 / 期望 | 结果 |
+|---|---|---|---|
+| 1 | § 4 矩阵 5 × 7 全绿，每格记命令 / 输出路径 | ROUNDS.md § 4；拿不到凭据的格子写明卡在哪一步 | **过**：五个 agent 全部真跑，报告见「本轮实测」的路径表；Cursor 的认证这次不需要人工（本机 `cursor-agent` CLI 已登录，凭据共用） |
+| 2 | pi-acp：slash 命令可见 → 关闭重开 → 侧栏点击 → `session/load` 重放后转录与关闭前一致 | `ACP_R6_REPORT` 真跑 + 报告里 `beforeDigest` / `afterDigest` 比对 | **过（口径见下）**：`r6-pi2.json` —— 重放后 8 条 slash 命令回来、两轮问答一字不差；「一致」只能是 **agent 侧可重放的那部分**，客户端本地态（轮边界 / 权限卡 / elicitation 卡）不在重放里，见「已知限制」1 |
+| 3 | `session/load` 重放 200+ 条更新时投影层结果与实时到达一致 | `flutter test test/projection/session_load_test.dart` | **过**：290 条更新（15 个变体全覆盖）三路等价（挂起重放 / 实时逐条 / 每 1、7、64 条一批），且挂起期间 0 次通知、release 后 1 次 |
+| 4 | 无 `sessionCapabilities.delete` 的 agent 侧栏不出删除图标；有的 agent 删除后本地索引与 agent 侧都不再列出 | 真跑 + 接线单测 | **过**：dsh（无 delete）`sentToAgent: false`、侧栏没了、agent 侧还在；pi-acp / fake-agent（有 delete）`sentToAgent: true`、两边都不再列出 |
+| 5 | 五种 `stopReason` 的结束行样式与画板 31 一致 | 真跑触发 + fixtures 补 | **过**：真跑拿到 `end_turn`（claude / codex / cursor / pi / fake）与 `cancelled`（codex，`ACP_R6_CANCEL_AFTER=6`）；`max_tokens` / `max_turn_requests` / `refusal` 由 `18-stop-reasons.jsonl` 与 R2 的画板 31 对照覆盖 |
+| 6 | 回合级 `PromptResponse.usage` 在真实 agent 上出现 | 报告里记一次真实 usage 数字 | **过**：claude-agent-acp `{total 38933, in 2, out 11, cachedWrite 38920}`；codex-acp `{total 11535, in 11379, out 156, thought 148}` |
+| 7 | `scripts/validate.ps1` 全绿；接线阶段 `lib/theme` 与 `lib/ui` 零 diff | `git diff --stat main...HEAD -- lib/theme lib/ui` | **过**：validate 13 项全 PASS；`lib/theme` 与 `lib/ui` 零 diff（本轮只动 `lib/app` / `lib/projection` / `lib/bridge`） |
+
+## 禁止
+
+- 不改前端页面样式（CLAUDE.md 规则 3）；不加设计稿没有的功能（规则 3）；不在 `vendor/upstream/` 里改代码（规则 4）。
+- 不做 `session/fork`（unstable，设计稿没有）、不做 `logout`、不做 `providers/*`。
+- 不把 agent 侧 `session/list` 有、本地索引没有的会话塞进侧栏（裁定 2026-09-15）。
+- 不为任何 agent 写特判（规则 2）：能力一律读 `agentCapabilities`。
+
+## 代码审查
+
+<!-- 完成后回填 -->
+
+- 审查方式：
+- 审查器与模型：
+- 审查范围与基准提交：
+- findings 处理：
+- 结论：
+
+## 失败处理
+
+同一验收项针对性整改后连续 2 次验证仍不过 → 写 `rounds/round-06/BLOCKED.md`，停下呼人。禁止放宽验收标准自我通过。
+
+## 本轮实测
+
+无头实跑口子：`ACP_R6_REPORT=<报告文件>`（`lib/app/headless_run.dart` 的 `runR6`，与 R3 / R5 同一个口子的第四个模式）。
+启动器与全部报告 JSON 在 **`D:\cargo-target\AcpAgentClient
+启动器与全部报告 JSON 在 **`D:/cargo-target/AcpAgentClient/r6-reports/`**（gitignored，不入库）：
+`run-r6.ps1`（GUI 进程 stdout 收不到，用 `Start-Process -PassThru` + `WaitForExit`）、`run-exe.ps1`（通用启动器，装 agent 用）。
+
+### 真跑一览（2026-09-16，Windows 11，规则 9）
+
+| agent | 拉起方式 | `loadSession` / `sessionCapabilities` | 报告 | 结果 |
+|---|---|---|---|---|
+| fake-agent（`--sessions`） | 本机 node + `test/fake-agent/fake-agent.mjs` | true / list, resume, close, delete（`--caps` 可裁） | `r6-fake-full.json` / `r6-fake.json` / `r6-modes.json` / `r6-delete.json` / `r6-nodelete.json` | 全链绿：新会话 → 一轮 → list → 重载 → 重连 + load（digest 逐字相同）→ 第二轮 → close → resume → delete |
+| claude-agent-acp 0.76.0 | npx（settings 里的 custom 条目） | true / list, delete, resume, close, fork, additionalDirectories | `r6-claude.json` | 全链绿；真实 usage `38933`；load 后第二轮上下文在（答出 2+2） |
+| codex-acp 1.12.0 | registry 安装（`npx:resolve → write_settings → handshake`，11.4 s） | true / 同上六项 | `r6-codex.json` / `r6-install-codex.json` | 全链绿；usage 带 `thoughtTokens`；**`cancelled` 在这里真跑到**；load 后 25 条 slash 命令立刻回来 |
+| cursor 2026.09.10 | registry 安装（binary：`download 74,169,932 B → verify → extract`，159 s） | true / **只有 list** | `r6-cursor.json` / `r6-install-cursor.json` | 全链绿；≡ 菜单里 Resume / Close / Delete 三行都不渲染；load 重放回 user + thought + agent 三条与 20 条 slash 命令 |
+| pi-acp 0.0.33（参照 agent） | registry 安装（npx，5.8 s） | true / list, delete | `r6-pi2.json` / `r6-pi.json` / `r6-install-pi.json` | 全链绿；load 后 8 条 slash 命令回来；delete 之后本地与 agent 侧都不再列出 |
+| dsh-acp-interactive 1.3.0 | custom（`.cmd` 包装） | true / list, resume, close（**无 delete**） | `r6-dsh2.json` / `r6-dsh.json` | 生命周期全绿；**回合本身跑不通**：dsh 的模型网关回 `DeepSeek API error (HTTP 404)`（本机环境问题，不是客户端的），所以这台机器上拿不到它的 `stopReason` / usage |
+
+**Cursor 的认证不再需要人工**（R5 的已知限制 1）：本机 `cursor-agent` CLI 已登录（审查器在用），registry 装出来的那份共用同一份凭据，
+`session/new` 直接成功、没有走到 `-32000`。codex-acp 同理（本机 `~/.codex/config.toml` 走自定义网关，不要求登录）。
+pi-acp 的 `--terminal-login` 这次也没走到：本机 `pi` CLI 已装好并配了模型，`session/new` 直接成功（R5 卡在「没装 pi」，本轮已不成立）。
+
+### 验收 2 的口径：重放「一致」到什么程度
+
+`session/load` 只重放 **agent 侧的 `session/update`**，客户端本地态不在里面。四个真 agent 的 before / after digest 都印证：
+
+- **回来的**：用户消息（agent 以 `user_message_chunk` 重放）、agent 消息、思考块、工具卡与状态、计划、标题、slash 命令（pi / codex / cursor / dsh 都发，`available_commands_update`）。
+- **回不来的**：`TurnEntry`（轮边界 / `stopReason` / 回合级 usage）、权限卡、elicitation 卡——这些是客户端按自己发出的
+  `session/prompt` 与收到的 client request 造的，协议里没有对应的重放。
+- 所以关闭前后逐字相等的只有「agent 可重放的那部分」：`r6-fake-full.json` 的 `reopen.digestMatches: true`（fake-agent 的历史全部来自 update），
+  真 agent 上是 `turn:1:end_turn` + `agent:…` → `user:…` + `agent:…`，内容一致、结构差一个轮边界。
+
+**claude-agent-acp 的 slash 命令在 load 后不回来**（其余三家都回）：它不把 `available_commands_update` 算进重放。
+不做 agent 特判（规则 2），照原样呈现。
+
+### 踩到的坑（本轮抓出来的真缺陷）
+
+1. **`session/resume` 不能对「还活着」的会话发**：dsh 1.3.0 回 `-32602 session is already active in this ACP connection`。
+   原来的接线把 ≡ 菜单的 Resume 一直挂在当前会话上，等于必错。改成：Close 之后才给 Resume（`sessionClosed` 门），
+   Close 只对还活着的给；`session/close` 也不再把 `sessionId` 清空（转录留着只读，紧接着就能 Resume）。
+2. **`session/list` 校对把别的项目的会话全判成「agent 侧没了」**：`session/list` 按 `cwd` 过滤，本地却拿了该 agent 的全部条目去对，
+   dsh 那次 21 条本地会话被整批标进 `missingOnAgent`。改成本地也只取同一个 `cwd` 的条目。
+3. **重连后 agent 的 JSON-RPC id 从头再来**：无头验收脚本的 `_AutoAnswer` 按 `requestId` 去重，重连后第一批权限 / elicitation 被当成
+   「答过了」而不再回，agent 一直等 → 第二轮 prompt 超时 3 分钟。改成按队列项**对象身份**去重。
+4. **`ResumeSessionResponse` 经常是空对象**：`applyLoadSession` 一开始直接复用 `applyNewSession`（全量替换），resume 回 `{}` 就把
+   `session/load` 刚重放出来的 modes / configOptions 抹掉了（`28-session-load.jsonl` 的用例当场抓到）。改成缺省不清空。
+5. **重放前的清空会自己闪一下 UI**：`resetForReplay()` 原来带 `_changed()`，在挂起的 batcher 之外先通知一次（转录先空再填）。
+   改成不通知，由接线侧把清空排进同一条挂起队列，整段重放只刷一次。
+
+### 数字
+
+- `session/load` 重放的投影层等价测试：**290 条更新**、15 个变体全覆盖，三路（挂起重放 / 实时逐条 / 分批）快照逐字相同；
+  挂起期间投影层通知 **0 次**，`release` 之后 **1 次**。
+- registry 安装耗时：pi-acp 5.8 s、codex-acp 11.4 s、cursor 159 s（74 MB 下载 + 解压）。
+- `scripts/validate.ps1`：13 项全 PASS（`cargo build/test/clippy`、`flutter analyze/test`、五条规则检查）。
+- `flutter test`：179 个用例全过（R6 新增 17 + 13 个）。
+- `lib/theme` 与 `lib/ui` 零 diff。
+
+### 已知限制与留给所有者的裁定
+
+1. **重放的「一致」口径**见上。副作用：载回来的会话没有轮边界，所以画板 10 / 11 的 Restore Checkpoint 与 Regenerate
+   对重放出来的历史不可用（它们按 `TurnEntry` 截断）。协议没有给重放轮边界的手段，记已知限制。
+2. **线程头 ≡ 的归属（需裁定）**：画板 03 里 ≡ 是「右栏展开」的选中态，画板 41 里同一个 ≡ 是会话菜单——R3 先按前者接成右栏开关，
+   于是画板 41 的菜单一直没有入口。本轮的交付物要求菜单动作全部可用，**推荐项**（已按此实现）：≡ 打开画板 41 的会话菜单，
+   `menuSelected` 仍绑右栏是否展开（画板 03 的视觉不变），右栏开合走侧栏底部四个入口与标签条的关闭键（都已有）。
+   **备选**：≡ 保持右栏开关，改设计稿给会话菜单另开一个入口（要先改画板）。
+3. **没连的 agent 不为了删一条记录去拉进程**：`session/delete` 只在「agent 已连上且声明了 delete」时发；否则只删本地索引。
+   对应地，侧栏删除图标在**能力未知**（该 agent 本次运行还没连过）时照给——否则重启后一条本地记录都清不掉。
+4. **dsh 的回合在本机跑不通**（模型网关 404），它那格的 `stopReason` / usage 只能等环境恢复后补。

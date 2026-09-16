@@ -227,6 +227,9 @@ class WorkbenchController extends ChangeNotifier {
     for (final o in store?.configOptions ?? const <ConfigOptionWire>[]) {
       if (o.category == category) return o;
     }
+    // modes 回退（R6）：只发 modes / `current_mode_update`、不发 configOptions 的 agent，
+    // 模式下拉用 `SessionStore.modeFallbackOption` 合成的那条；两者都有时上面的循环已经命中，走不到这里。
+    if (category == 'mode') return store?.modeFallbackOption;
     return null;
   }
 
@@ -486,7 +489,17 @@ class WorkbenchController extends ChangeNotifier {
     final b = bridge;
     if (b == null) return;
     final result = await b.sessionIndexList();
-    sidebarSessions = _toSidebar(result['sessions']);
+    _applyIndex(result['sessions']);
+  }
+
+  /// 本地索引落地：原始条目（cwd 等字段接线要用）与侧栏投影一起更新。
+  void _applyIndex(Object? raw) {
+    _indexEntries = <JsonMap>[
+      if (raw is List)
+        for (final item in raw)
+          if (item is Map) item.cast<String, dynamic>(),
+    ];
+    sidebarSessions = _toSidebar(raw);
   }
 
   /// 把 `sessions.json` 的一条映射成侧栏项，**顺带把 agentId 记进 [_sessionAgent]**：
@@ -506,15 +519,47 @@ class WorkbenchController extends ChangeNotifier {
         title: item['title'] as String? ?? sessionId,
         updatedAt: DateTime.fromMillisecondsSinceEpoch((item['updatedAt'] as num?)?.toInt() ?? 0),
         messageCount: (item['messageCount'] as num?)?.toInt() ?? 0,
-        canDelete: _sessionCaps.containsKey('delete'),
+        canDelete: _canDeleteSessionOf(owner ?? agentId),
       ));
     }
     return out;
   }
 
-  JsonMap get _sessionCaps {
-    final caps = connection?.agentCapabilities?['sessionCapabilities'];
+  // ---- agent 能力（R6）：一律读 `agentCapabilities`，不按 agent 名判（规则 2）。
+  // 能力是 agent 级的，不是会话级的——侧栏里各条会话可能属于不同 agent，所以按 agentId 查。
+
+  JsonMap? _capsOf(String? agent) => agent == null ? null : sessions.agents[agent]?.agentCapabilities;
+
+  JsonMap _sessionCapsOf(String? agent) {
+    final caps = _capsOf(agent)?['sessionCapabilities'];
     return caps is Map ? caps.cast<String, dynamic>() : const <String, dynamic>{};
+  }
+
+  JsonMap get _sessionCaps => _sessionCapsOf(agentId);
+
+  /// `agentCapabilities.loadSession`：重开后能不能把历史重放回来。
+  bool canLoadSessionOf(String? agent) => _capsOf(agent)?['loadSession'] == true;
+
+  bool get canLoadSession => canLoadSessionOf(agentId);
+  bool get canListSessions => _sessionCaps.containsKey('list');
+
+  /// ≡ 菜单的三个动作（画板 41）：无能力整行不渲染。
+  /// Resume 与 Close 还要看会话是不是还「活着」——实测 dsh-acp-interactive 1.3.0 对活着的会话回
+  /// `-32602 session is already active in this ACP connection`（2026-09-16）：`session/resume` 是给**没在本连接上活着**的
+  /// 会话重新挂上下文用的，所以只在 `session/close` 之后给；反过来 Close 只对还活着的给。
+  bool get sessionClosed => sessionId != null && _closedSessions.contains(sessionId);
+  bool get canResumeSession => hasAgent && sessionClosed && _sessionCaps.containsKey('resume');
+  bool get canCloseSession => hasAgent && !sessionClosed && _sessionCaps.containsKey('close');
+  bool get canDeleteSession => hasAgent && _sessionCaps.containsKey('delete');
+
+  /// 侧栏删除图标（画板 04 注）：agent 声明了 `sessionCapabilities.delete` 才给。
+  /// **能力未知**（这个 agent 本次运行还没连过）时照给——那一下只删本地索引，不发 `session/delete`；
+  /// 否则重启后一条本地记录都清不掉。
+  bool _canDeleteSessionOf(String? agent) {
+    final caps = _capsOf(agent);
+    if (caps == null) return true;
+    final s = caps['sessionCapabilities'];
+    return s is Map && s.containsKey('delete');
   }
 
   /// 启动时恢复最近一次打开的项目（没有就留空，顶栏显示 `—`，新建会话前要先选项目）。
@@ -629,7 +674,7 @@ class WorkbenchController extends ChangeNotifier {
       return;
     }
     try {
-      await b.agentConnect(agent.id, cwd: cwd);
+      await _connect(b, agent.id, cwd);
       await _createSession(agent.id, cwd);
     } on CoreCommandError catch (e) {
       lastError = e.message;
@@ -663,6 +708,22 @@ class WorkbenchController extends ChangeNotifier {
     await _saveIndex();
   }
 
+  /// `agent_connect` + 把返回的 `initialize` 立刻落进 agent 状态表。
+  /// 为什么不等 `acp/agent_state: initialized` 事件：事件要过一轮 batcher 才到，而紧接着的
+  /// `session/new` / `session/load` 就要读 `agentCapabilities` 裁剪动作，等不起（R6）。落两次是幂等的。
+  Future<JsonMap> _connect(CoreCommands b, String agent, String cwd) async {
+    final result = await b.agentConnect(agent, cwd: cwd);
+    final init = result['initialize'];
+    if (init is Map) sessions.agents.applyInitializeResult(agent, init.cast<String, dynamic>());
+    return result;
+  }
+
+  /// 已经连着就不动它（`agent_connect` 会先断开旧连接，重连会把正在跑的会话一起杀掉）。
+  Future<void> _ensureConnected(CoreCommands b, String agent, String cwd) async {
+    if (sessions.agents[agent]?.state == AgentLifecycle.initialized) return;
+    await _connect(b, agent, cwd);
+  }
+
   /// `session/new` 的结果落到投影层并切成当前会话。
   void _adoptSession(String agent, String cwd, JsonMap result) {
     final sid = result['sessionId'];
@@ -676,24 +737,200 @@ class WorkbenchController extends ChangeNotifier {
     page = MainPage.workbench;
   }
 
-  /// 重载 agent（画板 01 / 41）：断开 + 重拉 + 新会话；旧会话的转录留在内存里只读（R6 接 `session/load` 后改成自动 load）。
+  /// 重载 agent（画板 01 / 41）：断开 + 重拉。agent 声明 `loadSession` 时重连后自动 `session/load` 回原来那个会话
+  /// （R6 交付物）；没声明的沿用 R3 的做法——开一个新会话，旧转录留在内存里只读。
   Future<void> reloadAgent() async {
     _hide(threadMenuAnchor);
     final id = agentId;
     final b = bridge;
     final cwd = project?.path;
     if (id == null || b == null || cwd == null) return;
+    final previous = sessionId;
     await _guard(() async {
       await b.agentDisconnect(id);
-      await newSession(AgentRef(id: id, name: id));
+      if (previous == null) {
+        await newSession(AgentRef(id: id, name: id));
+        return;
+      }
+      await _connect(b, id, cwd);
+      if (!canLoadSessionOf(id) || !await loadSession(id, previous, sessions.maybe(previous)?.cwd ?? cwd)) {
+        // 重连成功但不支持 / 载不回来：退回新会话，旧转录留着只读。
+        await _createSession(id, cwd);
+      }
     });
   }
 
-  void selectSession(String id) {
+  /// 侧栏点选一条会话（画板 04）。内存里没有转录且 agent 声明 `loadSession` 时顺带 `session/load` 把历史重放回来。
+  Future<void> selectSession(String id) async {
     page = MainPage.workbench;
     sessionId = id;
     agentId = _sessionAgent[id] ?? agentId;
     _touch();
+    await _ensureLoaded(id);
+  }
+
+  /// 关过的会话（`session/close`）：再点开要重新 `session/load`，不能拿内存里那份当还活着。
+  final Set<String> _closedSessions = <String>{};
+
+  /// `session/list` 校对出来的「agent 侧已经没有了」的会话（裁定 2026-09-15：只校对，不自动删、不自动加）。
+  final Set<String> missingOnAgent = <String>{};
+
+  /// 侧栏点到一条内存里没有转录的会话：连上它的 agent 再 `session/load`。
+  /// agent 没声明 `loadSession` 就什么都不做（转录空着，画板 01 的空态）。
+  Future<void> _ensureLoaded(String id) async {
+    final b = bridge;
+    final owner = _sessionAgent[id];
+    if (b == null || owner == null || owner.isEmpty) return;
+    final reopening = _closedSessions.contains(id);
+    if (sessions.maybe(id) != null && !reopening) return;
+    final cwd = _indexCwdOf(id) ?? project?.path;
+    if (cwd == null) return;
+    if (missingOnAgent.contains(id)) {
+      lastError = '$id 在 agent 侧已经不存在了，载不回历史';
+      _touch();
+      return;
+    }
+    await _guard(() async {
+      await _ensureConnected(b, owner, cwd);
+      if (canLoadSessionOf(owner)) {
+        await loadSession(owner, id, cwd);
+        return;
+      }
+      // 没有 loadSession 但有 resume：agent 侧把上下文挂回来，转录只有内存里这份（不重放，规范如此）。
+      if (_sessionCapsOf(owner).containsKey('resume')) {
+        await b.sessionResume(owner, id, cwd);
+        sessions.session(id, agentId: owner).cwd = cwd;
+        _closedSessions.remove(id);
+      }
+    });
+    _touch();
+  }
+
+  String? _indexCwdOf(String sessionId) {
+    for (final s in _indexEntries) {
+      if (s['sessionId'] == sessionId) {
+        final cwd = s['cwd'];
+        if (cwd is String && cwd.isNotEmpty) return cwd;
+      }
+    }
+    return sessions.maybe(sessionId)?.cwd;
+  }
+
+  /// 本地索引原始条目（`sessions.json` 的投影；侧栏项只留了展示要用的字段，cwd 在这里）。
+  List<JsonMap> _indexEntries = const <JsonMap>[];
+
+  /// `session/load`（R6）：整段历史由 agent 用 `session/update` 重放，**重放期间不逐条刷新 UI**——
+  /// 事件照常入队，但 batcher 挂起到命令返回后一次性刷完。成功返回 true。
+  Future<bool> loadSession(String agent, String id, String cwd) async {
+    final b = bridge;
+    if (b == null) return false;
+    final s = sessions.session(id, agentId: agent)..cwd = cwd;
+    _sessionAgent[id] = agent;
+    batcher.hold();
+    // 清空排进同一条挂起队列：清空与重放在 UI 上是一步，中间不会闪一下空转录。
+    batcher.enqueue(s.resetForReplay);
+    try {
+      final result = await b.sessionLoad(agent, id, cwd);
+      batcher.enqueue(() => s.applyLoadSession(result));
+      _closedSessions.remove(id);
+      return true;
+    } catch (e) {
+      lastError = describeError(e);
+      debugPrint('[workbench] session/load $id: ${describeError(e)}');
+      // 载不回来就把这条从内存里拿掉：转录已经清了，留一个空壳只会让下次点击以为「已经在内存里」而不再重试。
+      batcher.enqueue(() => sessions.forget(id));
+      return false;
+    } finally {
+      batcher.release();
+    }
+  }
+
+  /// ≡ 菜单 Resume（画板 41）：`session/resume` 只恢复 agent 侧上下文，**不重放**——转录用内存里已有的那份。
+  Future<void> resumeSession() async {
+    _hide(threadMenuAnchor);
+    final b = bridge;
+    final id = sessionId;
+    final agent = agentId;
+    if (b == null || id == null || agent == null) return;
+    final cwd = sessions.maybe(id)?.cwd ?? _indexCwdOf(id) ?? project?.path;
+    if (cwd == null) return;
+    await _guard(() async {
+      final result = await b.sessionResume(agent, id, cwd);
+      sessions.session(id, agentId: agent)
+        ..cwd = cwd
+        ..applyLoadSession(result);
+      _closedSessions.remove(id);
+    });
+    _touch();
+  }
+
+  /// ≡ 菜单 Close（画板 41）：`session/close` = 先 cancel 再释放。本地转录留着**只读**，会话仍是当前会话——
+  /// 这样 ≡ 菜单里紧接着就能 Resume（`session/resume` 只对没在本连接上活着的会话有效），
+  /// 从侧栏再点开它则走 `session/load` 重放。
+  Future<void> closeSession() async {
+    _hide(threadMenuAnchor);
+    final b = bridge;
+    final id = sessionId;
+    final agent = agentId;
+    if (b == null || id == null || agent == null) return;
+    await _guard(() async {
+      await b.sessionClose(agent, id);
+      _closedSessions.add(id);
+    });
+    _touch();
+  }
+
+  /// `session/list` 校对（R6，裁定 2026-09-15 落 docs/design.md § 3 末条）：侧栏以本地索引为准，
+  /// 这里只做两件事——① agent 侧还在的会话，缺标题就用 agent 给的补上；② agent 侧没有的记进 [missingOnAgent]
+  /// （不自动删本地记录，也不把 agent 有、本地没有的塞进侧栏）。分页按 `nextCursor` 取完。
+  Future<void> reconcileSessions({int maxPages = 20}) async {
+    final b = bridge;
+    final agent = agentId;
+    if (b == null || agent == null || !canListSessions) return;
+    await _guard(() async {
+      final remote = <String, JsonMap>{};
+      String? cursor;
+      for (var page = 0; page < maxPages; page++) {
+        final result = await b.sessionList(agent, cwd: project?.path, cursor: cursor);
+        final list = result['sessions'];
+        if (list is List) {
+          for (final item in list) {
+            if (item is! Map) continue;
+            final sid = item['sessionId'];
+            if (sid is String && sid.isNotEmpty) remote[sid] = item.cast<String, dynamic>();
+          }
+        }
+        final next = result['nextCursor'];
+        if (next is! String || next.isEmpty) break;
+        cursor = next;
+      }
+      var changed = false;
+      final scope = project?.path;
+      for (final entry in <JsonMap>[..._indexEntries]) {
+        if (entry['agentId'] != agent) continue;
+        // `session/list` 按 cwd 过滤了，本地也只能拿同一个 cwd 的条目去对——否则别的项目下的会话
+        // 会被整批判成「agent 侧没有了」（2026-09-16 dsh 实测踩到：21 条全被误标）。
+        if (scope != null && entry['cwd'] != scope) continue;
+        final sid = entry['sessionId'];
+        if (sid is! String) continue;
+        final info = remote[sid];
+        if (info == null) {
+          missingOnAgent.add(sid);
+          continue;
+        }
+        missingOnAgent.remove(sid);
+        final title = info['title'];
+        final local = entry['title'];
+        // 只补、不覆盖：本地改过的名字是用户的，agent 的标题不能盖回去。
+        final needsTitle = local is! String || local.isEmpty || local == sid;
+        if (needsTitle && title is String && title.isNotEmpty) {
+          final result = await b.sessionIndexUpsert(<String, dynamic>{...entry, 'title': title});
+          _applyIndex(result['sessions']);
+          changed = true;
+        }
+      }
+      if (changed) _touch();
+    });
   }
 
   /// 删除 / 改名用的 agentId：优先本地索引里记的那个，退到当前连接。
@@ -710,7 +947,7 @@ class WorkbenchController extends ChangeNotifier {
       'cwd': s.cwd,
       'messageCount': s.entries.whereType<MessageEntry>().length,
     });
-    sidebarSessions = _toSidebar(result['sessions']);
+    _applyIndex(result['sessions']);
   }
 
   void startRename(String id) {
@@ -743,7 +980,7 @@ class WorkbenchController extends ChangeNotifier {
         'cwd': sessions.maybe(id)?.cwd ?? project?.path,
         'messageCount': existing?.messageCount ?? 0,
       });
-      sidebarSessions = _toSidebar(result['sessions']);
+      _applyIndex(result['sessions']);
     });
     _touch();
   }
@@ -759,15 +996,31 @@ class WorkbenchController extends ChangeNotifier {
     _touch();
   }
 
-  /// 本轮只从本地索引移除（向 agent 发 `session/delete` 是 R6）。
+  /// 删除这条会话时会不会连 agent 侧一起删：它的 agent 连着（能力已知）且声明了 `sessionCapabilities.delete`。
+  /// 与 [_canDeleteSessionOf]（侧栏图标给不给）不同——能力未知时图标照给，但不会发 `session/delete`。
+  bool deletesOnAgent(String sessionId) {
+    final owner = _ownerOf(sessionId);
+    return owner.isNotEmpty && _sessionCapsOf(owner).containsKey('delete');
+  }
+
+  /// 删除会话（画板 41 的确认弹层）：agent 连着且声明了 `sessionCapabilities.delete` 就先删 agent 侧，
+  /// **成功了**才动本地索引（失败停在这里，本地还留着可以重试）；agent 没连或没声明就只删本地索引。
+  /// 没连的 agent 不为了删一条记录去拉进程（已知限制，记 rounds/round-06 任务卡）。
   Future<void> deleteSession(String id) async {
     confirmingDeleteId = null;
     _hide(deleteAnchor);
     final b = bridge;
     if (b == null) return;
+    final owner = _ownerOf(id);
+    final onAgent = deletesOnAgent(id);
     await _guard(() async {
-      final result = await b.sessionIndexRemove(_ownerOf(id), id);
-      sidebarSessions = _toSidebar(result['sessions']);
+      if (onAgent) await b.sessionDelete(owner, id);
+      final result = await b.sessionIndexRemove(owner, id);
+      _applyIndex(result['sessions']);
+      missingOnAgent.remove(id);
+      _closedSessions.remove(id);
+      _sessionAgent.remove(id);
+      sessions.forget(id);
       if (sessionId == id) sessionId = null;
     });
     _touch();
@@ -929,8 +1182,26 @@ class WorkbenchController extends ChangeNotifier {
     _touch();
   }
 
-  Future<void> selectConfigValue(String configId, String value) =>
-      setConfigOption(configId, <String, dynamic>{'type': 'select', 'value': value});
+  Future<void> selectConfigValue(String configId, String value) {
+    // modes 回退（R6）：合成条目的 id 是本地哨兵，不能当 configId 发出去——它走 `session/set_mode`。
+    if (configId == SessionStore.modeFallbackId) return setMode(value);
+    return setConfigOption(configId, <String, dynamic>{'type': 'select', 'value': value});
+  }
+
+  /// `session/set_mode`（modes 回退路径）。响应是空的；按规范客户端发起的切换成功即生效，
+  /// 所以本地同步 `currentModeId`（agent 自己改模式时会另发 `current_mode_update`）。
+  Future<void> setMode(String modeId) async {
+    _hide(modeAnchor);
+    final s = store;
+    final b = bridge;
+    final id = agentId;
+    if (s == null || b == null || id == null) return;
+    await _guard(() async {
+      await b.sessionSetMode(id, s.sessionId, modeId);
+      s.applyModeSelected(modeId);
+    });
+    _touch();
+  }
 
   Future<void> toggleConfigBoolean(String configId, bool value) =>
       setConfigOption(configId, <String, dynamic>{'type': 'boolean', 'value': value});

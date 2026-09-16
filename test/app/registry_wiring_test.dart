@@ -361,7 +361,7 @@ void main() {
     });
     expect(c.settingsEditingId, isNull);
 
-    c.selectSession('x');
+    await c.selectSession('x');
     expect(c.page, MainPage.workbench);
     c.dispose();
   });

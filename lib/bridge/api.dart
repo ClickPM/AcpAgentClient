@@ -33,6 +33,61 @@ Future<String> agentDisconnect({required String agentId}) =>
 Future<String> sessionNew({required String agentId, required String cwd}) =>
     RustLib.instance.api.crateApiSessionNew(agentId: agentId, cwd: cwd);
 
+/// `session/list`（R6）：`cwd` 给了就按工作目录过滤（必须是绝对路径），`cursor` 是上一页返回的 `nextCursor`。
+/// 返回 ListSessionsResponse 原样 JSON：`{sessions: [{sessionId, cwd, title?, updatedAt?, …}], nextCursor?}`。
+/// 侧栏不直接消费它——本地索引是侧栏的事实来源，这条只用来校对存在性与补标题（docs/design.md § 3 末条）。
+Future<String> sessionList({
+  required String agentId,
+  String? cwd,
+  String? cursor,
+}) => RustLib.instance.api.crateApiSessionList(
+  agentId: agentId,
+  cwd: cwd,
+  cursor: cursor,
+);
+
+/// `session/load`（R6）：agent 用 `session/update` 把整段历史重放完本命令才返回，所以返回时
+/// `acp/session_update` 已经把历史全推给前端了（前端在整段重放里只刷新一次，见 lib/app/workbench_controller.dart）。
+/// 返回 LoadSessionResponse 原样 JSON（`{modes?, configOptions?}`）。agent 没声明 `loadSession` 时由前端不给入口。
+Future<String> sessionLoad({
+  required String agentId,
+  required String sessionId,
+  required String cwd,
+}) => RustLib.instance.api.crateApiSessionLoad(
+  agentId: agentId,
+  sessionId: sessionId,
+  cwd: cwd,
+);
+
+/// `session/resume`（R6）：只恢复上下文，**不**重放历史。返回 ResumeSessionResponse 原样 JSON。
+Future<String> sessionResume({
+  required String agentId,
+  required String sessionId,
+  required String cwd,
+}) => RustLib.instance.api.crateApiSessionResume(
+  agentId: agentId,
+  sessionId: sessionId,
+  cwd: cwd,
+);
+
+/// `session/close`（R6）：等价于先 cancel 再释放；核心随后忘掉这个会话的 cwd 记账。
+Future<String> sessionClose({
+  required String agentId,
+  required String sessionId,
+}) => RustLib.instance.api.crateApiSessionClose(
+  agentId: agentId,
+  sessionId: sessionId,
+);
+
+/// `session/delete`（R6）：只删 agent 侧；本地索引由前端在成功后再调 `session_index_remove` 删。
+Future<String> sessionDelete({
+  required String agentId,
+  required String sessionId,
+}) => RustLib.instance.api.crateApiSessionDelete(
+  agentId: agentId,
+  sessionId: sessionId,
+);
+
 /// `session/prompt`。`prompt` 是 `ContentBlock[]` 的 JSON 字符串；本轮的 `session/update` 经事件流推出，
 /// 本函数在回合结束时返回 PromptResponse 原样 JSON（stopReason + usage）。
 Future<String> sessionPrompt({

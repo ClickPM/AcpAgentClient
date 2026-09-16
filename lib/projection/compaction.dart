@@ -17,6 +17,9 @@ class CompactionStore {
   CompactionEntry? operator [](String id) => _byId[id];
   Iterable<CompactionEntry> get all => _byId.values;
 
+  /// `session/load` 重放前清空（R6）。
+  void clear() => _byId.clear();
+
   CompactionApplyResult? applyUpdate(SessionUpdateWire u, {required DateTime now, required String Function() newId}) {
     final id = u.compactionId;
     if (id == null || id.isEmpty) return null;
