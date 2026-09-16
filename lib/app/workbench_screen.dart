@@ -59,6 +59,13 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         sidebar: c.sidebarCollapsed ? null : _sidebar(),
         main: c.page == MainPage.traffic ? _trafficColumn() : _workbenchColumn(),
         rightPanel: c.rightTab == null ? null : _rightPanel(),
+        sidebarWidth: c.sidebarWidth,
+        rightPanelWidth: c.rightPanelWidth,
+        onResizeSidebar: c.resizeSidebar,
+        onResizeRightPanel: c.resizeRightPanel,
+        onResizeEnd: c.saveUiState,
+        onResetSidebar: c.resetSidebarWidth,
+        onResetRightPanel: c.resetRightPanelWidth,
       ),
     );
   }

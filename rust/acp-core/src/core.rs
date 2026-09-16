@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::{Value, json};
 use settings::index::{IndexStore, SessionEntry};
+use settings::ui_state::{UiState, UiStateStore};
 use settings::{AgentServer, SettingsStore};
 
 use crate::agent::AgentConnection;
@@ -25,6 +26,7 @@ pub struct Core {
     ping_seq: AtomicU64,
     settings: SettingsStore,
     index: IndexStore,
+    ui_state: UiStateStore,
     terminals: Arc<pty::TerminalManager>,
     agents: Mutex<HashMap<String, Arc<AgentConnection>>>,
 }
@@ -112,6 +114,7 @@ impl Core {
             data_dir: data_dir.to_path_buf(),
             settings: SettingsStore::new(data_dir.to_path_buf()),
             index: IndexStore::new(data_dir.to_path_buf()),
+            ui_state: UiStateStore::new(data_dir.to_path_buf()),
             sink,
             runtime,
             ping_seq: AtomicU64::new(0),
@@ -373,6 +376,19 @@ impl Core {
             return Err(CoreError::InvalidArgument("session index entry needs agentId and sessionId".into()));
         }
         Ok(json!({ "sessions": serde_json::to_value(self.index.upsert_session(entry)?)? }))
+    }
+
+    /// 窗口 UI 状态（`ui_state_get`）：目前是两栏被拖出来的宽度。没存过的字段返回 null，
+    /// 缺省宽度与夹取范围都在前端的 token 里，核心不复制一份（docs/design.md § 10）。
+    pub fn ui_state_get(&self) -> Result<Value> {
+        Ok(serde_json::to_value(self.ui_state.load())?)
+    }
+
+    /// 合并写窗口 UI 状态（`ui_state_set`）：只覆盖给到的字段；返回落盘后的全量状态。
+    pub fn ui_state_set(&self, patch: Value) -> Result<Value> {
+        let patch: UiState =
+            serde_json::from_value(patch).map_err(|e| CoreError::InvalidArgument(format!("ui state: {e}")))?;
+        Ok(serde_json::to_value(self.ui_state.merge(patch)?)?)
     }
 
     /// 移除一条会话索引（`session_index_remove`）；返回全量列表。向 agent 发 `session/delete` 是 R6 的事。

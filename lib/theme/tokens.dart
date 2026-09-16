@@ -356,4 +356,20 @@ abstract final class Geometry {
   /// 弹层与触发控件的间隙（向下 / 向上展开）。
   static const Offset popoverBelow = Offset(0, Spacing.s4);
   static const Offset popoverAbove = Offset(0, -Spacing.s4);
+
+  // ---- 分栏把手（画板 01–04，所有者裁定 2026-09-16）
+
+  /// 01–03：两条分栏线上的拖拽命中区宽度，跨在 1px 分割线两侧（不占布局，叠在上面）。
+  static const double splitterHit = 4;
+
+  /// 01–03：侧栏宽度的可拖范围；双击复位到 [sidebarWidth]。
+  static const double sidebarMinWidth = 220;
+  static const double sidebarMaxWidth = 480;
+
+  /// 03：右栏宽度的可拖范围；双击复位到 [rightPanelWidth]。
+  static const double rightPanelMinWidth = 360;
+  static const double rightPanelMaxWidth = 900;
+
+  /// 01–03：中栏无论怎么拖都要留下的宽度（窗口变窄时先压右栏、再压侧栏）。
+  static const double mainMinWidth = 360;
 }

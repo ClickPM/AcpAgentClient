@@ -24,6 +24,15 @@ class FakeCore implements CoreCommands {
   final List<List<Object?>> prompts = <List<Object?>>[];
   int cancels = 0;
 
+  /// 拖分栏落盘（画板 04）：只记账，不碰文件。
+  JsonMap uiState = <String, dynamic>{};
+
+  @override
+  Future<JsonMap> uiStateGet() async => uiState;
+
+  @override
+  Future<JsonMap> uiStateSet(JsonMap patch) async => uiState = <String, dynamic>{...uiState, ...patch};
+
   @override
   Future<JsonMap> acpRespond(String agentId, String requestId, JsonMap response) async {
     responded.add((requestId, response));
@@ -314,6 +323,45 @@ void main() {
       'action': 'accept',
       'content': <String, dynamic>{'env': 'dev'},
     });
+    c.dispose();
+  });
+
+  // 分栏宽度（画板 04 的把手，所有者裁定 2026-09-16）：夹取与落盘时机都在组合根，widget 只报位移。
+  test('分栏宽度：夹取在范围内、松手才落盘、下次启动读回', () async {
+    final core = FakeCore();
+    final c = WorkbenchController(source: DataSource.bridge, bridge: core);
+
+    c.resizeSidebar(1000);
+    expect(c.sidebarWidth, t.Geometry.sidebarMaxWidth, reason: '拖过头也不能超上限');
+    c.resizeRightPanel(-1000);
+    expect(c.rightPanelWidth, t.Geometry.rightPanelMinWidth, reason: '往回拖也不能低于下限');
+    expect(core.uiState, isEmpty, reason: '拖拽途中不落盘');
+
+    await c.saveUiState();
+    expect(core.uiState['sidebarWidth'], t.Geometry.sidebarMaxWidth);
+    expect(core.uiState['rightPanelWidth'], t.Geometry.rightPanelMinWidth);
+
+    c.resetSidebarWidth();
+    expect(c.sidebarWidth, t.Geometry.sidebarWidth, reason: '双击复位到画板缺省');
+    // 复位自己就该落盘（双击之后没有「松手」）。这里不能再补一次 saveUiState：
+    // 补了的话，把复位里那次落盘删掉，这条用例照样绿。
+    await pumpEventQueue();
+    expect(core.uiState['sidebarWidth'], t.Geometry.sidebarWidth, reason: '复位要自己落盘');
+    c.dispose();
+
+    final next = WorkbenchController(source: DataSource.bridge, bridge: core);
+    await next.start();
+    expect(next.rightPanelWidth, t.Geometry.rightPanelMinWidth, reason: '下次启动读回上次拖出来的宽度');
+    expect(next.sidebarWidth, t.Geometry.sidebarWidth);
+    next.dispose();
+  });
+
+  test('ui-state.json 里的宽度落在范围外时按 token 夹一遍（改过 token 的旧文件）', () async {
+    final core = FakeCore()..uiState = <String, dynamic>{'sidebarWidth': 99999, 'rightPanelWidth': 1};
+    final c = WorkbenchController(source: DataSource.bridge, bridge: core);
+    await c.start();
+    expect(c.sidebarWidth, t.Geometry.sidebarMaxWidth);
+    expect(c.rightPanelWidth, t.Geometry.rightPanelMinWidth);
     c.dispose();
   });
 

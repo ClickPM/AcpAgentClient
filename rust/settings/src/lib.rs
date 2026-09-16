@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 pub mod index;
+pub mod ui_state;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]

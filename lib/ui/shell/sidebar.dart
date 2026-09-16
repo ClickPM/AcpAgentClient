@@ -82,6 +82,7 @@ class Sidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      // 独立渲染时的缺省宽；装进 [AppShell] 时由它的紧约束覆盖（分栏把手拖出来的宽度单点在那里）。
       width: t.Geometry.sidebarWidth,
       decoration: const BoxDecoration(
         color: t.Neutral.panel,
@@ -182,7 +183,8 @@ class SidebarSearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: t.Controls.input,
+      // 条高而不是 [t.Controls.input]：侧栏搜索行与中栏线程头共用第二条分割线，32 对 36 会错开 4px。
+      height: t.Geometry.barHeight,
       decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
       padding: const EdgeInsets.only(left: t.Spacing.s12, right: t.Spacing.s8),
       child: ValueListenableBuilder<TextEditingValue>(

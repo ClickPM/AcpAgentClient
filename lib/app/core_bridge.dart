@@ -58,6 +58,8 @@ abstract interface class CoreCommands {
   Future<JsonMap> sessionIndexList();
   Future<JsonMap> sessionIndexUpsert(JsonMap entry);
   Future<JsonMap> sessionIndexRemove(String agentId, String sessionId);
+  Future<JsonMap> uiStateGet();
+  Future<JsonMap> uiStateSet(JsonMap patch);
 }
 
 class CoreBridge implements CoreCommands {
@@ -194,6 +196,12 @@ class CoreBridge implements CoreCommands {
   @override
   Future<JsonMap> sessionIndexRemove(String agentId, String sessionId) async =>
       _decode(await api.sessionIndexRemove(agentId: agentId, sessionId: sessionId));
+
+  @override
+  Future<JsonMap> uiStateGet() async => _decode(await api.uiStateGet());
+
+  @override
+  Future<JsonMap> uiStateSet(JsonMap patch) async => _decode(await api.uiStateSet(patch: jsonEncode(patch)));
 
   JsonMap _decode(String raw) {
     final decoded = jsonDecode(raw);

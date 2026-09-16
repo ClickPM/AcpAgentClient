@@ -68,6 +68,7 @@ Flutter 宿主进程（Dart）
 - 文件面板与 git：`fs_list_dir`、`fs_read`、`fs_watch`、`fs_search`、`git_status`（文件树徽章）、`git_branches`、`git_switch`、`git_create_branch`、`git_diff`（Branch Diff 上下文）
 - 本地 shell（终端面板）：`terminal_open`、`terminal_write`、`terminal_resize`、`terminal_close`；输出走 `acp/terminal_output`（`terminal_write` 在 R1 先出：terminal auth 的可见终端要接键盘输入）
 - 项目与本地索引：`workspace_recent`、`workspace_open`、`session_index_list/upsert/remove`（会话索引：agentId + sessionId + 标题 + cwd + 时间 + 消息计数）
+- 窗口 UI 状态：`ui_state_get`、`ui_state_set`（合并写；载荷 `{sidebarWidth?, rightPanelWidth?}`，缺省与夹取范围都在前端 token，核心不存第二份）
 
 命令名以本节为准，各轮只实现自己那部分（归属见 `ROUNDS.md` § 3 / § 5）；R3–R6 的新增项是 2026-09-15 按画板裁定后一次写入的，不再逐轮改契约。每条命令的入参形状（哪些是 JSON 字符串、哪些是标量）与返回 JSON 以 `rust/bridge/src/api.rs` 的文档注释为准；错误统一是 `BridgeError {code, message}`，`code` 是 `CoreError::code()` 的稳定短码（`auth_required` / `exited` / `not_connected` / `unknown_request` / `acp` 等）。
 
@@ -146,11 +147,14 @@ Flutter 宿主进程（Dart）
   - **文件树 git 状态徽章**（画板 60）：保留，由 `git status --porcelain` 得出。
   - **`+` 弹层**只有 Files & Directories / Threads / Image / Branch Diff 四项；原稿的 Symbols 与 Selection 需要 LSP 与编辑器选区，与 `requirements.md`「不做」冲突，已从画板 40 删除。
   - **终端面板**（画板 61）含本地交互 shell、多标签；复用 `rust/pty` 与 `acp/terminal_output`，命令见 § 3。
+  - **分栏宽度**（画板 01–03 的两条分栏线，所有者裁定 2026-09-16）：拖拽命中区 4px 叠在 1px 分栏线上、**不占布局**；侧栏 220–480、右栏 360–900、中栏至少留 360（窗口变窄时先压右栏、再压侧栏）；双击复位到 280 / 580；宽度记在 `ui-state.json`。把手的默认与悬停态见画板 04。
 - 接后端只换数据源，不改样式：接线轮里 `lib/theme/tokens.dart` 与画板 widget 文件应零 diff。
 
 ## 10. 数据目录
 
-Windows：`%APPDATA%/AcpAgentClient/{settings.json, sessions.json, projects.json, registry-cache/, agents/, node/, logs/}`。会话数据归各 agent 自己（claude、codex、pi、dsh 各有自己的存储）；本客户端只存会话索引 `sessions.json`（agentId + sessionId + 标题 + cwd + 时间 + 消息计数）与最近项目列表 `projects.json`，两者都走临时文件 + rename。日志脱敏：`Authorization`、`api_key`、`token` 字段一律打码。
+Windows：`%APPDATA%/AcpAgentClient/{settings.json, sessions.json, projects.json, ui-state.json, registry-cache/, agents/, node/, logs/}`。会话数据归各 agent 自己（claude、codex、pi、dsh 各有自己的存储）；本客户端只存会话索引 `sessions.json`（agentId + sessionId + 标题 + cwd + 时间 + 消息计数）与最近项目列表 `projects.json`，两者都走临时文件 + rename。日志脱敏：`Authorization`、`api_key`、`token` 字段一律打码。
+
+`ui-state.json` 是窗口的机器态（目前只有两栏宽度），同样走临时文件 + rename。它与 `settings.json` 分开：后者是用户手写的配置（`agent_servers` 与 Zed 同形），不该被拖窗口改写。字段一律可缺省，缺省宽度与夹取范围只在前端 token 里（`lib/theme/tokens.dart`），核心不复制一份；读不动或不是合法 JSON 时按缺省重建，不挡启动。
 
 ## 11. 阶段草案（已取代）
 
