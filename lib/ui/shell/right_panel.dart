@@ -1,5 +1,6 @@
-// 画板 03 · 右栏：标签条（当前标签 + 关闭）、面板关闭按钮、窗口控制（右栏展开时窗口控制在这条上，顶栏那组不渲染）。
-// 面板正文本轮是占位：文件面板与终端面板在 R4，Agents 与设置在 R5（ROUNDS § 3 R3「右栏内容 R4」）。
+// 画板 03 / 60 / 61 · 右栏：标签条（面板标签 + 每个本地终端一个标签，当前项选中态 + 各自的关闭键）、面板关闭按钮、
+// 窗口控制（右栏展开时窗口控制在这条上，顶栏那组不渲染）。
+// 面板正文由调用方给（`body`）：文件面板（60）与终端面板（61）在 R4，Agents 与设置在 R5。
 
 import 'package:flutter/widgets.dart';
 
@@ -8,6 +9,38 @@ import '../transcript/card_chrome.dart';
 import '../transcript/icons.dart';
 import 'shell_common.dart';
 import 'topbar.dart';
+
+/// 标签条上的一个标签：侧栏底部导航打开的面板（[ShellTab]），或一个本地终端（画板 60 / 61 的标签条把两种并排列着）。
+class PanelTab {
+  const PanelTab.shell(ShellTab tab)
+      : shell = tab,
+        terminalId = null,
+        _title = null;
+
+  const PanelTab.terminal(String id, String title)
+      : shell = null,
+        terminalId = id,
+        _title = title;
+
+  final ShellTab? shell;
+  final String? terminalId;
+  final String? _title;
+
+  /// 标签条上的文案：面板名（画板 03）或终端的标题（画板 61 用 cwd 末段）。
+  String get title => shell?.panelTitle ?? _title ?? '';
+  String get icon => shell?.icon ?? AcpIcons.terminal;
+
+  bool get isTerminal => terminalId != null;
+
+  @override
+  bool operator ==(Object other) => other is PanelTab && other.shell == shell && other.terminalId == terminalId;
+
+  @override
+  int get hashCode => Object.hash(shell, terminalId);
+
+  @override
+  String toString() => isTerminal ? 'PanelTab.terminal($terminalId)' : 'PanelTab.shell($shell)';
+}
 
 class RightPanel extends StatelessWidget {
   const RightPanel({
@@ -24,11 +57,11 @@ class RightPanel extends StatelessWidget {
     this.body,
   });
 
-  /// 已打开的标签（侧栏底部导航点开的那几个）。
-  final List<ShellTab> tabs;
-  final ShellTab active;
-  final ValueChanged<ShellTab>? onSelect;
-  final ValueChanged<ShellTab>? onCloseTab;
+  /// 已打开的标签（侧栏底部导航点开的面板 + 本地终端）。
+  final List<PanelTab> tabs;
+  final PanelTab active;
+  final ValueChanged<PanelTab>? onSelect;
+  final ValueChanged<PanelTab>? onCloseTab;
 
   /// 整个右栏收起。
   final VoidCallback? onClose;
@@ -37,7 +70,7 @@ class RightPanel extends StatelessWidget {
   final VoidCallback? onMaximize;
   final VoidCallback? onCloseWindow;
 
-  /// 面板正文；`null` = 占位（本轮默认）。
+  /// 面板正文；`null` = 占位。
   final Widget? body;
 
   @override
@@ -76,7 +109,7 @@ class RightPanel extends StatelessWidget {
         ),
       );
 
-  Widget _tab(ShellTab tab) {
+  Widget _tab(PanelTab tab) {
     final selected = tab == active;
     return Hoverable(
       onTap: onSelect == null ? null : () => onSelect!(tab),
@@ -93,7 +126,7 @@ class RightPanel extends StatelessWidget {
           children: <Widget>[
             AcpIcon(tab.icon, color: selected ? t.Accent.text : t.Neutral.muted, size: t.IconSizes.toolbar),
             const SizedBox(width: t.Spacing.s4),
-            Text(tab.panelTitle, style: CardText.secondary.copyWith(color: selected ? t.Accent.text : t.Neutral.muted)),
+            Text(tab.title, style: CardText.secondary.copyWith(color: selected ? t.Accent.text : t.Neutral.muted)),
             const SizedBox(width: t.Spacing.s4),
             GestureDetector(
               onTap: onCloseTab == null ? null : () => onCloseTab!(tab),
@@ -106,14 +139,14 @@ class RightPanel extends StatelessWidget {
   }
 }
 
-/// 面板占位（R4 / R5 前）。
+/// 面板占位（R5 前的 Agents / 设置）。
 class RightPanelPlaceholder extends StatelessWidget {
   const RightPanelPlaceholder({super.key, required this.tab});
 
-  final ShellTab tab;
+  final PanelTab tab;
 
   @override
   Widget build(BuildContext context) => Center(
-        child: Text('${tab.panelTitle}（未实现）', style: t.TextStyles.secondary.copyWith(color: t.Neutral.placeholder)),
+        child: Text('${tab.title}（未实现）', style: t.TextStyles.secondary.copyWith(color: t.Neutral.placeholder)),
       );
 }

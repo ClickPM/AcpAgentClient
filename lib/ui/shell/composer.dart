@@ -30,6 +30,7 @@ class Composer extends StatelessWidget {
     this.onChanged,
     this.onPlus,
     this.onFollow,
+    this.followOn = false,
     this.onUsage,
     this.onModel,
     this.onThoughtLevel,
@@ -68,6 +69,9 @@ class Composer extends StatelessWidget {
   final ValueChanged<String>? onChanged;
   final VoidCallback? onPlus;
   final VoidCallback? onFollow;
+
+  /// Follow 开关（客户端本地态，画板 40 的提示）：开着时图标走 accent。
+  final bool followOn;
   final VoidCallback? onUsage;
   final VoidCallback? onModel;
   final VoidCallback? onThoughtLevel;
@@ -152,7 +156,12 @@ class Composer extends StatelessWidget {
             const SizedBox(width: t.Spacing.s4),
             PopoverAnchor(
               handle: followAnchor,
-              child: IconButtonGhost(icon: AcpIcons.target, size: t.Controls.compact, onTap: onFollow),
+              child: IconButtonGhost(
+                icon: AcpIcons.target,
+                size: t.Controls.compact,
+                color: followOn ? t.Accent.text : t.Neutral.muted,
+                onTap: onFollow,
+              ),
             ),
           ],
           if (usage != null) ...<Widget>[

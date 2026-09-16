@@ -33,6 +33,68 @@ abstract final class InboundMetaKeys {
     final cc = meta[claudeCode];
     return cc is Map && cc.containsKey(subagent);
   }
+
+  // ---- 终端 provider 通道（R4，所有者裁定待确认，见 rounds/round-04 任务卡）：Zed `agent_servers/acp.rs`
+  //      `handle_session_notification` 的 post-handle 只读这三键；钉版本的 claude-agent-acp / dsh-acp-interactive / codex-acp
+  //      都不调 terminal/create，而是把命令输出经 `tool_call_update._meta` 送来。只按键存在，不按 agent 名判（规则 2）。
+  static const String terminalInfo = 'terminal_info';
+  static const String terminalOutput = 'terminal_output';
+  static const String terminalExit = 'terminal_exit';
+  static const String terminalIdField = 'terminal_id';
+}
+
+enum TerminalMetaKind { info, output, exit }
+
+/// `_meta.terminal_*` 解出来的一条终端事件。
+class TerminalMetaEvent {
+  const TerminalMetaEvent(this.kind, this.terminalId, {this.data, this.exitCode, this.signal, this.cwd});
+
+  final TerminalMetaKind kind;
+  final String terminalId;
+
+  /// `terminal_output.data`：追加语义（Zed `TerminalProviderEvent::Output`）。
+  final String? data;
+
+  /// `terminal_exit.exit_code` / `.signal`：任一缺省都合法（dsh 只给其中一个）。
+  final int? exitCode;
+  final String? signal;
+
+  /// `terminal_info.cwd`（dsh 会带；Zed 不读，这里只带出来给卡片副标题用）。
+  final String? cwd;
+
+  /// 固定顺序 info → output → exit，与 Zed 的处理顺序一致；键存在但形状不对（没有 `terminal_id`）的整项跳过。
+  static List<TerminalMetaEvent> parse(JsonMap? meta) {
+    if (meta == null) return const <TerminalMetaEvent>[];
+    final out = <TerminalMetaEvent>[];
+    final info = meta[InboundMetaKeys.terminalInfo];
+    if (info is Map) {
+      final id = info[InboundMetaKeys.terminalIdField];
+      if (id is String && id.isNotEmpty) {
+        out.add(TerminalMetaEvent(TerminalMetaKind.info, id, cwd: info['cwd'] is String ? info['cwd'] as String : null));
+      }
+    }
+    final output = meta[InboundMetaKeys.terminalOutput];
+    if (output is Map) {
+      final id = output[InboundMetaKeys.terminalIdField];
+      final data = output['data'];
+      if (id is String && id.isNotEmpty && data is String) out.add(TerminalMetaEvent(TerminalMetaKind.output, id, data: data));
+    }
+    final exit = meta[InboundMetaKeys.terminalExit];
+    if (exit is Map) {
+      final id = exit[InboundMetaKeys.terminalIdField];
+      if (id is String && id.isNotEmpty) {
+        final code = exit['exit_code'];
+        final signal = exit['signal'];
+        out.add(TerminalMetaEvent(
+          TerminalMetaKind.exit,
+          id,
+          exitCode: code is num ? code.toInt() : null,
+          signal: signal is String ? signal : null,
+        ));
+      }
+    }
+    return out;
+  }
 }
 
 class ToolCallApplyResult {
@@ -162,6 +224,9 @@ class TerminalBuffer extends ChangeNotifier {
   String? signal;
   bool released = false;
   bool killed = false;
+
+  /// `_meta.terminal_info.cwd`（有的 agent 会带；没有就用会话 cwd）。
+  String? cwd;
 
   String get output => _cached;
   bool get exited => exitCode != null || signal != null;

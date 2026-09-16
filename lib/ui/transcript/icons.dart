@@ -1,4 +1,4 @@
-// 画板 10–34（R2）与 01–04 / 40 / 41 / 42 / 80（R3）的内联单线图标（flutter_svg，所有者裁定 2026-09-15）。
+// 画板 10–34（R2）、01–04 / 40 / 41 / 42 / 80（R3）与 60 / 61（R4）的内联单线图标（flutter_svg，所有者裁定 2026-09-15）。
 // 路径逐个取自 design/round-design/NN-*.dc.html 的
 // <svg> 内容（24 单位视口、无填充、圆头圆角），颜色由调用方给（colorFilter），尺寸只用 tokens 的 IconSizes。
 // 不用 Icons.*（flutter_tester 不装 Material 图标字体，规则 1 也不引图标库）。
@@ -157,6 +157,15 @@ abstract final class AcpIcons {
   static const String windowMinimize = '<line x1="2" y1="12" x2="22" y2="12"/>';
   static const String windowMaximize = '<rect x="3" y="3" width="18" height="18"/>';
 
+  /// 60：文件树里折叠的文件夹（展开的复用 [chevronDown]）。
+  static const String chevronRight = '<polyline points="9 18 15 12 9 6"/>';
+
+  /// 60：树列头行的「全部折叠」。
+  static const String collapseAll = '<polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/>';
+
+  /// 61：终端状态行的「清屏」。
+  static const String clearScreen = '<rect x="3" y="5" width="18" height="14" rx="2"/><line x1="8" y1="12" x2="16" y2="12"/>';
+
   /// 全部图标（测试预热 svg 缓存用）。
   static const List<String> all = <String>[
     rotateCcw, pencil, copy, check, arrowDown, spinnerArc, chevronDown, chevronUp, lightbulb, file, checkCircle, search,
@@ -164,6 +173,7 @@ abstract final class AcpIcons {
     alertTriangle, info, plus, arrowUpRight, play, link, dot, lock, slashCircle, diamond,
     appMark, panelLeft, gitBranch, settings, folder, plusSquare, reload, rotateCw, menuLines, target, arrowUp,
     arrowRight, arrowLeft, messageSquare, image, command, windowMinimize, windowMaximize,
+    chevronRight, collapseAll, clearScreen,
   ];
 
   /// 完整 SVG 文档：stroke 固定为黑，真实颜色由 [AcpIcon] 的 colorFilter 给，这样同一图标只解析一次。

@@ -16,6 +16,8 @@ import '../../theme/tokens.dart' as t;
 import '../../ui/popovers/composer_popovers.dart';
 import '../../ui/popovers/inline_menus.dart';
 import '../../ui/popovers/topbar_popovers.dart';
+import '../../ui/files/file_tree.dart';
+import '../../ui/files/files_panel.dart';
 import '../../ui/shell/app_shell.dart';
 import '../../ui/shell/composer.dart';
 import '../../ui/shell/right_panel.dart';
@@ -278,7 +280,26 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
           docks: <Widget>[if (plan != null) PlanCard(plan, initiallyCollapsed: true, cwd: s.cwd)],
         ),
       ),
-      rightPanel: const RightPanel(tabs: <ShellTab>[ShellTab.files], active: ShellTab.files),
+      // 右栏内容归 R4（ROUNDS § 3 R3「右栏内容 R4」）：画板 03 的文件面板（树 + AGENTS.md 预览）。
+      rightPanel: RightPanel(
+        tabs: const <PanelTab>[PanelTab.shell(ShellTab.files)],
+        active: const PanelTab.shell(ShellTab.files),
+        body: FilesPanel(
+          tree: _board03Tree(),
+          filterController: _c(),
+          filterFocusNode: FocusNode(),
+          selectedPath: '$_board03Root/AGENTS.md',
+          viewer: const FileViewerData(
+            name: 'AGENTS.md',
+            relPath: '/AGENTS.md',
+            text: 'This file provides guidance to pi (and other AGENTS.md-based agents) when working in this repository. '
+                'It is kept in sync with CLAUDE.md.',
+            language: FileLanguage('markdown', 'markdown'),
+            lineCount: 168,
+            sizeBytes: 13414,
+          ),
+        ),
+      ),
     );
   }),
   _page('04-sidebar-states', '侧栏与顶栏状态', () {
@@ -515,3 +536,46 @@ class _Left extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Align(alignment: Alignment.centerLeft, child: child);
 }
+
+// ---------------------------------------------------------------- 画板 03 右栏的文件树（本地假数据）
+
+const String _board03Root = 'D:/variFlight_work/VariFlightWork';
+
+FileEntry _e(String rel, {bool dir = false, int size = 0}) {
+  final i = rel.lastIndexOf('/');
+  return FileEntry(
+    name: rel.substring(i + 1),
+    path: '$_board03Root/$rel',
+    parent: i < 0 ? '' : '${rel.substring(0, i)}/',
+    isDir: dir,
+    size: dir ? null : size,
+  );
+}
+
+FileTree _board03Tree() {
+  final dirs = <String, List<FileEntry>>{
+    _board03Root: <FileEntry>[
+      _e('产品文档', dir: true),
+      _e('代码逻辑', dir: true),
+      _e('.agents', dir: true),
+      _e('design', dir: true),
+      _e('docs', dir: true),
+      _e('prototype', dir: true),
+      _e('.gitignore', size: 210),
+      _e('AGENTS.md', size: 13414),
+    ],
+    '$_board03Root/产品文档': <FileEntry>[_e('产品文档/01-产品需求文档.md', size: 9000), _e('产品文档/02-用户旅程与状态机.md', size: 7200)],
+    '$_board03Root/docs': <FileEntry>[_e('docs/acp-projection.md', size: 30000), _e('docs/design.md', size: 25000), _e('docs/research.md', size: 40000)],
+  };
+  final tree = FileTree(root: _board03Root, loader: (path) async => dirs[path] ?? const <FileEntry>[]);
+  tree.seed(dirs, expanded: <String>{'$_board03Root/产品文档', '$_board03Root/docs'});
+  tree.setBadges(<String, String>{'$_board03Root/产品文档/01-产品需求文档.md': 'M'});
+  return tree;
+}
+
+// ---------------------------------------------------------------- 给画板 60 / 61 复用的本地假数据
+
+final List<SidebarSession> gallerySessions = _sessions;
+final DateTime galleryNow = _now;
+const String galleryProject = _project;
+const String galleryBranch = _branch;

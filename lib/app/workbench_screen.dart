@@ -442,10 +442,10 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   // ---------------------------------------------------------------- 右栏与流量面板（画板 03 / 80）
 
   Widget _rightPanel() => RightPanel(
-        tabs: c.openTabs,
-        active: c.rightTab!,
-        onSelect: c.openTab,
-        onCloseTab: c.closeTab,
+        tabs: <PanelTab>[for (final tab in c.openTabs) PanelTab.shell(tab)],
+        active: PanelTab.shell(c.rightTab!),
+        onSelect: (tab) => c.openTab(tab.shell!),
+        onCloseTab: (tab) => c.closeTab(tab.shell!),
         onClose: c.closeRightPanel,
         onMinimize: AppWindow.minimize,
         onMaximize: AppWindow.toggleMaximize,
