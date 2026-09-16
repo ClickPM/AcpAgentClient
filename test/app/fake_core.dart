@@ -102,12 +102,21 @@ class FakeCore implements CoreCommands {
     return <String, dynamic>{};
   }
 
-  @override
-  Future<JsonMap> sessionSetConfigOption(String agentId, String sessionId, String configId, JsonMap value) async =>
-      <String, dynamic>{'configOptions': <Object?>[]};
+  /// 三个下拉打出去的命令（断言「关掉的会话发不出去」要看这两份，光看 lastError 会假通过）。
+  final List<(String configId, JsonMap value)> configOptionCalls = <(String, JsonMap)>[];
+  final List<String> modeCalls = <String>[];
 
   @override
-  Future<JsonMap> sessionSetMode(String agentId, String sessionId, String modeId) async => <String, dynamic>{};
+  Future<JsonMap> sessionSetConfigOption(String agentId, String sessionId, String configId, JsonMap value) async {
+    configOptionCalls.add((configId, value));
+    return <String, dynamic>{'configOptions': <Object?>[]};
+  }
+
+  @override
+  Future<JsonMap> sessionSetMode(String agentId, String sessionId, String modeId) async {
+    modeCalls.add(modeId);
+    return <String, dynamic>{};
+  }
 
   @override
   Future<JsonMap> authenticate(String agentId, String methodId) async => <String, dynamic>{};

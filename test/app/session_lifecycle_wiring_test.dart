@@ -279,11 +279,37 @@ void main() {
     await c.restore(turn);
     await c.restore(turn, newText: '换个说法');
     await c.selectConfigValue('model', 'gpt');
+    await c.toggleConfigBoolean('auto_approve', true);
     await c.setMode('code');
+    await c.cancel();
 
+    // 逐个命令面分别断言：只看 `lastError` 会假通过（`send()` 先跑就已经把它写成同一句，
+    // 审查第 3 轮 P3）。
     expect(core.prompts, isEmpty, reason: '一条 session/prompt 都不该发出去');
+    expect(core.configOptionCalls, isEmpty, reason: 'model / thought 下拉不该发 session/set_config_option');
+    expect(core.modeCalls, isEmpty, reason: '模式下拉不该发 session/set_mode');
+    expect(core.cancels, 0, reason: '停止方块不该把 session/cancel 打到已释放的会话上');
     expect(store.entries, hasLength(entriesBefore), reason: 'Restore 不能把本地转录截断了却发不出去');
     expect(c.lastError, contains('已经关闭'));
+    c.dispose();
+  });
+
+  test('没关闭的会话不受这道门影响：prompt / 下拉 / 停止都照常发', () async {
+    final (c, core) = await _connected();
+    c.sessionId = _session;
+    final store = c.sessions.session(_session, agentId: _agent)..cwd = _cwd;
+
+    c.composer.text = '正常发一条';
+    await c.send();
+    await c.selectConfigValue('model', 'gpt');
+    await c.setMode('code');
+    store.startTurn(const <ContentBlockWire>[]);
+    await c.cancel();
+
+    expect(core.prompts, hasLength(1));
+    expect(core.configOptionCalls.map((e) => e.$1), <String>['model']);
+    expect(core.modeCalls, <String>['code']);
+    expect(core.cancels, 1);
     c.dispose();
   });
 

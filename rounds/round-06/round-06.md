@@ -113,8 +113,19 @@
 | 9 | P2 | close / delete 只让核心回掉挂起的权限请求，**前端的权限卡还停在 pending**：用户点 Allow 会撞 `unknown_request` | **采纳整改**。`_releasePendingElicitations` 改成 `_releaseSessionRequests`，走 `SessionStore.cancel()`（与 `cancel()` 同一条规矩：权限卡标 cancelled、未完成的工具卡标 cancelled、elicitation 逐条回）。新增用例 |
 | 10 | P2 | 核心 close / delete 抽了 `cancel_pending_permissions` 却没置 `set_cancel_pending`：agent 在读到 close 之前又发一条权限请求时，客户端等 `CloseSessionResponse`、agent 等权限回应，**双方挂死** | **采纳整改**。`session_close` / `session_delete` 在排空队列之前同样 `set_cancel_pending(true)`（成功 `forget_session` 时标志随会话一起丢掉）。新增脚本化用例 `permission_arriving_while_close_is_in_flight_is_auto_cancelled`，并**反证过**：去掉那一行后这条用例 150 s 不返回（真的挂死） |
 
-- 结论：**整改后 PASS**（两轮共 10 条：high 2 / P2 7 / P3 1；9 条采纳整改并补了用例，1 条是设计取舍留所有者裁定）。
-  整改后复核：`flutter test` 185 条全过、Rust 10 条脚本化用例全过、`validate.ps1` 13 项全 PASS；
+### 第 3 轮（只审整改 diff `2659074..HEAD`，2 条：high 0 / P2 1 / P3 1）
+
+审查者先逐条核了第 2 轮那三条的整改并确认没问题（`_blockedByClose()` 没误伤 resume / load / delete；
+`_releaseSessionRequests` 走 `cancel()` 后权限不二次 `acpRespond`、elicitation 一条不漏；
+`set_cancel_pending` 在失败路径上不会永久钉死——`session_prompt` 首尾都会清）。两条新的：
+
+| # | 级别 | finding | 处理 |
+|---|---|---|---|
+| 11 | P2 | **停止方块漏了这道门**：`closeSession` 里的 `s.cancel()` 不收轮（`isRunning` 还是 true），作曲器禁用态下 Stop 仍渲染，点下去把 `session/cancel` 打到已释放的会话上 | **采纳整改**。`cancel()` 开头也加 `_blockedByClose()` |
+| 12 | P3 | **我那条用例是假通过的**：「三个下拉全都发不出去」只断言了 `core.prompts` 与 `lastError`，而 `lastError` 早被 `send()` 写成同一句、`FakeCore` 又不记 config / mode 调用 —— 把 `setConfigOption` / `setMode` 的门删掉，用例照样绿 | **采纳整改**。`FakeCore` 记下 `configOptionCalls` / `modeCalls`，用例逐个命令面分别断言；再加一条反向用例（没关闭的会话 prompt / 下拉 / 停止都照常发），证明这道门不误伤 |
+
+- 结论：**整改后 PASS**（三轮共 12 条：high 2 / P2 8 / P3 2；11 条采纳整改并补了用例，1 条是设计取舍留所有者裁定）。
+  整改后复核：`flutter test` 186 条全过、Rust 10 条脚本化用例全过、`validate.ps1` 13 项全 PASS；
   fake-agent 离线全链与 claude-agent-acp 真跑各复跑一次（reopen / close / resume / delete 全绿）。
 
 ### 一条流程教训

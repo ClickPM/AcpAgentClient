@@ -1166,6 +1166,9 @@ class WorkbenchController extends ChangeNotifier {
     final b = bridge;
     final id = agentId;
     if (s == null || b == null || id == null) return;
+    // 停止方块也是往会话发命令的入口：`closeSession` 里的 `s.cancel()` 不收轮（`isRunning` 还是 true），
+    // 作曲器禁用态下 Stop 仍会渲染，点下去就把 `session/cancel` 打到已经释放掉的会话上（审查第 3 轮 P2）。
+    if (_blockedByClose()) return;
     await _guard(() async {
       // 权限请求由核心自动回 cancelled（api.rs 的契约），前端再回会撞 unknown_request；
       // **elicitation 核心不管**，不回 agent 会一直等（审查 finding high，2026-09-15）。
