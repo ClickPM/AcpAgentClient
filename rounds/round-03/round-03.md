@@ -472,6 +472,12 @@ cursor CLI `cursor-grok-4.6-high`。
 
 两条整改都逐条注入缺陷验证过「能红」。
 
+**第 2 轮**（`-Scope branch`，`main...7f8a8c9`）→ `.claude/reviews/20260916-103736-review.out.md`，
+**0 条**：两条整改各自复核过确实能拦住对应回归（顺序对调 → 侧栏 258 ≠ 280 必红；删掉复位落盘 →
+磁盘仍是上一次的 480 必红），整改只动测试与任务卡、没碰产品代码。审查循环收口。
+
+**结论：整改后 PASS。** 两轮共 2 条 findings（high 0 / P2 2），全部采纳整改，第 2 轮 0 条。
+
 ### 门禁
 
 `scripts/validate.ps1` 全绿（13 项）、`flutter test` 109 passed、`cargo test --workspace` 全绿。
