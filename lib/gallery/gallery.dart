@@ -1,10 +1,11 @@
 // 画板对照 gallery（ROUNDS.md § 0 第 5 条）：每张画板以 fixtures 数据渲染成 build/gallery/NN-*.png
 // （test/gallery_test.dart 离屏渲染），与 design/round-design/NN-*.png 并排看。只在 debug / test 里编入。
 // R0：00 的 token 样板页（固定 frame）；R2：10–34 的画板页（宽 800、高随内容）；
-// R3：01–04 / 40 / 41 / 42 / 80（整窗按 1440 × 900 的 frame，合集沿用 BoardPage）。
+// R3：01–04 / 40 / 41 / 42 / 80（整窗按 1440 × 900 的 frame，合集沿用 BoardPage）；R5：50 / 51 / 52 / 70。
 
 import 'package:flutter/widgets.dart';
 
+import 'boards/agent_boards.dart';
 import 'boards/shell_boards.dart';
 import 'boards/tokens_board.dart';
 import 'boards/transcript_boards.dart';
@@ -33,4 +34,5 @@ final List<GalleryBoard> galleryBoards = <GalleryBoard>[
   ...transcriptBoards,
   ...transcriptBoards2,
   ...shellBoards,
+  ...agentBoards,
 ];

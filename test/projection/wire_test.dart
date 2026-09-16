@@ -25,7 +25,7 @@ void main() {
   });
 
   test('every fixture line parses and classifies', () {
-    expect(lines.length, 214); // R0 61 行 + R2 新增 148 行（10–24）+ R3 新增 5 行（16 补两条通知与被撤回的请求、25 两条 config）
+    expect(lines.length, 219); // R0 61 行 + R2 新增 148 行（10–24）+ R3 新增 5 行（16 补两条通知与被撤回的请求、25 两条 config）+ R5 新增 5 行（26 requestScope 认证）
     expect(lines.where((l) => l.dir == FixtureDir.unknown), isEmpty);
     expect(lines.where((l) => l.dir == FixtureDir.local).map((l) => l.localKind).toSet(), {'terminal_output', 'terminal_exit'});
     expect(lines.where((l) => l.dir == FixtureDir.stderr).single.line, contains('turn finished'));

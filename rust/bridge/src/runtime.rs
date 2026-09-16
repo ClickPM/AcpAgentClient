@@ -1,4 +1,4 @@
-//! 桥的进程内状态：五条事件流的 Dart 端 sink 与唯一的 `Core` 实例。
+//! 桥的进程内状态：六条事件流的 Dart 端 sink 与唯一的 `Core` 实例。
 //! 放在 `api` 模块之外，frb 不会把这些类型扫成 Dart 侧的 opaque 类型。
 
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -9,7 +9,7 @@ use acp_core::events::{EventChannel, EventSink};
 
 use crate::frb_generated::StreamSink;
 
-/// 五条事件流的 Dart 端 sink。Dart 先订阅再 `core_init`；未订阅时到达的事件丢弃并计数。
+/// 六条事件流的 Dart 端 sink。Dart 先订阅再 `core_init`；未订阅时到达的事件丢弃并计数。
 #[derive(Default)]
 pub(crate) struct Sinks {
     session_update: RwLock<Option<StreamSink<String>>>,
@@ -17,6 +17,7 @@ pub(crate) struct Sinks {
     agent_state: RwLock<Option<StreamSink<String>>>,
     terminal_output: RwLock<Option<StreamSink<String>>>,
     traffic: RwLock<Option<StreamSink<String>>>,
+    registry_progress: RwLock<Option<StreamSink<String>>>,
     dropped: AtomicU64,
 }
 
@@ -28,6 +29,7 @@ impl Sinks {
             EventChannel::AgentState => &self.agent_state,
             EventChannel::TerminalOutput => &self.terminal_output,
             EventChannel::Traffic => &self.traffic,
+            EventChannel::RegistryProgress => &self.registry_progress,
         }
     }
 

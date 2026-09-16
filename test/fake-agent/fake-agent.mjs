@@ -56,6 +56,7 @@ function serve() {
   const notify = (method, params) => send({ jsonrpc: '2.0', method, params })
   const update = (sessionId, u) => notify('session/update', { sessionId, update: u })
   const turns = new Map() // sessionId → { cancelled }
+  let authedInProcess = false // R5：agent 型认证成功后本进程内放行 session/new
 
   const rl = createInterface({ input: process.stdin })
   rl.on('line', (line) => {
@@ -75,11 +76,30 @@ function serve() {
           protocolVersion: 1,
           agentInfo: { name: 'fake-agent', title: 'Fake Agent', version: '0.0.1' },
           agentCapabilities: { loadSession: false, promptCapabilities: { image: false, embeddedContext: false } },
-          authMethods: [{ type: 'terminal', id: 'fake-setup', name: 'Configure fake API key', description: 'runs --setup', args: ['--setup'] }],
+          authMethods: [
+            { type: 'terminal', id: 'fake-setup', name: 'Configure fake API key', description: 'runs --setup', args: ['--setup'] },
+            // R5：agent 型方法，authenticate 时发一条 requestScope 的 URL elicitation（照 codex-acp 的 device code 路径：
+            // requestId = 在途 authenticate 的 JSON-RPC id，是数字），客户端 accept 后 elicitation/complete 收尾，本进程内记为已认证。
+            { id: 'fake-url', name: 'Sign in with fake browser', description: 'URL elicitation (requestScope)' },
+          ],
         })
         break
+      case 'authenticate': {
+        if (msg.params?.methodId !== 'fake-url') { fail(-32602, `unknown auth method ${msg.params?.methodId}`); break }
+        request('elicitation/create', { mode: 'url', requestId: msg.id, message: 'Open the fake login page and come back', elicitationId: 'el_auth_1', url: 'https://example.invalid/fake-login' })
+          .then((response) => {
+            if (response?.action === 'accept') {
+              notify('elicitation/complete', { elicitationId: 'el_auth_1' })
+              authedInProcess = true
+              reply({})
+            } else {
+              fail(-32000, `login ${response?.action ?? 'cancelled'}`)
+            }
+          })
+        break
+      }
       case 'session/new': {
-        const authed = process.env.FAKE_AGENT_AUTHED === '1' || existsSync(join(msg.params.cwd, MARKER))
+        const authed = authedInProcess || process.env.FAKE_AGENT_AUTHED === '1' || existsSync(join(msg.params.cwd, MARKER))
         if (!authed) { fail(-32000, 'FAKE_API_KEY is not configured. Run --setup.'); break }
         reply({
           sessionId: 'sess_fake_1',

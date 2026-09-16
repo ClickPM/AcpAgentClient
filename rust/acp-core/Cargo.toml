@@ -15,6 +15,7 @@ futures.workspace = true
 fs.workspace = true
 pty.workspace = true
 settings.workspace = true
+registry.workspace = true
 
 [lints]
 workspace = true

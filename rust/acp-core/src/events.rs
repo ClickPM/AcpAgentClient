@@ -1,4 +1,4 @@
-//! 核心 → 前端的五条事件流（docs/design.md § 3「事件」）。payload 一律是 JSON 字符串。
+//! 核心 → 前端的六条事件流（docs/design.md § 3「事件」；R5 加 `registry/progress`）。payload 一律是 JSON 字符串。
 
 /// 事件通道，与 § 3 的事件名一一对应。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -13,15 +13,18 @@ pub enum EventChannel {
     TerminalOutput,
     /// `acp/traffic`
     Traffic,
+    /// `registry/progress`（R5）
+    RegistryProgress,
 }
 
 impl EventChannel {
-    pub const ALL: [EventChannel; 5] = [
+    pub const ALL: [EventChannel; 6] = [
         EventChannel::SessionUpdate,
         EventChannel::ClientRequest,
         EventChannel::AgentState,
         EventChannel::TerminalOutput,
         EventChannel::Traffic,
+        EventChannel::RegistryProgress,
     ];
 
     /// 契约里的事件名。
@@ -32,6 +35,7 @@ impl EventChannel {
             EventChannel::AgentState => "acp/agent_state",
             EventChannel::TerminalOutput => "acp/terminal_output",
             EventChannel::Traffic => "acp/traffic",
+            EventChannel::RegistryProgress => "registry/progress",
         }
     }
 }

@@ -1,5 +1,6 @@
 //! 桥命令与事件流（docs/design.md § 3）。R0 打通 `core_init` / `ping` 与五条事件流的注册；
-//! R1 加连接 / 会话 / 认证 / 设置命令；R3 加工作区文件、git、项目与会话索引。
+//! R1 加连接 / 会话 / 认证 / 设置命令；R3 加工作区文件、git、项目与会话索引；R5 加 registry / 受管 Node /
+//! 设置页命令与第六条事件流 `registry/progress`。
 //! 返回值一律 JSON `String`，结构化入参也是 JSON `String`（桥上不做类型镜像）。
 //! 本模块是 frb 的扫描入口（flutter_rust_bridge.yaml `rust_input: crate::api`），只放要暴露给 Dart 的东西。
 //!
@@ -91,7 +92,7 @@ pub fn init_app() {
 }
 
 /// 初始化核心。`data_dir` 是 docs/design.md § 10 的数据目录（Windows：%APPDATA%/AcpAgentClient）。
-/// 幂等：热重启后再次调用只重发一条 `acp/agent_state: core_ready`。返回 JSON `{dataDir, coreVersion}`。
+/// 幂等：热重启后再次调用只重发一条 `acp/agent_state: core_ready`。返回 JSON `{dataDir, coreVersion, logPath}`。
 pub fn core_init(data_dir: String) -> Result<String, BridgeError> {
     guarded(|| {
         let sink: Arc<dyn EventSink> = sinks().clone();
@@ -192,6 +193,12 @@ pub async fn terminal_write(terminal_id: String, data: String) -> Result<String,
     on_core(|core| async move { core.terminal_write(&terminal_id, data.as_bytes()) }).await
 }
 
+/// 关掉一个终端（结束进程 + 释放）。R4 的本地 shell 四命令之一，认证页的停止方块需要它所以 R5 先出。
+/// 退出事件仍经 `acp/terminal_output` 推出。
+pub async fn terminal_close(terminal_id: String) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.terminal_close(&terminal_id) }).await
+}
+
 // ---- 设置
 
 /// 读 `settings.json`（不存在 → `{agent_servers: {}}`）。
@@ -206,9 +213,62 @@ pub async fn agent_settings_set(agent_id: String, server: String) -> Result<Stri
     on_core(|core| async move { core.agent_settings_set(&agent_id, server) }).await
 }
 
+/// 删掉 `agent_servers[agent_id]`（custom 型从设置页删除；registry 型请走 `registry_remove`，它还会清 `agents/<id>/`）。
+/// 已连接的先断开。返回落盘后的全量设置。
+pub async fn agent_settings_remove(agent_id: String) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.agent_settings_remove(&agent_id).await }).await
+}
+
+/// 从 Zed 的 `settings.json` 导入 `agent_servers`（JSONC，同名不覆盖）。返回 `{report: {path, imported, skipped, invalid}, settings}`；
+/// 找不到 Zed 的文件时抛 `settings`。
+pub async fn agent_settings_import_zed() -> Result<String, BridgeError> {
+    on_core(|core| async move { core.agent_settings_import_zed() }).await
+}
+
 /// 开发期排查：每个已连接 agent 的 droppedUpdates / 退出状态 / 挂起请求。
 pub async fn agents_status() -> Result<String, BridgeError> {
     on_core(|core| async move { Ok(core.agents_status()) }).await
+}
+
+// ---- registry 与受管 Node（R5；docs/design.md § 3「registry、Node 与设置」，§ 6）
+
+/// registry 列表：`{agents: [{id, name, version, description, repository?, website?, iconSvg?, distribution, supported, package?,
+/// installed: {kind, version, installedVersion?, command, args, env, authStatus, agentInfo?, installedAt} | null, installing, custom: {command, args, env} | null}],
+/// fetching, fetchError?, fetchedAt?, node: {system?, systemError?, managed?, minVersion}, paths: {dataDir, logPath, zedSettingsPath?}}`。
+/// 只读缓存，不联网（联网是 `registry_refresh`）；已安装 / custom 条目排前面。
+pub async fn registry_list() -> Result<String, BridgeError> {
+    on_core(|core| async move { core.registry_list().await }).await
+}
+
+/// 联网拉 `registry.json`（1 小时节流，`force` 跳过）并顺手补图标；失败不清缓存、错误进 `fetchError`。返回同 `registry_list`。
+pub async fn registry_refresh(force: bool) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.registry_refresh(force).await }).await
+}
+
+/// 后台安装一个 registry 条目（npx：resolve / write_settings / handshake；binary：download / verify / extract），立即返回
+/// `{agentId, started}`；进度与收尾（done / failed / cancelled）经 `registry/progress` 推出。已在安装中抛 `invalid_argument`。
+pub async fn registry_install(agent_id: String) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.registry_install(&agent_id) }).await
+}
+
+/// 取消正在跑的安装；返回 `{agentId, cancelled}`（没有在装的 `cancelled: false`）。
+pub async fn registry_cancel_install(agent_id: String) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.registry_cancel_install(&agent_id) }).await
+}
+
+/// Remove：取消安装、断开连接、删 settings 条目、只删 `agents/<id>/`（规则 7）。返回同 `registry_list` 再加 `removed`。
+pub async fn registry_remove(agent_id: String) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.registry_remove(&agent_id).await }).await
+}
+
+/// Node 状态：`{system: {version, path}?, systemError?, managed: {version, path}?, minVersion}`。
+pub async fn node_status() -> Result<String, BridgeError> {
+    on_core(|core| async move { core.node_status().await }).await
+}
+
+/// 下载受管 Node v24.11.0 到数据目录 `node/`（进度 `agentId: null`，步骤 node_download / node_extract），完成后返回 Node 状态。
+pub async fn node_download() -> Result<String, BridgeError> {
+    on_core(|core| async move { core.node_download().await }).await
 }
 
 // ---- 工作区文件与 git（R3；docs/design.md § 3「文件面板与 git」）
@@ -287,7 +347,7 @@ pub async fn ui_state_set(patch: String) -> Result<String, BridgeError> {
     on_core(|core| async move { core.ui_state_set(patch) }).await
 }
 
-// 五个注册函数都是 `#[frb(sync)]`：frb 的 normal 任务跑在线程池上不保证先后，只有同步注册
+// 六个注册函数都是 `#[frb(sync)]`：frb 的 normal 任务跑在线程池上不保证先后，只有同步注册
 // 才能保证 Dart 调 `core_init` 之前 sink 已就位（审查 finding，2026-09-15）。
 
 /// `acp/session_update`：`{agentId, sessionId, update, _meta?}`，即 SessionNotification 原样 JSON 加 `agentId`。
@@ -323,6 +383,13 @@ pub fn terminal_output_stream(sink: StreamSink<String>) -> Result<(), BridgeErro
 #[frb(sync)]
 pub fn traffic_stream(sink: StreamSink<String>) -> Result<(), BridgeError> {
     sinks().register(EventChannel::Traffic, sink);
+    Ok(())
+}
+
+/// `registry/progress`：`{agentId?, kind, step, done?, total?, detail?, error?}`（R5；`agentId` 为 null 是受管 Node）。
+#[frb(sync)]
+pub fn registry_progress_stream(sink: StreamSink<String>) -> Result<(), BridgeError> {
+    sinks().register(EventChannel::RegistryProgress, sink);
     Ok(())
 }
 

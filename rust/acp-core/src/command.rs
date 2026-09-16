@@ -1,5 +1,5 @@
 //! agent 子进程的拉起参数与 Windows 细节（CLAUDE.md 规则 9）：
-//! - `settings.json` 的 `custom` 条目 → [`LaunchSpec`]（R5 起 registry 型也落到这里）；
+//! - `settings.json` 的 `custom` 条目 → [`LaunchSpec`]；registry 型经 [`LaunchSpec::from_registry`]（安装记录 + Node，R5）；
 //! - 裸程序名按 PATH + PATHEXT 解析成带扩展名的路径（Rust std 只找 `.exe`，`npx` / `dsh-acp-interactive` 这类
 //!   `.cmd` 包装找不到）；解析到 `.cmd` / `.bat` 后由 std 经 `cmd.exe /c` 带引号拉起（Rust ≥ 1.77 的 BatBadBut 修复）；
 //! - GUI 宿主里不弹控制台窗口（`CREATE_NO_WINDOW`）；
@@ -37,7 +37,7 @@ impl LaunchSpec {
     /// `agent_servers` 的一条 → 拉起参数。R1 只有 `custom`；`registry` 型等 R5 的安装与 Node 解析。
     pub fn from_server(agent_id: &str, server: &AgentServer) -> Result<Self> {
         match server {
-            AgentServer::Custom { path, args, env } => {
+            AgentServer::Custom { path, args, env, .. } => {
                 if path.trim().is_empty() {
                     return Err(CoreError::InvalidArgument(format!("agent `{agent_id}`: command is empty")));
                 }
@@ -49,6 +49,16 @@ impl LaunchSpec {
             }
             AgentServer::Registry { .. } => Err(CoreError::NotImplemented("R5")),
         }
+    }
+
+    /// registry 型：安装记录（`agents/<id>/install.json`）+ 本机 Node（npx 型）+ settings 里的 `env`（最后覆盖）。
+    pub fn from_registry(
+        manifest: &registry::manifest::InstallManifest,
+        node: Option<&registry::node::NodeRuntime>,
+        settings_env: &BTreeMap<String, String>,
+    ) -> Result<Self> {
+        let (program, args, env) = registry::install::launch_parts(manifest, node, settings_env)?;
+        Ok(Self { program, args, env })
     }
 }
 
@@ -159,14 +169,15 @@ mod tests {
             path: "agent".into(),
             args: vec!["--acp".into()],
             env: BTreeMap::from([("A".to_string(), "1".to_string())]),
+            extra: BTreeMap::new(),
         };
         let spec = LaunchSpec::from_server("x", &custom).expect("custom");
         assert_eq!(spec.program, "agent");
         assert_eq!(spec.args, vec!["--acp".to_string()]);
         assert_eq!(spec.env.get("A").map(String::as_str), Some("1"));
-        let registry = AgentServer::Registry { env: BTreeMap::new() };
+        let registry = AgentServer::Registry { env: BTreeMap::new(), extra: BTreeMap::new() };
         assert!(matches!(LaunchSpec::from_server("x", &registry), Err(CoreError::NotImplemented("R5"))));
-        let empty = AgentServer::Custom { path: " ".into(), args: vec![], env: BTreeMap::new() };
+        let empty = AgentServer::Custom { path: " ".into(), args: vec![], env: BTreeMap::new(), extra: BTreeMap::new() };
         assert!(matches!(LaunchSpec::from_server("x", &empty), Err(CoreError::InvalidArgument(_))));
     }
 }
