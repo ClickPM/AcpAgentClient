@@ -2,7 +2,7 @@
 
 <!-- 保存为 rounds/round-05/round-05.md；该轮其他管理产出放同一目录。 -->
 
-> 状态：进行中
+> 状态：已完成（2026-09-16；审查 3 轮收口、最终门禁全 PASS，合并 `main` 的提交见 `ROUNDS.md` § 7）
 
 ## 目标
 
@@ -111,6 +111,14 @@ select 丢掉 connect 的 future → `kill_tx` 析构 → `exit_watcher` 走 `ki
 
 整改后 `cargo test -p acp-core`、`cargo clippy --workspace -D warnings`、`flutter analyze`（与门禁一致的 9 条 info）、`flutter test test/app/`（19 个用例）全过；
 Windows 实测见下表「取消与回滚」行（两条整改都靠真跑验证过落点）。
+
+**第 3 轮：0 条**（范围按规程改为只审整改 diff `23e3864..HEAD`，HEAD = `8377689`；产物 `.claude/reviews/20260916-134612-review.out.md`，约 12 分钟）
+
+复核逐条成立：回滚先删 `install.json` 再重试删目录，`install::remove` 对不存在的目录返回 `Ok(false)` 让循环正常退出，回滚忽略取消是对的（取消路径要把回滚做完）；
+`stale()` 早退不会把挂起的 requestScope 丢在 agent 那边（elicitation 由 `closeAuth` / `openAuth` 收）；`registry/progress` 是 broadcast，夹具与组合根并存；
+`GatedAuthCore` 两条路径的断言不是空过。零 findings 无整改，审查循环收口（CLAUDE.md「复审收口标准」：无 high、无阻塞项）。
+
+**合计 5 条（high 1 / P2 4），全部采纳；无 BLOCKED。**
 
 ## 失败处理
 
@@ -283,3 +291,5 @@ registry 型四条按 id 对上 registry 条目、因为没有安装记录显示
 13 项全 PASS，`VALIDATE OK`——fetch-upstream -Check、rust-sdk pin、unsafe 扫描、`_meta` 键、Zed 派生头、pubspec 白名单、`Assert-NoStyleLiteral`、
 `cargo build / test / clippy -D warnings`、`cargo tree` 无 gpui、`flutter analyze`、`flutter test`（119 个用例，gallery 输出 50 / 51 / 52 / 70 四张 PNG）。
 与第一次（fe3f67b）相比只多了 fixtures 26、fake-agent 的 agent 型认证、`registry_refresh` 竞态修正与日志去重，结论不变。
+
+第三次（收口树 `8377689`，含两轮审查整改与夹具改动，2026-09-16 13:56 跑完，日志 `scratchpad/validate-3.log`）：13 项全 PASS，`VALIDATE OK`。
