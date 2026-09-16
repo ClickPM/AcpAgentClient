@@ -35,7 +35,7 @@ Flutter 宿主进程（Dart）
 | 前端类型 | 手写薄封装 `lib/projection/wire.dart`（15 变体 + 5 种内容块 + 3 种工具卡内容 + 两类请求；所有者裁定 2026-09-15，不做构建期生成） | 只做字段访问与判别；合规性由 Rust 侧用 rust-sdk 类型反序列化 `test/fixtures/` 的测试兜底；运行期零协议依赖 |
 | Dart ↔ Rust 桥 | flutter_rust_bridge v2 | Rust 侧 `rust/bridge` crate 暴露 `api.rs`；Dart 侧生成物入库 `lib/bridge/`；payload 一律 JSON `String` |
 | registry 与安装 | Zed `agent_registry_store.rs`、`agent_server_store.rs` | 整体复制；删 remote / collab 路径；`Entity` / `Task` 换 tokio；`fs::Fs` 换 `tokio::fs`；结构体对照官方 `agent.schema.json` |
-| Node 与下载 | Zed `node_runtime`、`http_client`、`reqwest_client`、`paths`、`util` | 直接 git 依赖（不含 gpui） |
+| Node 与下载 | Zed `node_runtime`、`http_client/github_download.rs`、`util/archive.rs` | 原定直接 git 依赖（不含 gpui）；R5 实施时改为**参考转写**到 `rust/registry/src/{node,install,archive}.rs`（reqwest + sha2 + 系统 `tar`）：Zed 的 `node_runtime` 把受管 Node 写到它自己的 `paths::data_dir()`、拉进 smol / async-std 第二套运行时与 Zed 整仓 git 依赖，与「数据目录只多 `node/`」和 tokio 单运行时冲突。R5 任务卡「偏离」段记理由，待所有者确认 |
 | 连接与认证语义 | Zed `agent_servers/acp.rs` 非测试部分 | 转写：能力声明、AuthRequired 映射、terminal auth、session 控制、config options、elicitation、流量日志 |
 | 终端回调语义 | Zed `acp_thread/terminal.rs` | 转写：输出字节上限、wait_for_exit、kill、release |
 | 文件面板 | 自研 | `std::fs` + `notify`；不做索引服务 |
@@ -58,13 +58,13 @@ Flutter 宿主进程（Dart）
 | `acp/agent_state` | 连接生命周期 `{agentId, state, droppedUpdates, ...}`：`spawned(pid, program, args, cwd)` / `initialized(initialize)`（InitializeResponse 原样）/ `auth_required(authMethods, message)` / `authenticating(methodId, terminalId, label)`（terminal auth 的 pty 已拉起）/ `update_dropped(method, error)`（一条 `session/update` 反序列化失败，`droppedUpdates` 已 +1，§ 4）/ `exited(code, stderrTail, transportError)`；每条都带 `droppedUpdates` 计数（R1）。核心自身也走这条流：`core_init` 完成时发 `{agentId: null, state: "core_ready", dataDir, coreVersion}`（R0，验证事件通路） |
 | `acp/terminal_output` | `{terminalId, source, bytes}`（`bytes` 是 base64 的原始字节）或进程结束时的 `{terminalId, source, exitStatus: {exitCode, signal}}`；`source` ∈ agent（`terminal/*` 回调建的终端）/ auth（terminal auth 的可见终端，R1）/ local（终端面板的本地 shell）；非协议消息，仅用于渲染（R4 补齐 agent / local 两路） |
 | `acp/traffic` | `{agentId, direction, line, ts}`：`direction` ∈ in（agent stdout）/ out（agent stdin）/ stderr，`line` 是脱敏后的原始行（`Authorization` / `api_key` / `token` 类键的值打成 `***`，规则 8），`ts` 毫秒时间戳；供调试面板（R1） |
-| `registry/progress` | 安装进度 `{agentId, step, done?, total?, error?}`：npx 是 resolve / write_settings / handshake，binary 是 download / verify / extract，另有 node_download（R5） |
+| `registry/progress` | 安装进度 `{agentId, kind, step, done?, total?, detail?, error?}`：`kind` ∈ npx / binary / node；npx 的 `step` 依次是 resolve（`npm install` 到 `agents/<id>/`）/ write_settings / handshake（首次拉起并 `initialize`），binary 是 download（`done` / `total` 字节）/ verify（sha256）/ extract，受管 Node 是 node_download / node_extract（`agentId` 为 null）；收尾一律 done / failed（带 `error`）/ cancelled。前端按 `agentId` 把最近一条落到条目上（画板 51），速率与剩余时间由前端按 `done` 的时间差估算（R5） |
 
 **命令（前端 → 核心）**
 
 - 连接与会话：`agent_connect`、`agent_disconnect`、`session_new`、`session_load`、`session_list`（cursor 分页）、`session_resume`、`session_close`、`session_delete`、`session_prompt`、`session_cancel`、`session_set_mode`、`session_set_config_option`、`acp_respond`
 - 认证：`authenticate`（agent 类型）、`terminal_auth_run`（terminal 类型；完成后核心自动重试 `session/new`）
-- registry、Node 与设置：`registry_refresh`、`registry_list`、`registry_install`、`registry_cancel_install`、`registry_remove`、`node_status`、`node_download`、`agent_settings_get/set`、`agent_settings_import_zed`
+- registry、Node 与设置：`registry_refresh`（1 小时节流，`force` 跳过）、`registry_list`（registry 条目 + settings 里的 custom 条目，各带本地安装 / 认证状态）、`registry_install`、`registry_cancel_install`、`registry_remove`（移除 settings 条目并只删自己写的 `agents/<id>/`）、`node_status`、`node_download`、`agent_settings_get/set/remove`、`agent_settings_import_zed`（R5 补 `agent_settings_remove`：custom 条目从设置页删除，与 `registry_remove` 同一条路径但不碰 `agents/`）
 - 文件面板与 git：`fs_list_dir`、`fs_read`、`fs_watch`、`fs_search`、`git_status`（文件树徽章）、`git_branches`、`git_switch`、`git_create_branch`、`git_diff`（Branch Diff 上下文）
 - 本地 shell（终端面板）：`terminal_open`、`terminal_write`、`terminal_resize`、`terminal_close`；输出走 `acp/terminal_output`（`terminal_write` 在 R1 先出：terminal auth 的可见终端要接键盘输入）
 - 项目与本地索引：`workspace_recent`、`workspace_open`、`session_index_list/upsert/remove`（会话索引：agentId + sessionId + 标题 + cwd + 时间 + 消息计数）
@@ -105,13 +105,14 @@ Flutter 宿主进程（Dart）
 2. 方法类型为 `agent` → 调 `authenticate`，agent 自己开浏览器；成功后重试 `session/new`。
 3. 方法类型为 `terminal` → 在可见终端里跑给定命令；进程退出后重试 `session/new`。兼容旧版 `_meta.terminal-auth`。
 4. URL elicitation（codex-acp 登录）走 § 3 的 `acp/client_request`，前端打开系统浏览器并等待 `elicitation/complete`。
+5. **落点与收尾（R5，画板 52）**：以上全部落在认证页（右栏 Agents 标签内、对应 agent 的一页），不落转录。入口有三：`session/new` 回 `-32000`（自动切到认证页并记下要重试的 cwd）、画板 51「需要认证」条目的登录键、画板 34 状态条的登录键。requestScope 的 `elicitation/create`（无 `sessionId`，`requestId` 是在途 `authenticate` 的请求 id）到达即在认证页出卡片；用户点开浏览器 = 回 `accept` 并 `url_launcher` 打开，`elicitation/complete` 到达把卡片标完成。`authenticate` / terminal auth 成功后核心（terminal 型）或前端（agent 型）自动重试原来的 `session/new` 并回到工作台；失败态可重试、可换方式；取消回到 registry 列表。认证状态是本地态：`session/new` 成功记「已登录」、`-32000` 记「需要认证」，只对 registry 型条目记（`agents/<id>/install.json`），不做任何 agent 特判。
 
 ## 6. registry 与安装
 
 1. 拉取：`registry.json` 1 小时节流，磁盘缓存，图标按需拉取；结构体对照 `agent.schema.json`。
 2. 列表：按当前平台过滤 `binary` 的 target；`uvx` 条目显示但标「暂不支持」。
-3. 安装：`npx` 解析包名与版本，写入 settings；`binary` 下载压缩包 → 校验 sha256 → 解压到 `agents/<id>/<version>/` → 记录 `cmd` / `args` / `env`。
-4. Node：优先系统 Node ≥ 22；缺失时复用 Zed `node_runtime` 下载受管 Node v24.11.0 到数据目录。
+3. 安装：`npx` 解析包名与版本，`npm install` 到 `agents/<id>/`（照 Zed：装成本地 `node_modules` 再以 `node <bin>` 拉起，不走 `npx` 的临时缓存），写入 settings（`{type: "registry"}`），首次拉起并 `initialize`；`binary` 下载压缩包 → 校验 sha256（条目没给 sha256 时跳过并记明）→ 解压到 `agents/<id>/<version>/` → 记录 `cmd` / `args` / `env`。两型都把安装记录写在 `agents/<id>/install.json`（拉起参数 + 认证状态），settings 里只有 Zed 同形的 registry 条目；Remove 删 settings 条目与 `agents/<id>/`。
+4. Node：优先系统 Node ≥ 22；缺失时下载受管 Node v24.11.0 到数据目录 `node/`（语义照 Zed `node_runtime`：nodejs.org 官方压缩包、按平台取 zip / tar.gz、装好后以 `node --version` 自检；R5 按参考转写落在 `rust/registry/src/node.rs`，理由见任务卡「偏离」）。解压统一走系统 `tar`（Windows 10 1803+ 自带 bsdtar，zip 与 tar.gz 都认）。
 5. 设置：`agent_servers` 与 Zed 同 schema（`type: registry | custom`），提供从 `%APPDATA%/Zed/settings.json` 导入。
 
 ## 7. 终端与 fs
@@ -152,7 +153,7 @@ Flutter 宿主进程（Dart）
 
 ## 10. 数据目录
 
-Windows：`%APPDATA%/AcpAgentClient/{settings.json, sessions.json, projects.json, ui-state.json, registry-cache/, agents/, node/, logs/}`。会话数据归各 agent 自己（claude、codex、pi、dsh 各有自己的存储）；本客户端只存会话索引 `sessions.json`（agentId + sessionId + 标题 + cwd + 时间 + 消息计数）与最近项目列表 `projects.json`，两者都走临时文件 + rename。日志脱敏：`Authorization`、`api_key`、`token` 字段一律打码。
+Windows：`%APPDATA%/AcpAgentClient/{settings.json, sessions.json, projects.json, ui-state.json, registry-cache/, agents/, node/, logs/}`。`registry-cache/` 放 `registry.json` 与 `icons/<id>.svg`；`agents/<id>/` 放该 agent 的安装（npx 型的 `node_modules/`、binary 型的 `<version>/`）与 `install.json`；`node/` 放受管 Node；`logs/acp-<日期>.log` 是脱敏后的 ACP 流量行（与 `acp/traffic` 同源，规则 8），设置页（画板 70）给打开 / 复制路径（R5）。会话数据归各 agent 自己（claude、codex、pi、dsh 各有自己的存储）；本客户端只存会话索引 `sessions.json`（agentId + sessionId + 标题 + cwd + 时间 + 消息计数）与最近项目列表 `projects.json`，两者都走临时文件 + rename。日志脱敏：`Authorization`、`api_key`、`token` 字段一律打码。
 
 `ui-state.json` 是窗口的机器态（目前只有两栏宽度），同样走临时文件 + rename。它与 `settings.json` 分开：后者是用户手写的配置（`agent_servers` 与 Zed 同形），不该被拖窗口改写。字段一律可缺省，缺省宽度与夹取范围只在前端 token 里（`lib/theme/tokens.dart`），核心不复制一份；读不动或不是合法 JSON 时按缺省重建，不挡启动。
 
