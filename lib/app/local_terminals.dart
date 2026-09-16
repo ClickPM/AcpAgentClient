@@ -2,6 +2,7 @@
 // 视口变化 → `terminal_resize`、停止 → `terminal_kill`、关闭 → `terminal_close`；输出从 `acp/terminal_output`（source = local）
 // 按 terminalId 分发到各自的 [LocalTerminal]。widget 只拿模型与回调（CLAUDE.md 规则 3）。
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -151,6 +152,9 @@ class LocalTerminals extends ChangeNotifier {
     for (final tab in tabs) {
       tab.removeListener(_forward);
       tab.dispose();
+      // 丢掉模型的同时也收掉核心里的 shell（kill + 释放），不然它活到 core_shutdown（审查 finding，2026-09-16）。
+      final b = bridge;
+      if (b != null) unawaited(_guard(() => b.terminalClose(tab.id)));
     }
     tabs.clear();
     super.dispose();

@@ -52,11 +52,42 @@ pub fn ensure_inside(cwd: &Path, path: &Path) -> Result<()> {
     let has_parent = path
         .components()
         .any(|c| matches!(c, std::path::Component::ParentDir));
-    if path.is_absolute() && !has_parent && path.starts_with(cwd) {
-        Ok(())
-    } else {
-        Err(FsError::OutsideWorkspace(path.to_path_buf()))
+    if !(path.is_absolute() && !has_parent && path.starts_with(cwd)) {
+        return Err(FsError::OutsideWorkspace(path.to_path_buf()));
     }
+    // 词法在里面还不够：cwd 之下通往 path 的每一级已存在的分量都不能是链接 / 联接，否则 `std::fs` 跟过去就读写到
+    // 工作区外（审查 finding，2026-09-16；与 `list_dir` 的 [`entry_is_dir`] 同一判断）。不存在的尾段（要新建的文件
+    // 与父目录）不用看。
+    let mut cur = cwd.to_path_buf();
+    if let Ok(rel) = path.strip_prefix(cwd) {
+        for component in rel.components() {
+            cur.push(component);
+            match std::fs::symlink_metadata(&cur) {
+                Ok(meta) if is_link(&meta) => return Err(FsError::OutsideWorkspace(path.to_path_buf())),
+                Ok(_) => {}
+                Err(_) => break,
+            }
+        }
+    }
+    Ok(())
+}
+
+/// 符号链接，或 Windows 的目录联接 / 挂载点（对联接 `is_symlink()` 是 false，只能看 `FILE_ATTRIBUTE_REPARSE_POINT`）。
+/// 传入的 metadata 必须来自 `symlink_metadata` / `DirEntry::metadata`（不跟随链接）。
+fn is_link(meta: &std::fs::Metadata) -> bool {
+    if meta.file_type().is_symlink() {
+        return true;
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        /// `winnt.h`。
+        const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
+        if meta.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+            return true;
+        }
+    }
+    false
 }
 
 /// `fs/read_text_file`（docs/design.md § 7）：`line` / `limit` 都是 1-based；`line` 缺省从第一行起、`limit` 缺省到文件尾。
@@ -248,19 +279,7 @@ pub struct SearchResult {
 /// `is_dir()` 是 true**，只能看 `FILE_ATTRIBUTE_REPARSE_POINT`（审查第 2 轮 finding P2，2026-09-15）。
 /// `DirEntry::metadata` 不跟随链接，拿到的就是链接本身的属性。
 fn entry_is_dir(meta: &std::fs::Metadata) -> bool {
-    if !meta.is_dir() {
-        return false;
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::MetadataExt;
-        /// `winnt.h`。
-        const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
-        if meta.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
-            return false;
-        }
-    }
-    !meta.file_type().is_symlink()
+    meta.is_dir() && !is_link(meta)
 }
 
 fn relative_parent(root: &Path, dir: &Path) -> String {
@@ -448,6 +467,56 @@ mod tests {
         let hit = search(&dir, "link-out", 10).expect("search");
         assert_eq!(hit.files.len(), 1);
         assert!(hit.directories.is_empty());
+
+        let _ = std::fs::remove_dir_all(&link);
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&outside);
+    }
+
+    /// 工作区里的目录链接（Windows 用 `mklink /J` 建联接，其他平台用符号链接）指向工作区外：
+    /// `fs/read_text_file`、`fs/write_text_file`、查看器的 `read_file` 都得拒绝，外面的文件一个字节都不能动。
+    #[test]
+    fn links_inside_the_workspace_do_not_escape_read_or_write() {
+        let dir = sandbox("link-escape");
+        let outside = std::env::temp_dir().join(format!("acp-fs-outside-rw-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&outside);
+        std::fs::create_dir_all(&outside).expect("mkdir");
+        std::fs::write(outside.join("secret.txt"), "outside").expect("write");
+        let link = dir.join("link-out");
+        let linked = {
+            #[cfg(windows)]
+            {
+                std::process::Command::new("cmd")
+                    .args(["/c", "mklink", "/J"])
+                    .arg(&link)
+                    .arg(&outside)
+                    .output()
+                    .map(|o| o.status.success())
+                    .unwrap_or(false)
+            }
+            #[cfg(not(windows))]
+            {
+                std::os::unix::fs::symlink(&outside, &link).is_ok()
+            }
+        };
+        if !linked {
+            eprintln!("cannot create a directory link here; skipping");
+            let _ = std::fs::remove_dir_all(&dir);
+            let _ = std::fs::remove_dir_all(&outside);
+            return;
+        }
+
+        let target = link.join("secret.txt");
+        assert!(matches!(read_text_file(&dir, &target, None, None), Err(FsError::OutsideWorkspace(_))));
+        assert!(matches!(read_file(&dir, &target), Err(FsError::OutsideWorkspace(_))));
+        assert!(matches!(write_text_file(&dir, &target, "changed"), Err(FsError::OutsideWorkspace(_))));
+        // 在链接之下新建同样拒绝：父目录就是链接。
+        assert!(matches!(write_text_file(&dir, &link.join("new.txt"), "x"), Err(FsError::OutsideWorkspace(_))));
+        assert_eq!(std::fs::read_to_string(outside.join("secret.txt")).expect("read"), "outside");
+        assert!(!outside.join("new.txt").exists());
+        // 工作区里正常的文件照常能写能读。
+        write_text_file(&dir, &dir.join("ok.txt"), "fine").expect("write inside");
+        assert_eq!(read_text_file(&dir, &dir.join("ok.txt"), None, None).expect("read inside"), "fine");
 
         let _ = std::fs::remove_dir_all(&link);
         let _ = std::fs::remove_dir_all(&dir);

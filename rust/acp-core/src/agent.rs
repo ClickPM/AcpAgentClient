@@ -507,7 +507,24 @@ impl Shared {
             .await;
             match spawned {
                 Ok(Ok(id)) => {
-                    lock(&shared.owned_terminals).insert(id.clone());
+                    // 审查 finding（2026-09-16）：拉起期间这条连接可能已经 finish()（agent 退出 / 断开）并把 owned 集合
+                    // 释放过一轮，之后没人再释放这条终端。exit 与登记在同一把锁下判：已退出就当场释放、回错误。
+                    let registered = {
+                        let mut owned = lock(&shared.owned_terminals);
+                        if shared.exit_info().is_some() {
+                            false
+                        } else {
+                            owned.insert(id.clone());
+                            true
+                        }
+                    };
+                    if !registered {
+                        let _ = shared.terminals.release(&id);
+                        let _ = responder.respond_with_error(
+                            acp::Error::internal_error().data("agent connection closed while creating the terminal"),
+                        );
+                        return;
+                    }
                     let _ = responder.respond(acp::CreateTerminalResponse::new(acp::TerminalId::new(id)));
                 }
                 Ok(Err(e)) => {
@@ -530,24 +547,34 @@ impl Shared {
         }
     }
 
-    fn on_terminal_output(&self, request: acp::TerminalOutputRequest, responder: Responder<acp::TerminalOutputResponse>) {
-        let result = self.owned_terminal(&request.terminal_id).and_then(|id| {
-            self.terminals
-                .output(&id)
-                .map_err(|e| acp::Error::internal_error().data(e.to_string()))
-        });
-        match result {
-            Ok(out) => {
-                let mut response = acp::TerminalOutputResponse::new(out.text, out.truncated);
-                if let Some(status) = out.exit {
-                    response = response.exit_status(exit_status(&status));
+    fn on_terminal_output(self: &Arc<Self>, request: acp::TerminalOutputRequest, responder: Responder<acp::TerminalOutputResponse>) {
+        let shared = self.clone();
+        tokio::spawn(async move {
+            let id = match shared.owned_terminal(&request.terminal_id) {
+                Ok(id) => id,
+                Err(e) => {
+                    let _ = responder.respond_with_error(e);
+                    return;
                 }
-                let _ = responder.respond(response);
+            };
+            // 最多 4 MiB 的缓冲要 lossy 解码 + 去 ANSI，不占 SDK 分发线程（审查 finding，2026-09-16）。
+            let terminals = shared.terminals.clone();
+            match tokio::task::spawn_blocking(move || terminals.output(&id)).await {
+                Ok(Ok(out)) => {
+                    let mut response = acp::TerminalOutputResponse::new(out.text, out.truncated);
+                    if let Some(status) = out.exit {
+                        response = response.exit_status(exit_status(&status));
+                    }
+                    let _ = responder.respond(response);
+                }
+                Ok(Err(e)) => {
+                    let _ = responder.respond_with_error(acp::Error::internal_error().data(e.to_string()));
+                }
+                Err(join) => {
+                    let _ = responder.respond_with_error(acp::Error::internal_error().data(join.to_string()));
+                }
             }
-            Err(e) => {
-                let _ = responder.respond_with_error(e);
-            }
-        }
+        });
     }
 
     fn on_wait_for_terminal_exit(
@@ -605,19 +632,31 @@ impl Shared {
         });
     }
 
-    fn on_release_terminal(&self, request: acp::ReleaseTerminalRequest, responder: Responder<acp::ReleaseTerminalResponse>) {
-        let result = self.owned_terminal(&request.terminal_id).and_then(|id| {
-            lock(&self.owned_terminals).remove(&id);
-            self.terminals.release(&id).map_err(|e| acp::Error::internal_error().data(e.to_string()))
+    fn on_release_terminal(self: &Arc<Self>, request: acp::ReleaseTerminalRequest, responder: Responder<acp::ReleaseTerminalResponse>) {
+        let shared = self.clone();
+        tokio::spawn(async move {
+            let id = match shared.owned_terminal(&request.terminal_id) {
+                Ok(id) => id,
+                Err(e) => {
+                    let _ = responder.respond_with_error(e);
+                    return;
+                }
+            };
+            lock(&shared.owned_terminals).remove(&id);
+            // release 对还在跑的进程先 kill，不占 SDK 分发线程。
+            let terminals = shared.terminals.clone();
+            match tokio::task::spawn_blocking(move || terminals.release(&id)).await {
+                Ok(Ok(())) => {
+                    let _ = responder.respond(acp::ReleaseTerminalResponse::default());
+                }
+                Ok(Err(e)) => {
+                    let _ = responder.respond_with_error(acp::Error::internal_error().data(e.to_string()));
+                }
+                Err(join) => {
+                    let _ = responder.respond_with_error(acp::Error::internal_error().data(join.to_string()));
+                }
+            }
         });
-        match result {
-            Ok(()) => {
-                let _ = responder.respond(acp::ReleaseTerminalResponse::default());
-            }
-            Err(e) => {
-                let _ = responder.respond_with_error(e);
-            }
-        }
     }
 }
 

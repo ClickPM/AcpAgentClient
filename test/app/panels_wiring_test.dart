@@ -94,6 +94,20 @@ class PanelsCore extends FakeCore {
 
   @override
   Stream<JsonMap> fsWatch(String r) => watch.stream;
+
+  final List<String> unwatched = <String>[];
+
+  @override
+  Future<JsonMap> fsUnwatch(String r) async {
+    unwatched.add(r);
+    return <String, dynamic>{'root': r, 'removed': true};
+  }
+}
+
+/// 核心不认识的终端 id（`_meta` 通道喂出来的 toolUseId）：`terminal_kill` 报 unknown terminal。
+class UnknownKillCore extends PanelsCore {
+  @override
+  Future<JsonMap> terminalKill(String terminalId) async => throw StateError('pty: unknown terminal $terminalId');
 }
 
 WorkbenchController controller(PanelsCore core) =>
@@ -311,6 +325,40 @@ void main() {
 
       await c.shutdown();
       expect(core.shutdowns, 1);
+      c.dispose();
+    });
+
+    test('审查整改：dispose 收掉监视器与 shell；停止方块碰到核心不认识的终端 id 不记错也不标 killed', () async {
+      final core = UnknownKillCore();
+      final files = FilesState(bridge: core);
+      await files.setProject(root);
+      files.dispose();
+      await Future<void>.delayed(Duration.zero);
+      expect(core.unwatched, <String>[root]);
+
+      final terminals = LocalTerminals(bridge: core);
+      final id = await terminals.open(root);
+      terminals.dispose();
+      await Future<void>.delayed(Duration.zero);
+      expect(core.closedTerminals, <String>[id!]);
+
+      final c = controller(core);
+      await c.start();
+      c.sessionId = 'sess_1';
+      c.agentId = 'a';
+      final store = c.sessions.session('sess_1', agentId: 'a');
+      store.applyUpdateJson(<String, dynamic>{
+        'sessionUpdate': 'tool_call',
+        'toolCallId': 'toolu_1',
+        'title': 'Bash',
+        'kind': 'execute',
+        'status': 'in_progress',
+        'content': <JsonMap>[<String, dynamic>{'type': 'terminal', 'terminalId': 'toolu_1'}],
+      });
+      await c.killTerminal('toolu_1');
+      expect(c.lastError, isNull);
+      // 没有 `_meta.terminal_output` 到达前缓冲都不存在；有也不该被标 killed。
+      expect(store.terminals['toolu_1']?.killed ?? false, isFalse);
       c.dispose();
     });
   });

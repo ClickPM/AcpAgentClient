@@ -94,7 +94,24 @@
 
 ## 代码审查
 
-<!-- 完成后回填。 -->
+执行器：cursor CLI（`cursor-agent`，`cursor-grok-4.6-high`，`--mode ask`），`.claude/cursor-review.ps1`。范围口径按 CLAUDE.md：前两轮全量 `main...HEAD`，第 3 轮起只审整改 diff。
+
+### 第 1 轮（全量 `main...HEAD`，2026-09-16，产物 `.claude/reviews/20260916-135559-review.out.md`）
+
+被审提交 `8bd20c9`（53 files / +6864）。findings 6（high 2 / P2 4 / P3 0），**全部采纳**，整改提交见本节末尾：
+
+| # | 级别 | 位置 | 问题 | 处理 |
+|---|---|---|---|---|
+| 1 | high | `rust/acp-core/src/agent.rs` `on_create_terminal` | agent 断开与 `terminal/create` 竞态：`finish()` 先把 owned 集合清空，spawn 完成后才登记的新终端没人再释放，pty 活到 `core_shutdown` | 采纳。登记与「连接是否已退出」在同一把 `owned_terminals` 锁下判：已退出就当场 `release`、回 internal error 不登记 |
+| 2 | high | `rust/fs/src/lib.rs` `ensure_inside` | 边界只做词法 `starts_with`，工作区里的目录联接 / 符号链接能把 `fs/read_text_file` / `fs/write_text_file` / `fs_read` 打到工作区外 | 采纳。cwd 之下通往目标的每一级已存在分量做 `symlink_metadata`，是链接 / 联接（`FILE_ATTRIBUTE_REPARSE_POINT`，与 `list_dir` 的 `entry_is_dir` 同一判断，抽成 `is_link`）就回 `OutsideWorkspace`；不存在的尾段（要新建的）不看。新用例 `links_inside_the_workspace_do_not_escape_read_or_write`（Windows `mklink /J`，其他平台 symlink）：读 / 写 / 查看器读 / 在链接下新建四条都拒绝，外面的文件一字节没动 |
+| 3 | P2 | `agent.rs` `on_terminal_output` / `on_release_terminal`；`rust/pty/src/lib.rs` `output` | 两个 handler 同步跑在 SDK 分发线程上；`output` 持锁期间对最多 4 MiB 缓冲做 lossy 解码 + 去 ANSI，读线程的 push 与分发一起等 | 采纳。两个 handler 改成 `tokio::spawn` + `spawn_blocking`（与 create / kill / wait 同口径）；`output` 锁内只 clone 字节，解码与去 ANSI 放锁外 |
+| 4 | P2 | `rust/acp-core/src/core.rs` `terminal_write` | 在 tokio worker 上对 ConPTY 做阻塞 `write_all`（子进程不读 stdin 时占死一条 worker） | 采纳。`terminal_write` 改 async + `spawn_blocking`；bridge 加 `.await`，acp-smoke 的三处（都在普通线程里）改 `runtime().block_on` |
+| 5 | P2 | `lib/app/files_state.dart` / `local_terminals.dart` `dispose` | dispose 只取消 Dart 端口 / 丢模型，Rust 侧监视器与 shell 活到 `core_shutdown`（`core_init` 幂等复用 Core，热重启 / 测试里会攒） | 采纳。`FilesState.dispose` 对当前 root 调 `fs_unwatch`；`LocalTerminals.dispose` 对每个标签调 `terminal_close`。新用例断言两条命令都到了核心 |
+| 6 | P2 | `lib/app/workbench_controller.dart` `killTerminal` | `_meta` 通道的终端 id 是 agent 的 toolUseId，核心没有这个 pty：停止方块一按就 `unknown terminal` 进 `lastError`，且本地已先标 killed（命令其实没停） | 采纳（最小改动）。先调 `terminal_kill`，成功才标 killed；`unknown terminal` 不记错、不标；其他错误照记。新用例覆盖 |
+
+未报项：规则 1 / 4 / 5 / 6 / 8 / 10 未命中；`unsafe` 只在 `frb_generated.rs`（既有例外）；`5380c03..HEAD` 的 `lib/theme` / `lib/ui` 零 diff；`_meta.terminal_*` 三键的裁定留给所有者。
+
+整改后 `cargo test -p fs`（18）/ `-p pty`（13）/ `acp-core --test scripted`（6）、clippy `-D warnings`、`flutter test test/app/`（19）全过；全量 `validate.ps1` 与 `build.ps1 -Smoke` 结果见「本轮实测 · 验收 8」。
 
 ## 失败处理
 
@@ -174,6 +191,7 @@ acp-smoke 对 `fake-agent-r4`（`--fs --terminal --terminal-bg`）跑一整轮�
 | 本地 shell（61） | `term_3` 标题「r4 项目 目录」，提示符 `PS D:/cargo-target/AcpAgentClient/r4 项目 目录>` 出来后敲 echo，输出行 `r4-local-shell-ok` 单独一行；停止 → 退出码 1；重启 → `term_4` running；关闭 → 0 个标签 |
 | 重载 agent | `lastError: null`（第一次跑时这里是 `pty: io: 句柄无效 (os error 6)`，见「Windows 实测」第 3 条，已修） |
 | 退出收尾 | `shutdown()` → agent `exited`、终端标签 0；事后进程表没有残留的 `acp_agent_client` / `pwsh` / `node` |
+| 逐方法流量（整改后重跑） | `in:fs/write_text_file` 1、`in:fs/read_text_file` 1、`in:terminal/create` 2、`in:terminal/wait_for_exit` 2、`in:terminal/output` 2、`in:terminal/release` 2（`terminal/kill` 由停止方块走本地 `terminal_kill`，agent 侧不发）——七个回调里六个由 agent 真调到客户端 |
 
 **claude-agent-acp 0.76.0**（`npx -y @agentclientprotocol/claude-agent-acp@0.76.0`，`build/r4-claude3.json`，exit 0；模型 `opus[1m]`，mode `auto`）——提示词点名「用 Read 工具读 README.md、用 Edit 工具把第一行改成「# R4 真跑」、用 Bash 跑 `git status --porcelain`」：
 

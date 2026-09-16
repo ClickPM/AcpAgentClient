@@ -480,10 +480,12 @@ impl TerminalManager {
     /// `terminal/output`：留存的输出（去 ANSI）、是否截断过、退出状态（已退出时）。
     pub fn output(&self, id: &str) -> Result<TerminalOutput> {
         let handle = self.handle(id)?;
-        let (text, truncated) = {
+        // 锁内只拷字节：读线程的 push 与这把锁竞争，lossy 解码 + 去 ANSI（最多 4 MiB）放到锁外做（审查 finding，2026-09-16）。
+        let (bytes, truncated) = {
             let buffer = lock_or_recover(&handle.output);
-            (strip_ansi(&String::from_utf8_lossy(&buffer.bytes)), buffer.truncated)
+            (buffer.bytes.clone(), buffer.truncated)
         };
+        let text = strip_ansi(&String::from_utf8_lossy(&bytes));
         Ok(TerminalOutput { text, truncated, exit: handle.exit.get() })
     }
 

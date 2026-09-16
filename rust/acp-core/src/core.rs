@@ -294,9 +294,16 @@ impl Core {
     }
 
     /// 往终端写键盘输入（terminal auth 的可见终端；R4 的本地 shell 同一条命令）。
-    pub fn terminal_write(&self, terminal_id: &str, bytes: &[u8]) -> Result<Value> {
-        self.terminals.write(terminal_id, bytes)?;
-        Ok(json!({ "terminalId": terminal_id, "written": bytes.len() }))
+    /// ConPTY 的 `write_all` 会阻塞（子进程不读 stdin 时），走 `spawn_blocking`（审查 finding，2026-09-16）。
+    pub async fn terminal_write(&self, terminal_id: &str, bytes: &[u8]) -> Result<Value> {
+        let terminals = self.terminals.clone();
+        let id = terminal_id.to_string();
+        let data = bytes.to_vec();
+        let written = data.len();
+        tokio::task::spawn_blocking(move || terminals.write(&id, &data))
+            .await
+            .map_err(|e| CoreError::Pty(format!("write task failed: {e}")))??;
+        Ok(json!({ "terminalId": terminal_id, "written": written }))
     }
 
     // ---- 本地交互 shell（R4，画板 61；docs/design.md § 3「本地 shell」，所有者裁定 2026-09-15）

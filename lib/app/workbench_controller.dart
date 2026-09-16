@@ -1109,8 +1109,19 @@ class WorkbenchController extends ChangeNotifier {
   Future<void> killTerminal(String terminalId) async {
     final b = bridge;
     if (b == null) return;
+    try {
+      await b.terminalKill(terminalId);
+    } catch (e) {
+      // `_meta` 通道喂出来的终端 id 是 agent 的 toolUseId，核心没有这个 pty：协议里没有能停它的动作，
+      // 不算错误、也不标 killed（审查 finding，2026-09-16）。
+      final text = describeError(e);
+      if (!text.contains('unknown terminal')) {
+        lastError = text;
+        _touch();
+      }
+      return;
+    }
     store?.markTerminalKilled(terminalId);
-    await _guard(() => b.terminalKill(terminalId));
   }
 
   /// `acp/terminal_output`：source = local 的进终端面板，其余（agent / auth）进转录里的终端卡。

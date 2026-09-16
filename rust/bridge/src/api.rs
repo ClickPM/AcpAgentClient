@@ -190,7 +190,7 @@ pub async fn terminal_auth_run(agent_id: String, method_id: String, cwd: String)
 
 /// 往终端写键盘输入（UTF-8 文本原样写进 pty）。R4 的本地 shell 四命令之一，terminal auth 需要它所以 R1 先出。
 pub async fn terminal_write(terminal_id: String, data: String) -> Result<String, BridgeError> {
-    on_core(|core| async move { core.terminal_write(&terminal_id, data.as_bytes()) }).await
+    on_core(|core| async move { core.terminal_write(&terminal_id, data.as_bytes()).await }).await
 }
 
 // ---- 本地交互 shell 与终端控制（R4，画板 61；docs/design.md § 3「本地 shell」）

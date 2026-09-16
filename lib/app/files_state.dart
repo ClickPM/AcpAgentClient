@@ -258,6 +258,10 @@ class FilesState extends ChangeNotifier {
     _disposed = true;
     _searchDebounce?.cancel();
     _watch?.cancel();
+    // 取消 frb 流只关 Dart 端口，Rust 侧的监视器要 `fs_unwatch` 才停（审查 finding，2026-09-16）。
+    final r = root;
+    final b = bridge;
+    if (r != null && b != null) unawaited(_guard(() => b.fsUnwatch(r)));
     tree?.removeListener(_forward);
     filter.dispose();
     filterFocus.dispose();
