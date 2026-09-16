@@ -111,7 +111,7 @@ Flutter 宿主进程（Dart）
 
 1. 拉取：`registry.json` 1 小时节流，磁盘缓存，图标按需拉取；结构体对照 `agent.schema.json`。
 2. 列表：按当前平台过滤 `binary` 的 target；`uvx` 条目显示但标「暂不支持」。
-3. 安装：`npx` 解析包名与版本，`npm install` 到 `agents/<id>/`（照 Zed：装成本地 `node_modules` 再以 `node <bin>` 拉起，不走 `npx` 的临时缓存），写入 settings（`{type: "registry"}`），首次拉起并 `initialize`；`binary` 下载压缩包 → 校验 sha256（条目没给 sha256 时跳过并记明）→ 解压到 `agents/<id>/<version>/` → 记录 `cmd` / `args` / `env`。两型都把安装记录写在 `agents/<id>/install.json`（拉起参数 + 认证状态），settings 里只有 Zed 同形的 registry 条目；Remove 删 settings 条目与 `agents/<id>/`。
+3. 安装：`npx` 解析包名与版本，`npm install` 到 `agents/<id>/`（照 Zed：装成本地 `node_modules` 再以 `node <bin>` 拉起，不走 `npx` 的临时缓存），写入 settings（`{type: "registry"}`），首次拉起并 `initialize`；`binary` 下载压缩包 → 校验 sha256（条目没给 sha256 时跳过并记明）→ 解压到 `agents/<id>/<version>/` → 记录 `cmd` / `args` / `env`。两型都把安装记录写在 `agents/<id>/install.json`（拉起参数 + 认证状态），settings 里只有 Zed 同形的 registry 条目；Remove 删 settings 条目与 `agents/<id>/`。写入 settings 是提交点：之后的取消不再把装好的结果报成 cancelled；首次握手失败或被取消则回滚成没装过（删 `agents/<id>/`，settings 条目只删本次新建的），Remove 在安装任务还没退出时拒绝而不是抢着删目录（R5 审查）。
 4. Node：优先系统 Node ≥ 22；缺失时下载受管 Node v24.11.0 到数据目录 `node/`（语义照 Zed `node_runtime`：nodejs.org 官方压缩包、按平台取 zip / tar.gz、装好后以 `node --version` 自检；R5 按参考转写落在 `rust/registry/src/node.rs`，理由见任务卡「偏离」）。解压统一走系统 `tar`（Windows 10 1803+ 自带 bsdtar，zip 与 tar.gz 都认）。
 5. 设置：`agent_servers` 与 Zed 同 schema（`type: registry | custom`），提供从 `%APPDATA%/Zed/settings.json` 导入。
 

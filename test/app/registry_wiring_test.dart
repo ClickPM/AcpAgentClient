@@ -227,6 +227,42 @@ void main() {
     c.dispose();
   });
 
+  test('认证页取消 / 重开：挂起的 requestScope elicitation 回 cancel，agent 不会永远等着', () async {
+    final core = AuthCore();
+    final c = await _start(core);
+    JsonMap request(String requestId, String elicitationId) => <String, dynamic>{
+          'agentId': 'codex-acp',
+          'requestId': requestId,
+          'method': 'elicitation/create',
+          'params': <String, dynamic>{'mode': 'url', 'requestId': 5, 'elicitationId': elicitationId, 'url': 'https://auth.example/device'},
+        };
+    core.emit(CoreEvent.clientRequest, request('7', 'login_1'));
+    await Future<void>.delayed(Duration.zero);
+    expect(c.authElicitations.single.status, PendingStatus.pending);
+
+    // 选择卡上的「取消」：回 registry 列表之前先回应挂起的那条。
+    await c.cancelAuth();
+    await Future<void>.delayed(Duration.zero);
+    expect(c.authAgentId, isNull);
+    expect(c.authElicitations, isEmpty);
+    expect(core.responded.single.$1, '7');
+    expect(core.responded.single.$2, <String, dynamic>{'action': 'cancel'});
+
+    // 从另一条入口重开认证页同样不丢：新的挂起项也回 cancel；已 accept 的（浏览器已开）没有第二个响应，只从页上拿掉。
+    core.emit(CoreEvent.clientRequest, request('8', 'login_2'));
+    await Future<void>.delayed(Duration.zero);
+    await c.acceptElicitationUrl(c.authElicitations.single);
+    core.emit(CoreEvent.clientRequest, request('9', 'login_3'));
+    await Future<void>.delayed(Duration.zero);
+    expect(c.authElicitations.length, 2);
+    await c.openAuth('codex-acp');
+    await Future<void>.delayed(Duration.zero);
+    expect(c.authElicitations, isEmpty);
+    expect(core.responded.map((r) => r.$1).toList(), <String>['7', '8', '9']);
+    expect(core.responded.last.$2, <String, dynamic>{'action': 'cancel'});
+    c.dispose();
+  });
+
   test('设置页：保存 custom 条目时 args / env 的切分；侧栏「设置」是主区页面', () async {
     expect(WorkbenchController.splitArgs('--stdio --interactive'), <String>['--stdio', '--interactive']);
     expect(WorkbenchController.splitArgs('"D:/a b/x.mjs" --flag  '), <String>['D:/a b/x.mjs', '--flag']);

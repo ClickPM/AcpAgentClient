@@ -166,23 +166,33 @@ impl Core {
                 let mut manifest = registry::install::install_npx(dirs, entry, &npx, &node, token.clone(), &sink).await?;
                 token.check()?;
                 sink.progress(Progress::new(Some(&entry.id), "npx", "write_settings"));
-                let settings_env = self.write_registry_settings(&entry.id)?;
-                manifest.save(dirs)?;
-                token.check()?;
-                sink.progress(Progress::new(Some(&entry.id), "npx", "handshake"));
-                let launch = LaunchSpec::from_registry(&manifest, Some(&node), &settings_env)?;
-                // 首次拉起并 initialize：拿 agentInfo（展示名 / 版本）。不用 select 抢取消——连接一旦建起就必须走 disconnect
-                // 收尾，半途丢掉 future 会留下孤儿进程。
-                let connection = AgentConnection::connect(entry.id.clone(), launch, None, self.event_sink()).await?;
-                manifest.agent_info = connection.initialize.get("agentInfo").cloned();
-                manifest.installed_version = manifest
-                    .installed_version
-                    .clone()
-                    .or_else(|| manifest.agent_info.as_ref().and_then(|i| i.get("version")).and_then(Value::as_str).map(str::to_string));
-                connection.disconnect().await;
-                manifest.save(dirs)?;
-                token.check()?;
-                Ok(())
+                let (settings_env, settings_created) = self.write_registry_settings(&entry.id)?;
+                // 从这里起是「提交点」：settings 与 install.json 都落了盘。之后不再 `token.check()` 把装好的结果报成 cancelled；
+                // 握手失败或取消则回滚成没装过（审查 P2，2026-09-16），别留下一个显示已安装却拉不起来的条目。
+                let committed: Result<()> = async {
+                    manifest.save(dirs)?;
+                    sink.progress(Progress::new(Some(&entry.id), "npx", "handshake"));
+                    let launch = LaunchSpec::from_registry(&manifest, Some(&node), &settings_env)?;
+                    // 首次拉起并 initialize：拿 agentInfo（展示名 / 版本）。与取消赛跑是安全的：connect 的 future 被丢掉时，
+                    // 它持有的 kill 通道发送端随之析构，exit_watcher 立刻结束子进程树（agent.rs），不留孤儿。
+                    let connection = tokio::select! {
+                        connected = AgentConnection::connect(entry.id.clone(), launch, None, self.event_sink()) => connected?,
+                        _ = token.cancelled() => return Err(RegistryError::Cancelled.into()),
+                    };
+                    manifest.agent_info = connection.initialize.get("agentInfo").cloned();
+                    manifest.installed_version = manifest
+                        .installed_version
+                        .clone()
+                        .or_else(|| manifest.agent_info.as_ref().and_then(|i| i.get("version")).and_then(Value::as_str).map(str::to_string));
+                    connection.disconnect().await;
+                    manifest.save(dirs)?;
+                    Ok(())
+                }
+                .await;
+                if committed.is_err() {
+                    self.rollback_install(&entry.id, settings_created);
+                }
+                committed
             }
             Resolved::Binary(target) => {
                 let manifest = registry::install::install_binary(dirs, entry, &target, self.http(), token.clone(), &sink).await?;
@@ -197,18 +207,27 @@ impl Core {
     }
 
     /// settings.json 写 `{type: "registry"}`（已有 registry 条目时保留它的 env 与 Zed 字段；同名 custom 条目不覆盖）。
-    /// 返回该条目的 `env`（拉起时最后覆盖）。
-    fn write_registry_settings(&self, agent_id: &str) -> Result<BTreeMap<String, String>> {
+    /// 返回该条目的 `env`（拉起时最后覆盖）与「这条是本次新建的」（回滚时只删自己建的）。
+    fn write_registry_settings(&self, agent_id: &str) -> Result<(BTreeMap<String, String>, bool)> {
         match self.settings().get(agent_id)? {
-            Some(AgentServer::Registry { env, .. }) => Ok(env),
+            Some(AgentServer::Registry { env, .. }) => Ok((env, false)),
             Some(AgentServer::Custom { .. }) => Err(CoreError::InvalidArgument(format!(
                 "settings.json 里已有同名的 custom 条目 `{agent_id}`，先在设置页删掉它"
             ))),
             None => {
                 self.settings().upsert(agent_id, AgentServer::Registry { env: BTreeMap::new(), extra: BTreeMap::new() })?;
-                Ok(BTreeMap::new())
+                Ok((BTreeMap::new(), true))
             }
         }
+    }
+
+    /// 提交点之后失败或取消：删 `agents/<id>/`（连 install.json），settings 条目只删本次新建的（原有的带用户 env，不动）。
+    /// 尽力而为，回滚自己的错误不覆盖原来的错误。
+    fn rollback_install(&self, agent_id: &str, settings_created: bool) {
+        if settings_created {
+            let _ = self.settings().remove(agent_id);
+        }
+        let _ = registry::install::remove(self.registry_dirs(), agent_id);
     }
 
     /// `registry_cancel_install`。
@@ -233,6 +252,10 @@ impl Core {
             let deadline = tokio::time::Instant::now() + CANCEL_GRACE;
             while lock(self.installs()).contains_key(agent_id) && tokio::time::Instant::now() < deadline {
                 tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+            // 宽限期过了还没退出就不删：安装任务收尾还会写 install.json，先删目录会被它写回（审查 P2，2026-09-16）。
+            if lock(self.installs()).contains_key(agent_id) {
+                return Err(CoreError::InvalidArgument(format!("`{agent_id}` 的安装还没退出（已发取消），稍后再试")));
             }
         }
         let connection = lock(self.agents()).remove(agent_id);

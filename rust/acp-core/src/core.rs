@@ -394,8 +394,16 @@ impl Core {
         if agent_id.trim().is_empty() {
             return Err(CoreError::InvalidArgument("agent id is empty".into()));
         }
-        let server: AgentServer =
+        let mut server: AgentServer =
             serde_json::from_value(server).map_err(|e| CoreError::InvalidArgument(format!("agent server entry: {e}")))?;
+        // 设置页只编辑 command / args / env：来的条目没带 Zed 字段（`default_config_options` 等）时沿用旧条目的，
+        // 别把从 Zed 导入的默认配置写空（审查 P2，2026-09-16）。
+        if let AgentServer::Custom { extra, .. } = &mut server
+            && extra.is_empty()
+            && let Some(AgentServer::Registry { extra: old, .. } | AgentServer::Custom { extra: old, .. }) = self.settings.get(agent_id)?
+        {
+            *extra = old;
+        }
         Ok(serde_json::to_value(self.settings.upsert(agent_id, server)?)?)
     }
 
@@ -567,6 +575,12 @@ mod tests {
             .expect("set");
         assert_eq!(settings["agent_servers"]["x"]["command"], "agent.cmd");
         assert!(core.agent_settings_set("", json!({"type": "custom", "command": "a"})).is_err());
+        // 从 Zed 导入的 extra 字段：设置页只回写 command / args / env，旧条目的 default_config_options 要留下。
+        core.agent_settings_set("z", json!({"type": "custom", "command": "z.cmd", "default_config_options": {"model": "fast"}}))
+            .expect("set with extra");
+        let settings = core.agent_settings_set("z", json!({"type": "custom", "command": "z2.cmd", "args": ["--acp"]})).expect("edit");
+        assert_eq!(settings["agent_servers"]["z"]["command"], "z2.cmd");
+        assert_eq!(settings["agent_servers"]["z"]["default_config_options"]["model"], "fast");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -1239,7 +1239,7 @@ class WorkbenchController extends ChangeNotifier {
     authError = null;
     authTerminalLabel = null;
     _authRetryCwd = retryCwd ?? project?.path;
-    authElicitations.clear();
+    _cancelAuthElicitations();
     openTab(ShellTab.agents);
     final b = bridge;
     if (b != null && authMethods.isEmpty) {
@@ -1331,8 +1331,17 @@ class WorkbenchController extends ChangeNotifier {
     authError = null;
     authTerminalLabel = null;
     _authRetryCwd = null;
-    authElicitations.clear();
+    _cancelAuthElicitations();
     _touch();
+  }
+
+  /// 认证页收起 / 重开前：还挂着的 requestScope elicitation 逐条回 `cancel`。不回响应，agent 那边在途的 `authenticate`
+  /// 会永远等这条 JSON-RPC 回应（审查 finding high，2026-09-16）；已 accept 的（浏览器已打开）没有第二个响应可发，只从页上拿掉。
+  void _cancelAuthElicitations() {
+    for (final e in List<ElicitationEntry>.of(authElicitations)) {
+      if (e.status == PendingStatus.pending) unawaited(cancelElicitation(e));
+    }
+    authElicitations.clear();
   }
 
   Future<void> stopAuthTerminal() async {
