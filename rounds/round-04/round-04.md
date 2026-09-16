@@ -130,9 +130,16 @@
 
 ### 合并 main 之后的第 4 轮（全量 `main...HEAD`）
 
-R4 收口时 `main` 已并入 R5（`b1339c8`，另一会话并行完成），本分支先合入 `main`（合并提交 `96b7c99`，18 个文件手工解冲突：右栏标签条改成 `PanelTab` 承载文件 / Agents / 终端标签而设置仍是主区页面、`core_bridge` 的 R4 命令改成 R5 的 `_run` 风格、`Core::terminal_close` 与 bridge 的同名命令各合成一条、`fixtures/26-terminal-meta` 改号 27 让位 R5 的 26、frb 生成物重出）。合并本身是新 diff，按缺陷门禁再全量审一轮：
+R4 收口时 `main` 已并入 R5（`b1339c8`，另一会话并行完成），本分支先合入 `main`（合并提交 `96b7c99`，18 个文件手工解冲突：右栏标签条改成 `PanelTab` 承载文件 / Agents / 终端标签而设置仍是主区页面、`core_bridge` 的 R4 命令改成 R5 的 `_run` 风格、`Core::terminal_close` 与 bridge 的同名命令各合成一条、`fixtures/26-terminal-meta` 改号 27 让位 R5 的 26、frb 生成物重出）。合并本身是新 diff，按缺陷门禁再全量审一轮（2026-09-16，产物 `.claude/reviews/20260916-145123-review.out.md`，被审提交 `9aabaf0`）：
 
-（回填。）
+审查者确认前三轮 7 条整改都在、合并解冲突的各点没有引出阻断级问题；findings 2（high 0 / P2 2 / P3 0）。所有者裁定（2026-09-16，本轮收口时）：R5 提前合入的部分已经过 cursor 独立审查，合并后再审出的问题先判严重程度，不属于阻断性 bug / 功能缺陷 / 需求偏离的直接记 BACKLOG 结束本轮。两条都按这个口径处理：
+
+| # | 级别 | 位置 | 问题 | 判定 | 处理 |
+|---|---|---|---|---|---|
+| 1 | P2 | `workbench_controller.dart` `closeTab` | 「文件 + 终端」标签并存时关掉最后一个面板标签，右栏整栏收起、shell 在后台继续跑（侧栏再点「终端」能找回，pty 仍在 `terminals.tabs` 里、`closeRightPanel` / `shutdown` 照常收） | 非阻断：不丢数据、不泄资源（进程仍受管）、有找回路径 | 记 BACKLOG，不改 |
+| 2 | P2 | `files_state.dart` `setProject` | 快速 A→B→A 切项目时 Dart 订到 B 的流而字段是 A，核心多留一个 B 的监视器到 `core_shutdown` | 非阻断：只在两次 await 的窗口里连切两次才触发，监视器泄漏有界（进程生命周期内一个 `DirWatcher`）、事件落到不在树里的目录是空操作 | 记 BACKLOG，不改 |
+
+**结论**：4 轮审查共 9 条（high 2 / P2 7），7 条采纳整改、2 条按所有者裁定记 BACKLOG；收口时 high 0。
 
 ## 失败处理
 
