@@ -66,3 +66,5 @@
 - [ ] R5 registry 型 agent 的更新：registry.json 里版本升了，已安装的条目仍是旧版本（`install.json` 记的），面板上只显示 registry 的最新版本、没有「有新版本」提示与升级动作（Zed 有 `new_version_available`）。要做先改设计稿加一个升级态 (2026-09-16)
 - [ ] R5 codex-acp 的 `api-key` 方法带 `_meta["api-key"]`（客户端可在 `authenticate` 的 `_meta` 里直接递密钥）与 `gateway` 方法（需客户端声明 `auth._meta.gateway`）：两者都要新增 `_meta` 键（规则 2 / `docs/design.md` § 4），本轮只走环境变量 `OPENAI_API_KEY` / `CODEX_API_KEY`（agent 自己从 env 读）；要做先裁定 (2026-09-16)
 - [ ] R5 `docs/design.md` § 2 的「Node 与下载」行原定直接 git 依赖 Zed `node_runtime` 等 crate，R5 改为参考转写（理由见 `rounds/round-05/round-05.md` 偏离 1），待所有者确认后把 § 2 那一行改成定稿措辞 (2026-09-16)
+- [ ] R5 无头实跑以 `exit()` 结束进程时不走 `agent_disconnect`，Cursor 的 `cursor-agent.cmd`（cmd.exe 包装）随进程一起没了、它拉的 `dist-package
+ode.exe` 却留成孤儿（实测 PID 42768，手动 `taskkill /T`）。R4 验收 4「应用退出时子进程全部回收」要把桌面应用的关闭路径（`AcpApp.dispose` / Windows runner 的 `WM_CLOSE`）与无头口子都接到 `agent_disconnect`（`taskkill /F /T`） (2026-09-16)
