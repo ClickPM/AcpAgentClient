@@ -112,6 +112,21 @@
 未报项：规则 1 / 4 / 5 / 6 / 8 / 10 未命中；`unsafe` 只在 `frb_generated.rs`（既有例外）；`5380c03..HEAD` 的 `lib/theme` / `lib/ui` 零 diff；`_meta.terminal_*` 三键的裁定留给所有者。
 
 整改后 `cargo test -p fs`（18）/ `-p pty`（13）/ `acp-core --test scripted`（6）、clippy `-D warnings`、`flutter test test/app/`（19）全过；全量 `validate.ps1` 与 `build.ps1 -Smoke` 结果见「本轮实测 · 验收 8」。
+整改提交：`d970e0f`；整改后全量 `validate.ps1` 13 项 PASS、`build.ps1 -Smoke` OK、fake-agent 真跑重跑通过（逐方法流量见「本轮实测」）。
+
+### 第 2 轮（全量 `main...HEAD`，2026-09-16，产物 `.claude/reviews/20260916-141625-review.out.md`）
+
+被审提交 `d970e0f`（54 文件）。审查者核对第 1 轮 6 条整改都在；findings 1（high 0 / P2 1 / P3 0），**采纳**：
+
+| # | 级别 | 位置 | 问题 | 处理 |
+|---|---|---|---|---|
+| 1 | P2 | `rust/fs/src/lib.rs` `links_inside_the_workspace_do_not_escape_read_or_write` | 建联接失败时 `eprintln` + `return`，越界回归用例的四条断言一行没跑也算绿 | 采纳。建不出链接直接 `assert!` 红掉；`cargo test -p fs` 18 个照过（本机 `mklink /J` 正常） |
+
+未报项同第 1 轮（规则 1 / 4 / 5 / 6 / 8 / 10，零 diff）。
+
+### 第 3 轮（只审整改 diff `d970e0f..HEAD`）
+
+（回填。）
 
 ## 失败处理
 

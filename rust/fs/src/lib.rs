@@ -499,12 +499,8 @@ mod tests {
                 std::os::unix::fs::symlink(&outside, &link).is_ok()
             }
         };
-        if !linked {
-            eprintln!("cannot create a directory link here; skipping");
-            let _ = std::fs::remove_dir_all(&dir);
-            let _ = std::fs::remove_dir_all(&outside);
-            return;
-        }
+        // 这是越界回归用例：建不出链接就得红，不能「环境不行就 return」让断言一行都不跑（审查第 2 轮 finding，2026-09-16）。
+        assert!(linked, "cannot create the directory link this regression test depends on: {}", link.display());
 
         let target = link.join("secret.txt");
         assert!(matches!(read_text_file(&dir, &target, None, None), Err(FsError::OutsideWorkspace(_))));
