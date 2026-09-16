@@ -91,4 +91,39 @@ Remove、受管 Node），认证页覆盖 agent 型、terminal 型与 requestSco
 
 ## 本轮实测
 
-<!-- 完成后回填 -->
+### 提交序列
+
+| 阶段 | 提交 | 内容 |
+|---|---|---|
+| 开工 | `e3014f4` | 任务卡 + `docs/design.md` § 2 / § 3 / § 5 / § 6 / § 10 契约文字 |
+| 画板阶段收口 | `5a9c5a6` | 画板 50 / 51 / 52 / 70 的 widget、`lib/projection/registry.dart`、gallery 四张、tokens / icons |
+| 接线（Rust） | `fa9dfd2` | `rust/registry` 填实、`rust/settings` 补 Zed 字段 / remove / 从 Zed 导入、acp-core 编排 + 日志、桥十条命令 + 第六条事件流 |
+| 接线（Flutter） | `fe3f67b` | 组合根接 registry 面板 / 认证页 / 设置页、`ACP_R5_REPORT` 无头口子、接线单测 |
+
+接线零 diff 判据：`git diff 5a9c5a6..HEAD -- lib/theme lib/ui` 为空（接线阶段全程；见下方「验收 7」）。
+
+### 偏离与理由（按 CLAUDE.md 规则逐条对得上号的地方才写在这里；其余记 BACKLOG）
+
+| # | 项 | 偏离 | 理由 |
+|---|---|---|---|
+| 1 | Zed `node_runtime` / `http_client` / `util` 的复用方式 | `docs/design.md` § 2 原定「直接 git 依赖」，本轮改成**参考转写**到 `rust/registry/src/{node,download,archive,install}.rs`（每个文件头 `Derived from …`），依赖只加了 reqwest + sha2（都在规则 1 清单内） | ① Zed 的 `ManagedNodeRuntime` 把受管 Node 写到它自己的 `paths::data_dir()`（`%LOCALAPPDATA%\Zed\node`），与「数据目录只多 `node/`」（验收 3）冲突，绕过要调进程全局的 `set_custom_data_dir`；② 它拉进 smol / async-std / async-tar / async-compression 第二套异步栈，和 tokio 单运行时并存；③ git 依赖要把整个 Zed 仓库进 cargo 的 git db，或 path 依赖到 gitignored 的 `vendor/upstream/`。**此项请所有者确认**（`docs/design.md` § 2 已记） |
+| 2 | 压缩包解压 | 不引 zip / tar / flate2（规则 1 清单外），用系统 `tar`：Windows 先取 `%SystemRoot%\System32\tar.exe`（bsdtar，zip / tar.gz / tar.bz2 都认），macOS 也是 bsdtar，Linux 的 GNU tar 不认 zip 时回落 `unzip` | 零新依赖；Windows 10 1803 起自带。实测坑：PATH 上排在前面的可能是 Git for Windows 的 GNU tar，它把 `C:\…` 当远程主机（`Cannot connect to C: resolve failed`），所以 Windows 固定取 System32 那份 |
+| 3 | 画板 51 npx 第二步文案 | 画板写「写入 agents.json」，实现显示「写入 settings.json」 | 数据目录里没有 `agents.json`（`docs/design.md` § 10），安装写的是 settings.json 的 `{type: "registry"}` 条目 + `agents/<id>/install.json`；已记 BACKLOG 请下个设计轮改字 |
+| 4 | 画板 51「需要认证」的描述 | 画板写「需要先完成 ChatGPT 登录」，实现显示「需要先完成认证」 | 规则 2 不按 agent 特判；ChatGPT 是 codex 的方法名，来自 `authMethods`，认证页里会按原名列出 |
+| 5 | 画板 50 未安装条目的分发方式芯片 | 画板 50 的未安装行没有 `npx` / `binary` 芯片，画板 51 的未安装卡有；实现统一按 51（未安装 / 安装中 / 失败态显示芯片，已安装不显示） | 同一条目 widget 两处共用；芯片是本地信息（分发方式），有比没有更利于用户判断要不要装受管 Node |
+| 6 | 画板 70 registry 型的「编辑」 | 画板头注写「registry 型只读」但每行都有「编辑」键；实现里 registry 型点「编辑」展开一块**只读**的拉起参数（来自 `install.json`），只有收起键 | 既保留画板的控件，又不违背「只读」 |
+| 7 | 日志文件名的日期 | `logs/acp-<日期>.log` 的日期按 UTC | 不引 chrono、不做时区换算（规则 1 清单外）；文件名只用来分天，设置页显示的是真实路径 |
+| 8 | `terminal_close` 提前到 R5 | 契约把它归 R4 的本地 shell 四命令 | 认证页的停止方块要结束 pty 里的 terminal auth；实现是 `kill` + `release` 两步，R4 的本地 shell 可直接复用 |
+| 9 | 画板 52 agent 型认证进行中 | 画板没有「等 agent 完成认证」的状态；实现把选方法卡的底栏换成 spinner + 「等待 <agent> 完成认证…」 | `authenticate` 在途时页面要有反馈；只是状态文案，不是新控件 |
+| 10 | 受管 Node 的 npm | 系统 Node 在时用系统 `npm.cmd`；受管 Node 用 `node <受管目录>/node_modules/npm/bin/npm-cli.js` 并带空的 `--userconfig` / `--globalconfig`（照 Zed） | 不碰用户的 `~/.npmrc`（规则 7 的精神） |
+
+### 验收 7 · 画板逐张对照与门禁
+
+`flutter test test/gallery_test.dart` 出 50 / 51 / 52 / 70 四张到 `build/gallery/`，与 `design/round-design/*.png` 并排看，文案 / 状态 / 层级 / 控件齐。偏离见上表 3 / 4 / 5 / 6。
+另：50 的中栏样例取 fixtures（`New DeepSeek Harness Thread`），画板上是 `New Claude Agent Thread`（数据驱动，ROUNDS § 0 第 5 条）；
+52 多出一张「已打开浏览器，等 elicitation/complete」样张（画板 28 的第二态在 requestScope 卡上的样子），数据来自 `26-auth-url-elicitation.jsonl`。
+
+    powershell -File scripts/validate.ps1      # 13 项全 PASS，VALIDATE OK（接线（Flutter）提交 fe3f67b 上跑的；日志 scratchpad/validate-1.log）
+    flutter test                               # 119 passed（R3 的 103 + gallery 4 张 + 接线 5 + 对齐测试改字体 + …）
+    cargo test --workspace                     # 全绿（registry 16 / settings +2 / acp-core log 2 / fixtures +1 文件）
+    git diff 5a9c5a6..HEAD -- lib/theme lib/ui # 空

@@ -6,7 +6,6 @@
 import 'package:flutter/widgets.dart';
 
 import '../../projection/entries.dart';
-import '../../projection/pending.dart';
 import '../../projection/registry.dart';
 import '../../projection/tool_calls.dart';
 import '../../projection/wire.dart';
@@ -121,27 +120,13 @@ InstallProgress _progressOf(List<JsonMap> events, {String agentId = 'x'}) {
   return state.entries.first.progress!;
 }
 
-/// requestScope 的 URL elicitation（无 sessionId，requestId 是在途 authenticate 的请求 id；docs/design.md § 3）。
+/// requestScope 的 URL elicitation（无 sessionId，requestId 是在途 authenticate 的数字 id；docs/design.md § 3），
+/// 回放 `26-auth-url-elicitation.jsonl`：`opened` = 喂到用户 accept 之后（等 elicitation/complete），否则停在挂起态。
 ElicitationEntry _requestScopeElicitation({bool opened = false}) {
-  final queue = PendingQueue();
-  final env = ClientRequestEnvelope(<String, dynamic>{
-    'agentId': 'codex-acp',
-    'requestId': '7',
-    'method': 'elicitation/create',
-    'params': <String, dynamic>{
-      'mode': 'url',
-      'requestId': 5,
-      'message': 'Sign in to ChatGPT and enter this code: JHQD-7F2K',
-      'elicitationId': 'login_1',
-      'url': 'https://auth.openai.com/device',
-    },
-  });
-  final e = queue.addElicitation(env, now: _now, newId: () => 'elicitation_rs_1');
-  if (opened) {
-    queue.answerElicitation(e.requestId, 'accept', now: _now);
-    queue.markOpened(e.requestId);
-  }
-  return e;
+  final r = FixtureReplay.replay(<String>['26-auth-url-elicitation'], upTo: opened ? 3 : 2);
+  final entry = r.sessions.pending.byRequestId('32')! as ElicitationEntry;
+  if (opened) r.sessions.pending.markOpened(entry.requestId);
+  return entry;
 }
 
 /// terminal auth 的可见终端样张（画板 52 的四行）。

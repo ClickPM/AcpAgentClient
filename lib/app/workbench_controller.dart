@@ -632,7 +632,12 @@ class WorkbenchController extends ChangeNotifier {
   Future<void> _createSession(String agent, String cwd) async {
     final b = bridge;
     if (b == null) return;
-    _adoptSession(agent, cwd, await b.sessionNew(agent, cwd));
+    try {
+      _adoptSession(agent, cwd, await b.sessionNew(agent, cwd));
+    } finally {
+      // 核心按 session/new 的结果回写了认证状态（已登录 / 需要认证），面板上的徽章跟着刷（画板 50 / 51 / 70）。
+      unawaited(refreshRegistry());
+    }
     await _saveIndex();
   }
 
