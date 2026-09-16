@@ -851,9 +851,72 @@ async fn failed_delete_keeps_the_error_and_load_of_unknown_session_is_not_record
     assert!(matches!(err, CoreError::Acp { .. }), "{err:?}");
     // 相对路径由 Core 挡下（连接层不校验）；这里验的是核心层。
     assert_eq!(connection.shared().session_cwd("sess_missing"), None);
-    // 断开后再 load：请求失败，账上不能留这个会话。
+    // 已经在账上的会话：load 失败不能把 cwd 换成这次失败请求的目录（R6 审查 finding P2）。
+    let known_cwd = cwd.join("acp-core-r6-known");
+    connection.session_load("sess_old", known_cwd.clone()).await.expect("load");
+    assert_eq!(connection.shared().session_cwd("sess_old"), Some(known_cwd.clone()));
     connection.disconnect().await;
-    let err = connection.session_load("sess_never", cwd).await.expect_err("agent is gone");
+    let other = cwd.join("acp-core-r6-other");
+    let err = connection.session_load("sess_old", other.clone()).await.expect_err("agent is gone");
+    assert!(matches!(err, CoreError::Exited { .. } | CoreError::Transport(_) | CoreError::Acp { .. }), "{err:?}");
+    assert_eq!(
+        connection.shared().session_cwd("sess_old"),
+        Some(known_cwd),
+        "失败的 load 不得把越界判定的根换成它请求的那个目录"
+    );
+
+    // 本来不在账上的：失败后一条都不留。
+    let err = connection.session_load("sess_never", other).await.expect_err("agent is gone");
     assert!(matches!(err, CoreError::Exited { .. } | CoreError::Transport(_) | CoreError::Acp { .. }), "{err:?}");
     assert_eq!(connection.shared().session_cwd("sess_never"), None);
+}
+
+/// `session/close` / `session/delete` 之前挂起的权限请求必须回 `cancelled`：
+/// agent 挂在那条 JSON-RPC 上时连 close 都不会处理（R6 审查 finding high）。
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn close_and_delete_cancel_pending_permission_requests() {
+    let (connection, events, state, _agent_task) = connect("cancel").await;
+    let cwd = std::env::temp_dir();
+    let _ = connection.session_new(cwd.clone()).await.expect_err("auth required");
+    let session = connection.session_new(cwd.clone()).await.expect("session");
+    let session_id = session["sessionId"].as_str().expect("sessionId").to_string();
+
+    // 起一轮，等第一条权限请求进队列（"cancel" 场景里前端不回，它会一直挂着）。
+    let prompt = {
+        let connection = connection.clone();
+        let session_id = session_id.clone();
+        tokio::spawn(async move { connection.session_prompt(&session_id, json!([{ "type": "text", "text": "hi" }])).await })
+    };
+    events
+        .wait_for("pending permission", |items| {
+            items
+                .iter()
+                .any(|(c, v)| *c == EventChannel::ClientRequest && v["method"] == acp_core::agent::METHOD_REQUEST_PERMISSION && !v["requestId"].is_null())
+        })
+        .await;
+    assert_eq!(connection.shared().pending_request_ids().len(), 1);
+
+    // close 把它收掉：队列清空、agent 侧拿到 cancelled。
+    let closed = connection.session_close(&session_id).await.expect("close");
+    assert_eq!(closed["cancelledRequestIds"].as_array().map(Vec::len), Some(1), "{closed}");
+    assert!(connection.shared().pending_request_ids().is_empty());
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    loop {
+        if state.permission_outcomes.lock().expect("lock").first().map(String::as_str) == Some("cancelled") {
+            break;
+        }
+        assert!(tokio::time::Instant::now() < deadline, "agent never saw the cancelled response");
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    // close 之后账上没有这个会话了。
+    assert_eq!(connection.shared().session_cwd(&session_id), None);
+
+    // delete 走同一条收尾（这时已经没有挂起项，只验字段在）。
+    let deleted = connection.session_delete(&session_id).await.expect("delete");
+    assert_eq!(deleted["cancelledRequestIds"].as_array().map(Vec::len), Some(0), "{deleted}");
+
+    // 这个场景的 agent 侧回合还在等客户端的 `session/cancel`（本用例不发），别 await 它；
+    // 断开会让 `session/prompt` 那一路以 exited 收尾，任务随传输一起结束。
+    connection.disconnect().await;
+    prompt.abort();
 }

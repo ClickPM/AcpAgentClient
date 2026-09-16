@@ -294,7 +294,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       controller: c.composer,
       focusNode: c.composerFocus,
       placeholder: c.composerPlaceholder,
-      enabled: c.hasAgent,
+      // 关掉的会话转录只读（画板 41 的 Close；R6 审查 finding P2）。
+      enabled: c.hasAgent && !c.sessionClosed,
       running: c.isRunning,
       usage: store?.usage,
       model: _currentName('model'),

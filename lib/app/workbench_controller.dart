@@ -272,10 +272,14 @@ class WorkbenchController extends ChangeNotifier {
     final b = bridge;
     if (b == null) return;
     _subs.addAll(<StreamSubscription<CoreEventRecord>>[
-      b.on(CoreEvent.sessionUpdate).listen((e) => _enqueue(e, (json) {
-            sessions.applySessionUpdateEnvelope(json);
-            _followLocations(json);
-          })),
+      b.on(CoreEvent.sessionUpdate).listen((e) {
+        final sid = e.json?['sessionId'];
+        if (sid is String) _updateArrivals[sid] = (_updateArrivals[sid] ?? 0) + 1;
+        _enqueue(e, (json) {
+          sessions.applySessionUpdateEnvelope(json);
+          _followLocations(json);
+        });
+      }),
       b.on(CoreEvent.clientRequest).listen((e) => _enqueue(e, (json) => sessions.applyClientRequestEnvelope(json))),
       b.on(CoreEvent.agentState).listen((e) => _enqueue(e, (json) => sessions.applyAgentState(json))),
       b.on(CoreEvent.terminalOutput).listen((e) => _enqueue(e, _onTerminalOutput)),
@@ -773,6 +777,16 @@ class WorkbenchController extends ChangeNotifier {
   /// 关过的会话（`session/close`）：再点开要重新 `session/load`，不能拿内存里那份当还活着。
   final Set<String> _closedSessions = <String>{};
 
+  /// 每条会话被 `session/close` 的次数：`session/load` 用它判断「我在途时有没有人把它关了」。
+  final Map<String, int> _closeEpoch = <String, int>{};
+
+  /// 正在 `session/load` 的会话（同一条不并发）。
+  final Set<String> _loadsInFlight = <String>{};
+
+  /// 每条会话到达过多少条 `session/update`（在事件到达时计数，不等 batcher）：
+  /// `session/load` 失败时用它区分「一条都没重放」与「重放到一半断了」。
+  final Map<String, int> _updateArrivals = <String, int>{};
+
   /// `session/list` 校对出来的「agent 侧已经没有了」的会话（裁定 2026-09-15：只校对，不自动删、不自动加）。
   final Set<String> missingOnAgent = <String>{};
 
@@ -825,24 +839,44 @@ class WorkbenchController extends ChangeNotifier {
   Future<bool> loadSession(String agent, String id, String cwd) async {
     final b = bridge;
     if (b == null) return false;
+    // 同一条会话不并发 load：连点两下（或重载 agent 撞上侧栏点击）会重放两遍。
+    if (!_loadsInFlight.add(id)) return false;
+    final fresh = sessions.maybe(id) == null;
     final s = sessions.session(id, agentId: agent)..cwd = cwd;
     _sessionAgent[id] = agent;
+    final arrivalsBefore = _updateArrivals[id] ?? 0;
+    final closeEpoch = _closeEpoch[id] ?? 0;
+    // 失败且一条都没重放时把清空取消掉：整段重放挂在 batcher 里，这些闭包要到 release 才跑，
+    // 而那时候成败已经知道了（审查 finding high：reload / close 之后 load 失败会丢掉本地唯一一份转录）。
+    var skipReset = false;
     // hold 与 release 必须严格配对：中间任何一步抛出都得 release，否则 UI 从此不再刷新。
     batcher.hold();
     try {
       // 清空排进同一条挂起队列：清空与重放在 UI 上是一步，中间不会闪一下空转录。
-      batcher.enqueue(s.resetForReplay);
+      batcher.enqueue(() {
+        if (!skipReset) s.resetForReplay();
+      });
       final result = await b.sessionLoad(agent, id, cwd);
       batcher.enqueue(() => s.applyLoadSession(result));
-      _closedSessions.remove(id);
+      // 这中间要是有人把它 close 了，别把「已关闭」标记抹掉（审查 finding P2：load 与 close 并发）。
+      if ((_closeEpoch[id] ?? 0) == closeEpoch) _closedSessions.remove(id);
       return true;
     } catch (e) {
       lastError = describeError(e);
       debugPrint('[workbench] session/load $id: ${describeError(e)}');
-      // 载不回来就把这条从内存里拿掉：转录已经清了，留一个空壳只会让下次点击以为「已经在内存里」而不再重试。
-      batcher.enqueue(() => sessions.forget(id));
+      final replayed = (_updateArrivals[id] ?? 0) - arrivalsBefore;
+      if (replayed == 0) {
+        // 一条历史都没到：内存里原来那份转录原样留着（reload / close 之后重点开的唯一一份就在这儿）。
+        skipReset = true;
+        if (fresh) batcher.enqueue(() => sessions.forget(id));
+      } else if (fresh) {
+        // 重放到一半断了：清空必须生效（否则和旧的叠起来）。刚建的空壳收回，下次点击能重试。
+        batcher.enqueue(() => sessions.forget(id));
+      }
+      // 原先就在内存里 + 重放到一半断了：留下这半份（叠起来更糟），用户可以再点一次重载。
       return false;
     } finally {
+      _loadsInFlight.remove(id);
       batcher.release();
     }
   }
@@ -876,10 +910,23 @@ class WorkbenchController extends ChangeNotifier {
     final agent = agentId;
     if (b == null || id == null || agent == null) return;
     await _guard(() async {
+      await _releasePendingElicitations(b, agent, id);
       await b.sessionClose(agent, id);
+      _closeEpoch[id] = (_closeEpoch[id] ?? 0) + 1;
       _closedSessions.add(id);
     });
     _touch();
+  }
+
+  /// close / delete 之前把这个会话挂起的 elicitation 逐条回 `cancel`（与 [cancel] 同一条规矩）：
+  /// **核心只自动回权限请求，elicitation 不回 agent 会一直等**，agent 挂在那条 JSON-RPC 上时
+  /// 连后面的 `session/close` 都不处理（R6 审查 finding high）。
+  Future<void> _releasePendingElicitations(CoreCommands b, String agent, String id) async {
+    final s = sessions.maybe(id);
+    if (s == null) return;
+    for (final requestId in s.pending.cancelSessionElicitations(id, now: sessions.now)) {
+      await _guard(() => b.acpRespond(agent, requestId, PendingQueue.cancelledAction));
+    }
   }
 
   /// `session/list` 校对（R6，裁定 2026-09-15 落 docs/design.md § 3 末条）：侧栏以本地索引为准，
@@ -1001,9 +1048,13 @@ class WorkbenchController extends ChangeNotifier {
   /// 删除这条会话时会不会连 agent 侧一起删：它的 agent 连着（能力已知）且声明了 `sessionCapabilities.delete`。
   /// 与 [_canDeleteSessionOf]（侧栏图标给不给）不同——能力未知时图标照给，但不会发 `session/delete`。
   bool deletesOnAgent(String sessionId) {
+    if (_deletedOnAgent.contains(sessionId)) return false;
     final owner = _ownerOf(sessionId);
     return owner.isNotEmpty && _sessionCapsOf(owner).containsKey('delete');
   }
+
+  /// agent 侧已经删成功、但本地索引那步还没走完的会话：重试时不再发第二次 `session/delete`。
+  final Set<String> _deletedOnAgent = <String>{};
 
   /// 删除会话（画板 41 的确认弹层）：agent 连着且声明了 `sessionCapabilities.delete` 就先删 agent 侧，
   /// **成功了**才动本地索引（失败停在这里，本地还留着可以重试）；agent 没连或没声明就只删本地索引。
@@ -1016,11 +1067,20 @@ class WorkbenchController extends ChangeNotifier {
     final owner = _ownerOf(id);
     final onAgent = deletesOnAgent(id);
     await _guard(() async {
-      if (onAgent) await b.sessionDelete(owner, id);
+      if (onAgent) {
+        await _releasePendingElicitations(b, owner, id);
+        await b.sessionDelete(owner, id);
+        // agent 侧已经删掉了：本地那步万一失败，重试不能再往 agent 发一次（它会以「没有这条」拒绝，
+        // 于是本地索引永远删不掉、两边永远岔开，审查 finding P2）。
+        _deletedOnAgent.add(id);
+      }
       final result = await b.sessionIndexRemove(owner, id);
       _applyIndex(result['sessions']);
       missingOnAgent.remove(id);
       _closedSessions.remove(id);
+      _closeEpoch.remove(id);
+      _updateArrivals.remove(id);
+      _deletedOnAgent.remove(id);
       _sessionAgent.remove(id);
       sessions.forget(id);
       if (sessionId == id) sessionId = null;
@@ -1035,6 +1095,12 @@ class WorkbenchController extends ChangeNotifier {
     final b = bridge;
     final id = agentId;
     if (s == null || b == null || id == null) return;
+    // `session/close` 之后转录只读：往已经释放掉的会话发 prompt 只会拿一个 agent 错误回来（审查 finding P2）。
+    if (sessionClosed) {
+      lastError = '这个会话已经关闭；用 ≡ 菜单的 Resume 挂回来，或新建一个会话';
+      _touch();
+      return;
+    }
     final text = composer.text;
     final blocks = _promptBlocks(text);
     if (blocks.isEmpty) return;

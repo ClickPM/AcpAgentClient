@@ -185,7 +185,7 @@ void main() {
     c.dispose();
   });
 
-  test('load 失败：会话从内存里拿掉，下次点击还能重试', () async {
+  test('load 失败（内存里本来就没有）：空壳收回去，下次点击还能重试', () async {
     final (c, core) = await _connected(indexOnly: true);
     core.onSessionLoad = (_, _) async => throw const CoreCommandError('acp', 'gone');
     await c.selectSession(_session);
@@ -193,6 +193,86 @@ void main() {
     expect(c.lastError, contains('gone'));
     await c.selectSession(_session);
     expect(core.loadedSessions, hasLength(2), reason: '失败之后还能再试');
+    c.dispose();
+  });
+
+  test('load 失败（内存里已有转录、一条历史都没重放）：转录原样留着，不丢本地唯一一份', () async {
+    final (c, core) = await _connected();
+    c.sessionId = _session;
+    final store = c.sessions.session(_session, agentId: _agent)..cwd = _cwd;
+    store.applyUpdateJson(<String, dynamic>{
+      'sessionUpdate': 'agent_message_chunk',
+      'messageId': 'm1',
+      'content': <String, dynamic>{'type': 'text', 'text': '关掉之前的这一条不能没'},
+    });
+    expect(store.entries, hasLength(1));
+
+    await c.closeSession();
+    c.sessionId = null;
+    core.onSessionLoad = (_, _) async => throw const CoreCommandError('acp', 'gone');
+    await c.selectSession(_session);
+
+    expect(core.loadedSessions, hasLength(1));
+    expect(c.sessions.maybe(_session), isNotNull, reason: '原先就在内存里的不该被摘掉');
+    expect(c.sessions.maybe(_session)!.entries, hasLength(1), reason: '一条都没重放就失败 → 转录原样');
+    expect(c.sessionClosed, isTrue, reason: 'load 没成，还是关闭态');
+    c.dispose();
+  });
+
+  test('load 与 close 并发：load 回来时不把刚关掉的会话又标成活的', () async {
+    final (c, core) = await _connected();
+    c.sessionId = _session;
+    c.sessions.session(_session, agentId: _agent).cwd = _cwd;
+    await c.closeSession();
+    c.sessionId = null;
+    // load 在途时又被关了一次。
+    core.onSessionLoad = (_, _) async {
+      c.sessionId = _session;
+      await c.closeSession();
+      return <String, dynamic>{};
+    };
+    await c.selectSession(_session);
+    expect(core.loadedSessions, hasLength(1));
+    expect(c.sessionClosed, isTrue, reason: '在途期间的 close 不能被 load 的成功路径抹掉');
+    c.dispose();
+  });
+
+  test('close / delete 之前把挂起的 elicitation 回 cancel（核心只管权限请求）', () async {
+    final (c, core) = await _connected();
+    c.sessionId = _session;
+    c.sessions.session(_session, agentId: _agent).cwd = _cwd;
+    c.sessions.applyClientRequestEnvelope(<String, dynamic>{
+      'agentId': _agent,
+      'requestId': 'req_elic',
+      'method': 'elicitation/create',
+      'params': <String, dynamic>{
+        'mode': 'form',
+        'sessionId': _session,
+        'message': '要不要提交？',
+        'requestedSchema': <String, dynamic>{'type': 'object', 'properties': <String, dynamic>{}},
+      },
+    });
+    expect(c.sessions.pending.forSession(_session), hasLength(1));
+
+    await c.closeSession();
+
+    expect(core.responded.map((r) => r.$1), <String>['req_elic']);
+    expect(core.responded.single.$2, <String, dynamic>{'action': 'cancel'});
+    expect(c.sessions.pending.forSession(_session), isEmpty);
+    c.dispose();
+  });
+
+  test('关掉的会话不能再发 prompt', () async {
+    final (c, core) = await _connected();
+    c.sessionId = _session;
+    c.sessions.session(_session, agentId: _agent).cwd = _cwd;
+    await c.closeSession();
+
+    c.composer.text = '还想说点什么';
+    await c.send();
+
+    expect(core.prompts, isEmpty);
+    expect(c.lastError, contains('已经关闭'));
     c.dispose();
   });
 
@@ -231,6 +311,20 @@ void main() {
       expect(c.sidebarSessions, isEmpty);
       expect(c.sessions.maybe(_session), isNull);
       expect(c.sessionId, isNull);
+      c.dispose();
+    });
+
+    test('agent 侧删成功、本地那步失败：重试不再往 agent 发第二次', () async {
+      final (c, core) = await _connected();
+      core.indexRemoveFailsOnce = true;
+
+      await c.deleteSession(_session);
+      expect(core.deletedSessions, hasLength(1));
+      expect(core.sessionIndex, hasLength(1), reason: '本地那步失败了');
+
+      await c.deleteSession(_session);
+      expect(core.deletedSessions, hasLength(1), reason: 'agent 侧已经没有这条了，再发一次只会被拒');
+      expect(core.sessionIndex, isEmpty, reason: '重试要能把本地这条删掉');
       c.dispose();
     });
 

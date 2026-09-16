@@ -960,20 +960,25 @@ impl AgentConnection {
         }
     }
 
-    /// `session/close`：等价于先 cancel 再释放。成功后本地忘掉这个会话（cwd 记账）。
+    /// `session/close`：等价于先 cancel 再释放。**发请求之前**先把这个会话挂起的权限请求回 `cancelled`——
+    /// agent 挂在那条请求上时连 `session/close` 都不会处理（R6 审查 finding high）。成功后本地忘掉这个会话（cwd 记账）。
+    /// 返回 CloseSessionResponse 原样 JSON 再加 `cancelledRequestIds`。
     pub async fn session_close(&self, session_id: &str) -> Result<Value> {
+        let cancelled = self.cancel_pending_permissions(session_id)?;
         let request = acp::CloseSessionRequest::new(acp::SessionId::new(session_id));
         let response = race_exit(&self.shared, self.connection.send_request(request).block_task()).await?;
         self.shared.forget_session(session_id);
-        Ok(serde_json::to_value(&response)?)
+        Ok(with_cancelled(serde_json::to_value(&response)?, cancelled))
     }
 
-    /// `session/delete`：agent 侧删除会话。成功后本地忘掉这个会话（本地索引由前端删，核心不碰）。
+    /// `session/delete`：agent 侧删除会话。同样先收挂起的权限请求。
+    /// 成功后本地忘掉这个会话（本地索引由前端删，核心不碰）。
     pub async fn session_delete(&self, session_id: &str) -> Result<Value> {
+        let cancelled = self.cancel_pending_permissions(session_id)?;
         let request = acp::DeleteSessionRequest::new(acp::SessionId::new(session_id));
         let response = race_exit(&self.shared, self.connection.send_request(request).block_task()).await?;
         self.shared.forget_session(session_id);
-        Ok(serde_json::to_value(&response)?)
+        Ok(with_cancelled(serde_json::to_value(&response)?, cancelled))
     }
 
     /// `prompt` 是 `ContentBlock[]` 的 JSON。返回 `PromptResponse`（stopReason + usage）。
@@ -990,9 +995,10 @@ impl AgentConnection {
         Ok(serde_json::to_value(&response)?)
     }
 
-    /// 发 `session/cancel`；挂起的权限请求立刻回 `cancelled`，之后到本轮结束前到达的也自动回 `cancelled`。
-    pub fn session_cancel(&self, session_id: &str) -> Result<Value> {
-        self.shared.set_cancel_pending(session_id, true);
+    /// 把某个会话挂起的 `session/request_permission` 全部以 `cancelled` 回掉（acp-projection.md § 3.1）。
+    /// cancel / close / delete 三条路共用：不回的话 agent 会一直挂在那条 JSON-RPC 上，
+    /// 连后面的 `session/close` 都不处理（R6 审查 finding high）。elicitation 由前端回（核心不代答，见 api.rs 的契约）。
+    fn cancel_pending_permissions(&self, session_id: &str) -> Result<Vec<String>> {
         let to_cancel: Vec<Pending> = {
             let mut pending = lock(&self.shared.pending);
             let ids: Vec<String> = pending
@@ -1009,6 +1015,13 @@ impl AgentConnection {
             let _ = p.responder.respond(cancelled.clone());
             auto_cancelled.push(id);
         }
+        Ok(auto_cancelled)
+    }
+
+    /// 发 `session/cancel`；挂起的权限请求立刻回 `cancelled`，之后到本轮结束前到达的也自动回 `cancelled`。
+    pub fn session_cancel(&self, session_id: &str) -> Result<Value> {
+        self.shared.set_cancel_pending(session_id, true);
+        let auto_cancelled = self.cancel_pending_permissions(session_id)?;
         self.connection
             .send_notification(acp::CancelNotification::new(acp::SessionId::new(session_id)))
             .map_err(|e| CoreError::Transport(e.to_string()))?;
@@ -1071,6 +1084,18 @@ impl AgentConnection {
     /// 关 stdin 让 agent 自行退出；超时结束进程树。幂等。
     pub async fn disconnect(&self) {
         disconnect(&self.shared, &self.shutdown, &self.kill).await;
+    }
+}
+
+/// 把 `cancelledRequestIds` 并进响应 JSON（响应本身可能是 `{}` 或 `{"_meta": …}`）。
+fn with_cancelled(mut response: Value, cancelled: Vec<String>) -> Value {
+    let ids = Value::Array(cancelled.into_iter().map(Value::String).collect());
+    match &mut response {
+        Value::Object(map) => {
+            map.insert("cancelledRequestIds".to_string(), ids);
+            response
+        }
+        _ => json!({ "response": response, "cancelledRequestIds": ids }),
     }
 }
 

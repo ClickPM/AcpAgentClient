@@ -159,12 +159,15 @@ pub async fn session_resume(agent_id: String, session_id: String, cwd: String) -
     on_core(|core| async move { core.session_resume(&agent_id, &session_id, PathBuf::from(cwd)).await }).await
 }
 
-/// `session/close`（R6）：等价于先 cancel 再释放；核心随后忘掉这个会话的 cwd 记账。
+/// `session/close`（R6）：等价于先 cancel 再释放。发请求之前核心先把这个会话挂起的 `session/request_permission`
+/// 回 `cancelled`（不然 agent 挂在那条请求上，连 close 都不处理）；**elicitation 核心不代答，前端必须自己回**，
+/// 与 `session_cancel` 同一条规矩。返回 CloseSessionResponse 原样 JSON 再加 `cancelledRequestIds`。
 pub async fn session_close(agent_id: String, session_id: String) -> Result<String, BridgeError> {
     on_core(|core| async move { core.session_close(&agent_id, &session_id).await }).await
 }
 
 /// `session/delete`（R6）：只删 agent 侧；本地索引由前端在成功后再调 `session_index_remove` 删。
+/// 挂起请求的收尾与 `session_close` 相同。返回 DeleteSessionResponse 原样 JSON 再加 `cancelledRequestIds`。
 pub async fn session_delete(agent_id: String, session_id: String) -> Result<String, BridgeError> {
     on_core(|core| async move { core.session_delete(&agent_id, &session_id).await }).await
 }

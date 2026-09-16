@@ -197,8 +197,15 @@ class FakeCore implements CoreCommands {
     return _indexResult;
   }
 
+  /// 让下一次 `session_index_remove` 抛一次错（验「agent 侧删成功、本地那步失败」的重试路径）。
+  bool indexRemoveFailsOnce = false;
+
   @override
   Future<JsonMap> sessionIndexRemove(String agentId, String sessionId) async {
+    if (indexRemoveFailsOnce) {
+      indexRemoveFailsOnce = false;
+      throw const CoreCommandError('settings', 'sessions.json is locked');
+    }
     sessionIndex.removeWhere((e) => e['agentId'] == agentId && e['sessionId'] == sessionId);
     return _indexResult;
   }

@@ -85,13 +85,23 @@
 
 ## 代码审查
 
-<!-- 完成后回填 -->
+- 审查方式：`powershell -File .claude\cursor-review.ps1 -Note "<本轮要点>"`（默认档，全量分支 diff，后台跑）
+- 审查器与模型：cursor CLI `cursor-grok-4.6-high`（`--mode ask`），没有回落
+- 审查范围与基准提交：第 1 轮 `main...HEAD`（`8106248`），耗时 **12 分 03 秒**（16:32:32 → 16:44:35，30 文件 / 2,831 行）
 
-- 审查方式：
-- 审查器与模型：
-- 审查范围与基准提交：
-- findings 处理：
-- 结论：
+### 第 1 轮（7 条：high 2 / P2 4 / P3 1）
+
+| # | 级别 | finding | 处理 |
+|---|---|---|---|
+| 1 | high | `session/load` 失败会清掉并忘掉内存里已有的转录：reload / close 之后再点等于丢掉本地唯一一份 | **采纳整改**。整段重放挂在 batcher 里、闭包要到 `release()` 才跑，而那时成败已知——所以清空改成带条件的闭包：失败且**一条历史都没重放**时取消清空，转录原样留着（新建的空壳才 `forget`）；重放到一半才断的仍然清（否则和旧的叠起来）。「重放了几条」用新加的 `_updateArrivals` 在**事件到达时**计数（不等 batcher）。新增两条用例 |
+| 2 | high | `session/close` / `session/delete` 不收在途的 `request_permission` / `elicitation/create`，agent 会挂在那条 JSON-RPC 上 | **采纳整改**。核心把 `session_cancel` 里那段抽成 `cancel_pending_permissions()`，close / delete **发请求之前**先走一遍，响应里带回 `cancelledRequestIds`；elicitation 照 `cancel()` 的老规矩由前端回（`_releasePendingElicitations`）。新增 Rust 用例 `close_and_delete_cancel_pending_permission_requests` 与一条接线用例 |
+| 3 | P2 | agent 侧 `session/delete` 成功、本地那步失败时，重试会被 agent 的「没有这条」永远挡住 | **采纳整改**。记 `_deletedOnAgent`，`deletesOnAgent()` 对它返回 false，重试只删本地。新增用例 |
+| 4 | P2 | 已知会话的 load / resume 失败会留下错误的 cwd，越界判定按新目录放行 | **已在审查期间自查修掉**（提交 `001a7d2`，审查看到的是修之前的 `8106248`）：`attach_session` 失败时把记账退回原样，`record_session` 对已有会话只改 cwd、不再清 `cancel_pending`。按 finding 补了缺的覆盖（「已知会话 + 失败 + cwd 不变」） |
+| 5 | P2 | Close 之后作曲器仍可发 `session/prompt`，与「转录只读」不一致 | **采纳整改**。`send()` 在 `sessionClosed` 时直接返回并给一行提示；`workbench_screen.dart` 的 `enabled` 改成 `hasAgent && !sessionClosed`。新增用例 |
+| 6 | P2 | `_guard` 不是互斥：load 与 close 可重叠，load 成功会无条件把会话从「已关闭」里拿掉 | **采纳整改**。加 `_closeEpoch`（每次 close +1）：load 成功只在 epoch 没变时才清「已关闭」；同一条会话用 `_loadsInFlight` 挡住并发 load。新增用例 |
+| 7 | P3 | 线程头 ≡ 从右栏开关改成画板 41 菜单（设计层面） | **不采纳整改，等裁定**：审查者明确说「不在这里替所有者选」。任务卡「已知限制」2 已给推荐项与备选，留所有者裁定 |
+
+- 结论：待第 2 轮复审（全量，`main...HEAD`）后回填。
 
 ## 失败处理
 

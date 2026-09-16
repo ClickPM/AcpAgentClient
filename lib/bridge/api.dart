@@ -70,7 +70,9 @@ Future<String> sessionResume({
   cwd: cwd,
 );
 
-/// `session/close`（R6）：等价于先 cancel 再释放；核心随后忘掉这个会话的 cwd 记账。
+/// `session/close`（R6）：等价于先 cancel 再释放。发请求之前核心先把这个会话挂起的 `session/request_permission`
+/// 回 `cancelled`（不然 agent 挂在那条请求上，连 close 都不处理）；**elicitation 核心不代答，前端必须自己回**，
+/// 与 `session_cancel` 同一条规矩。返回 CloseSessionResponse 原样 JSON 再加 `cancelledRequestIds`。
 Future<String> sessionClose({
   required String agentId,
   required String sessionId,
@@ -80,6 +82,7 @@ Future<String> sessionClose({
 );
 
 /// `session/delete`（R6）：只删 agent 侧；本地索引由前端在成功后再调 `session_index_remove` 删。
+/// 挂起请求的收尾与 `session_close` 相同。返回 DeleteSessionResponse 原样 JSON 再加 `cancelledRequestIds`。
 Future<String> sessionDelete({
   required String agentId,
   required String sessionId,
