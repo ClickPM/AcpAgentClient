@@ -276,6 +276,17 @@ pub async fn session_index_remove(agent_id: String, session_id: String) -> Resul
     on_core(|core| async move { core.session_index_remove(&agent_id, &session_id) }).await
 }
 
+/// 窗口 UI 状态：`{sidebarWidth?, rightPanelWidth?}`。没存过的字段是 null，缺省宽度在前端 token 里。
+pub async fn ui_state_get() -> Result<String, BridgeError> {
+    on_core(|core| async move { core.ui_state_get() }).await
+}
+
+/// 合并写窗口 UI 状态（`patch` 是上面那个形状的 JSON 字符串，只给要改的字段）；返回落盘后的全量状态。
+pub async fn ui_state_set(patch: String) -> Result<String, BridgeError> {
+    let patch = parse_json("patch", &patch)?;
+    on_core(|core| async move { core.ui_state_set(patch) }).await
+}
+
 // 五个注册函数都是 `#[frb(sync)]`：frb 的 normal 任务跑在线程池上不保证先后，只有同步注册
 // 才能保证 Dart 调 `core_init` 之前 sink 已就位（审查 finding，2026-09-15）。
 

@@ -401,3 +401,62 @@ cursor CLI `cursor-grok-4.6-high`，`-Scope branch`（`main...HEAD`，本分支�
 4. 四个测试回退实现都会红；`WindowControls` 不用 `IconButtonGhost`，右栏那例的 finder 不会误匹配。
 
 零 findings 无整改，审查循环收口（CLAUDE.md「只要有采纳整改的 findings → 再发一轮复审」）。
+
+## 手测整改第 2 批（2026-09-16，分支 `round-03-fix2`）
+
+所有者手测又报两条。第一条是缺陷，第二条是新功能，按裁定「我改设计源、和分割线一起做」执行。
+
+### 报告 1 · 三列的分割线错台
+
+分割线是横穿整窗的，可三列的行高不一样：
+
+| 行 | 侧栏 | 中栏 | 右栏 |
+|---|---|---|---|
+| 第 1 行 | 标题栏 36 | 顶栏 36 | 标签条 **32** |
+| 第 2 行 | 搜索 **32** | 线程头 36 | 面板头 **32**（R4 内容） |
+
+于是第一条分割线在中栏 / 侧栏是 y=36、右栏 y=32，第二条在侧栏 68、中栏 72。
+**设计源本身就是这么写的**（`01/02/03` 的搜索行与 `03` 的标签条都是 `height:32px`），实现照做了。
+
+方向没有悬念：顶栏放不下比 36 更矮的窗口按钮（窗口控制格 44×36），所以统一抬到 `Geometry.barHeight`。
+按规则 3 先改设计源（四张画板的六处 32→36，含 `03` 右栏那两处与 `04` 的两张搜索样张）、重渲 PNG，再改实现
+（`sidebar.dart` 搜索行、`right_panel.dart` 标签条与其中的 `WindowControls`）。改完三列都是 36 / 72。
+
+### 报告 2 · 左右侧栏可拖拽调宽（新功能）
+
+设计稿上没有，走了裁定门：所有者 2026-09-16 选「我改设计源，和分割线一起做」。落地的约定（也写进 `docs/design.md` § 9 / § 10）：
+
+- **把手不占布局**：命中区 4px 叠在 1px 分栏线上。占布局就得让两栏各让出几像素，分栏线宽度与三栏比例都会跟画板对不上。
+- **范围**：侧栏 220–480、右栏 360–900、中栏至少留 360；窗口装不下时先压右栏、再压侧栏（`AppShell._fit`）。
+- **复位**：双击分栏线回 280 / 580。
+- **落盘**：松手才写，落 `%APPDATA%/AcpAgentClient/ui-state.json`（临时文件 + rename，规则 7），不进 `settings.json`
+  ——后者是用户手写的配置（`agent_servers` 与 Zed 同形），不该被拖窗口改写。
+- **缺省与夹取只有一份**：都在 `tokens.dart`。Rust 侧字段一律 `Option`，没存过返回 null，由前端落到 token；
+  核心不复制 280 / 580 这种设计值。旧文件里落在范围外的值启动时按 token 再夹一遍。
+
+新增面：token 6 个（`splitterHit` / 两栏 min-max / `mainMinWidth`）、`lib/ui/shell/splitter.dart`、
+`rust/settings/src/ui_state.rs`、桥命令 `ui_state_get` / `ui_state_set`（frb 生成物已入库）。
+画板 04 加了「分栏把手 · 默认 / 悬停与拖拽中」样张与三行说明；01–03 的注脚各加一句。
+
+### 回归测试（先确认能红，再确认能绿）
+
+- `test/ui/shell_alignment_test.dart` 新增 1 例：三列第 1 / 第 2 行各自等高。回退 `right_panel.dart` 的行高验证过会红
+  （`Set:[36.0, 32.0]`）。
+- `test/ui/splitter_test.dart`（新增 3 例）：把手压在分栏线上（中心 = 1px 外框 + 侧栏宽）、拖多少宽多少、
+  松手落一次盘、双击复位、右栏把手方向取反、两栏都顶到上限时不溢出且先压右栏再压侧栏。
+- `test/app/workbench_wiring_test.dart` 新增 2 例：夹取 / 拖拽途中不落盘 / 下次启动读回；旧文件里越界的宽度按 token 再夹。
+- `rust/settings/src/ui_state.rs` 4 例：缺文件按缺省、合并写不动没给的字段、坏文件按缺省并重建、NaN 与非正数不落盘。
+
+### 两个踩到的坑
+
+- **`tester.drag` 默认吃掉 20px 的 slop**（`kDragSlopDefault`）再开始报 `onUpdate`，测「拖多少宽多少」会少 20。
+  改成手动 `startGesture` + 先走 4px 把 slop 用掉 + 再走要测的位移，报出来才是干净的 1:1。
+- **slop 吃不吃，取决于手势竞技场里有没有对手**：只接 `onHorizontalDrag*` 时识别器在 pointer down 就独占胜出，
+  第一段位移也会照报；接上 `onDoubleTap` 之后才有竞争、才走 slop 那条路。测试里两个把手都要接上双击，
+  否则两条用例对同一段位移得出不同的数。另外每次 pointer down 都会给双击识别器起一个 40ms 计时器，
+  用例收尾要 `pump(kDoubleTapTimeout)`，不然报 pending timer。
+
+### 门禁
+
+`scripts/validate.ps1` 全绿（13 项）、`flutter test` 109 passed、`cargo test --workspace` 全绿。
+gallery 重渲后 01a / 01b / 02 / 03 / 04 五张变化（行高），三列分割线像素核对过都在 36 / 72。

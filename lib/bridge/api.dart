@@ -200,6 +200,13 @@ Future<String> sessionIndexRemove({
   sessionId: sessionId,
 );
 
+/// 窗口 UI 状态：`{sidebarWidth?, rightPanelWidth?}`。没存过的字段是 null，缺省宽度在前端 token 里。
+Future<String> uiStateGet() => RustLib.instance.api.crateApiUiStateGet();
+
+/// 合并写窗口 UI 状态（`patch` 是上面那个形状的 JSON 字符串，只给要改的字段）；返回落盘后的全量状态。
+Future<String> uiStateSet({required String patch}) =>
+    RustLib.instance.api.crateApiUiStateSet(patch: patch);
+
 /// `acp/session_update`：`{agentId, sessionId, update, _meta?}`，即 SessionNotification 原样 JSON 加 `agentId`。
 Stream<String> sessionUpdateStream() =>
     RustLib.instance.api.crateApiSessionUpdateStream();

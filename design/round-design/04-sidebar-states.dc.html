@@ -74,7 +74,7 @@
     <div>
       <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">搜索 · 输入中</div>
       <div style="width:280px;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px;overflow:hidden">
-        <div style="height:32px;display:flex;align-items:center;gap:8px;padding:0 8px 0 12px;border-bottom:1px solid #e2e2e7">
+        <div style="height:36px;display:flex;align-items:center;gap:8px;padding:0 8px 0 12px;border-bottom:1px solid #e2e2e7">
           <span style="display:inline-flex;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.2" y2="16.2"></line></svg></span>
           <span style="flex:1;font-size:12px;color:#33333d;display:flex;align-items:center">Flutter<span style="width:1px;height:13px;background:#5566d8;margin-left:1px"></span></span>
           <span style="width:20px;height:20px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#62626e"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></span>
@@ -93,7 +93,7 @@
     <div>
       <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">搜索 · 无结果</div>
       <div style="width:280px;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px;overflow:hidden">
-        <div style="height:32px;display:flex;align-items:center;gap:8px;padding:0 8px 0 12px;border-bottom:1px solid #e2e2e7">
+        <div style="height:36px;display:flex;align-items:center;gap:8px;padding:0 8px 0 12px;border-bottom:1px solid #e2e2e7">
           <span style="display:inline-flex;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.2" y2="16.2"></line></svg></span>
           <span style="flex:1;font-size:12px;color:#33333d;display:flex;align-items:center">registry<span style="width:1px;height:13px;background:#5566d8;margin-left:1px"></span></span>
           <span style="width:20px;height:20px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#62626e"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></span>
@@ -144,6 +144,29 @@
     <div style="flex:1;min-width:0;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;line-height:1.7;padding-top:26px">
       <div>会话项时间戳是客户端本地态（协议只给 SessionInfo.updatedAt）；「N 条消息」由本地消息分组计数得出。</div>
       <div>删除会话需 sessionCapabilities.delete；无此能力时删除图标不渲染（确认弹层见画板 41）。</div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:24px;align-items:flex-start">
+    <div>
+      <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">分栏把手 · 默认 / 悬停与拖拽中</div>
+      <div style="display:flex;gap:16px">
+        <div style="width:140px;height:72px;border:1px solid #e2e2e7;border-radius:6px;display:flex;overflow:hidden">
+          <div style="width:56px;background:#f4f4f6"></div>
+          <div style="width:1px;background:#e2e2e7"></div>
+          <div style="flex:1;background:#ffffff"></div>
+        </div>
+        <div style="width:140px;height:72px;border:1px solid #e2e2e7;border-radius:6px;display:flex;overflow:hidden">
+          <div style="width:56px;background:#f4f4f6"></div>
+          <div style="width:1px;background:#5566d8"></div>
+          <div style="flex:1;background:#ffffff"></div>
+        </div>
+      </div>
+    </div>
+    <div style="flex:1;min-width:0;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;line-height:1.7;padding-top:26px">
+      <div>分栏线本身仍是 1px；拖拽命中区 4px，跨在分割线两侧、不占布局。指针进入时光标为左右箭头、线变 accent。</div>
+      <div>侧栏 220–480，右栏 360–900，中栏至少留 360（窗口变窄时先压右栏、再压侧栏）；双击分栏线复位到 280 / 580。</div>
+      <div>宽度记在数据目录的 ui-state.json（临时文件 + rename），不进 settings.json。</div>
     </div>
   </div>
 </div>

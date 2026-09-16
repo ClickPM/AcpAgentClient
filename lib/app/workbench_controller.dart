@@ -24,6 +24,7 @@ import '../projection/pending.dart';
 import '../projection/session_store.dart';
 import '../projection/traffic.dart';
 import '../projection/wire.dart';
+import '../theme/tokens.dart' as t;
 import '../ui/popovers/inline_menus.dart';
 import '../ui/popovers/topbar_popovers.dart';
 import '../ui/shell/popover_anchor.dart';
@@ -81,6 +82,10 @@ class WorkbenchController extends ChangeNotifier {
 
   // ---- UI 态
   bool sidebarCollapsed = false;
+
+  /// 两栏宽度（画板 04 的分栏把手）：启动时从 `ui-state.json` 读回，没存过就是画板缺省。
+  double sidebarWidth = t.Geometry.sidebarWidth;
+  double rightPanelWidth = t.Geometry.rightPanelWidth;
   final List<ShellTab> openTabs = <ShellTab>[];
   ShellTab? rightTab;
   MainPage page = MainPage.workbench;
@@ -219,8 +224,65 @@ class WorkbenchController extends ChangeNotifier {
       await refreshAgents();
       await refreshSessionIndex();
       await _restoreLastProject();
+      await _restoreUiState();
     });
     notifyListeners();
+  }
+
+  // ---------------------------------------------------------------- 分栏宽度（画板 04）
+
+  /// 读回上次拖出来的宽度。没存过 / 存的是垃圾 → 保持画板缺省；夹取一遍再用，
+  /// 免得改过 token 之后旧文件里的值落在范围外。
+  Future<void> _restoreUiState() async {
+    final b = bridge;
+    if (b == null) return;
+    final state = await b.uiStateGet();
+    final side = state['sidebarWidth'];
+    final right = state['rightPanelWidth'];
+    if (side is num) sidebarWidth = _clampSidebar(side.toDouble());
+    if (right is num) rightPanelWidth = _clampRightPanel(right.toDouble());
+  }
+
+  static double _clampSidebar(double w) => w.clamp(t.Geometry.sidebarMinWidth, t.Geometry.sidebarMaxWidth);
+  static double _clampRightPanel(double w) => w.clamp(t.Geometry.rightPanelMinWidth, t.Geometry.rightPanelMaxWidth);
+
+  /// 拖拽增量（正 = 变宽）。夹取在这里做，widget 只报位移。
+  void resizeSidebar(double delta) {
+    final next = _clampSidebar(sidebarWidth + delta);
+    if (next == sidebarWidth) return;
+    sidebarWidth = next;
+    notifyListeners();
+  }
+
+  void resizeRightPanel(double delta) {
+    final next = _clampRightPanel(rightPanelWidth + delta);
+    if (next == rightPanelWidth) return;
+    rightPanelWidth = next;
+    notifyListeners();
+  }
+
+  void resetSidebarWidth() {
+    if (sidebarWidth == t.Geometry.sidebarWidth) return;
+    sidebarWidth = t.Geometry.sidebarWidth;
+    notifyListeners();
+    saveUiState();
+  }
+
+  void resetRightPanelWidth() {
+    if (rightPanelWidth == t.Geometry.rightPanelWidth) return;
+    rightPanelWidth = t.Geometry.rightPanelWidth;
+    notifyListeners();
+    saveUiState();
+  }
+
+  /// 松手才落盘：拖拽途中每帧写文件没有意义。
+  Future<void> saveUiState() async {
+    final b = bridge;
+    if (b == null) return;
+    await _guard(() => b.uiStateSet(<String, dynamic>{
+          'sidebarWidth': sidebarWidth,
+          'rightPanelWidth': rightPanelWidth,
+        }));
   }
 
   /// fixtures 数据源：把线上行喂进同一套投影层与流量面板，本地态给一份可用的假数据。
