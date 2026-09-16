@@ -15,11 +15,13 @@ use crate::events::{EventChannel, EventSink};
 pub struct LoggingSink {
     inner: std::sync::Arc<dyn EventSink>,
     writer: LogWriter,
+    /// 最近一条安装进度的 `(agentId, step)`：下载进度每块一条事件，日志只在步骤变化时写一行（R5 实测一次受管 Node 下载写了几千行）。
+    last_progress: std::sync::Mutex<Option<(String, String)>>,
 }
 
 impl LoggingSink {
     pub fn new(inner: std::sync::Arc<dyn EventSink>, logs_dir: PathBuf) -> Self {
-        Self { inner, writer: LogWriter::new(logs_dir) }
+        Self { inner, writer: LogWriter::new(logs_dir), last_progress: std::sync::Mutex::new(None) }
     }
 
     pub fn log_path(&self) -> &Path {
@@ -50,8 +52,20 @@ impl EventSink for LoggingSink {
                 if let Ok(v) = serde_json::from_str::<Value>(&payload) {
                     let agent = v.get("agentId").and_then(Value::as_str).unwrap_or("node");
                     let step = v.get("step").and_then(Value::as_str).unwrap_or("?");
-                    let error = v.get("error").and_then(Value::as_str).map(|e| format!(" error={e}")).unwrap_or_default();
-                    self.writer.line(&format!("install {agent} {step}{error}"));
+                    let key = (agent.to_string(), step.to_string());
+                    let changed = match self.last_progress.lock() {
+                        Ok(mut last) => {
+                            let changed = last.as_ref() != Some(&key);
+                            *last = Some(key);
+                            changed
+                        }
+                        Err(_) => true,
+                    };
+                    if changed {
+                        let error = v.get("error").and_then(Value::as_str).map(|e| format!(" error={e}")).unwrap_or_default();
+                        let detail = v.get("detail").and_then(Value::as_str).map(|d| format!(" {d}")).unwrap_or_default();
+                        self.writer.line(&format!("install {agent} {step}{detail}{error}"));
+                    }
                 }
             }
             EventChannel::SessionUpdate | EventChannel::ClientRequest | EventChannel::TerminalOutput => {}

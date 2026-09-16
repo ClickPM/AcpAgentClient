@@ -236,15 +236,33 @@ impl IndexStore {
 
     /// 上次成功刷新距今不足 [`REFRESH_THROTTLE`] 时不联网（`force` 跳过节流）。返回是否真的拉了。
     /// 拉取失败不清缓存：断网时列表仍可显示（验收 6），错误留在 `fetch_error`。
+    /// 已有一次拉取在途时**等它结束**再返回（不是立刻回 false）：调用方紧接着要按列表装东西，空手而归会让「先刷新再安装」
+    /// 撞上「registry 里没有这个 id」（R5 无头实跑踩到的竞态）。
     pub async fn refresh(&self, force: bool) -> Result<bool> {
-        {
-            let mut state = lock(&self.state);
-            let stale = state.last_refresh.map(|t| t.elapsed() >= REFRESH_THROTTLE).unwrap_or(true);
-            if (!force && !stale) || state.fetching {
+        loop {
+            // 抢拉取权放在独立块里：guard 不能活过下面的 await（clippy `await_holding_lock` 按作用域判）。
+            let claimed = {
+                let mut state = lock(&self.state);
+                if state.fetching {
+                    false
+                } else {
+                    let stale = state.last_refresh.map(|t| t.elapsed() >= REFRESH_THROTTLE).unwrap_or(true);
+                    if !force && !stale {
+                        return Ok(false);
+                    }
+                    state.fetching = true;
+                    state.fetch_error = None;
+                    true
+                }
+            };
+            if claimed {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            if !lock(&self.state).fetching {
+                // 别人的那次刚结束：结果已经在缓存里，本次不再拉。
                 return Ok(false);
             }
-            state.fetching = true;
-            state.fetch_error = None;
         }
         let result = self.fetch_and_cache().await;
         let mut state = lock(&self.state);
