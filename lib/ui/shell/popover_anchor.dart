@@ -21,6 +21,10 @@ class PopoverHandle {
   Alignment _followerAnchor = Alignment.topLeft;
   Offset _offset = t.Geometry.popoverBelow;
 
+  /// 「点弹层之外关闭」时要回收的组合根状态。侧栏删除确认要清 `confirmingDeleteId`，
+  /// 否则那一行会一直停在悬浮态（锚点还挂着）。每次 [show] 都重设，不传就是没有。
+  VoidCallback? _onDismiss;
+
   bool get isShowing => controller.isShowing;
 
   void show(
@@ -28,11 +32,13 @@ class PopoverHandle {
     Alignment targetAnchor = Alignment.bottomLeft,
     Alignment followerAnchor = Alignment.topLeft,
     Offset offset = t.Geometry.popoverBelow,
+    VoidCallback? onDismiss,
   }) {
     _builder = builder;
     _targetAnchor = targetAnchor;
     _followerAnchor = followerAnchor;
     _offset = offset;
+    _onDismiss = onDismiss;
     controller.show();
   }
 
@@ -41,6 +47,14 @@ class PopoverHandle {
       show(builder, targetAnchor: targetAnchor, followerAnchor: followerAnchor, offset: t.Geometry.popoverAbove);
 
   void hide() => controller.hide();
+
+  /// 点弹层之外：关掉并回收 [show] 时登记的状态（组合根那边的「正在确认」之类）。
+  void _dismiss() {
+    final onDismiss = _onDismiss;
+    _onDismiss = null;
+    controller.hide();
+    onDismiss?.call();
+  }
 
   void toggle(WidgetBuilder builder, {Alignment targetAnchor = Alignment.bottomLeft, Alignment followerAnchor = Alignment.topLeft}) {
     if (controller.isShowing) {
@@ -71,7 +85,7 @@ class PopoverAnchor extends StatelessWidget {
         overlayChildBuilder: (context) => Stack(
           children: <Widget>[
             // 点弹层之外关闭。
-            Positioned.fill(child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: h.hide)),
+            Positioned.fill(child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: h._dismiss)),
             CompositedTransformFollower(
               link: h.link,
               targetAnchor: h._targetAnchor,

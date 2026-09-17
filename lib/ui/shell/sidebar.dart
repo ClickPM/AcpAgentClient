@@ -259,7 +259,11 @@ class SidebarSessionRow extends StatelessWidget {
       forceHover: forceHover,
       builder: (context, hovered) {
         final inlineEdit = renaming && renameController != null && renameFocusNode != null;
-        final showActions = hovered && !inlineEdit;
+        // 删除确认弹层开着时行内动作**必须**一直在：弹层的「点外面关闭」蒙层盖住整屏、吃掉命中测试，
+        // 这一行的 MouseRegion 随即 onExit，光靠 `hovered` 会把删除图标连同挂在它上面的 `PopoverAnchor`
+        // 一起从树上摘掉，弹层刚出现一帧就被销毁（所有者手测 2026-09-17「点了没反应」的成因）。
+        // `deleteAnchor` 只在 `confirmingDeleteId` 是这一行时才非空（见 [Sidebar._list]）。
+        final showActions = (hovered || deleteAnchor != null) && !inlineEdit;
         return Container(
           height: height,
           color: selected ? t.Overlays.selected : (showActions ? t.Overlays.hover : null),

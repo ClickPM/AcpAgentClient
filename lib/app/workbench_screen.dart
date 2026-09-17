@@ -111,6 +111,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     final title = c.sidebarSessions.where((s) => s.id == id).map((s) => s.title).firstOrNull ?? '';
     c.deleteAnchor.show(
       (_) => DeleteSessionConfirm(title: title, onCancel: c.cancelDelete, onDelete: () => c.deleteSession(id)),
+      // 点弹层之外关掉也要清「正在确认」，否则那一行的行内动作（锚点所在）会一直挂着（画板 04 的悬浮态）。
+      onDismiss: c.cancelDelete,
     );
   }
 
