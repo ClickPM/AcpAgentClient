@@ -92,6 +92,13 @@ class TerminalPanel extends StatelessWidget {
               readOnly: !running,
               alwaysShowCursor: running,
               autoResize: true,
+              // 键盘输入只认硬件按键事件（与终端卡、terminal auth 的两处 TerminalView 一致）：xterm 默认那条
+              // 「平台文本输入」通道在 Windows 上建不起来——它 attach 时不带 viewId，而 Windows 引擎的
+              // TextInputPlugin 对 setClient 要求 viewId 是整数，缺了就直接报错返回、连 active_model 都不建，
+              // 于是打进去的字符被静默丢掉（keytab 认的回车 / 方向键照旧，所以表现是「只有字打不进去」）。
+              // 走 CustomKeyboardListener 这条：keytab 不认的按键取 KeyEvent.character 交给终端。
+              // 代价是终端里没有 IME 组字（中文输入法），见 rounds/BACKLOG.md。
+              hardwareKeyboardOnly: true,
               simulateScroll: false,
             ),
           ),

@@ -8,6 +8,7 @@ import 'package:acp_agent_client/ui/shell/shell_common.dart';
 import 'package:acp_agent_client/ui/terminal/local_terminal.dart';
 import 'package:acp_agent_client/ui/terminal/terminal_panel.dart';
 import 'package:acp_agent_client/ui/transcript/terminal_card.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:xterm/xterm.dart' show TerminalKey;
@@ -56,6 +57,25 @@ void main() {
     t.terminal.textInput('ls');
     t.terminal.keyInput(TerminalKey.enter);
     expect(sent.join(), 'ls\r');
+  });
+
+  testWidgets('键盘打字到得了终端：字符键经 KeyEvent.character、回车经 keytab，都从 onInput 出去', (tester) async {
+    final sent = <String>[];
+    final t = LocalTerminal(id: 't', title: 'x', cwd: r'D:\w', onInput: sent.add);
+    await tester.pumpWidget(host(TerminalPanel(terminal: t, autofocus: true)));
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyL);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyS);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    // 走的是 hardwareKeyboardOnly 那条：xterm 默认的平台文本输入通道在 Windows 引擎上建不起来
+    // （setClient 少 viewId 被拒），字符键会被静默丢掉。
+    expect(sent.join(), 'ls\r');
+    // 带修饰键的还是走 keytab / CtrlInputHandler，不会再把字符补一遍：Ctrl+C 只出 ETX。
+    sent.clear();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    expect(sent.join(), '\x03');
   });
 
   testWidgets('状态行：运行中显示 cwd + 停止方块；退出后显示退出码且没有停止方块', (tester) async {
