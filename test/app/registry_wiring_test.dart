@@ -8,6 +8,7 @@ import 'dart:async';
 import 'package:acp_agent_client/app/core_bridge.dart';
 import 'package:acp_agent_client/app/workbench_controller.dart';
 import 'package:acp_agent_client/projection/entries.dart';
+import 'package:acp_agent_client/projection/registry.dart';
 import 'package:acp_agent_client/projection/wire.dart';
 import 'package:acp_agent_client/ui/popovers/topbar_popovers.dart';
 import 'package:acp_agent_client/ui/registry/auth_page.dart';
@@ -365,6 +366,66 @@ void main() {
     expect(c.page, MainPage.workbench);
     c.dispose();
   });
+
+  test('R7 内置 sidecar：agent 列表用条目里的 name，registry 条目带 builtin 标记（Remove 置灰）', () async {
+    final core = _BuiltinCore();
+    final c = await _start(core);
+
+    // `agent_settings_get` 里内置条目自带 `name`，列表按它显示；普通 custom 条目仍退回 id。
+    await c.refreshAgents();
+    expect(c.installedAgents.map((AgentRef a) => '${a.id}|${a.name}').toList(), <String>['dsh|dsh', 'zed|Zed Agent']);
+
+    // `registry_list` 的 `builtin` 透到投影层：设置页 / registry 卡据此把 Remove 置灰。
+    await c.refreshRegistry();
+    final RegistryEntryData? zed = c.registry.byId('zed');
+    expect(zed, isNotNull);
+    expect(zed!.builtin, isTrue);
+    expect(zed.isCustom, isTrue);
+    expect(c.registry.byId('dsh')!.builtin, isFalse, reason: '普通 custom 条目照常可删');
+    c.dispose();
+  });
+}
+
+/// R7：`agent_settings_get` / `registry_list` 里带一条内置 sidecar 条目的假核心。
+class _BuiltinCore extends FakeCore {
+  @override
+  Future<JsonMap> agentSettingsGet() async => <String, dynamic>{
+        'agent_servers': <String, dynamic>{
+          'dsh': <String, dynamic>{'type': 'custom', 'command': 'dsh-acp'},
+          'zed': <String, dynamic>{
+            'type': 'custom',
+            'command': 'C:/app/zed-agent-acp.exe',
+            'args': <String>['--user-data-dir', 'C:/data/zed-agent'],
+            'builtin': true,
+            'name': 'Zed Agent',
+          },
+        },
+      };
+
+  @override
+  Future<JsonMap> registryList() async => <String, dynamic>{
+        'agents': <JsonMap>[
+          <String, dynamic>{
+            'id': 'dsh',
+            'name': 'dsh',
+            'distribution': 'custom',
+            'supported': true,
+            'installing': false,
+            'builtin': false,
+            'custom': <String, dynamic>{'command': 'dsh-acp', 'args': <String>[], 'env': <String, String>{}},
+          },
+          <String, dynamic>{
+            'id': 'zed',
+            'name': 'Zed Agent',
+            'distribution': 'custom',
+            'supported': true,
+            'installing': false,
+            'builtin': true,
+            'custom': <String, dynamic>{'command': 'C:/app/zed-agent-acp.exe', 'args': <String>[], 'env': <String, String>{}},
+          },
+        ],
+        'fetching': false,
+      };
 }
 
 /// 记录 `agent_settings_set` 的假核心（复用 [AuthCore] 的 registry 列表）。

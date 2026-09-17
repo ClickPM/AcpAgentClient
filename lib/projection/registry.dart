@@ -129,6 +129,7 @@ class RegistryEntryData {
     this.supported = true,
     this.packageSpec,
     this.installed = false,
+    this.builtin = false,
     this.installedVersion,
     this.authStatus = AuthStatus.unknown,
     this.custom,
@@ -152,6 +153,9 @@ class RegistryEntryData {
   final bool supported;
   final String? packageSpec;
   final bool installed;
+
+  /// 随包分发的内置 agent（R7 的 zed-agent-acp sidecar）：画板 70 里可见、不可删。
+  final bool builtin;
   final String? installedVersion;
   final AuthStatus authStatus;
   final CustomCommand? custom;
@@ -185,6 +189,7 @@ class RegistryEntryData {
         supported: supported,
         packageSpec: packageSpec,
         installed: installed,
+        builtin: builtin,
         installedVersion: installedVersion,
         authStatus: authStatus,
         custom: custom,
@@ -211,6 +216,7 @@ class RegistryEntryData {
       supported: json['supported'] != false,
       packageSpec: json['package'] as String?,
       installed: installedMap != null || customMap != null,
+      builtin: json['builtin'] == true,
       installedVersion: installedMap?['version'] as String?,
       authStatus: AuthStatus.parse(installedMap?['authStatus'] as String?),
       custom: customMap == null

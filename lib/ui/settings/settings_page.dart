@@ -182,7 +182,8 @@ class SettingsPage extends StatelessWidget {
           const SizedBox(width: t.Spacing.s8),
           AcpButton(label: '编辑', onTap: onEdit == null ? null : () => onEdit!(a.id)),
           const SizedBox(width: t.Spacing.s4),
-          RemoveButton(onTap: onRemove == null ? null : () => onRemove!(a.id)),
+          // 内置 agent（R7 的 sidecar）随包分发，删不掉（docs/design.md § 8）：按钮置灰，不改布局。
+          RemoveButton(onTap: onRemove == null || a.builtin ? null : () => onRemove!(a.id)),
         ],
       ),
     );

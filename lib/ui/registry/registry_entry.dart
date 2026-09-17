@@ -224,7 +224,8 @@ class RegistryEntryBody extends StatelessWidget {
         ],
       );
     }
-    if (e.isCustom) return RemoveButton(onTap: actions.onRemove);
+    // 内置 agent（R7 的 sidecar）不可删，按钮置灰。
+    if (e.isCustom) return RemoveButton(onTap: e.builtin ? null : actions.onRemove);
     if (e.needsAuth) return AcpButton(label: '登录', kind: ButtonKind.primary, icon: AcpIcons.lock, onTap: actions.onLogin);
     if (e.installed) return RemoveButton(onTap: actions.onRemove);
     if (e.isUnsupported) return const AcpButton(label: '暂不支持', kind: ButtonKind.primary, enabled: false);

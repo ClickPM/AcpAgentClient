@@ -38,6 +38,8 @@ macOS 的 headless `run()` 仍然调用 `CFRunLoopRun()` 并把前台任务投�
 - feature：`unstable` 打开 `unstable_end_turn_token_usage`、`unstable_llm_providers`、`unstable_mcp_over_acp`、`unstable_plan_operations`、`unstable_session_compaction`、`unstable_session_fork`、`unstable_tool_call_name`；`unstable_protocol_v2` 是协议 v2 草案。
 - **两个 `unstable` 伞不是同一个集合**：类型 crate `agent-client-protocol-schema`（sdk 2.1.0 依赖 `=1.7.0`，对应 JSON Schema v1 发布版本 1.21.0）自己的 `unstable` 还含 `unstable_nes` 与 `unstable_session_notices`，sdk 的 `unstable` **不转发**这两个。后果（`SessionUpdate::Notice` 编译不出、收到即静默丢弃）见 [`acp-projection.md`](acp-projection.md) § 1 与 § 8.1。
 - Zed 钉 `=2.0.0` + `unstable`，并且自建了一条 foreground dispatch channel 把 Send 回调桥回 gpui 的 !Send 线程。本项目在 tokio 里不需要这层桥。
+- **`sidecar/zed-agent-acp/` 用的是 crates.io 的 `=2.0.0` + `unstable`，和 `rust/` 那边（git rev，2.1.0）不是同一份**（R7）：sidecar 里 `acp::` 类型要和 zed crate 的对得上，而 git 源与 crates.io 源即使版本号相同也是两份 crate；zed 又写死 `=2.0.0`，patch 成 2.1.0 也不满足。这不是改钉版本（规则 4 / 10）——**它就是 Zed 钉版本声明的那一个**，两个进程只经 stdio 上的 ACP v1 通信，编译期毫无交集。代价：2.0.0 的 `unstable` 伞里没有 `unstable_plan_operations` / `unstable_session_compaction`（2.1.0 才有），所以 sidecar 发不出 `plan_update` 与 `compaction_update`（记 BACKLOG）。
+- sidecar 里那层「Send 的 handler ↔ !Send 的 gpui」桥还是要自己搭（和 Zed 一样），见 `sidecar/zed-agent-acp/src/bridge.rs`。
 - **版本澄清：** 线上协议是 v1（`protocolVersion` 协商），SDK crate 版本 2.x 与协议版本无关；协议 v2 仍是草案。
 
 ## 3. 官方 registry

@@ -352,7 +352,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 
 ## 4. 五 agent 全通矩阵（R6 收口）
 
-七步来自 `docs/requirements.md` § 必须 第 3 条。格子里写「首次打通的轮次」，R6 全部重跑一遍；R7 加 Zed 行。
+七步来自 `docs/requirements.md` § 必须 第 3 条。格子里写「首次打通的轮次」，R6 全部重跑一遍；R7 加 Zed 行（逐格证据在 `rounds/round-07/round-07.md`「本轮实测」）。
 
 | agent | 安装 | 认证 | 新会话 | 一轮含工具与权限 | 终端 | 取消 | 重开并加载历史 |
 |---|---|---|---|---|---|---|---|
@@ -361,7 +361,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 | Cursor（binary） | R5 / **R6 重跑 159 s / 74 MB** | **R6：本机 `cursor-agent` CLI 已登录，凭据共用，`session/new` 直接成功**（R5 的浏览器登录不再阻塞） | R5 / **R6** | R5 | R5（fs / terminal 可为 false） | R5 | **R6 ✅**（只声明 `list`，≡ 菜单三行都不渲染） |
 | pi-acp（npx） | R5 / **R6 重跑 5.8 s** | **R6：本机 `pi` CLI 已配好，`--terminal-login` 没走到**（R5 卡在没装 pi，已不成立） | **R6 ✅** | **R6 ✅** | 不适用（不用客户端终端） | R5 | **R6 ✅**（`session/load` + 8 条 slash 命令） |
 | dsh-acp-interactive（custom） | R3（settings 手填）/ R5（70 编辑） | R1（terminal auth `--setup`） | R1 / **R6** | R1 / R3 | R4 | R1 / R3 | **R6 ✅**（`session/load` + 5 条 slash 命令）。**本机模型网关 404，R6 拿不到它的 `stopReason` / usage** |
-| zed-agent-acp（sidecar） | R7（随包） | R7（沿用 Zed 配置） | R7 | R7 | R7 | R7 | R7 |
+| zed-agent-acp（sidecar） | **R7 ✅**（随包：CMake install 到应用目录旁，核心按相对路径定位） | **R7 ✅**（无 `authMethods`；模型与密钥经 `--zed-settings` 只读沿用 Zed 的 settings.json，14 个模型可用） | **R7 ✅** | **R7 ✅**（terminal 工具 + `session/request_permission`，选项按 optionId 去重） | **R7 ✅**（进程内 Zed terminal，输出走 `_meta.terminal_*` 三键） | **R7 ✅**（`cancelled`） | **R7 ✅**（`session/load` 重放，11/12 行与实时一致，差的一行是 R6 已裁定的轮边界限制） |
 
 R6 的逐格证据（报告 JSON 路径、能力声明、重放 digest 比对、踩到的坑）在 `rounds/round-06/round-06.md`「本轮实测」。
 
@@ -417,5 +417,5 @@ R6 的逐格证据（报告 JSON 路径、能力声明、重放 digest 比对、
 | R4 | 已完成 | `claude/r4-implementation-76608e`（Claude Code 桌面端 worktree 分支，≙ `round-04`） | 5380c03 | 8cef00f | 4 轮 / cursor CLI `--mode ask`（第 1–2 轮全量 `main...HEAD`：6 条 high 2 / P2 4，1 条 P2；第 3 轮只审整改 diff：0 条；第 4 轮合并 main 之后再全量：2 条 P2，所有者裁定非阻断记 BACKLOG；7 条全部采纳） | 任务卡 `rounds/round-04/round-04.md`；8 项验收全过（fake-agent 走完 `fs/*` 与 `terminal/*` 六个真回调 + 停止方块 + Follow + 本地 shell + 收尾；claude-agent-acp 0.76.0 的 diff 卡 + `_meta` 终端卡；dsh 1.3.0 的 `_meta` 终端卡 + read 定位；gallery 60a / 60b / 61a / 61b / 03 对照、接线阶段 `lib/theme` / `lib/ui` 零 diff；validate 13 项 PASS + smoke）；订正事实：钉版本的两个参照 agent 都不调客户端 `fs/*`，走 `_meta.terminal_*` 三键（待所有者确认）；Windows 实测抓出 portable-pty 0.9.0 的 kill 成败判反、xterm.dart 重复应答 ConPTY 探询两个坑；R5 并行合入 main 后本分支手工解 18 个文件冲突再全量复审；跨轮问题 1 条记 BACKLOG |
 | R5 | 已完成 | `round-05` | 5a9c5a6 | b1339c8 | 3 轮 / cursor CLI `--mode ask`（第 1–2 轮全量 `main...HEAD`：3 条 high 1 / P2 2，2 条 P2；第 3 轮只审整改 diff：0 条；5 条全部采纳） | 任务卡 `rounds/round-05/round-05.md`；7 项验收全有证据：fake-agent 两种认证离线确定性 + codex-acp / Cursor / pi-acp 真跑（安装、`-32000` → 认证页、Zed 导入 5 条、Remove、受管 Node、断网），其中 Cursor / codex 的浏览器登录与 `OPENAI_API_KEY` 路径待所有者手测；新增无头口子 `ACP_R5_REPORT`（含按步骤取消）；Zed `node_runtime` 等改为参考转写待所有者确认（`docs/design.md` § 2）；跨轮问题 10 条记 BACKLOG；与 R4 并行开发（基于 `main`，右栏文件 / 终端标签归 R4） |
 | R6 | 已完成 | `claude/r6-development-e3bd8c`（Claude Code 桌面端 worktree 分支，≙ `round-06`） | —（R6 无画板阶段） | 681a7e2 | 5 轮 / cursor CLI `--mode ask`（第 1–2 轮全量 `main...HEAD`：7 条 high 2 / P2 4 / P3 1，3 条 P2；第 3–5 轮只审整改 diff：2 条 P2 1 / P3 1，**0 条**，**0 条**；12 条里 11 条采纳整改、1 条设计取舍所有者已裁定） | 任务卡 `rounds/round-06/round-06.md`；7 项验收全过（会话生命周期五命令 + 侧栏 / ≡ 菜单按能力裁剪 + modes 回退 + `session/list` 校对 + 290 条重放等价 + 五 agent 真跑矩阵）；真跑抓出 5 个真缺陷（resume 不能对活着的会话发、list 校对的 cwd 口径、重连后 requestId 复用、resume 空响应抹掉 modes、重放前清空会闪 UI）；两项裁定 2026-09-16：① ≡ 保持右栏开关、会话菜单要入口先改设计稿（本轮把菜单动作接通并做了单测，产品 UI 里只有 Delete 有入口，Resume / Close 等改完画板那一轮）；② `session/load` 重放不带回轮边界，记已知限制不在本地补（落 `docs/design.md` § 3） |
-| R7 | 未开始 | `round-07` | — | — | — | |
+| R7 | 进行中 | `claude/r7-implementation-f52398`（Claude Code 桌面端 worktree 分支，≙ `round-07`） | —（R7 无画板阶段） | — | — | 任务卡 `rounds/round-07/round-07.md`；sidecar 是独立 cargo workspace（`sidecar/zed-agent-acp/`，`agent-client-protocol` 用 crates.io `=2.0.0` 与 zed 钉版本对齐）；`threads.db` 实测后按推荐项改成「配置共用、数据隔离」（落 `docs/design.md` § 8，待所有者确认）；未带 `languages` crate（VS Spectre 组件缺失，记 BACKLOG） |
 | R8 | 未开始 | `round-08` | — | — | — | |
