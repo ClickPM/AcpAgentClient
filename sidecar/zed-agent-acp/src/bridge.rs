@@ -11,8 +11,11 @@
 //! - 反方向（`session/update` 通知、`session/request_permission` / `elicitation/create` 反向请求）
 //!   直接在 gpui 侧持有 `ConnectionTo<Client>` 调用：它内部是 mpsc sender，`Send` 且发送是同步的。
 //!
-//! 生命周期：stdin 关闭 → 传输 future 结束 → handler（连同 mpsc sender）被丢弃 → dispatcher 的
-//! 循环自然退出 → `cx.quit()`。这也是主进程 `agent_disconnect` 关 stdin 后我们该退出的路径。
+//! 生命周期：stdin 关闭 → `connect_with` 的 main_fn 等到 `incoming_closed()` 而返回 → 传输 future 结束
+//! → handler（连同 mpsc sender）被丢弃 → dispatcher 的循环自然退出 → `cx.quit()`。
+//! 这也是主进程 `agent_disconnect` 关 stdin 后我们该退出的路径。
+//! **那一等不能省**：传输关闭不会自动取消 main_fn，只等 shutdown 信号会成环、sidecar 变孤儿进程
+//! （详见 `run_transport` 里那段注释）。
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -246,9 +249,22 @@ async fn run_transport(
             agent_client_protocol::on_receive_notification!(),
         )
         .connect_with(Stdio::new(), async move |connection: ConnectionTo<Client>| {
-            let _ = connection_tx.send(connection);
-            // 连接活到 dispatcher 说该收了为止；传输自己断掉时这个 future 也会一起结束。
-            let _ = shutdown_rx.await;
+            let _ = connection_tx.send(connection.clone());
+            // 连接活到 dispatcher 说该收了，**或者 stdin 先到 EOF**。
+            //
+            // `incoming_closed()` 这一路是承重的：rust-sdk 明写着传输关闭并不会取消
+            // `connect_with` 的这个 future（`jsonrpc.rs` 的 `ConnectionTo::incoming_closed` 文档：
+            // 「It does not automatically cancel the future passed to `Builder::connect_with`」）。
+            // 只等 `shutdown_rx` 就成了一个环：dispatcher 要等所有 `incoming_tx` 被丢掉才会发 shutdown，
+            // 而那些 sender 被 handler 握着、要等这个 future 返回才丢得掉。于是 stdin EOF 推不动任何一环，
+            // sidecar 永远不退 —— 主进程 `agent_disconnect` 关了 stdin 也没用，主进程整个没了它就成了
+            // 孤儿进程（所有者手测 2026-09-17：两个 `zed-agent-acp.exe` 活过了父进程，各占 ~45 MB；
+            // 直接拿它做实验：关了 stdin 之后 10 s 仍不退，握手与不握手都一样）。
+            //
+            // 走这一路同时把「主进程崩了 / 被强杀」一并盖住：管道随父进程一起断，stdin 照样到 EOF。
+            let closed = connection.incoming_closed();
+            futures::pin_mut!(closed);
+            futures::future::select(shutdown_rx, closed).await;
             Ok(())
         })
         .await
