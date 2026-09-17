@@ -43,6 +43,9 @@ use crate::translate;
 const MODEL_CONFIG_ID: &str = "model";
 /// 终端输出的轮询间隔：`acp_thread::Terminal` 只给全量快照，没有增量事件，只能定时差。
 const TERMINAL_POLL_INTERVAL: Duration = Duration::from_millis(100);
+/// `session/delete` 的「删 → 核对 → 重删」上限与重试间隔（理由见 `delete_session`）。
+const DELETE_ATTEMPTS: usize = 3;
+const DELETE_RETRY_DELAY: Duration = Duration::from_millis(200);
 
 pub struct Agent {
     state: Arc<AgentAppState>,
@@ -130,10 +133,8 @@ impl Agent {
                 respond(responder, result)
             }
             Incoming::CloseSession(request, responder) => {
-                // 丢掉 `AcpThread` 的强引用 = 让 `NativeAgent` 释放这条会话（它 observe_release 着）。
-                self.sessions.borrow_mut().remove(&request.session_id);
-                responder.respond(acp::CloseSessionResponse::new()).ok();
-                Ok(())
+                let result = self.close_session(&request.session_id, cx).await;
+                respond(responder, result)
             }
             Incoming::ListSessions(request, responder) => {
                 let result = self.list_sessions(request, cx).await;
@@ -371,18 +372,73 @@ impl Agent {
         cx: &mut AsyncApp,
     ) -> Result<acp::DeleteSessionResponse> {
         let native = self.native()?;
-        // 先放掉本地的会话实体，再删库：不然 `NativeAgent` 的保存 worker 可能把刚删掉的线程又写回去。
-        self.sessions.borrow_mut().remove(&request.session_id);
-        native
-            .thread_store
-            .update(cx, |store, cx| {
-                store.delete_thread(request.session_id.clone(), cx)
-            })
-            .await
-            .with_context(|| format!("deleting Zed agent thread {}", request.session_id))?;
-        Ok(acp::DeleteSessionResponse::new())
+        let session_id = request.session_id.clone();
+        // 先**等**在途的那一轮真的取消（理由见 `close_session`），再放掉本地的会话实体。
+        self.cancel_and_wait(&session_id, cx).await;
+        self.sessions.borrow_mut().remove(&session_id);
+
+        // 然后「删 → 核对 → 必要时重删」。为什么不能删一次就算数：Zed 的 `release_session` 在放掉
+        // 会话时**必定再存一次**（`enqueue_save` 之后才 detach 保存 worker），那次写是异步的 ——
+        // 落在我们的删除之后，刚删掉的线程就被原样写回 `threads.db`，`session/list` 里又冒出来
+        // （R7 实测见过：整改「close/delete 要先 cancel」之后，cancel 的 `cx.notify()` 又多勾了一次
+        // 保存，删除就失手了）。保存 worker 在会话释放后只会再写一次就退出，所以重来两次足够收敛；
+        // 还不行就如实报错，不假装删成功了。
+        let mut last_error: Option<anyhow::Error> = None;
+        for attempt in 0..DELETE_ATTEMPTS {
+            if attempt > 0 {
+                // 给释放时那次异步保存一点时间落盘，再重删。
+                cx.background_executor().timer(DELETE_RETRY_DELAY).await;
+            }
+            let deleted = native
+                .thread_store
+                .update(cx, |store, cx| store.delete_thread(session_id.clone(), cx))
+                .await;
+            if let Err(error) = deleted {
+                last_error = Some(error);
+                continue;
+            }
+            // `delete_thread` 自己会 reload，但保存 worker 的写也会 reload；等最近一次读完再核对。
+            let reload = native
+                .thread_store
+                .read_with(cx, |store, _cx| store.reload_task());
+            reload.await;
+            let still_there = native.thread_store.read_with(cx, |store, _cx| {
+                store.thread_from_session_id(&session_id).is_some()
+            });
+            if !still_there {
+                return Ok(acp::DeleteSessionResponse::new());
+            }
+            log::warn!("thread {session_id} came back after delete (attempt {})", attempt + 1);
+        }
+        match last_error {
+            Some(error) => {
+                Err(error).with_context(|| format!("deleting Zed agent thread {session_id}"))
+            }
+            None => Err(anyhow!(
+                "deleted Zed agent thread {session_id} but it is still listed after {DELETE_ATTEMPTS} attempts"
+            )),
+        }
     }
 
+    /// `session/close`：**先取消在途的那一轮**，再丢掉 `AcpThread` 的强引用（= 让 `NativeAgent`
+    /// 释放这条会话，它 `observe_release` 着）。
+    ///
+    /// 不先取消的话：`session/prompt` 的事件泵自己也按着一条 `Rc<SessionEntry>`，会话从表里摘掉
+    /// 之后那一轮照跑（终端还在执行、文件还在改），而随后的 `session/cancel` 已经查不到这条会话、
+    /// 直接返回 —— 用户既关不掉也停不下。客户端按规范只发 `session/close`、不另发 `session/cancel`
+    /// （`lib/app/workbench_controller.dart` 的 `closeSession`），所以这一步只能由我们做。
+    /// 审查 finding（high，2026-09-17）。
+    async fn close_session(
+        self: &Rc<Self>,
+        session_id: &acp::SessionId,
+        cx: &mut AsyncApp,
+    ) -> Result<acp::CloseSessionResponse> {
+        self.cancel_and_wait(session_id, cx).await;
+        self.sessions.borrow_mut().remove(session_id);
+        Ok(acp::CloseSessionResponse::new())
+    }
+
+    /// `session/cancel` 通知：发出去就不等（通知没有响应，回合本身会以 `cancelled` 收尾）。
     fn cancel(self: &Rc<Self>, session_id: &acp::SessionId, cx: &mut AsyncApp) {
         let Ok(entry) = self.session(session_id) else {
             return;
@@ -391,6 +447,17 @@ impl Agent {
             .thread
             .update(cx, |thread, cx| thread.cancel(cx))
             .detach();
+    }
+
+    /// 取消在途的一轮并**等它真的停下来**；会话不在表里就什么都不做。
+    async fn cancel_and_wait(self: &Rc<Self>, session_id: &acp::SessionId, cx: &mut AsyncApp) {
+        let Ok(entry) = self.session(session_id) else {
+            return;
+        };
+        entry
+            .thread
+            .update(cx, |thread, cx| thread.cancel(cx))
+            .await;
     }
 
     fn register(
@@ -721,28 +788,26 @@ impl Agent {
                 self.emit_diff(session_id, entry, &diff.id, &diff.diff, cx);
             }
             acp_thread::ToolCallUpdate::UpdateTerminal(terminal) => {
-                let (terminal_id, cwd) = terminal.terminal.read_with(cx, |terminal, _cx| {
-                    (terminal.id().clone(), terminal.working_dir().clone())
-                });
-                // 先让前端把这条工具卡认成终端卡（画板 22），再开始推输出。
-                let update = acp::ToolCallUpdate::new(
-                    terminal.id.clone(),
-                    acp::ToolCallUpdateFields::new().content(Some(vec![
-                        acp::ToolCallContent::Terminal(acp::Terminal::new(terminal_id.clone())),
-                    ])),
-                )
-                .meta(Some(translate::terminal_info_meta(
-                    &terminal_id,
-                    cwd.as_deref(),
-                )));
-                self.notify(session_id, acp::SessionUpdate::ToolCallUpdate(update));
-                self.pump_terminal(
-                    session_id.clone(),
-                    terminal.id,
-                    terminal_id,
+                let terminal_id = terminal.terminal.read_with(cx, |t, _cx| t.id().clone());
+                // 去重和 `UpdateFields` 那一支共用同一套判断：两支都到达（或 Zed 在后续更新里
+                // 重复带同一个终端）时，只起一个泵，否则同一段增量会被发好几遍（审查 finding P2）。
+                let meta = self.start_terminal_pump(
+                    session_id,
+                    entry,
+                    &terminal.id,
+                    terminal_id.clone(),
                     terminal.terminal,
                     cx,
                 );
+                // 先让前端把这条工具卡认成终端卡（画板 22）。
+                let update = acp::ToolCallUpdate::new(
+                    terminal.id,
+                    acp::ToolCallUpdateFields::new().content(Some(vec![
+                        acp::ToolCallContent::Terminal(acp::Terminal::new(terminal_id)),
+                    ])),
+                )
+                .meta(meta);
+                self.notify(session_id, acp::SessionUpdate::ToolCallUpdate(update));
             }
         }
     }
@@ -798,9 +863,6 @@ impl Agent {
                 continue;
             };
             let terminal_id = terminal.terminal_id.clone();
-            if !entry.pumped_terminals.borrow_mut().insert(terminal_id.clone()) {
-                continue;
-            }
             let handle = entry
                 .acp_thread
                 .read_with(cx, |thread, _cx| thread.terminal(terminal_id.clone()));
@@ -808,25 +870,52 @@ impl Agent {
                 Ok(handle) => handle,
                 Err(error) => {
                     log::warn!("terminal {terminal_id} not registered on the thread: {error}");
-                    entry.pumped_terminals.borrow_mut().remove(&terminal_id);
                     continue;
                 }
             };
-            let cwd = handle.read_with(cx, |terminal, _cx| terminal.working_dir().clone());
-            if meta.is_none() {
-                meta = Some(translate::terminal_info_meta(&terminal_id, cwd.as_deref()));
-            } else {
-                log::debug!("tool call {tool_call_id} carries more than one terminal");
+            let started =
+                self.start_terminal_pump(session_id, entry, tool_call_id, terminal_id, handle, cx);
+            if started.is_some() {
+                if meta.is_none() {
+                    meta = started;
+                } else {
+                    log::debug!("tool call {tool_call_id} carries more than one terminal");
+                }
             }
-            self.pump_terminal(
-                session_id.clone(),
-                tool_call_id.clone(),
-                terminal_id,
-                handle,
-                cx,
-            );
         }
         meta
+    }
+
+    /// 为一个还没推过的终端起输出泵，并给出要挂上去的 `_meta.terminal_info`；已经在推的返回 `None`。
+    ///
+    /// 两条路径（`UpdateFields` / 首条 `ToolCall` 的内容块，以及 `UpdateTerminal` 事件）都必须经过
+    /// 这里：去重集合放在会话上，漏一条就会对同一个 `terminal_id` 并排跑两个泵，把同一段增量
+    /// 发两遍 —— 前端的 `TerminalBuffer` 是纯追加的，重复就留在卡上了。
+    fn start_terminal_pump(
+        self: &Rc<Self>,
+        session_id: &acp::SessionId,
+        entry: &Rc<SessionEntry>,
+        tool_call_id: &acp::ToolCallId,
+        terminal_id: acp::TerminalId,
+        handle: Entity<acp_thread::Terminal>,
+        cx: &mut AsyncApp,
+    ) -> Option<acp::Meta> {
+        if !entry
+            .pumped_terminals
+            .borrow_mut()
+            .insert(terminal_id.clone())
+        {
+            return None;
+        }
+        let cwd = handle.read_with(cx, |terminal, _cx| terminal.working_dir().clone());
+        self.pump_terminal(
+            session_id.clone(),
+            tool_call_id.clone(),
+            terminal_id.clone(),
+            handle,
+            cx,
+        );
+        Some(translate::terminal_info_meta(&terminal_id, cwd.as_deref()))
     }
 
     /// 把一个进程内终端的输出以 `_meta.terminal_output` 增量推给客户端，退出时补一条

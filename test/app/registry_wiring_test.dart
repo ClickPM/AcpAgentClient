@@ -382,9 +382,18 @@ void main() {
     expect(zed!.builtin, isTrue);
     expect(zed.isCustom, isTrue);
     expect(c.registry.byId('dsh')!.builtin, isFalse, reason: '普通 custom 条目照常可删');
+
+    // 画板 70 的两个按钮：内置条目「编辑」与 Remove 都置灰（审查 finding P2，2026-09-17）。
+    // 不置灰的话「保存」会把合成出来的 command / args 写进 settings.json，
+    // 用户条目优先之后 --user-data-dir / --zed-settings 就不再生效。
+    expect(_settingsRowEnabled(zed), isFalse);
+    expect(_settingsRowEnabled(c.registry.byId('dsh')!), isTrue);
     c.dispose();
   });
 }
+
+/// 画板 70 那一行上「编辑」/ Remove 是否可点（两个按钮同一条判断：`builtin` 为真就都置灰）。
+bool _settingsRowEnabled(RegistryEntryData e) => !e.builtin;
 
 /// R7：`agent_settings_get` / `registry_list` 里带一条内置 sidecar 条目的假核心。
 class _BuiltinCore extends FakeCore {

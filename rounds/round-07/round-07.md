@@ -64,13 +64,27 @@
 
 ## 代码审查
 
-<!-- 完成后回填 -->
+- 审查方式：`powershell -File .claude\cursor-review.ps1`（默认档，后台跑）
+- 审查器与模型：cursor CLI `cursor-agent` + `cursor-grok-4.6-high`
+- 审查范围与基准提交：**第 1 轮**全量 `main...HEAD`（基准 `0a2def9`，被审提交 `d689971` + `74d1e4b`），结果 `.claude/reviews/20260917-111758-review.out.md`
 
-- 审查方式：
-- 审查器与模型：
-- 审查范围与基准提交：
-- findings 处理：
-- 结论：
+### 第 1 轮 findings：3 条（high 1 / P2 2），**全部采纳整改**
+
+1. **[high] `session/close` / `session/delete` 既不 cancel 也放不掉在途的 prompt** —— 采纳。
+   事实核对成立：`pump` 自己按着一条 `Rc<SessionEntry>`，从会话表里 `remove` 之后那一轮照跑（终端还在执行、文件还在改），而随后的 `session/cancel` 已经查不到这条会话、直接返回；客户端按规范只发 `session/close` 不另发 cancel（`workbench_controller.dart` 的 `closeSession` 注释写的就是「`session/close` = 先 cancel 再释放」）。
+   整改：新增 `close_session` / `cancel_and_wait`，close 与 delete 都先**等**取消完成再摘会话。
+2. **[P2] `UpdateTerminal` 分支不走 `pumped_terminals` 去重** —— 采纳。两条路径都收进新的 `start_terminal_pump`，去重与起泵是同一处判断。
+3. **[P2] 内置条目仍可「编辑」并 `agent_settings_set` 落盘** —— 采纳。设置页对 `builtin` 条目把「编辑」与 Remove 一起置灰；核心 `agent_settings_set` 在磁盘上还没有用户同名条目时拒绝写内置 id（用户自己手写过的条目照常可编辑）。补了 Dart 单测。
+
+### 整改带出来的一个回归（自查复跑发现，已修）
+
+整改 1 加的 `cancel` 会触发 Zed 的 `cx.notify()` → `save_thread`，而 `release_session` 在放掉会话时本来就**必定再存一次**。两次异步保存赶在 `delete_thread` 之后落盘，就把刚删掉的线程原样写回 `threads.db` —— 复跑实测 `delete` 的 `inAgentList` 从 `false` 变成了 `true`（会话又冒出来了）。
+整改：`delete_session` 改成「删 → 核对 → 必要时重删」（上限 3 次、间隔 200 ms，以 `ThreadStore` 自己的 reload 作屏障），三次之后仍在就**如实报错**而不是假装删成功。复跑 `inAgentList: false`。
+
+- 结论：<待第 2 轮>
+
+<!-- 第 2 轮（仍为全量 main...HEAD）结果回填在这里 -->
+
 
 ## 失败处理
 
@@ -81,6 +95,7 @@
 1. **`languages` crate 没进 sidecar 的依赖**（eval_cli 有）。原因是构建环境：它唯一地依赖 `pet`，`pet` 打开 `msvc_spectre_libs` 的 `error` 特性，本机 VS 2022 BuildTools 没装「Spectre 缓解库」组件，build.rs 直接 panic。代价：`LanguageRegistry` 为空，靠语法树的工具（`read_file` 的 outline 模式、跳转类工具）退化成纯文本；编辑、终端、grep、权限不受影响。装上那个 VS 组件后取消 `Cargo.toml` 里那一行的注释即可恢复。记 BACKLOG。
 2. **不走 `NativeAgentConnection::prompt`，直接消费 `Thread::send` 的 `ThreadEvent` 流**。理由与两个已知取舍见 `src/session.rs` 文件头。
 3. **两个 widget 文件各改了一行判断**（Remove 按钮在内置条目上置灰）。规则 3 的零 diff 口径是针对「接线轮」的；本轮画板 70 / 51 的「可见、不可删」没有别的落点，改动限于 `onTap` 的判断，不涉布局 / widget 树 / token。
+4. **`ACP_ZED_SIDECAR` 环境变量**（`rust/acp-core/src/builtin.rs`）是开发用的路径覆盖：开发时 sidecar 在 `CARGO_TARGET_DIR` 里、不在应用目录旁，`acp-smoke` 与无头实跑都靠它。它只换「拉起哪个可执行文件」，能设这个变量的人本来就能改 `settings.json` 里的 `agent_servers`，不额外开面；发行版里不设它，走「应用可执行文件旁边」那条。
 
 ## 本轮实测
 

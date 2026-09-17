@@ -515,6 +515,15 @@ impl Core {
         if agent_id.trim().is_empty() {
             return Err(CoreError::InvalidArgument("agent id is empty".into()));
         }
+        // 内置 sidecar（R7）的 command / args 是按可执行文件位置**合成**的，写进 settings.json 之后
+        // 用户条目优先，合成的 `--user-data-dir` / `--zed-settings` 就不再生效，换台机器或挪个位置
+        // 那条绝对路径还会失效；设置页因此对它禁用「编辑」。这里再挡一道（审查 finding P2，2026-09-17）。
+        // 用户自己在 settings.json 里手写过同名条目时不挡 —— 那条是他自己的，编辑照常。
+        if self.settings.get(agent_id)?.is_none() && crate::builtin::is_builtin(agent_id) {
+            return Err(CoreError::InvalidArgument(format!(
+                "`{agent_id}` 是随包分发的内置 agent，它的拉起参数按可执行文件位置合成，不写进 settings.json"
+            )));
+        }
         let mut server: AgentServer =
             serde_json::from_value(server).map_err(|e| CoreError::InvalidArgument(format!("agent server entry: {e}")))?;
         // 设置页只编辑 command / args / env：来的条目没带 Zed 字段（`default_config_options` 等）时沿用旧条目的，
