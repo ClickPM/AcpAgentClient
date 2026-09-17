@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart';
 import '../../theme/tokens.dart' as t;
 import '../transcript/card_chrome.dart';
 import '../transcript/icons.dart';
+import 'app_logo.dart';
 import 'popover_anchor.dart';
 import 'shell_common.dart';
 
@@ -165,7 +166,7 @@ class SidebarTitleBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12),
       child: Row(
         children: <Widget>[
-          const AcpIcon(AcpIcons.appMark, color: t.Neutral.muted),
+          const AppLogo(),
           const SizedBox(width: t.Spacing.s8),
           Text(title, style: CardText.strong),
         ],
