@@ -4,9 +4,11 @@
 // 无边框窗口的拖拽（docs/design.md § 9）：顶栏叠一层在**底下**的 Listener，
 // 顶栏里的按钮与芯片在上层先吃掉点击，只有空白处才落到 Listener 上、去调 `startDragging`。
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/gestures.dart' show kPrimaryButton;
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -201,6 +203,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         onTab: c.toggleNavTab,
         deleteAnchor: c.deleteAnchor,
         confirmingDeleteId: c.confirmingDeleteId,
+        // 侧栏标题条与顶栏是同一行：那一段也要能拖窗口、双击最大化。
+        dragArea: _dragArea(),
       );
 
   void _askDelete(String id) {
@@ -231,15 +235,24 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       onClose: AppWindow.close,
       projectAnchor: c.projectAnchor,
       branchAnchor: c.branchAnchor,
-      // 无边框窗口的拖拽区：顶栏空白处按下鼠标就把拖拽交回系统（docs/design.md § 9）。
-      // 必须是 opaque（translucent 的 `hitTest` 返回 false，命中链断在这里），且必须交给 TopBar 放进它自己的容器里
-      // ——垫在外面会被顶栏的 BoxDecoration 挡掉（审查 finding P2；回归由 test/ui/topbar_drag_test.dart 钉住）。
-      dragArea: Listener(
-        behavior: HitTestBehavior.opaque,
-        onPointerDown: (_) => AppWindow.startDragging(),
-      ),
+      dragArea: _dragArea(),
     );
   }
+
+  /// 无边框窗口的拖拽区（docs/design.md § 9）：空白处按下左键就把拖拽交回系统，
+  /// runner 侧连着两次还会判成双击 → 最大化 / 还原。顶栏那一行的三段（侧栏标题条、顶栏、右栏标签条）共用一份装配。
+  ///
+  /// 必须是 opaque（translucent 的 `hitTest` 返回 false，命中链断在这里），且必须交给各自的条放进它们自己的容器里
+  /// ——垫在外面会被那层 BoxDecoration 挡掉（审查 finding P2；回归由 test/ui/topbar_drag_test.dart 钉住）。
+  Widget _dragArea() => Listener(
+        behavior: HitTestBehavior.opaque,
+        // 只认左键：右键 / 中键按下也会走 onPointerDown，转成 `WM_NCLBUTTONDOWN` 会莫名其妙开始拖窗口，
+        // 还会被 runner 侧的双击判定算成一次点击。
+        onPointerDown: (event) {
+          if (event.buttons != kPrimaryButton) return;
+          unawaited(AppWindow.startDragging());
+        },
+      );
 
   void _openProjectPopover() {
     c.projectAnchor.toggle((_) => ListenableBuilder(
@@ -693,6 +706,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       onMaximize: AppWindow.toggleMaximize,
       onCloseWindow: AppWindow.close,
       body: _panelBody(active),
+      // 右栏展开时窗口控制在标签条上：那一段同样是顶栏那一行。
+      dragArea: _dragArea(),
     );
   }
 

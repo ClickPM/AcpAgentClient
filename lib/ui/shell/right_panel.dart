@@ -56,6 +56,7 @@ class RightPanel extends StatelessWidget {
     this.onMaximize,
     this.onCloseWindow,
     this.body,
+    this.dragArea,
   });
 
   /// 已打开的标签（侧栏底部导航点开的面板 + 本地终端）。
@@ -71,6 +72,10 @@ class RightPanel extends StatelessWidget {
 
   /// 面板正文；`null` = 占位。
   final Widget? body;
+
+  /// 无边框窗口的拖拽层（docs/design.md § 9）：标签条也是顶栏那一行的一段，空白处要能拖窗口、双击最大化。
+  /// 和 [TopBar.dragArea] 同一种装配 —— 必须铺在标签条容器**里面**、控件行**下面**。
+  final Widget? dragArea;
 
   @override
   Widget build(BuildContext context) {
@@ -95,13 +100,22 @@ class RightPanel extends StatelessWidget {
         // 条高而不是 [t.Controls.input]：标签条与顶栏共用第一条分割线，32 对 36 会错开 4px。
         height: t.Geometry.barHeight,
         decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
-        padding: const EdgeInsets.only(left: t.Spacing.s4, right: t.Spacing.s4),
-        child: Row(
+        child: Stack(
+          // `StackFit.expand`：标签行要拿到与原来一样的紧约束（同 [TopBar]）。
+          fit: StackFit.expand,
           children: <Widget>[
-            for (final tab in tabs) _tab(tab),
-            const Spacer(),
-            if (windowControls)
-              WindowControls(height: t.Geometry.barHeight, onMinimize: onMinimize, onMaximize: onMaximize, onClose: onCloseWindow),
+            if (dragArea != null) Positioned.fill(child: dragArea!),
+            Padding(
+              padding: const EdgeInsets.only(left: t.Spacing.s4, right: t.Spacing.s4),
+              child: Row(
+                children: <Widget>[
+                  for (final tab in tabs) _tab(tab),
+                  const Spacer(),
+                  if (windowControls)
+                    WindowControls(height: t.Geometry.barHeight, onMinimize: onMinimize, onMaximize: onMaximize, onClose: onCloseWindow),
+                ],
+              ),
+            ),
           ],
         ),
       );

@@ -2,17 +2,63 @@
 
 #include <flutter/method_channel.h>
 #include <flutter/standard_method_codec.h>
+#include <flutter_windows.h>
 #include <dwmapi.h>
 #include <windowsx.h>
 
+#include <cstdlib>
 #include <memory>
 
 namespace {
 
-// 缩放热区宽度（逻辑上与系统边框一致；无边框窗口没有可拖的系统边框，这里自己留出来）。
+// 缩放热区宽度，**逻辑**像素（无边框窗口没有可拖的系统边框，这里自己留出来）。
+// 取值与系统边框一致：`SM_CXSIZEFRAME`(4) + `SM_CXPADDEDBORDER`(4)。
+// 不能写死物理像素：R3 原来的「8 物理像素」在 175% 缩放下只剩 4.6 逻辑像素，
+// 边上又没有任何可见边框可瞄，所有者实测「四边四角拉不动」（2026-09-17）。
 constexpr int kResizeBorder = 8;
 
+// 四角的对角热区比边宽一倍（系统也是这样）：贴着角的那几像素要能直接拉对角，而不是只拉到单边。
+constexpr int kResizeCorner = kResizeBorder * 2;
+
 std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> g_channel;
+
+// 上一次 `startDragging` 的时刻与光标位置，用来自己判双击（见 ConsumeDoubleClick）。
+ULONGLONG g_last_drag_ms = 0;
+POINT g_last_drag_point{};
+
+// 逻辑像素按窗口当前 DPI 换成物理像素（`WM_NCHITTEST` 的坐标是物理像素）。
+int ToPhysical(HWND window, int logical) {
+  UINT dpi = ::FlutterDesktopGetDpiForHWND(window);
+  if (dpi == 0) {
+    dpi = USER_DEFAULT_SCREEN_DPI;
+  }
+  return ::MulDiv(logical, static_cast<int>(dpi), USER_DEFAULT_SCREEN_DPI);
+}
+
+// 顶栏双击 = 最大化 / 还原。Flutter 侧顶栏空白处每次 pointer down 都调 `startDragging`，
+// 而 `SendMessage(WM_NCLBUTTONDOWN)` 是合成消息，系统不会把连着的两次配成 `WM_NCLBUTTONDBLCLK`，
+// 所以双击只能在这里自己判：两次调用的间隔与位移都在系统阈值内就算双击。
+bool ConsumeDoubleClick() {
+  POINT cursor{};
+  if (!::GetCursorPos(&cursor)) {
+    return false;
+  }
+  const ULONGLONG now = ::GetTickCount64();
+  const ULONGLONG previous_ms = g_last_drag_ms;
+  const POINT previous_point = g_last_drag_point;
+  g_last_drag_ms = now;
+  g_last_drag_point = cursor;
+  if (previous_ms == 0 || now - previous_ms > ::GetDoubleClickTime()) {
+    return false;
+  }
+  if (std::abs(cursor.x - previous_point.x) > ::GetSystemMetrics(SM_CXDOUBLECLK) / 2 ||
+      std::abs(cursor.y - previous_point.y) > ::GetSystemMetrics(SM_CYDOUBLECLK) / 2) {
+    return false;
+  }
+  // 三击不要再判成「第二次双击」，否则连点会来回抽。
+  g_last_drag_ms = 0;
+  return true;
+}
 
 // 注意不能叫 IsMaximized：winuser.h 把它 #define 成了 IsZoomed，会和系统的重载撞上。
 bool IsWindowMaximized(HWND window) {
@@ -51,14 +97,21 @@ LRESULT HitTest(HWND window, LPARAM lparam) {
   if (IsWindowMaximized(window)) {
     return HTCLIENT;
   }
-  const bool left = cursor.x < rect.left + kResizeBorder;
-  const bool right = cursor.x >= rect.right - kResizeBorder;
-  const bool top = cursor.y < rect.top + kResizeBorder;
-  const bool bottom = cursor.y >= rect.bottom - kResizeBorder;
-  if (top && left) return HTTOPLEFT;
-  if (top && right) return HTTOPRIGHT;
-  if (bottom && left) return HTBOTTOMLEFT;
-  if (bottom && right) return HTBOTTOMRIGHT;
+  const int border = ToPhysical(window, kResizeBorder);
+  const int corner = ToPhysical(window, kResizeCorner);
+  const bool left = cursor.x < rect.left + border;
+  const bool right = cursor.x >= rect.right - border;
+  const bool top = cursor.y < rect.top + border;
+  const bool bottom = cursor.y >= rect.bottom - border;
+  // 角：一轴落在边框带里、另一轴落在更宽的角带里就算角（两条边各自向内延出一段对角区）。
+  const bool corner_left = cursor.x < rect.left + corner;
+  const bool corner_right = cursor.x >= rect.right - corner;
+  const bool corner_top = cursor.y < rect.top + corner;
+  const bool corner_bottom = cursor.y >= rect.bottom - corner;
+  if ((top && corner_left) || (left && corner_top)) return HTTOPLEFT;
+  if ((top && corner_right) || (right && corner_top)) return HTTOPRIGHT;
+  if ((bottom && corner_left) || (left && corner_bottom)) return HTBOTTOMLEFT;
+  if ((bottom && corner_right) || (right && corner_bottom)) return HTBOTTOMRIGHT;
   if (left) return HTLEFT;
   if (right) return HTRIGHT;
   if (top) return HTTOP;
@@ -89,9 +142,14 @@ void AcpWindowRegisterChannel(flutter::FlutterEngine* engine, HWND window) {
         } else if (method == "isMaximized") {
           result->Success(flutter::EncodableValue(IsWindowMaximized(window)));
         } else if (method == "startDragging") {
-          // 交回系统拖窗口：和拖标题栏完全一样（含贴边 / 甩动最大化）。
-          ::ReleaseCapture();
-          ::SendMessage(window, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+          if (ConsumeDoubleClick()) {
+            // 双击顶栏 = 最大化 / 还原（和系统标题栏一致）。
+            ::ShowWindow(window, IsWindowMaximized(window) ? SW_RESTORE : SW_MAXIMIZE);
+          } else {
+            // 交回系统拖窗口：和拖标题栏完全一样（含贴边 / 甩动最大化）。
+            ::ReleaseCapture();
+            ::SendMessage(window, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+          }
           result->Success();
         } else {
           result->NotImplemented();

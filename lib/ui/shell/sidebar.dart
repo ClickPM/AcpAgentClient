@@ -58,6 +58,7 @@ class Sidebar extends StatelessWidget {
     this.onTab,
     this.deleteAnchor,
     this.confirmingDeleteId,
+    this.dragArea,
   });
 
   final List<SidebarSession> sessions;
@@ -83,6 +84,9 @@ class Sidebar extends StatelessWidget {
   final PopoverHandle? deleteAnchor;
   final String? confirmingDeleteId;
 
+  /// 无边框窗口的拖拽层（docs/design.md § 9），转交给 [SidebarTitleBar]；内容由组合根给。
+  final Widget? dragArea;
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -95,7 +99,7 @@ class Sidebar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          const SidebarTitleBar(),
+          SidebarTitleBar(dragArea: dragArea),
           SidebarSearchField(
             controller: searchController,
             focusNode: searchFocusNode,
@@ -154,21 +158,38 @@ class SidebarEmpty extends StatelessWidget {
 
 /// 侧栏顶部的应用标题条。
 class SidebarTitleBar extends StatelessWidget {
-  const SidebarTitleBar({super.key, this.title = 'Agent ACP Client'});
+  const SidebarTitleBar({super.key, this.title = 'Agent ACP Client', this.dragArea});
 
   final String title;
+
+  /// 无边框窗口的拖拽层（docs/design.md § 9）：这条也是顶栏那一行的一段（画板 01–04 左半），
+  /// 要能拖窗口、双击最大化。和 `TopBar.dragArea` 同一种装配 —— 铺在容器**里面**、内容行**下面**。
+  final Widget? dragArea;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       height: t.Geometry.barHeight,
       decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
-      padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12),
-      child: Row(
+      child: Stack(
+        // `StackFit.expand`：内容行要拿到与原来一样的紧约束（同 [TopBar]）。
+        fit: StackFit.expand,
         children: <Widget>[
-          const AppLogo(),
-          const SizedBox(width: t.Spacing.s8),
-          Text(title, style: CardText.strong),
+          if (dragArea != null) Positioned.fill(child: dragArea!),
+          // 这条上没有任何可点的东西，[IgnorePointer] 让 logo 与标题文字也把 pointer 漏给下层拖拽层
+          // （`RenderParagraph.hitTestSelf` 恒为 true，不挡住就拖不动标题那一段）。
+          IgnorePointer(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12),
+              child: Row(
+                children: <Widget>[
+                  const AppLogo(),
+                  const SizedBox(width: t.Spacing.s8),
+                  Text(title, style: CardText.strong),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );

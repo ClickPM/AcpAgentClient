@@ -3,9 +3,12 @@
 // 两件事：
 //   1. 去掉系统标题栏，但保留系统的缩放、贴边（Snap）与阴影：`WM_NCCALCSIZE` 吃掉非客户区，
 //      `WM_NCHITTEST` 只留四边 / 四角的缩放热区（画板 01–04 的 — ☐ ✕ 画在应用自己的顶栏里）。
+//      热区宽度按窗口 DPI 换算，和系统边框一样宽；四角更宽一档。
 //   2. MethodChannel `acp/window`：minimize / toggleMaximize / close / isMaximized / startDragging。
 //      拖拽区由 Flutter 侧决定——顶栏上没有控件的地方收到 pointer down 就调 `startDragging`，
 //      runner 转成 `WM_NCLBUTTONDOWN + HTCAPTION` 交回系统拖窗口。这样顶栏里的按钮与芯片照常可点。
+//      连着两次 `startDragging` 落在系统双击阈值内 = 双击标题栏，切最大化 / 还原（合成消息配不出
+//      `WM_NCLBUTTONDBLCLK`，系统不会替我们判）。
 
 #ifndef RUNNER_ACP_WINDOW_H_
 #define RUNNER_ACP_WINDOW_H_
