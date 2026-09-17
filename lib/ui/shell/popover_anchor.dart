@@ -109,7 +109,11 @@ class _PopoverAnchorState extends State<PopoverAnchor> {
     if (oldWidget.handle != widget.handle) {
       oldWidget.handle?._visible.removeListener(_sync);
       widget.handle?._visible.addListener(_sync);
-      _sync();
+      // 这里正处在 build 阶段：controller 已经挂上 OverlayPortal，此时 show() / hide() 会在 build 里 setState
+      //（`_OverlayPortalState.show` 对此有断言，debug 下直接炸）。推到这一帧结束再对齐；晚一帧看不出来。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _sync();
+      });
     }
   }
 
