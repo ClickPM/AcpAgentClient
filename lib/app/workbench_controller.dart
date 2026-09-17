@@ -112,6 +112,10 @@ class WorkbenchController extends ChangeNotifier {
   MainPage page = MainPage.workbench;
   String search = '';
   String? renamingSessionId;
+
+  /// 改名的输入框落在哪一处：线程头的铅笔就在线程头上改（画板 01 的标题位），侧栏那支笔改侧栏那一行。
+  /// 两处共用 [rename] / [renameFocus]，靠这个标记分流，同一时刻只可能有一个输入框在树上。
+  bool renamingInHeader = false;
   String? confirmingDeleteId;
   String? lastError;
 
@@ -798,6 +802,8 @@ class WorkbenchController extends ChangeNotifier {
   /// 侧栏点选一条会话（画板 04）。内存里没有转录且 agent 声明 `loadSession` 时顺带 `session/load` 把历史重放回来。
   Future<void> selectSession(String id) async {
     page = MainPage.workbench;
+    // 线程头正在改名时切走：那个输入框改的是原来那条会话，跟着切过去会把名字落到别人头上。
+    if (renamingInHeader && renamingSessionId != id) cancelRename();
     sessionId = id;
     agentId = _sessionAgent[id] ?? agentId;
     _touch();
@@ -1034,26 +1040,33 @@ class WorkbenchController extends ChangeNotifier {
     _applyIndex(result['sessions']);
   }
 
-  void startRename(String id) {
+  void startRename(String id, {bool inHeader = false}) {
     renamingSessionId = id;
-    final current = sidebarSessions.where((s) => s.id == id).map((s) => s.title).firstOrNull ?? '';
+    renamingInHeader = inHeader;
+    final current = sidebarSessions.where((s) => s.id == id).map((s) => s.title).firstOrNull ??
+        (inHeader ? threadTitle : '');
     rename.text = current;
     _touch();
   }
 
   void cancelRename() {
     renamingSessionId = null;
+    renamingInHeader = false;
     _touch();
   }
 
   Future<void> commitRename(String title) async {
     final id = renamingSessionId;
     renamingSessionId = null;
+    renamingInHeader = false;
     final b = bridge;
     if (id == null || b == null || title.trim().isEmpty) {
       _touch();
       return;
     }
+    // 线程头显示的是 store 的标题，改完要跟着变；不写回去的话 [_saveIndex] 收轮时还会拿旧标题把索引盖回去。
+    // agent 之后再发 `session_info_update.title` 仍然照单全收（规则 2），改名只管到那时候。
+    sessions.maybe(id)?.title = title.trim();
     await _guard(() async {
       final owner = _ownerOf(id);
       final existing = sidebarSessions.where((s) => s.id == id).firstOrNull;

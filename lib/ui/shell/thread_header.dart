@@ -19,8 +19,13 @@ class ThreadHeader extends StatelessWidget {
     this.canRename = true,
     this.canReload = true,
     this.menuSelected = false,
+    this.renaming = false,
+    this.renameController,
+    this.renameFocusNode,
     this.iconSvg,
     this.onRename,
+    this.onCommitRename,
+    this.onCancelRename,
     this.onNewSession,
     this.onReload,
     this.onMenu,
@@ -42,9 +47,16 @@ class ThreadHeader extends StatelessWidget {
   /// 右栏已展开（画板 03）。
   final bool menuSelected;
 
+  /// 铅笔按下后就地改标题：标题位换成行内输入框（与侧栏那支笔各改各的，见 [Sidebar]）。
+  final bool renaming;
+  final TextEditingController? renameController;
+  final FocusNode? renameFocusNode;
+
   /// 当前 agent 的 `icon.svg`（registry 缓存）：agent 标记直接画它，没有时退回单色占位。
   final String? iconSvg;
   final VoidCallback? onRename;
+  final ValueChanged<String>? onCommitRename;
+  final VoidCallback? onCancelRename;
   final VoidCallback? onNewSession;
   final VoidCallback? onReload;
   final VoidCallback? onMenu;
@@ -55,6 +67,7 @@ class ThreadHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final inlineEdit = renaming && renameController != null && renameFocusNode != null;
     return Container(
       height: t.Geometry.barHeight,
       decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
@@ -66,21 +79,29 @@ class ThreadHeader extends StatelessWidget {
           // 标题吃掉余量、动作贴右（画板 01 的 `margin-left:auto`）。这里不能写成 `Flexible` 加 `Spacer`
           // 并列：两者 flex 都是 1，余量被五五分，动作会停在标题与右边缘的中点上（顶栏踩过同一个坑）。
           Expanded(
-            child: Row(
-              children: <Widget>[
-                Flexible(
-                  child: Text(
-                    title,
-                    style: hasAgent ? CardText.strong : CardText.strong.copyWith(color: t.Neutral.placeholder),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+            child: inlineEdit
+                // 改名时标题位整条让给输入框（Enter 保存 · Esc 取消的提示进不去一行高的条，靠输入框自身的焦点环示意）。
+                ? InlineRenameField(
+                    controller: renameController!,
+                    focusNode: renameFocusNode!,
+                    onSubmitted: onCommitRename,
+                    onCancel: onCancelRename,
+                  )
+                : Row(
+                    children: <Widget>[
+                      Flexible(
+                        child: Text(
+                          title,
+                          style: hasAgent ? CardText.strong : CardText.strong.copyWith(color: t.Neutral.placeholder),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (running) ...<Widget>[const SizedBox(width: t.Spacing.s8), const Spinner()],
+                    ],
                   ),
-                ),
-                if (running) ...<Widget>[const SizedBox(width: t.Spacing.s8), const Spinner()],
-              ],
-            ),
           ),
-          if (hasAgent && canRename) IconButtonGhost(icon: AcpIcons.pencil, onTap: onRename),
+          if (hasAgent && canRename && !inlineEdit) IconButtonGhost(icon: AcpIcons.pencil, onTap: onRename),
           PopoverAnchor(handle: newSessionAnchor, child: IconButtonGhost(icon: AcpIcons.plusSquare, onTap: onNewSession)),
           if (hasAgent && canReload) IconButtonGhost(icon: AcpIcons.reload, onTap: onReload),
           PopoverAnchor(handle: menuAnchor, child: _MenuButton(selected: menuSelected, onTap: onMenu)),

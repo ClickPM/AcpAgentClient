@@ -1,6 +1,7 @@
 // 壳的共用小件（画板 01–04 / 40 / 41 / 42 / 80 共用；ROUNDS § 2 的文件表之外新增，任务卡已记）：
 // agent 标记方块、悬浮包装、文本输入、相对时间文案。样式只取 tokens（CLAUDE.md 规则 3）。
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -205,6 +206,51 @@ class AcpTextField extends StatelessWidget {
         ),
         field,
       ],
+    );
+  }
+}
+
+/// 行内重命名输入（画板 04 / 41）：线程头的标题位与侧栏会话行共用一份，canvas 底 + 焦点环，Enter 保存、Esc 取消。
+class InlineRenameField extends StatelessWidget {
+  const InlineRenameField({super.key, required this.controller, required this.focusNode, this.onSubmitted, this.onCancel});
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final ValueChanged<String>? onSubmitted;
+  final VoidCallback? onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(t.FocusRing.offset),
+      child: Container(
+        height: t.Controls.compact,
+        decoration: BoxDecoration(
+          color: t.Surface.canvas,
+          borderRadius: t.Radii.control,
+          border: Border.all(color: t.FocusRing.color, width: t.FocusRing.width),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s4),
+        alignment: Alignment.centerLeft,
+        child: Shortcuts(
+          shortcuts: <ShortcutActivator, Intent>{LogicalKeySet(LogicalKeyboardKey.escape): const DismissIntent()},
+          child: Actions(
+            actions: <Type, Action<Intent>>{
+              DismissIntent: CallbackAction<DismissIntent>(onInvoke: (_) {
+                onCancel?.call();
+                return null;
+              }),
+            },
+            child: AcpTextField(
+              controller: controller,
+              focusNode: focusNode,
+              autofocus: true,
+              style: t.TextStyles.body.copyWith(height: t.LineHeights.control),
+              onSubmitted: onSubmitted,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

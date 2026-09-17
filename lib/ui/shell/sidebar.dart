@@ -3,7 +3,6 @@
 // 会话列表以本地索引为准（docs/design.md § 3 末条）：时间戳是客户端本地态，「N 条消息」由投影层分组计数得出（画板 04 注）。
 // 删除图标需 `sessionCapabilities.delete`，无能力时不渲染（画板 04 注；确认弹层在画板 41）。
 
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../theme/tokens.dart' as t;
@@ -344,51 +343,6 @@ class SidebarSessionRow extends StatelessWidget {
         ),
         TextSpan(text: title.substring(idx + query.length)),
       ],
-    );
-  }
-}
-
-/// 行内重命名输入（画板 04 / 41）：canvas 底 + 焦点环，Enter 保存、Esc 取消。
-class InlineRenameField extends StatelessWidget {
-  const InlineRenameField({super.key, required this.controller, required this.focusNode, this.onSubmitted, this.onCancel});
-
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final ValueChanged<String>? onSubmitted;
-  final VoidCallback? onCancel;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(t.FocusRing.offset),
-      child: Container(
-        height: t.Controls.compact,
-        decoration: BoxDecoration(
-          color: t.Surface.canvas,
-          borderRadius: t.Radii.control,
-          border: Border.all(color: t.FocusRing.color, width: t.FocusRing.width),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s4),
-        alignment: Alignment.centerLeft,
-        child: Shortcuts(
-          shortcuts: <ShortcutActivator, Intent>{LogicalKeySet(LogicalKeyboardKey.escape): const DismissIntent()},
-          child: Actions(
-            actions: <Type, Action<Intent>>{
-              DismissIntent: CallbackAction<DismissIntent>(onInvoke: (_) {
-                onCancel?.call();
-                return null;
-              }),
-            },
-            child: AcpTextField(
-              controller: controller,
-              focusNode: focusNode,
-              autofocus: true,
-              style: t.TextStyles.body.copyWith(height: t.LineHeights.control),
-              onSubmitted: onSubmitted,
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
