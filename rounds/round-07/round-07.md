@@ -1,6 +1,6 @@
 # Round 07 — zed-agent-acp sidecar
 
-> 状态：已完成（审查 4 轮收口；合并 `main` 待所有者确认）
+> 状态：已完成（审查 4 轮收口 0 findings；2026-09-17 合并 `main`，合并提交 `44cd33a`）
 
 ## 目标
 
