@@ -10,7 +10,7 @@
 1. **会话流可投影 15 种 `session/update` 变体**：稳定 v1 有 11 种，rust-sdk 的 `unstable` 再打开 4 种（`plan_update`、`plan_removed`、`compaction_update`、`compaction_summary_chunk`）。还有 1 种 `notice` 存在于协议仓库、但 sdk 的 `unstable` 伞不转发，我们**编译不出来** → 收到会被静默丢弃（§ 8.1）。
 2. **会话流之外还有四个投影面**：需要用户参与的 agent → client 请求（permission、elicitation 的 form / url 两种模式）、环境能力回调（fs 两个、terminal 五个）、会话与连接级状态（capabilities / authMethods / modes / configOptions / sessionInfo / stopReason / 错误码）、内容块（5 种，**输出方向没有能力门，客户端必须全部能显示**）。
 3. **投影面的开关几乎全在我们手里**：`initialize` 里声明什么能力，agent 才会发什么（§ 6 能力门总表）。不声明 = 收不到，不是 agent 的问题。
-4. **协议不提供、必须客户端自造的有 7 项**（§ 7）：工具调用的「已取消」态、消息边界与分组、时间戳、先到的 `tool_call_update`、终端释放后的输出留存、思考块的折叠单元、每轮的边界。它们决定了前端状态层不是「把 JSON 摊平渲染」，但都是**呈现态**，不构成第二套协议。
+4. **协议不提供、必须客户端自造的有 8 项**（§ 7）：工具调用的「已取消」态、消息边界与分组、时间戳、先到的 `tool_call_update`、终端释放后的输出留存、思考块的折叠单元、每轮的边界、用户消息的本地回显。它们决定了前端状态层不是「把 JSON 摊平渲染」，但都是**呈现态**，不构成第二套协议。
 5. **五个一等 agent 的实际发射面已实测**（§ 9）。claude-agent-acp 与 codex-acp 另有一整套 JetBrains AIR `_meta` 扩展（subagent 会话、async task、quota、file change report 等，**不在任何 ACP schema 里**），只有客户端在 `_meta.jetbrains.air.capabilities` 里声明才会发；我们按 design.md § 4 不声明，因此收不到，代价见 § 9.3。
 
 ## 1. 版本与口径
@@ -138,9 +138,9 @@ design.md § 4 定的声明集（照抄 Zed 的 `client_capabilities_for_agent`�
 
 无需任何声明就会来的：五种内容块、`plan`、`available_commands_update`、`current_mode_update`、`session_info_update`、`usage_update`、`notice`、`session/request_permission`。
 
-## 7. 协议不给、必须客户端自己造的 7 项
+## 7. 协议不给、必须客户端自己造的 8 项
 
-这 7 项都是**呈现态**，存在前端 store 里，不进线上协议，也不构成「第二套协议」（CLAUDE.md 规则 2 的边界）。
+这 8 项都是**呈现态**，存在前端 store 里，不进线上协议，也不构成「第二套协议」（CLAUDE.md 规则 2 的边界）。
 
 1. **工具调用的「已取消」态**。规范要求：客户端发出 `session/cancel` 后 SHOULD 先行把本轮未完成的工具调用标成 cancelled —— 但 `ToolCallStatus` 里**根本没有 cancelled**。只能在客户端侧记一个本地态。
 2. **消息边界与分组**。chunk 流里只有可选的 `messageId`（同 id 属同一条消息，id 变了就是新消息）。agent 不发 `messageId` 时（多数情况），把连续 chunk 合成一条气泡的规则由客户端定。
@@ -149,6 +149,7 @@ design.md § 4 定的声明集（照抄 Zed 的 `client_capabilities_for_agent`�
 5. **终端释放后的输出留存**。见 § 4。
 6. **思考块的折叠单元**。`agent_thought_chunk` 是纯流，没有「一段思考」的边界，折叠 / 展开的分段规则由客户端定。
 7. **每轮的边界**。`session/prompt` 的请求与响应之间是一轮，但流里没有「轮开始 / 轮结束」标记；轮的归属靠客户端按请求生命周期自己切。
+8. **用户消息的本地回显**。`session/prompt` 的入参里就带着用户发出去的那批内容块，但**没有哪个 agent 在实时一轮里把它回显成 `user_message_chunk`**：钉版本的 claude-agent-acp / codex-acp / pi-acp / dsh-acp-interactive 四家的发射点全在 `session/load` 的历史重放里（§ 9.1 已更正）。客户端必须在发 `session/prompt` 时自己把这批块落成用户气泡，否则转录里只有轮边界、没有用户消息。重放（或将来有 agent 实时回显）时同一批块会再来一遍，按块内容去重、并把协议 `messageId` 认领到本地那条上——照 Zed `acp_thread.rs` 的 `handle_session_update`。
 
 ## 8. 容错与丢失风险
 
@@ -182,7 +183,7 @@ Zed 的做法可直接转写：把子进程 stdout 的行流与 stdin 的行 sin
 
 | 变体 | claude-agent-acp | codex-acp | pi-acp | dsh-acp-interactive | Cursor |
 |---|---|---|---|---|---|
-| `user_message_chunk` | 是（重放） | 是 | 是 | 是 | 未知 |
+| `user_message_chunk` | 是（重放） | 是（重放） | 是（重放） | 是（重放） | 未知 |
 | `agent_message_chunk` | 是 | 是 | 是 | 是 | 是 |
 | `agent_thought_chunk` | 是 | 是 | 是 | 是 | 未知 |
 | `tool_call` / `tool_call_update` | 是 | 是 | 是 | 是 | 是 |
@@ -194,6 +195,8 @@ Zed 的做法可直接转写：把子进程 stdout 的行流与 stdin 的行 sin
 | `session_info_update` | 是 | 是 | 是 | 是 | 未知 |
 | `usage_update` | 是 | 是 | 否 | 是 | 未知 |
 | `compaction_*`（unstable） | 否（走 AIR `_meta`） | 否（走 AIR `_meta`） | 否 | 否 | 否 |
+
+更正（2026-09-17，实测）：`user_message_chunk` 四家**都只在 `session/load` 的历史重放里发**——codex-acp 的发射点在 `createHistoryUpdates`、pi-acp 在 `getMessages()` 重放、dsh 在 `replayMessageContent`。实时一轮里用户消息只能由客户端自己回显（§ 7 第 8 条）。
 
 结论：**11 个稳定变体在一等 agent 里全部有真实发射源**，没有哪个是纸面功能；只有 `plan_update` 需要额外声明 `plan` 能力才能从 codex 收到（不声明时 codex 仍发稳定的 `plan`）。
 

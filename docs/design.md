@@ -77,6 +77,7 @@ Flutter 宿主进程（Dart）
 
 - 按 `sessionId` 累积 `update`；`tool_call` 与 `tool_call_update` 按协议合并（同 id 覆盖，content 为替换语义）。
 - `user_message_chunk` / `agent_message_chunk` / `agent_thought_chunk` 按顺序追加。
+- **用户消息由客户端在 `session/prompt` 发出时本地回显**（acp-projection.md § 7 第 8 条）：一等 agent 只在 `session/load` 的重放里发 `user_message_chunk`，不本地回显的话实时一轮里转录只有轮边界、没有用户气泡。重放来的同一批块按块内容去重并认领 `messageId`（照 Zed）。
 - 待处理的 permission 与 elicitation 是队列，回应后出队。
 - 不在前端做任何 agent 特判。
 - 待处理队列按 `sessionId` 索引，另有一个无会话的 requestScope 队列（认证阶段的 elicitation）。

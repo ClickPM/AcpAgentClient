@@ -284,6 +284,30 @@ class SessionStore extends ChangeNotifier {
     return a != null && b != null && a == b; // 有 id：id 相同才是同一条
   }
 
+  /// Zed 的 `can_merge_message_chunks`：任一侧没有 messageId 就可能是同一条，两侧都有才要求相等。
+  /// 只给本地回显的去重用（§ 7 第 8 条）；普通 chunk 的分组仍按 [_sameMessage]。
+  static bool _canMergeMessage(String? a, String? b) => a == null || b == null || a == b;
+
+  /// 两个内容块是不是同一块（JSON 深比较）：回显去重要比整块，光比 text 会把同文本的不同块型也吃掉。
+  static bool _sameJson(Object? a, Object? b) {
+    if (identical(a, b)) return true;
+    if (a is Map && b is Map) {
+      if (a.length != b.length) return false;
+      for (final e in a.entries) {
+        if (!b.containsKey(e.key) || !_sameJson(e.value, b[e.key])) return false;
+      }
+      return true;
+    }
+    if (a is List && b is List) {
+      if (a.length != b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (!_sameJson(a[i], b[i])) return false;
+      }
+      return true;
+    }
+    return a == b;
+  }
+
   void _appendMessage(MessageRole role, SessionUpdateWire u, JsonMap? meta, DateTime now) {
     final content = u.content;
     if (content == null) return;
@@ -291,6 +315,21 @@ class SessionStore extends ChangeNotifier {
     _ensureParent(parent, now);
     final list = _containerFor(parent);
     final last = list.isEmpty ? null : list.last;
+    // § 7 第 8 条：`session/prompt` 发出时已经本地回显过这批块，会回显的 agent（pi / dsh / codex 的重放）
+    // 把同一批块再发一遍时按块内容去重，并把协议 messageId 认领到本地那条上（照 Zed acp_thread.rs）。
+    if (role == MessageRole.user && last is MessageEntry && last.optimistic && last.role == role && _canMergeMessage(last.messageId, u.messageId)) {
+      if (last.blocks.any((b) => _sameJson(b.json, content.json))) {
+        last.messageId ??= u.messageId;
+        return;
+      }
+    }
+    // 本地回显那条还没认领 messageId，而这条 chunk 带了 id：不是同一条（内容对不上才会走到这里），另起一条。
+    if (role == MessageRole.user && last is MessageEntry && last.optimistic && last.messageId == null && u.messageId != null) {
+      final entry = MessageEntry(id: _newId('msg'), at: now, role: role, messageId: u.messageId, parentToolCallId: parent);
+      entry.blocks.add(content);
+      _place(entry, now);
+      return;
+    }
     if (last is MessageEntry && last.role == role && _sameMessage(last.messageId, u.messageId)) {
       last.blocks.add(content);
       last.updatedAt = now;
@@ -320,7 +359,10 @@ class SessionStore extends ChangeNotifier {
 
   // ---------------------------------------------------------------- 轮边界（§ 7 第 7 条）
 
-  /// `session/prompt` 发出：开一轮（也是画板 10 的检查点）。
+  /// `session/prompt` 发出：开一轮（也是画板 10 的检查点），并把发出去的那批块本地回显成用户气泡。
+  /// 回显是必须的（§ 7 第 8 条）：`user_message_chunk` 多数 agent 只在 `session/load` 的重放里发，
+  /// 实时一轮里根本不回显（codex-acp 实测），光等 agent 发的话用户消息永远不出现。
+  /// 会回显的 agent 发来的同一批块在 [_appendMessage] 里按块内容去重（照 Zed acp_thread.rs）。
   TurnEntry startTurn(List<ContentBlockWire> prompt) {
     final now = this.now;
     _closeOpenThought(entries);
@@ -328,6 +370,11 @@ class SessionStore extends ChangeNotifier {
     final t = TurnEntry(id: _newId('turn'), at: now, n: turnCount, prompt: List<ContentBlockWire>.unmodifiable(prompt));
     currentTurn = t;
     entries.add(t);
+    if (prompt.isNotEmpty) {
+      final echo = MessageEntry(id: _newId('msg'), at: now, role: MessageRole.user, optimistic: true);
+      echo.blocks.addAll(prompt);
+      entries.add(echo);
+    }
     _changed();
     return t;
   }
@@ -667,6 +714,7 @@ class SessionStore extends ChangeNotifier {
             'updatedAt': _iso(m.updatedAt),
             'role': m.role.name,
             'messageId': m.messageId,
+            'optimistic': m.optimistic,
             'parent': m.parentToolCallId,
             'blocks': <JsonMap>[for (final b in m.blocks) b.json],
           },

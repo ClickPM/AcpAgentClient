@@ -1,4 +1,4 @@
-// 投影层单测（R2 验收 1）：docs/acp-projection.md § 7 七项自造态、§ 2.2 合并语义、§ 3.1 cancel 后挂起权限回 cancelled、
+// 投影层单测（R2 验收 1）：docs/acp-projection.md § 7 八项自造态、§ 2.2 合并语义、§ 3.1 cancel 后挂起权限回 cancelled、
 // § 8.3 逐项跳过、子代理分组只按 _meta 键（docs/design.md § 4）。纯 Dart 逻辑，不起 widget。
 
 import 'package:acp_agent_client/projection/entries.dart';
@@ -354,6 +354,68 @@ void main() {
       expect((s.pending.byRequestId('keep')! as PermissionEntry).status, PendingStatus.pending);
       expect(s.pending.pending, hasLength(1));
       expect(s.pending.pending.single, same(s.pending.byRequestId('keep')));
+    });
+  });
+
+  group('§ 7.8 用户消息的本地回显', () {
+    ContentBlockWire text(String t) => ContentBlockWire(<String, dynamic>{'type': 'text', 'text': t});
+    const ContentBlockWire link = ContentBlockWire(<String, dynamic>{'type': 'resource_link', 'uri': 'file:///a.dart', 'name': 'a.dart'});
+
+    test('startTurn 把发出去的那批块落成用户气泡（一等 agent 实时一轮里不发 user_message_chunk）', () {
+      final s = newStore();
+      s.startTurn(<ContentBlockWire>[text('看一眼 '), link]);
+      final msg = s.entries.whereType<MessageEntry>().single;
+      expect(msg.role, MessageRole.user);
+      expect(msg.optimistic, isTrue);
+      expect(msg.messageId, isNull);
+      expect(msg.blocks, hasLength(2));
+      expect(msg.text, '看一眼 ');
+      // 气泡在检查点之后：Restore / Regenerate 按它前面那条 TurnEntry 截断。
+      expect(s.entries.first, isA<TurnEntry>());
+      expect(s.entries[1], same(msg));
+    });
+
+    test('空 prompt 不造气泡', () {
+      final s = newStore();
+      s.startTurn(const <ContentBlockWire>[]);
+      expect(s.entries.whereType<MessageEntry>(), isEmpty);
+    });
+
+    test('agent 把同一批块回显回来：按块内容去重，并认领协议 messageId', () {
+      final s = newStore();
+      s.startTurn(<ContentBlockWire>[text('看一眼 '), link]);
+      s.applyUpdateJson(chunk('user_message_chunk', '看一眼 ', messageId: 'msg_u1'));
+      s.applyUpdateJson(<String, dynamic>{'sessionUpdate': 'user_message_chunk', 'messageId': 'msg_u1', 'content': link.json});
+      final msg = s.entries.whereType<MessageEntry>().single;
+      expect(msg.messageId, 'msg_u1');
+      expect(msg.blocks, hasLength(2));
+      // 同一条消息里的新块照常并进来。
+      s.applyUpdateJson(chunk('user_message_chunk', ' 再动手。', messageId: 'msg_u1'));
+      expect(s.entries.whereType<MessageEntry>().single.blocks, hasLength(3));
+      expect(msg.text, '看一眼  再动手。');
+    });
+
+    test('回显内容对不上且带了 messageId：另起一条，不并进本地那条', () {
+      final s = newStore();
+      s.startTurn(<ContentBlockWire>[text('hi')]);
+      s.applyUpdateJson(chunk('user_message_chunk', '（agent 改写过的 prompt）', messageId: 'msg_u9'));
+      final msgs = s.entries.whereType<MessageEntry>().toList();
+      expect(msgs, hasLength(2));
+      expect(msgs[0].optimistic, isTrue);
+      expect(msgs[0].messageId, isNull);
+      expect(msgs[1].optimistic, isFalse);
+      expect(msgs[1].messageId, 'msg_u9');
+    });
+
+    test('Restore 连本地回显一起截断，重发时再回显一次', () {
+      final s = newStore();
+      final t1 = s.startTurn(<ContentBlockWire>[text('hi')]);
+      s.applyUpdateJson(chunk('agent_message_chunk', 'ok'));
+      s.endTurn(stopReason: 'end_turn');
+      expect(s.restoreTo(t1.id)!.turn, same(t1));
+      expect(s.entries, isEmpty);
+      s.startTurn(<ContentBlockWire>[text('hi2')]);
+      expect(s.entries.whereType<MessageEntry>().single.text, 'hi2');
     });
   });
 

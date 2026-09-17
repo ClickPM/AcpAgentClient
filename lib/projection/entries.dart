@@ -1,7 +1,8 @@
-// 转录条目模型（R2）。docs/acp-projection.md § 7 的 7 项自造态全部落在这些呈现态字段上：
+// 转录条目模型（R2）。docs/acp-projection.md § 7 的 8 项自造态全部落在这些呈现态字段上：
 // ① 工具调用的本地 cancelled（ToolCallEntry.cancelledLocally）② 消息分组（MessageEntry.messageId 与角色连续合并）
 // ③ 本地时间戳（每个条目的 at / updatedAt）④ 先到的 tool_call_update 凭空建卡（ToolCallEntry.createdFromUpdate）
-// ⑤ 终端释放后输出留存（TerminalBuffer 跟卡走，见 tool_calls.dart）⑥ 思考折叠单元（ThoughtEntry）⑦ 轮边界（TurnEntry）。
+// ⑤ 终端释放后输出留存（TerminalBuffer 跟卡走，见 tool_calls.dart）⑥ 思考折叠单元（ThoughtEntry）⑦ 轮边界（TurnEntry）
+// ⑧ 用户消息的本地回显（MessageEntry.optimistic）。
 // 纯 Dart，不依赖 widget；规则来自 prototype/assets/projection.js，只搬规则不搬代码。
 
 import 'wire.dart';
@@ -21,11 +22,16 @@ abstract class TranscriptEntry {
 
 /// 用户 / 助手消息：连续 chunk 合成一条气泡（§ 7 第 2 条）。
 class MessageEntry extends TranscriptEntry {
-  MessageEntry({required super.id, required super.at, required this.role, this.messageId, this.parentToolCallId})
+  MessageEntry({required super.id, required super.at, required this.role, this.messageId, this.parentToolCallId, this.optimistic = false})
       : updatedAt = at;
 
   final MessageRole role;
-  final String? messageId;
+
+  /// 协议 messageId；本地回显的那条先是 null，agent 回显同一批块时认领回来（§ 7 第 8 条）。
+  String? messageId;
+
+  /// § 7 第 8 条：`session/prompt` 发出时本地回显的用户气泡（不是 agent 发来的）。
+  final bool optimistic;
   @override
   final String? parentToolCallId;
   final List<ContentBlockWire> blocks = <ContentBlockWire>[];
