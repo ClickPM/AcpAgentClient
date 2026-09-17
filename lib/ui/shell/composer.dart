@@ -3,6 +3,7 @@
 // 上方可叠 Awaiting 停靠条（画板 26）与 `@` / `/` 内联菜单（画板 42）。
 // 无已安装 agent 时（画板 01 状态 2 注）：三个下拉与用量圆环都不渲染，发送为禁用态。
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../projection/usage.dart';
@@ -111,6 +112,21 @@ class Composer extends StatelessWidget {
     );
   }
 
+  /// Enter 发送、Shift+Enter 换行（所有者裁定 2026-09-17）。`Focus` 在 `EditableText` 之上，
+  /// 拦下来（`handled`）引擎就不会再把这一下翻成换行字符。
+  /// 中文 IME 组合窗开着时（`composing` 有效）一律放行：那一下 Enter 是给候选词上屏用的。
+  KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event.logicalKey != LogicalKeyboardKey.enter && event.logicalKey != LogicalKeyboardKey.numpadEnter) {
+      return KeyEventResult.ignored;
+    }
+    if (HardwareKeyboard.instance.isShiftPressed) return KeyEventResult.ignored;
+    if (controller.value.composing.isValid) return KeyEventResult.ignored;
+    // 禁用态与回合进行中都不发（发送位此时是停止方块），但也不落回换行：Enter 的含义保持唯一。
+    if (enabled && !running) onSend?.call();
+    return KeyEventResult.handled;
+  }
+
   Widget _box() => Container(
         decoration: BoxDecoration(
           color: t.Neutral.panel,
@@ -124,15 +140,19 @@ class Composer extends StatelessWidget {
           children: <Widget>[
             ConstrainedBox(
               constraints: const BoxConstraints(minHeight: t.Controls.input + t.Spacing.s8),
-              child: AcpTextField(
-                controller: controller,
-                focusNode: focusNode,
-                style: t.TextStyles.body,
-                placeholder: placeholder,
-                placeholderStyle: t.TextStyles.body.copyWith(color: t.Neutral.placeholder),
-                maxLines: null,
-                minLines: null,
-                onChanged: onChanged,
+              child: Focus(
+                canRequestFocus: false,
+                onKeyEvent: _onKeyEvent,
+                child: AcpTextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  style: t.TextStyles.body,
+                  placeholder: placeholder,
+                  placeholderStyle: t.TextStyles.body.copyWith(color: t.Neutral.placeholder),
+                  maxLines: null,
+                  minLines: null,
+                  onChanged: onChanged,
+                ),
               ),
             ),
             const SizedBox(height: t.Spacing.s4),
