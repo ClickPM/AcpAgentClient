@@ -46,8 +46,9 @@ const TERMINAL_POLL_INTERVAL: Duration = Duration::from_millis(100);
 /// `session/delete` 的「删 → 等 → 核对」上限与每轮的等待（理由见 `delete_session`）。
 const DELETE_ATTEMPTS: usize = 3;
 const DELETE_RETRY_DELAY: Duration = Duration::from_millis(200);
-/// 等 `AcpThread` 被释放的上限（见 `release_and_wait`）。
+/// 等 `AcpThread` 被释放的上限与轮询间隔（见 `release_and_wait`）。
 const RELEASE_TIMEOUT: Duration = Duration::from_secs(5);
+const RELEASE_POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 pub struct Agent {
     state: Arc<AgentAppState>,
@@ -332,15 +333,19 @@ impl Agent {
         cx: &mut AsyncApp,
     ) -> Result<acp::ListSessionsResponse> {
         let native = self.native()?;
-        // 刚建好的 ThreadStore 是空的，第一次读要等它把 threads.db 扫完。
-        let reload = native
-            .thread_store
-            .read_with(cx, |store, _cx| store.reload_task());
-        reload.await;
-
-        let entries = native
-            .thread_store
-            .read_with(cx, |store, _cx| store.entries().collect::<Vec<_>>());
+        // 每次都**重新**扫一遍 `threads.db` 再读，而不是 await 手上那个可能早就跑完的 `reload_task`：
+        // 那样读到的是缓存，别的进程（或本进程别处）刚写的看不见。
+        //
+        // 空表要重来一次：`ThreadStore::spawn_reload` 在连库或读表失败时是**静默 return** 的
+        // （`let Ok(..) else { return }`），任务照常完成、`threads` 保持原样 —— 对刚建好的 store 来说
+        // 就是空的。于是一次失败的读和「真的没有会话」在外面看起来一模一样，`session/list` 会把
+        // 「读失败」报成「一条都没有」，而客户端拿它校对存在性（R6）。上游把错误吞了，我们看不到，
+        // 只能靠重扫一次把偶发的读失败滤掉；真的空表也只是多一次读。R7 实测见过一次（6 次里 1 次）。
+        let mut entries = reload_threads(&native, cx).await;
+        if entries.is_empty() {
+            log::debug!("session/list got an empty thread list; reloading once more");
+            entries = reload_threads(&native, cx).await;
+        }
         let sessions = entries
             .into_iter()
             // `cwd` 过滤：Zed 的 thread 记的是一组 folder paths，只要包含请求的 cwd 就算命中。
@@ -475,22 +480,40 @@ impl Agent {
             self.sessions.borrow_mut().remove(session_id);
             return;
         };
-        let (tx, released) = futures::channel::oneshot::channel::<()>();
-        // 订阅要在放掉引用**之前**挂上，否则可能错过那一下。
-        let _subscription = cx.update(|cx| {
-            cx.observe_release(&entry.acp_thread, move |_, _| {
-                let _ = tx.send(());
-            })
-        });
-        drop(entry);
-        self.sessions.borrow_mut().remove(session_id);
+        let (tx, mut released) = futures::channel::oneshot::channel::<()>();
 
-        let mut released = std::pin::pin!(futures::FutureExt::fuse(released));
-        let timeout = cx.background_executor().timer(RELEASE_TIMEOUT);
-        let mut timeout = std::pin::pin!(futures::FutureExt::fuse(timeout));
-        futures::select_biased! {
-            _ = released => {}
-            _ = timeout => log::warn!("session {session_id} was not released within {RELEASE_TIMEOUT:?}"),
+        // 挂订阅、放掉两份强引用、摘表，全都在**同一个** `cx.update` 里。
+        //
+        // gpui 的 `observe_release` 只在 `App::flush_effects` → `release_dropped_entities` 里跑，
+        // 而 `Entity` 的 drop 本身只是把 id 推进待释放队列；flush 发生在一次 `App::update` 结束时。
+        // 在 update **之外** drop 的话，要等到下一次别的 update 才真的释放 —— 那次恰好是
+        // `delete_thread` 自己的 `thread_store.update`，于是「释放时的保存」又和删除挤进同一轮
+        // effect，退回第 2 轮那条 high 的慢保存路径（审查第 3 轮 finding high）。
+        let _subscription = cx.update(|cx| {
+            let subscription = cx.observe_release(&entry.acp_thread, move |_, _| {
+                let _ = tx.send(());
+            });
+            drop(entry);
+            self.sessions.borrow_mut().remove(session_id);
+            subscription
+        });
+
+        // 上面那次 update 收尾时的 flush 已经覆盖「没有别的引用」这一常见情况。`session/prompt`
+        // 的事件泵还按着一份 `Rc<SessionEntry>` 时，要等它收尾**之后再有一次 update** 才会释放，
+        // 所以这里每隔一小段空跑一次 update 把 effect 冲一遍 —— 只挂 background timer 是等不到的。
+        let started = std::time::Instant::now();
+        loop {
+            match released.try_recv() {
+                // 已释放，或订阅先没了（那也没什么可等的了）。
+                Ok(Some(())) | Err(_) => return,
+                Ok(None) => {}
+            }
+            if started.elapsed() >= RELEASE_TIMEOUT {
+                log::warn!("session {session_id} was not released within {RELEASE_TIMEOUT:?}");
+                return;
+            }
+            cx.background_executor().timer(RELEASE_POLL_INTERVAL).await;
+            cx.update(|_| {});
         }
     }
 
@@ -1098,6 +1121,18 @@ impl Agent {
             log::debug!("session/update dropped ({session_id}): {error}");
         }
     }
+}
+
+/// 重扫一遍 `threads.db` 并读出线程清单（见 `list_sessions` 里那段注释）。
+async fn reload_threads(native: &Native, cx: &mut AsyncApp) -> Vec<agent::DbThreadMetadata> {
+    native.thread_store.update(cx, |store, cx| store.reload(cx));
+    let reload = native
+        .thread_store
+        .read_with(cx, |store, _cx| store.reload_task());
+    reload.await;
+    native
+        .thread_store
+        .read_with(cx, |store, _cx| store.entries().collect::<Vec<_>>())
 }
 
 fn outcome_of(option: &acp::PermissionOption) -> acp_thread::SelectedPermissionOutcome {

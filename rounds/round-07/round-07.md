@@ -94,9 +94,25 @@
 
 **delete 的最终验证**（不再只看删完那一刻）：整改后复跑整条生命周期 `ok: true`、`delete.inAgentList: false`；随后**另起一个进程**、只做 `session/list`，确认被删的 `c461932a-…` 不在列表里（列表里只剩两条更早的测试会话）。
 
-- 结论：<待第 3 轮>
+### 第 3 轮（只审整改 diff，`-Scope since -Base 925282e`）findings：1 条（high 1），**采纳整改**
 
-<!-- 第 3 轮起只审整改 diff（-Scope since -Base 925282e），结果回填在这里 -->
+第一次发起时 cursor 掉线卡死（`.err.log`：`Connection lost, reconnecting to …cursor.sh (attempt 1)` / `Retry attempt 1...`），工作进程没了而 `.out` 空了 58 分钟。按 `docs/review-workflow.md` 这算硬失败，但**没有回落子代理** —— 掉线是瞬时故障，重发同一轮 cursor 即可；重发（`20260917-130621`）10 分钟内正常出结果。结果 `.claude/reviews/20260917-130621-review.out.md`。
+
+1. **[high] `release_and_wait` 根本没等到释放** —— 采纳，审查者对着 gpui 源码查实的，指得比我自己准。
+   `observe_release` 只在 `App::flush_effects` → `release_dropped_entities` 里跑，`Entity` 的 drop 本身只是把 id 推进待释放队列；而 flush 发生在一次 `App::update` 结束时。我把 `drop(entry)` / `sessions.remove` 写在 `cx.update` **之外**，于是那次 drop 什么也没触发：空闲会话一路空等到 5 s 超时，随后 `delete_thread` 自己那次 update 才第一次 flush —— 「释放时的保存」又和删除挤进同一轮 effect，退回第 2 轮那条 high 的慢保存路径。
+   整改：把挂订阅、`drop(entry)`、摘表全放进**同一个** `cx.update`（闭包返回订阅句柄），让这次 update 收尾的 flush 直接跑完 `release_session`；`prompt` 的事件泵还按着 `Rc` 的情况，等待期间每 50 ms 空跑一次 `cx.update` 把 effect 冲一遍，而不是只挂 background timer。
+
+### 复跑时自己抓到的一个缺陷（`session/list` 会把「读失败」报成「一条都没有」）
+
+整改后复跑，`session/delete` 不再有 5 s 空等（应用日志里 `was not released` / `came back after delete` 都是 0 条），被删的会话另起进程查 3/3 都不在了。但**另一次** `session/list` 返回了空表，而库里那两条老会话还在 —— 连查 5 次只中了 1 次。
+
+查到根因在上游：`ThreadStore::spawn_reload` 连库或读表失败时是**静默 return**（`let Ok(..) else { return }`），任务照常完成、`threads` 保持原样，对刚建好的 store 就是空的。于是「读失败」和「真的没有会话」在外面长得一模一样，而客户端拿 `session/list` 校对存在性（R6）。
+
+整改（在我们这侧，不动 `vendor/`）：`list_sessions` 每次**强制重扫**再读（原来 await 的是可能早就跑完的 `reload_task`，读的是缓存），空表时再重扫一次把偶发读失败滤掉。复跑连查 5 次，5/5 都是 2 条。上游吞错误这件事记 BACKLOG。
+
+- 结论：**整改后 PASS**（第 4 轮复审确认 0 条才收口）
+
+<!-- 第 4 轮（-Scope since -Base be03008）结果回填在这里 -->
 
 
 ## 失败处理
