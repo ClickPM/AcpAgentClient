@@ -1,12 +1,13 @@
-// 会话的 agent logo（画板 01–04 的 agent 标记）：侧栏会话项与线程头画的是**已装 agent 自己的 `icon.svg`**
-// （registry 缓存的那一份，与画板 50 / 51 / 70 的图标框同源），registry 里没有才退回画板的单色占位菱形。
-// 守住三件事：按会话所属 agentId 查出来、registry 后到时侧栏会重投影（不会一直停在占位上）、
-// 以及 [AgentMark] 真按有没有 svg 分两条路走。
+// 会话的 agent logo（画板 01–04 的 agent 标记）：侧栏会话项、线程头与「新建会话 · 选 agent」弹层画的是
+// **已装 agent 自己的 `icon.svg`**（registry 缓存的那一份，与画板 50 / 51 / 70 的图标框同源），
+// registry 里没有才退回画板的单色占位菱形。守住：按 agentId 查出来（会话按所属 agent、弹层按每条自己的 id）、
+// registry 后到时侧栏会重投影（不会一直停在占位上）、以及 [AgentMark] 真按有没有 svg 分两条路走。
 
 import 'dart:io';
 
 import 'package:acp_agent_client/app/workbench_controller.dart';
 import 'package:acp_agent_client/projection/wire.dart';
+import 'package:acp_agent_client/ui/popovers/topbar_popovers.dart';
 import 'package:acp_agent_client/ui/shell/shell_common.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -24,11 +25,22 @@ JsonMap _entry(String id, {String? icon}) => <String, dynamic>{
       'description': 'd',
       'distribution': 'npx',
       'supported': true,
-      if (icon != null) 'iconSvg': icon,
+      'iconSvg': ?icon,
       'installed': <String, dynamic>{'kind': 'npx', 'version': '1.0.0', 'authStatus': 'unknown', 'command': 'node', 'args': <String>['x']},
     };
 
 JsonMap _registry(List<Object?> agents) => <String, dynamic>{'agents': agents, 'fetching': false, 'node': <String, dynamic>{}};
+
+/// settings.json 里装着两个 agent：一个 registry 型、一个内置 sidecar（`zed`）。
+class _TwoAgentsCore extends FakeCore {
+  @override
+  Future<JsonMap> agentSettingsGet() async => <String, dynamic>{
+        'agent_servers': <String, dynamic>{
+          _agent: <String, dynamic>{'command': 'node'},
+          'zed': <String, dynamic>{'command': 'zed-agent-acp.exe', 'name': 'Zed Agent'},
+        },
+      };
+}
 
 Future<WorkbenchController> _start(FakeCore core) async {
   await core.sessionIndexUpsert(<String, dynamic>{
@@ -63,6 +75,16 @@ void main() {
     core.registry = _registry(<Object?>[_entry(_agent, icon: _svg)]);
     await c.refreshRegistry(network: true);
     expect(c.sidebarSessions.single.iconSvg, _svg, reason: 'registry 一变就要重投影侧栏');
+    c.dispose();
+  });
+
+  test('「新建会话 · 选 agent」弹层的每条也带 logo（内置 zed 用随包带的那份）', () async {
+    final core = _TwoAgentsCore()
+      ..registry = _registry(<Object?>[_entry(_agent, icon: _svg), _entry('zed', icon: '<svg viewBox="0 0 16 16"/>')]);
+    final c = await _start(core);
+    final byId = <String, AgentRef>{for (final a in c.installedAgents) a.id: a};
+    expect(byId[_agent]!.iconSvg, _svg);
+    expect(byId['zed']!.iconSvg, '<svg viewBox="0 0 16 16"/>', reason: '内置条目的 iconSvg 由 builtin.rs 放进 registry_list');
     c.dispose();
   });
 

@@ -495,6 +495,8 @@ class WorkbenchController extends ChangeNotifier {
           AgentRef(
             id: entry.key as String,
             name: _agentDisplayName(entry.key as String, entry.value),
+            // logo 与侧栏 / 线程头同一条路：registry 缓存的 `icon.svg`（内置 sidecar 是随包带的那份）。
+            iconSvg: agentIconSvgOf(entry.key as String),
           ),
     ];
   }

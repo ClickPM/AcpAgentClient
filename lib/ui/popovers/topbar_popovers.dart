@@ -34,13 +34,17 @@ class BranchRef {
 
 /// 一个可新建会话的 agent（settings.json 的 `agent_servers`；名字来自设置或 `initialize` 的 agentInfo，代码里没有 agent 名）。
 class AgentRef {
-  const AgentRef({required this.id, required this.name, this.bundled = false});
+  const AgentRef({required this.id, required this.name, this.bundled = false, this.iconSvg});
 
   final String id;
   final String name;
 
   /// 随主程序分发的 sidecar（R7）：排在列表最前并与其余用分隔线隔开（画板 41）。
   final bool bundled;
+
+  /// 这个 agent 自己的 `icon.svg`（registry 缓存的那一份，内置 sidecar 是随包带的）：
+  /// 「新建会话 · 选 agent」列表里画它，没有时退回画板的单色占位菱形。组合根按 id 查出来给。
+  final String? iconSvg;
 }
 
 /// 项目切换弹层。
@@ -238,7 +242,7 @@ class NewSessionAgentPopover extends StatelessWidget {
   }
 
   Widget _row(AgentRef a) => MenuRow(
-        leading: const AgentMark(),
+        leading: AgentMark(svg: a.iconSvg),
         label: a.name,
         onTap: onSelect == null ? null : () => onSelect!(a),
       );
