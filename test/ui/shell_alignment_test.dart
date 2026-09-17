@@ -61,12 +61,16 @@ void main() {
   group('右栏标签条（画板 03）', () {
     const double height = 400;
 
-    double closeRight(WidgetTester tester) => tester.getTopRight(find.byType(IconButtonGhost)).dx;
-    double controlsLeft(WidgetTester tester) => tester.getTopLeft(find.byType(WindowControls)).dx;
+    // 标签条左右各留 s4 内边距（lib/ui/shell/right_panel.dart 的 `_tabBar`），窗口控制贴右就是右边缘落在这里。
+    const double controlsRightEdge = t.Geometry.rightPanelWidth - t.Spacing.s4;
 
-    testWidgets('面板关闭键紧挨窗口控制，不随标签数量漂移', (tester) async {
+    double controlsRight(WidgetTester tester) => tester.getTopRight(find.byType(WindowControls)).dx;
+
+    // 画板 03 原有的面板关闭键已废弃（所有者裁定 2026-09-17：右栏的「关」挪到侧栏底部导航）。
+    // 这里守的是它走后剩下的不变量：窗口控制贴右、不随标签数量漂移，标签条上也不再冒出别的独立按钮。
+    testWidgets('窗口控制贴右，不随标签数量漂移；面板关闭键不再出现', (tester) async {
       // 四个标签全开时标签条接近 580 的宽：flutter_tester 的占位字体每个字形都是方块（12px 的 "ACP Registry" 量成 144），
-      // 会把 Row 撑溢出、关闭键被顶出去；按真实字体量（R5 把 Agents 标签文案对齐画板 50 的「ACP Registry」后触发）。
+      // 会把 Row 撑溢出、窗口控制被顶出去；按真实字体量（R5 把 Agents 标签文案对齐画板 50 的「ACP Registry」后触发）。
       await tester.runAsync(loadGalleryFonts);
       await pump(
         tester,
@@ -74,8 +78,9 @@ void main() {
         width: t.Geometry.rightPanelWidth,
         height: height,
       );
-      final one = closeRight(tester);
-      expect(one, closeTo(controlsLeft(tester), 0.5), reason: '画板 03：关闭键与窗口控制之间没有空档');
+      final one = controlsRight(tester);
+      expect(one, closeTo(controlsRightEdge, 0.5), reason: '画板 03：窗口控制是 margin-left:auto，必须贴右');
+      expect(find.byType(IconButtonGhost), findsNothing, reason: '面板关闭键已废弃，标签条上不该再有独立按钮');
 
       await pump(
         tester,
@@ -83,8 +88,8 @@ void main() {
         width: t.Geometry.rightPanelWidth,
         height: height,
       );
-      expect(closeRight(tester), closeTo(controlsLeft(tester), 0.5));
-      expect(closeRight(tester), closeTo(one, 0.01), reason: '开几个标签都不该动关闭键');
+      expect(controlsRight(tester), closeTo(one, 0.01), reason: '开几个标签都不该动窗口控制');
+      expect(find.byType(IconButtonGhost), findsNothing);
     });
   });
 
