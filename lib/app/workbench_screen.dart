@@ -199,7 +199,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         onCommitRename: c.commitRename,
         onCancelRename: c.cancelRename,
         onDelete: _askDelete,
-        onTab: c.openTab,
+        onTab: c.toggleNavTab,
         deleteAnchor: c.deleteAnchor,
         confirmingDeleteId: c.confirmingDeleteId,
       );
@@ -688,7 +688,6 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       active: active,
       onSelect: c.selectPanel,
       onCloseTab: c.closePanel,
-      onClose: c.closeRightPanel,
       onMinimize: AppWindow.minimize,
       onMaximize: AppWindow.toggleMaximize,
       onCloseWindow: AppWindow.close,

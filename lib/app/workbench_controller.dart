@@ -1533,6 +1533,16 @@ class WorkbenchController extends ChangeNotifier {
     _touch();
   }
 
+  /// 侧栏底部导航点一下：没开这个面板就开；当前就是它，再点一下把右栏整个收起
+  /// （画板 03 的面板关闭键已废弃，右栏的「关」挪到这里，见 `lib/ui/shell/right_panel.dart` 文件头）。
+  void toggleNavTab(ShellTab tab) {
+    if (rightPanelOpen && activeNavTab == tab) {
+      closeRightPanel();
+      return;
+    }
+    openTab(tab);
+  }
+
   /// 侧栏底部导航的选中项：设置页打开时是「设置」；终端标签活着时是「终端」；否则跟右栏当前标签。
   ShellTab? get activeNavTab {
     if (page == MainPage.settings) return ShellTab.settings;

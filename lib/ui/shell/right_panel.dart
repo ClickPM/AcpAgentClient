@@ -1,5 +1,7 @@
-// 画板 03 / 60 / 61 · 右栏：标签条（面板标签 + 每个本地终端一个标签，当前项选中态 + 各自的关闭键）、面板关闭按钮、
+// 画板 03 / 60 / 61 · 右栏：标签条（面板标签 + 每个本地终端一个标签，当前项选中态 + 各自的关闭键）、
 // 窗口控制（右栏展开时窗口控制在这条上，顶栏那组不渲染）。
+// 画板 03 的面板关闭键已废弃（所有者裁定 2026-09-17）：它紧挨窗口控制那组、按下去像在关窗口；右栏的开关
+// 统一到侧栏底部导航（再点当前面板就收起）与线程头 ≡。
 // 面板正文由调用方给（`body`）：文件面板（60）与终端面板（61）在 R4，Agents 与设置在 R5。
 
 import 'package:flutter/widgets.dart';
@@ -49,7 +51,6 @@ class RightPanel extends StatelessWidget {
     required this.active,
     this.onSelect,
     this.onCloseTab,
-    this.onClose,
     this.windowControls = true,
     this.onMinimize,
     this.onMaximize,
@@ -63,8 +64,6 @@ class RightPanel extends StatelessWidget {
   final ValueChanged<PanelTab>? onSelect;
   final ValueChanged<PanelTab>? onCloseTab;
 
-  /// 整个右栏收起。
-  final VoidCallback? onClose;
   final bool windowControls;
   final VoidCallback? onMinimize;
   final VoidCallback? onMaximize;
@@ -101,8 +100,6 @@ class RightPanel extends StatelessWidget {
           children: <Widget>[
             for (final tab in tabs) _tab(tab),
             const Spacer(),
-            // 面板关闭键紧挨窗口控制（画板 03）。两个 `Spacer` 会把余量五五分、把它顶到标签条中间去。
-            IconButtonGhost(icon: AcpIcons.x, size: t.Controls.compact, onTap: onClose),
             if (windowControls)
               WindowControls(height: t.Geometry.barHeight, onMinimize: onMinimize, onMaximize: onMaximize, onClose: onCloseWindow),
           ],

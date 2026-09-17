@@ -235,6 +235,30 @@ void main() {
       c.dispose();
     });
 
+    test('侧栏底部导航是开关：再点当前面板收起右栏（画板 03 的面板关闭键已废弃）', () async {
+      final core = PanelsCore();
+      final c = controller(core);
+      await c.start();
+      c.project = const ProjectRef(path: root, name: 'proj');
+
+      c.toggleNavTab(ShellTab.files);
+      expect(c.rightPanelOpen, isTrue);
+      expect(c.activeNavTab, ShellTab.files);
+
+      // 点别的面板是切过去，不是收起。
+      c.toggleNavTab(ShellTab.agents);
+      expect(c.rightPanelOpen, isTrue);
+      expect(c.activeNavTab, ShellTab.agents);
+
+      c.toggleNavTab(ShellTab.agents);
+      expect(c.rightPanelOpen, isFalse);
+      expect(c.panelTabs, isEmpty, reason: '收起 = 整个右栏关掉，与原来的面板关闭键同义');
+
+      c.toggleNavTab(ShellTab.agents);
+      expect(c.rightPanelOpen, isTrue);
+      c.dispose();
+    });
+
     test('acp/terminal_output 分流：local 进终端面板，agent 进转录缓冲且分块 UTF-8 不切坏汉字', () async {
       final core = PanelsCore();
       final c = controller(core);
