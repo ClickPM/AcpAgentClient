@@ -454,10 +454,16 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   // ---------------------------------------------------------------- 线程头的两个弹层（画板 41）
 
   void _openNewSessionPopover() {
-    c.newSessionAnchor.toggle((_) => ListenableBuilder(
-          listenable: c,
-          builder: (context, _) => NewSessionAgentPopover(agents: c.installedAgents, onSelect: c.newSession),
-        ));
+    c.newSessionAnchor.toggle(
+      (_) => ListenableBuilder(
+        listenable: c,
+        builder: (context, _) => NewSessionAgentPopover(agents: c.installedAgents, onSelect: c.newSession),
+      ),
+      // 右对齐：+ 就贴在窗口右边缘上（线程头右侧 padding 只有 8），左对齐的话 240 宽的弹层整块甩出屏外，
+      // 只剩最左边一条（所有者手测 2026-09-17「选择框被截断」）。
+      targetAnchor: Alignment.bottomRight,
+      followerAnchor: Alignment.topRight,
+    );
   }
 
   /// 线程头 ≡：右栏开关（画板 03 是右栏展开的选中态）。

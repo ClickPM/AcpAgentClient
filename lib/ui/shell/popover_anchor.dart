@@ -12,7 +12,17 @@ import '../../theme/tokens.dart' as t;
 /// 一个弹层的句柄：组合根持有（放在 State 里，别每帧新建），传给壳的 widget 做锚点。
 class PopoverHandle {
   final LayerLink link = LayerLink();
-  final OverlayPortalController controller = OverlayPortalController();
+
+  /// 「要不要显示」归句柄自己管，不放在 `OverlayPortalController` 里：controller 只认**一个**
+  /// `_OverlayPortalState`，而 `_OverlayPortalState.dispose()` 是**无条件**把它的 `_attachTarget` 置空的
+  /// （Flutter 3.47 `widgets/overlay.dart`）。触发控件那一行只要增删兄弟节点——线程头连上 agent 后多出
+  /// 铅笔与重载两个按钮——没写 key 的 `PopoverAnchor` 元素就会被拆掉重建，新元素先 attach、旧元素在帧末
+  /// dispose 时又把它解绑：此后 `show()` 只改 controller 自己的 z 序，没有任何 `OverlayPortal` 渲染它，
+  /// 点一下「没反应」、再点一下 `isShowing` 翻回 false，于是一次不出一次不出地烙下去
+  /// （所有者手测 2026-09-17「有时候点 + 无反应」的成因）。
+  /// 改成由 [PopoverAnchor] 在 `initState` 里按这个 notifier 重建自己那只 controller 的状态，
+  /// 元素怎么拆怎么建都还原得回来。
+  final ValueNotifier<bool> _visible = ValueNotifier<bool>(false);
 
   /// 弹层内容。组合根在 [show] 时给；`OverlayPortal` 每帧重建 overlay child，
   /// 所以 builder 要直接读组合根的当前状态（别捕获快照），弹层才会跟着投影层刷新。
@@ -25,7 +35,7 @@ class PopoverHandle {
   /// 否则那一行会一直停在悬浮态（锚点还挂着）。每次 [show] 都重设，不传就是没有。
   VoidCallback? _onDismiss;
 
-  bool get isShowing => controller.isShowing;
+  bool get isShowing => _visible.value;
 
   void show(
     WidgetBuilder builder, {
@@ -39,26 +49,26 @@ class PopoverHandle {
     _followerAnchor = followerAnchor;
     _offset = offset;
     _onDismiss = onDismiss;
-    controller.show();
+    _visible.value = true;
   }
 
   /// 输入框上方的弹层（`+`、模型 / 思考强度 / 模式、用量）：向上展开。
   void showAbove(WidgetBuilder builder, {Alignment targetAnchor = Alignment.topLeft, Alignment followerAnchor = Alignment.bottomLeft}) =>
       show(builder, targetAnchor: targetAnchor, followerAnchor: followerAnchor, offset: t.Geometry.popoverAbove);
 
-  void hide() => controller.hide();
+  void hide() => _visible.value = false;
 
   /// 点弹层之外：关掉并回收 [show] 时登记的状态（组合根那边的「正在确认」之类）。
   void _dismiss() {
     final onDismiss = _onDismiss;
     _onDismiss = null;
-    controller.hide();
+    hide();
     onDismiss?.call();
   }
 
   void toggle(WidgetBuilder builder, {Alignment targetAnchor = Alignment.bottomLeft, Alignment followerAnchor = Alignment.topLeft}) {
-    if (controller.isShowing) {
-      controller.hide();
+    if (isShowing) {
+      hide();
     } else {
       show(builder, targetAnchor: targetAnchor, followerAnchor: followerAnchor);
     }
@@ -68,20 +78,63 @@ class PopoverHandle {
 }
 
 /// 把 [child]（触发控件）包成锚点。`handle` 为 null 时原样返回，gallery 里就不需要 Overlay。
-class PopoverAnchor extends StatelessWidget {
+class PopoverAnchor extends StatefulWidget {
   const PopoverAnchor({super.key, required this.handle, required this.child});
 
   final PopoverHandle? handle;
   final Widget child;
 
   @override
+  State<PopoverAnchor> createState() => _PopoverAnchorState();
+}
+
+class _PopoverAnchorState extends State<PopoverAnchor> {
+  /// 每个锚点元素一只 controller（见 [PopoverHandle._visible] 的注释：共用一只会被拆掉的旧元素解绑）。
+  final OverlayPortalController _controller = OverlayPortalController();
+
+  @override
+  void initState() {
+    super.initState();
+    widget.handle?._visible.addListener(_sync);
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(PopoverAnchor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 元素被复用给另一个句柄（线程头那排动作增删兄弟节点时会发生）：换订阅，并按新句柄的状态重新对齐。
+    if (oldWidget.handle != widget.handle) {
+      oldWidget.handle?._visible.removeListener(_sync);
+      widget.handle?._visible.addListener(_sync);
+      _sync();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.handle?._visible.removeListener(_sync);
+    super.dispose();
+  }
+
+  /// 句柄说显示就显示。`hide()` 在没显示时会 assert，所以两边都先比一下再动。
+  void _sync() {
+    final visible = widget.handle?.isShowing ?? false;
+    if (visible == _controller.isShowing) return;
+    if (visible) {
+      _controller.show();
+    } else {
+      _controller.hide();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final h = handle;
-    if (h == null) return child;
+    final h = widget.handle;
+    if (h == null) return widget.child;
     return CompositedTransformTarget(
       link: h.link,
       child: OverlayPortal(
-        controller: h.controller,
+        controller: _controller,
         overlayChildBuilder: (context) => Stack(
           children: <Widget>[
             // 点弹层之外关闭。
@@ -101,7 +154,7 @@ class PopoverAnchor extends StatelessWidget {
             ),
           ],
         ),
-        child: child,
+        child: widget.child,
       ),
     );
   }
