@@ -28,6 +28,9 @@ class Composer extends StatelessWidget {
     this.mode,
     this.docks = const <Widget>[],
     this.inlineMenu,
+    this.onInlineMenuMove,
+    this.onInlineMenuPick,
+    this.onInlineMenuDismiss,
     this.onChanged,
     this.onPlus,
     this.onFollow,
@@ -67,6 +70,11 @@ class Composer extends StatelessWidget {
 
   /// 画板 42 的 `@` / `/` 菜单。
   final Widget? inlineMenu;
+
+  /// 菜单开着时的键盘操作（都由组合根实现）：上下键移动高亮（`-1` / `+1`）、Enter 选中、Esc 关掉。
+  final ValueChanged<int>? onInlineMenuMove;
+  final VoidCallback? onInlineMenuPick;
+  final VoidCallback? onInlineMenuDismiss;
   final ValueChanged<String>? onChanged;
   final VoidCallback? onPlus;
   final VoidCallback? onFollow;
@@ -113,15 +121,39 @@ class Composer extends StatelessWidget {
   }
 
   /// Enter 发送、Shift+Enter 换行（所有者裁定 2026-09-17）。`Focus` 在 `EditableText` 之上，
-  /// 拦下来（`handled`）引擎就不会再把这一下翻成换行字符。
-  /// 中文 IME 组合窗开着时（`composing` 有效）一律放行：那一下 Enter 是给候选词上屏用的。
+  /// 拦下来（`handled`）引擎就不会再把这一下翻成换行字符，上下键也不会再落到 `DefaultTextEditingShortcuts`
+  /// 去挪光标。
+  /// 中文 IME 组合窗开着时（`composing` 有效）一律放行：那一下 Enter 是给候选词上屏用的，上下键是翻候选页的。
+  ///
+  /// `@` / `/` 菜单开着时（画板 42）这三个键归菜单：上下键移动高亮（按住连发，所以 repeat 也收）、
+  /// Enter 把高亮项填进输入框（不发送）、Esc 关掉菜单。菜单关着时一切照旧——上下键仍是多行文本里的换行移动。
   KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return KeyEventResult.ignored;
+    if (controller.value.composing.isValid) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    if (inlineMenu != null) {
+      if (key == LogicalKeyboardKey.arrowDown) {
+        onInlineMenuMove?.call(1);
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.arrowUp) {
+        onInlineMenuMove?.call(-1);
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.escape && event is KeyDownEvent) {
+        onInlineMenuDismiss?.call();
+        return KeyEventResult.handled;
+      }
+    }
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
-    if (event.logicalKey != LogicalKeyboardKey.enter && event.logicalKey != LogicalKeyboardKey.numpadEnter) {
+    if (key != LogicalKeyboardKey.enter && key != LogicalKeyboardKey.numpadEnter) {
       return KeyEventResult.ignored;
     }
     if (HardwareKeyboard.instance.isShiftPressed) return KeyEventResult.ignored;
-    if (controller.value.composing.isValid) return KeyEventResult.ignored;
+    if (inlineMenu != null) {
+      onInlineMenuPick?.call();
+      return KeyEventResult.handled;
+    }
     // 禁用态与回合进行中都不发（发送位此时是停止方块），但也不落回换行：Enter 的含义保持唯一。
     if (enabled && !running) onSend?.call();
     return KeyEventResult.handled;

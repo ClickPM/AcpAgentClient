@@ -423,6 +423,9 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       thoughtLevel: _currentName('thought_level'),
       mode: _currentName('mode'),
       inlineMenu: c.inlineMenu,
+      onInlineMenuMove: c.moveInlineMenuSelection,
+      onInlineMenuPick: c.pickInlineMenuSelection,
+      onInlineMenuDismiss: c.closeInlineMenu,
       docks: <Widget>[
         if (plan != null) PlanCard(plan, initiallyCollapsed: true, cwd: store?.cwd, onDismiss: () => store?.dismissPlan(plan.planId)),
         ?AwaitingDock.forPending(

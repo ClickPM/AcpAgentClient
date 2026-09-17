@@ -127,8 +127,30 @@ class WorkbenchController extends ChangeNotifier {
   /// 输入框里待随下一条 prompt 发出的附件块（`+` 与 `@` 加进来的）。
   final List<JsonMap> pendingBlocks = <JsonMap>[];
 
-  /// `@` / `/` 内联菜单（画板 42）：null = 不显示。
-  Widget? inlineMenu;
+  /// `@` / `/` 内联菜单（画板 42）的数据：两个来源同一时刻只可能有一个非空，都空 = 不显示。
+  /// 存数据而不是存 widget，是因为键盘上下键要按它算高亮、Enter 要按它取项。
+  List<MentionItem> _mentionFiles = const <MentionItem>[];
+  List<MentionItem> _mentionDirs = const <MentionItem>[];
+  List<AvailableCommandWire> _slashCommands = const <AvailableCommandWire>[];
+
+  /// 键盘高亮下标（`@` 菜单里跨分组是全局的，与 [MentionMenu.items] 的拼接顺序一致）。
+  int _inlineSelected = 0;
+
+  /// 内联菜单 widget：null = 不显示。
+  Widget? get inlineMenu {
+    if (_slashCommands.isNotEmpty) {
+      return SlashCommandMenu(commands: _slashCommands, selectedIndex: _inlineSelected, onPick: _pickCommand);
+    }
+    if (_mentionFiles.isNotEmpty || _mentionDirs.isNotEmpty) {
+      return MentionMenu(
+        files: _mentionFiles,
+        directories: _mentionDirs,
+        selectedIndex: _inlineSelected,
+        onPick: _pickMention,
+      );
+    }
+    return null;
+  }
 
   // ---- registry 面板（画板 50 / 51，R5）
   final RegistryState registry = RegistryState();
@@ -1191,7 +1213,7 @@ class WorkbenchController extends ChangeNotifier {
     if (blocks.isEmpty) return;
     composer.clear();
     pendingBlocks.clear();
-    inlineMenu = null;
+    _clearInlineMenu();
     s.startTurn(<ContentBlockWire>[for (final b in blocks) ContentBlockWire(b)]);
     await _runTurn(b, id, s, blocks);
   }
@@ -1374,10 +1396,7 @@ class WorkbenchController extends ChangeNotifier {
   Future<void> onComposerChanged(String text) async {
     final token = _activeToken(text);
     if (token == null) {
-      if (inlineMenu != null) {
-        inlineMenu = null;
-        _touch();
-      }
+      closeInlineMenu();
       return;
     }
     if (token.startsWith('/')) {
@@ -1386,11 +1405,52 @@ class WorkbenchController extends ChangeNotifier {
         for (final c in store?.commands ?? const <AvailableCommandWire>[])
           if (q.isEmpty || (c.name ?? '').toLowerCase().startsWith(q)) c,
       ];
-      inlineMenu = commands.isEmpty ? null : SlashCommandMenu(commands: commands, onPick: _pickCommand);
+      _clearInlineMenu();
+      _slashCommands = commands;
       _touch();
       return;
     }
     await _updateMentionMenu(token.substring(1));
+  }
+
+  /// 菜单开着（有东西可选）。
+  bool get inlineMenuOpen => _inlineMenuCount > 0;
+
+  int get _inlineMenuCount =>
+      _slashCommands.isNotEmpty ? _slashCommands.length : _mentionFiles.length + _mentionDirs.length;
+
+  void _clearInlineMenu() {
+    _mentionFiles = const <MentionItem>[];
+    _mentionDirs = const <MentionItem>[];
+    _slashCommands = const <AvailableCommandWire>[];
+    // 列表一换高亮就回第一条：每次改词后最匹配的那条在最上面。
+    _inlineSelected = 0;
+  }
+
+  /// Esc：关掉菜单，输入框里的文本原样留着。
+  void closeInlineMenu() {
+    if (!inlineMenuOpen) return;
+    _clearInlineMenu();
+    _touch();
+  }
+
+  /// 上下键移动高亮（`-1` / `+1`，首尾环绕）。
+  void moveInlineMenuSelection(int delta) {
+    final n = _inlineMenuCount;
+    if (n == 0) return;
+    _inlineSelected = (_inlineSelected + delta) % n;
+    if (_inlineSelected < 0) _inlineSelected += n;
+    _touch();
+  }
+
+  /// Enter：把高亮项填进输入框（与鼠标点那一行同一条路，不发送）。
+  void pickInlineMenuSelection() {
+    if (!inlineMenuOpen) return;
+    if (_slashCommands.isNotEmpty) {
+      _pickCommand(_slashCommands[_inlineSelected]);
+      return;
+    }
+    _pickMention(<MentionItem>[..._mentionFiles, ..._mentionDirs][_inlineSelected]);
   }
 
   /// 光标处的 `@` / `/` token：只在正文开头的 `/` 或空白后的 `@` 上触发。
@@ -1409,7 +1469,7 @@ class WorkbenchController extends ChangeNotifier {
     // 提及的根用当前会话的 cwd（agent 按它解析路径），没有才回落到当前项目。
     final cwd = store?.cwd ?? project?.path;
     if (b == null || cwd == null) {
-      inlineMenu = null;
+      _clearInlineMenu();
       _touch();
       return;
     }
@@ -1428,9 +1488,9 @@ class WorkbenchController extends ChangeNotifier {
         files = _toMentions(result['files']);
         dirs = _toMentions(result['directories']);
       }
-      inlineMenu = files.isEmpty && dirs.isEmpty
-          ? null
-          : MentionMenu(files: files, directories: dirs, onPick: _pickMention);
+      _clearInlineMenu();
+      _mentionFiles = files;
+      _mentionDirs = dirs;
     });
     _touch();
   }
@@ -1450,7 +1510,7 @@ class WorkbenchController extends ChangeNotifier {
   void _pickCommand(AvailableCommandWire command) {
     composer.text = '/${command.name ?? ''} ';
     composer.selection = TextSelection.collapsed(offset: composer.text.length);
-    inlineMenu = null;
+    _clearInlineMenu();
     composerFocus.requestFocus();
     _touch();
   }
@@ -1466,7 +1526,7 @@ class WorkbenchController extends ChangeNotifier {
       'uri': _fileUri(item.path),
       'name': item.name,
     });
-    inlineMenu = null;
+    _clearInlineMenu();
     composerFocus.requestFocus();
     _touch();
   }
