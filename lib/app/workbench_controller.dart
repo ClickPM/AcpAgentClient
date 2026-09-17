@@ -1353,18 +1353,33 @@ class WorkbenchController extends ChangeNotifier {
     return m?.group(1);
   }
 
+  /// `@` 菜单一组最多几条（裸 `@` 列根目录、有词时是 `fs_search` 的 limit）。
+  static const int _mentionLimit = 10;
+
   Future<void> _updateMentionMenu(String query) async {
     final b = bridge;
-    final cwd = project?.path;
-    if (b == null || cwd == null || query.isEmpty) {
+    // 提及的根用当前会话的 cwd（agent 按它解析路径），没有才回落到当前项目。
+    final cwd = store?.cwd ?? project?.path;
+    if (b == null || cwd == null) {
       inlineMenu = null;
       _touch();
       return;
     }
     await _guard(() async {
-      final result = await b.fsSearch(cwd, query);
-      final files = _toMentions(result['files']);
-      final dirs = _toMentions(result['directories']);
+      final List<MentionItem> files;
+      final List<MentionItem> dirs;
+      if (query.isEmpty) {
+        // 裸 `@`：还没有可搜的词，`fs_search` 对空词按约定返回空结果（不做全量遍历），
+        // 所以这一步改列项目根目录的一层——菜单一出来就有东西可选。
+        final listing = await b.fsListDir(cwd, cwd);
+        final entries = _toMentions(listing['entries']);
+        files = <MentionItem>[for (final e in entries) if (!e.isDirectory) e].take(_mentionLimit).toList();
+        dirs = <MentionItem>[for (final e in entries) if (e.isDirectory) e].take(_mentionLimit).toList();
+      } else {
+        final result = await b.fsSearch(cwd, query, limit: _mentionLimit);
+        files = _toMentions(result['files']);
+        dirs = _toMentions(result['directories']);
+      }
       inlineMenu = files.isEmpty && dirs.isEmpty
           ? null
           : MentionMenu(files: files, directories: dirs, onPick: _pickMention);
