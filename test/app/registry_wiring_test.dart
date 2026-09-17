@@ -316,7 +316,7 @@ void main() {
     c2.dispose();
   });
 
-  test('设置页：保存 custom 条目时 args / env 的切分；侧栏「设置」是主区页面', () async {
+  test('设置面板：保存 custom 条目时 args / env 的切分；侧栏「设置」开右栏的设置标签', () async {
     expect(WorkbenchController.splitArgs('--stdio --interactive'), <String>['--stdio', '--interactive']);
     expect(WorkbenchController.splitArgs('"D:/a b/x.mjs" --flag  '), <String>['D:/a b/x.mjs', '--flag']);
     expect(WorkbenchController.splitArgs(''), <String>[]);
@@ -341,7 +341,10 @@ void main() {
     final saved = <(String, JsonMap)>[];
     final c = await _start(_SettingsCore(core, saved));
     c.openTab(ShellTab.settings);
-    expect(c.page, MainPage.settings);
+    // 设置是右栏的一个标签（与文件 / Agents 一致），不占主区。
+    expect(c.page, MainPage.workbench);
+    expect(c.rightTab, ShellTab.settings);
+    expect(c.rightPanelOpen, isTrue);
     expect(c.activeNavTab, ShellTab.settings);
     expect(c.installedEntries.map((e) => e.id), <String>['dsh']);
 
@@ -363,7 +366,7 @@ void main() {
     expect(c.settingsEditingId, isNull);
 
     await c.selectSession('x');
-    expect(c.page, MainPage.workbench);
+    expect(c.rightTab, ShellTab.settings, reason: '选会话不动右栏那一侧的标签');
     c.dispose();
   });
 

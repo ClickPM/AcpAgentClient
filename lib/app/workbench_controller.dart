@@ -49,8 +49,9 @@ enum DataSource {
       const String.fromEnvironment('DATA_SOURCE') == 'fixtures' ? DataSource.fixtures : DataSource.bridge;
 }
 
-/// 主区显示什么：会话工作台、ACP 流量调试（画板 80，从画板 34 的「打开流量面板」进）、设置（画板 70，从侧栏底部「设置」进）。
-enum MainPage { workbench, traffic, settings }
+/// 主区显示什么：会话工作台、ACP 流量调试（画板 80，从画板 34 的「打开流量面板」进）。
+/// 设置（画板 70）不在这里——它是右栏的一个标签（画板 03 的标签条），跟文件 / Agents 一样不占主区。
+enum MainPage { workbench, traffic }
 
 /// 项目根下算作「规则文件」的名字（docs/design.md § 9 的 Rules 行，清单在 R3 任务卡定）。
 const List<String> ruleFileNames = <String>['AGENTS.md', 'CLAUDE.md', '.rules'];
@@ -158,7 +159,7 @@ class WorkbenchController extends ChangeNotifier {
   /// 无会话阶段的 URL elicitation（挂起 / 已打开 / 已完成都留在页上，直到离开认证页）。
   final List<ElicitationEntry> authElicitations = <ElicitationEntry>[];
 
-  // ---- 设置页（画板 70，R5）
+  // ---- 设置面板（画板 70，R5；右栏标签）
   String? settingsExpandedId;
   String? settingsEditingId;
   String? zedImportResult;
@@ -1548,13 +1549,9 @@ class WorkbenchController extends ChangeNotifier {
 
   bool get rightPanelOpen => activePanel != null;
 
-  /// 侧栏底部导航 / 右栏标签：设置是主区页面（画板 70）；终端开一个本地 shell 标签（已有就切到最近那个，画板 61）；
-  /// 文件 / Agents 是右栏标签（画板 03 / 50 / 60）。
+  /// 侧栏底部导航 / 右栏标签：终端开一个本地 shell 标签（已有就切到最近那个，画板 61）；
+  /// 设置 / 文件 / Agents 是右栏标签（画板 03 / 50 / 60 / 70）。
   void openTab(ShellTab tab) {
-    if (tab == ShellTab.settings) {
-      openSettings();
-      return;
-    }
     if (tab == ShellTab.terminal) {
       openTerminalTab();
       return;
@@ -1575,9 +1572,8 @@ class WorkbenchController extends ChangeNotifier {
     openTab(tab);
   }
 
-  /// 侧栏底部导航的选中项：设置页打开时是「设置」；终端标签活着时是「终端」；否则跟右栏当前标签。
+  /// 侧栏底部导航的选中项：终端标签活着时是「终端」；否则跟右栏当前标签（设置也在右栏标签里）。
   ShellTab? get activeNavTab {
-    if (page == MainPage.settings) return ShellTab.settings;
     if (activeTerminalId != null && terminals.byId(activeTerminalId!) != null) return ShellTab.terminal;
     return rightTab;
   }
@@ -2070,18 +2066,13 @@ class WorkbenchController extends ChangeNotifier {
     _touch();
   }
 
-  // ---------------------------------------------------------------- 设置页（画板 70，R5）
+  // ---------------------------------------------------------------- 设置面板（画板 70，R5；右栏标签）
 
   /// 已安装的条目（registry 型 + custom 型），设置页的 agent 配置列表。
   List<RegistryEntryData> get installedEntries => <RegistryEntryData>[
         for (final e in registry.entries)
           if (e.installed) e,
       ];
-
-  void openSettings() {
-    page = MainPage.settings;
-    _touch();
-  }
 
   /// 「编辑」：custom 型进行内编辑（cmd / args / env 填进输入框），registry 型只读展开拉起参数。
   void editAgent(String id) {

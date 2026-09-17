@@ -163,7 +163,6 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         sidebar: c.sidebarCollapsed ? null : _sidebar(),
         main: switch (c.page) {
           MainPage.traffic => _trafficColumn(),
-          MainPage.settings => _settingsColumn(),
           MainPage.workbench => _workbenchColumn(),
         },
         rightPanel: c.rightPanelOpen ? _rightPanel() : null,
@@ -646,39 +645,41 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     if (uri != null) await launchUrl(uri);
   }
 
-  // ---------------------------------------------------------------- 设置页（画板 70）
+  // ---------------------------------------------------------------- 设置（画板 70）：右栏的一个标签，不占主区
 
-  Widget _settingsColumn() => Container(
-        color: t.Surface.canvas,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            _topBar(windowControls: _windowControlsInTopBar),
-            Expanded(
-              child: SettingsPage(
-                agents: c.installedEntries,
-                dataDir: c.dataDir ?? '',
-                logPath: c.logPath,
-                zedSettingsPath: c.zedSettingsPath,
-                zedImportResult: c.zedImportResult,
-                node: c.registry.node,
-                nodeProgress: c.registry.nodeProgress,
-                expandedId: c.settingsExpandedId,
-                editingId: c.settingsEditingId,
-                editFields: c.settingsEdit,
-                onEdit: c.editAgent,
-                onCollapse: c.collapseSettingsEdit,
-                onSave: c.saveCustomAgent,
-                onRemove: c.removeAgent,
-                onImportZed: c.importZed,
-                onDownloadNode: c.downloadNode,
-                // 「打开」：目录在资源管理器里开，日志文件用系统默认程序开（都经 url_launcher 的 file: URI）。
-                onOpenPath: (path) => launchUrl(Uri.file(path, windows: true)),
-                onCopyPath: (path) => Clipboard.setData(ClipboardData(text: path)),
-              ),
-            ),
-          ],
-        ),
+  /// 右栏能拖到 360，比设置行排得下的最窄宽度还窄（实测 360 时数据目录那行溢出 24–37px）。
+  /// 窄于 [t.Geometry.settingsMinWidth] 就整块横向滚，不改画板 70 的行布局（规则 3）。
+  Widget _settingsPanel() => LayoutBuilder(
+        builder: (context, box) {
+          final page = _settingsBody();
+          if (box.maxWidth >= t.Geometry.settingsMinWidth) return page;
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(width: t.Geometry.settingsMinWidth, height: box.maxHeight, child: page),
+          );
+        },
+      );
+
+  Widget _settingsBody() => SettingsPage(
+        agents: c.installedEntries,
+        dataDir: c.dataDir ?? '',
+        logPath: c.logPath,
+        zedSettingsPath: c.zedSettingsPath,
+        zedImportResult: c.zedImportResult,
+        node: c.registry.node,
+        nodeProgress: c.registry.nodeProgress,
+        expandedId: c.settingsExpandedId,
+        editingId: c.settingsEditingId,
+        editFields: c.settingsEdit,
+        onEdit: c.editAgent,
+        onCollapse: c.collapseSettingsEdit,
+        onSave: c.saveCustomAgent,
+        onRemove: c.removeAgent,
+        onImportZed: c.importZed,
+        onDownloadNode: c.downloadNode,
+        // 「打开」：目录在资源管理器里开，日志文件用系统默认程序开（都经 url_launcher 的 file: URI）。
+        onOpenPath: (path) => launchUrl(Uri.file(path, windows: true)),
+        onCopyPath: (path) => Clipboard.setData(ClipboardData(text: path)),
       );
 
   Widget _rightPanel() {
@@ -695,8 +696,9 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     );
   }
 
-  /// 右栏正文：Agents 面板 / 认证页（50 / 52）、文件面板（60）、终端面板（61）。
+  /// 右栏正文：设置（70）、Agents 面板 / 认证页（50 / 52）、文件面板（60）、终端面板（61）。
   Widget? _panelBody(PanelTab active) {
+    if (active.shell == ShellTab.settings) return _settingsPanel();
     if (active.shell == ShellTab.agents) return c.authAgentId == null ? _registryPanel() : _authPage();
     if (active.isTerminal) {
       final term = c.terminals.byId(active.terminalId!);
