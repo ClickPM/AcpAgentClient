@@ -363,7 +363,8 @@ class TurnUsage {
       };
 }
 
-/// 轮边界（§ 7 第 7 条）：`session/prompt` 请求到响应之间是一轮；也是画板 10 的检查点分隔线。
+/// 轮边界（§ 7 第 7 条）：`session/prompt` 请求到响应之间是一轮；只用来切轮、挂 stopReason / usage（画板 31 的结束行）
+/// 与定位 Restore 的截断点，转录里不自带任何呈现（画板 10 的分隔线已废弃，所有者裁定 2026-09-17）。
 class TurnEntry extends TranscriptEntry {
   TurnEntry({required super.id, required super.at, required this.n, required this.prompt});
 

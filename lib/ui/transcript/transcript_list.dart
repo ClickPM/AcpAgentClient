@@ -1,5 +1,6 @@
 // 转录列表：ListView.builder 惰性构建（docs/design.md § 9），按 TranscriptEntry 类型分发到画板 widget；
-// 跨消息文本选择用 SelectableRegion。轮边界 → 检查点分隔线（10），轮结束 → 结束行（31）；
+// 跨消息文本选择用 SelectableRegion。轮开始不出行（画板 10 的 Restore Checkpoint 分隔线已废弃，所有者裁定 2026-09-17：
+// 它与画板 11 用户气泡上的 Restore 是同一个动作），轮结束 → 结束行（31）；
 // 工具调用按内容分发：子代理（24）> 终端（22 / 23）> diff（21）> 标准卡（18 / 19 / 20）。
 
 import 'dart:math' as math;
@@ -12,7 +13,6 @@ import '../../projection/session_store.dart';
 import '../../theme/tokens.dart' as t;
 import 'assistant_text.dart';
 import 'awaiting_bar.dart';
-import 'checkpoint_divider.dart';
 import 'compaction_card.dart';
 import 'diff_card.dart';
 import 'elicitation_form_card.dart';
@@ -43,7 +43,7 @@ class TurnEndRow extends TranscriptRow {
   final TurnEntry turn;
 }
 
-/// 用户消息所属的轮：它前面最近的一条检查点（TurnEntry）。画板 11 的 Restore / Regenerate 按这轮截断。
+/// 用户消息所属的轮：它前面最近的一条 `TurnEntry`。画板 11 的 Restore / Regenerate 按这轮截断。
 TurnEntry? turnOf(List<TranscriptEntry> entries, TranscriptEntry e) {
   for (var i = entries.indexOf(e); i >= 0; i--) {
     final c = entries[i];
@@ -53,6 +53,7 @@ TurnEntry? turnOf(List<TranscriptEntry> entries, TranscriptEntry e) {
 }
 
 /// 把条目列表展开成行：每个已结束的轮在其最后一个条目之后加一行结束行。
+/// `TurnEntry` 本身不出行——轮开始不画任何东西（画板 10 的分隔线已废弃，见文件头），它只用来切轮与定位 Restore。
 List<TranscriptRow> buildRows(List<TranscriptEntry> entries) {
   final rows = <TranscriptRow>[];
   TurnEntry? open;
@@ -60,6 +61,7 @@ List<TranscriptRow> buildRows(List<TranscriptEntry> entries) {
     if (e is TurnEntry) {
       if (open != null && !open.isRunning) rows.add(TurnEndRow(open));
       open = e;
+      continue;
     }
     rows.add(EntryRow(e));
   }
@@ -140,8 +142,6 @@ class TranscriptList extends StatelessWidget {
   Widget buildEntry(TranscriptEntry e) {
     final cwd = store.cwd;
     switch (e) {
-      case final TurnEntry turn:
-        return CheckpointDivider(turn: turn, onRestore: onRestore == null ? null : () => onRestore!(turn));
       case final MessageEntry m:
         if (m.role != MessageRole.user) return AssistantText(m, onLink: onLink);
         final turn = turnOf(store.entries, m);

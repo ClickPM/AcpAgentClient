@@ -43,7 +43,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 | 02 | 工作台 · 进行中的一轮 | R3 | 同上（状态由投影层驱动） |
 | 03 | 工作台 · 回合结束 + 右栏展开 | R3（右栏内容 R4） | 同上 + `lib/ui/shell/right_panel.dart` |
 | 04 | 侧栏与顶栏状态 | R3 | `sidebar.dart`、`topbar.dart`（会话项、搜索、折叠态） |
-| 10 | Restore Checkpoint 分隔线 | R2 | `lib/ui/transcript/checkpoint_divider.dart` |
+| 10 | ~~Restore Checkpoint 分隔线~~ 已废弃（2026-09-17） | R2 | 已删除（与画板 11 的 Restore 同一动作） |
 | 11 | 用户消息气泡 | R2 | `lib/ui/transcript/user_message.dart` |
 | 12 | 助手富文本正文 | R2 | `lib/ui/transcript/assistant_text.dart` |
 | 13 | 代码块卡片 | R2 | `lib/ui/transcript/code_block.dart` |

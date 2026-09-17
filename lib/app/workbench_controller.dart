@@ -1229,7 +1229,8 @@ class WorkbenchController extends ChangeNotifier {
     await _guard(() => b.acpRespond(id, requestId, payload));
   }
 
-  /// Restore Checkpoint（画板 10）与用户气泡的 Regenerate（画板 11）：本地截断 + 同会话重发。
+  /// 用户气泡上的 Restore 与 Regenerate（画板 11）：本地截断 + 同会话重发。
+  /// （画板 10 的 Restore Checkpoint 分隔线已废弃，所有者裁定 2026-09-17：与这里是同一个动作。）
   /// **截断范围内仍挂起的请求必须回应**，否则 agent 一直等着：permission 回 cancelled outcome、
   /// elicitation 回 cancelled action（`RestoreResult` 的两组 id）。
   Future<void> restore(TurnEntry turn, {String? newText}) async {

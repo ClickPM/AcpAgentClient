@@ -1,4 +1,4 @@
-// 画板 10–34 的 gallery 页（R2）：每张画板一页，复刻设计画板的分节与文案，数据全部来自 test/fixtures 回放
+// 画板 11–34 的 gallery 页（R2；10 已废弃）：每张画板一页，复刻设计画板的分节与文案，数据全部来自 test/fixtures 回放
 // （lib/gallery/fixtures_source.dart）；协议之外的状态（agent_state、elicitation/complete）在这里用投影层 API 构造。
 // 只在 debug / test 编入。
 
@@ -7,7 +7,6 @@ import 'package:flutter/widgets.dart';
 import '../../projection/entries.dart';
 import '../../theme/tokens.dart' as t;
 import '../../ui/transcript/assistant_text.dart';
-import '../../ui/transcript/checkpoint_divider.dart';
 import '../../ui/transcript/code_block.dart';
 import '../../ui/transcript/mermaid_block.dart';
 import '../../ui/transcript/thinking_block.dart';
@@ -34,21 +33,9 @@ MessageEntry _userMessage(FixtureReplay r, String messageId) =>
 GalleryBoard _page(String id, String title, Widget Function() build) =>
     GalleryBoard(id: id, title: title, frame: const Size(BoardPage.width, 0), fitContent: true, build: (_) => build());
 
+// 画板 10（Restore Checkpoint 分隔线）已废弃（所有者裁定 2026-09-17）：它点下去与画板 11 用户气泡上的 Restore
+// 是同一个动作（本地截断 + 同会话重发），且工作台画板 01 / 02 / 03 的转录里本来就没有这条线。对照页一并撤掉。
 final List<GalleryBoard> transcriptBoards = <GalleryBoard>[
-  _page('10-checkpoint', 'Restore Checkpoint 分隔线', () {
-    final r = FixtureReplay.replay(<String>['01-connect', '02-turn-read']);
-    final turn = r.first<TurnEntry>();
-    return BoardPage(
-      number: '10',
-      title: 'Restore Checkpoint 分隔线',
-      source: '客户端本地态（每轮边界 / 检查点）',
-      sections: <BoardSection>[
-        BoardSection('默认', child: CheckpointDivider(turn: turn)),
-        BoardSection('悬浮（点一下丢弃其后全部投影块）', child: CheckpointDivider(turn: turn, hoveredInitially: true)),
-      ],
-      footnote: '协议没有检查点概念：分隔线与其回滚语义都是客户端本地态（acp-projection.md § 7 第 7 条「每轮的边界」）。',
-    );
-  }),
   _page('11-user-message', '用户消息气泡', () {
     final r = FixtureReplay.replay(<String>['01-connect', '11-rich-text']);
     final msg = _userMessage(r, 'msg_u2');

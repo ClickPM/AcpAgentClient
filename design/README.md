@@ -27,7 +27,7 @@
 | 02 | 工作台 · 进行中的一轮 | 会话工作台 | round-design | `design/round-design/02-workbench-running.dc.html` | `design/round-design/02-workbench-running.png` | — | 已实现（R3） | — |
 | 03 | 工作台 · 回合结束 + 右栏展开 | 会话工作台 + 文件面板 | round-design | `design/round-design/03-workbench-done.dc.html` | `design/round-design/03-workbench-done.png` | — | 已实现（R3）· 右栏内容已实现（R4） | — |
 | 04 | 侧栏与顶栏状态 | 会话工作台 | round-design | `design/round-design/04-sidebar-states.dc.html` | `design/round-design/04-sidebar-states.png` | — | 已实现（R3） | — |
-| 10 | Restore Checkpoint 分隔线 | 转录 | round-design | `design/round-design/10-checkpoint.dc.html` | `design/round-design/10-checkpoint.png` | — | 已实现（R2） | — |
+| 10 | Restore Checkpoint 分隔线 | 转录 | round-design | `design/round-design/10-checkpoint.dc.html` | `design/round-design/10-checkpoint.png` | — | **已废弃（2026-09-17）** | — |
 | 11 | 用户消息气泡 | 转录 | round-design | `design/round-design/11-user-message.dc.html` | `design/round-design/11-user-message.png` | — | 已实现（R2） | — |
 | 12 | 助手富文本正文 | 转录 | round-design | `design/round-design/12-assistant-text.dc.html` | `design/round-design/12-assistant-text.png` | — | 已实现（R2） | — |
 | 13 | 代码块卡片 | 转录 | round-design | `design/round-design/13-code-block.dc.html` | `design/round-design/13-code-block.png` | — | 已实现（R2） | — |

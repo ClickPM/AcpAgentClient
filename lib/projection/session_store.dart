@@ -2,7 +2,7 @@
 // 规则来自 prototype/assets/projection.js，只搬规则不搬代码。
 // - 按 sessionId 累积 update；消息分组：messageId 变化另起一条，无 messageId 按角色连续合并；
 // - 思考折叠单元：连续 agent_thought_chunk 合成一段，其它条目到达或轮结束时关闭；
-// - 轮边界与检查点：session/prompt 请求到响应之间是一轮（TurnEntry），Restore = 本地截断其后全部投影块；
+// - 轮边界：session/prompt 请求到响应之间是一轮（TurnEntry），Restore = 本地截断其后全部投影块 + 同会话重发；
 // - 本地时间戳：注入时钟（测试用固定时钟，分批 / 整批回放可比对）；
 // - 未知 sessionUpdate / 未知 ToolCallStatus 整条丢弃并计数（与 Rust 侧 § 8.1 同口径）。
 
@@ -383,7 +383,7 @@ class SessionStore extends ChangeNotifier {
 
   // ---------------------------------------------------------------- 轮边界（§ 7 第 7 条）
 
-  /// `session/prompt` 发出：开一轮（也是画板 10 的检查点），并把发出去的那批块本地回显成用户气泡。
+  /// `session/prompt` 发出：开一轮（轮边界，转录里不画东西），并把发出去的那批块本地回显成用户气泡。
   /// 回显是必须的（§ 7 第 8 条）：`user_message_chunk` 多数 agent 只在 `session/load` 的重放里发，
   /// 实时一轮里根本不回显（codex-acp 实测），光等 agent 发的话用户消息永远不出现。
   /// 会回显的 agent 发来的同一批块在 [_appendMessage] 里按块内容去重（照 Zed acp_thread.rs）。
@@ -431,7 +431,7 @@ class SessionStore extends ChangeNotifier {
     return CancelResult(toolCallIds: tools, cancelledRequestIds: requests, cancelledElicitationIds: elicitations);
   }
 
-  /// Restore Checkpoint（画板 10）：本地截断该轮及其后全部投影块，返回被截断的轮（其 prompt 用于同会话重发）与
+  /// Restore（画板 11 用户气泡上的 ↺）：本地截断该轮及其后全部投影块，返回被截断的轮（其 prompt 用于同会话重发）与
   /// 截断范围内仍挂起的请求：permission 标 cancelled（回 `PendingQueue.cancelledOutcome`）、elicitation 标 cancelled
   /// （回 `PendingQueue.cancelledAction`）——接线侧必须拿这些 id 去 `acp_respond`，否则 agent 挂起（审查 high）。
   /// 协议没有回滚，agent 侧上下文不回退（所有者裁定 2026-09-15，已知限制）。
