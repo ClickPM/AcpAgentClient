@@ -1,0 +1,20 @@
+<!-- AcpAgent Client 应用图标。字母 A 的横杠画成三节点链路 = ACP 协议把多个 agent 串起来。
+     取稿自 gemini-3.1-flash-image 的候选（app-logo-reference.jpg），所有者裁定 2026-09-17 后由本文件矢量重绘。
+     配色只用 lib/theme/tokens.dart 的值：底 Neutral.canvas、字母 Neutral.strong、链路 Accent.base。
+     本文件是 windows/runner/resources/app_icon.ico 的唯一来源，改完跑 scripts/render-icon.ps1 重出 .ico。
+     应用内标记（无底板）不读本文件，另在 lib/ui/shell/app_logo.dart 按同一几何从 token 拼出。 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <clipPath id="band">
+      <rect x="0" y="0" width="256" height="135"/>
+      <rect x="0" y="163" width="256" height="93"/>
+    </clipPath>
+  </defs>
+  <rect width="256" height="256" rx="40" fill="#FBFBFC"/>
+  <path d="M69 190 L128 61 L187 190" clip-path="url(#band)" fill="none" stroke="#1E1E26"
+        stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M53 149 H203" fill="none" stroke="#5566D8" stroke-width="9" stroke-linecap="round"/>
+  <circle cx="53" cy="149" r="13" fill="#5566D8"/>
+  <circle cx="128" cy="149" r="13" fill="#5566D8"/>
+  <circle cx="203" cy="149" r="13" fill="#5566D8"/>
+</svg>

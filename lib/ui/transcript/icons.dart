@@ -107,9 +107,6 @@ abstract final class AcpIcons {
 
   // ---- R3 新增（画板 01–04 / 40 / 41 / 42 / 80，路径取自各画板的 <svg>）
 
-  /// 01–04：侧栏顶部的应用标记（方框 + 两条对角线）。
-  static const String appMark = '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="3" x2="21" y2="21"/><line x1="21" y1="3" x2="3" y2="21"/>';
-
   /// 01–04：侧栏折叠开关。
   static const String panelLeft = '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/>';
 
@@ -174,7 +171,7 @@ abstract final class AcpIcons {
     rotateCcw, pencil, copy, check, arrowDown, spinnerArc, chevronDown, chevronUp, lightbulb, file, checkCircle, search,
     dashedCircle, terminal, globe, layers, x, columns, cornerDownRight, thumbsUp, thumbsDown, externalLink, trash,
     alertTriangle, info, plus, arrowUpRight, play, link, dot, lock, slashCircle, diamond,
-    appMark, panelLeft, gitBranch, settings, folder, plusSquare, reload, rotateCw, menuLines, target, arrowUp,
+    panelLeft, gitBranch, settings, folder, plusSquare, reload, rotateCw, menuLines, target, arrowUp,
     arrowRight, arrowLeft, messageSquare, image, command, windowMinimize, windowMaximize, download,
     chevronRight, collapseAll, clearScreen,
   ];
