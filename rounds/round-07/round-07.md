@@ -1,6 +1,6 @@
 # Round 07 — zed-agent-acp sidecar
 
-> 状态：进行中
+> 状态：已完成（审查 4 轮收口；合并 `main` 待所有者确认）
 
 ## 目标
 
@@ -110,9 +110,16 @@
 
 整改（在我们这侧，不动 `vendor/`）：`list_sessions` 每次**强制重扫**再读（原来 await 的是可能早就跑完的 `reload_task`，读的是缓存），空表时再重扫一次把偶发读失败滤掉。复跑连查 5 次，5/5 都是 2 条。上游吞错误这件事记 BACKLOG。
 
-- 结论：**整改后 PASS**（第 4 轮复审确认 0 条才收口）
+### 第 4 轮（只审整改 diff，`-Scope since -Base be03008`）findings：**0 条**
 
-<!-- 第 4 轮（-Scope since -Base be03008）结果回填在这里 -->
+结果 `.claude/reviews/20260917-133121-review.out.md`。审查者对着 gpui 的 `flush_effects` / `observe_release` / `Entity` drop 只入队、以及上游 `ThreadStore::spawn_reload` 的静默失败逐条核对了两处整改，确认：
+
+- `release_and_wait`：三件事收在同一次 `cx.update` 里，`let _subscription` 保住了订阅（不是 `let _ =`，不会立刻退订）；`NativeAgent` 先登记的 listener 先 `enqueue_save`、我们的 oneshot 后发，空闲会话不再空等 5 s；泵还持有 `Rc` 时只有空跑 `cx.update` 才冲得掉，光挂 background timer 确实等不到；`try_recv` 的 `Err(Canceled)` 只在 sender 已丢且没送到时出现。
+- `list_sessions` / `reload_threads`：不再 await 可能早已完成的那份 Shared 任务；「空表再扫一次」与上游静默失败的形状匹配，真空表只多一次读，**已有缓存时的失败不会被误判成空表**（失败路径不清表），也没有把「读失败」装成新的成功路径。
+
+规则 1–10、ACP 协议面、`unsafe`、密钥、用户数据破坏性写：本 diff 未触及。
+
+- 结论：**整改后 PASS**（4 轮 / cursor CLI；6 条 findings —— high 3 / P2 3 —— 全部采纳整改，第 4 轮 0 条收口，缺陷门禁关闭）
 
 
 ## 失败处理
