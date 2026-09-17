@@ -3,6 +3,8 @@
 // 守住三件事：按会话所属 agentId 查出来、registry 后到时侧栏会重投影（不会一直停在占位上）、
 // 以及 [AgentMark] 真按有没有 svg 分两条路走。
 
+import 'dart:io';
+
 import 'package:acp_agent_client/app/workbench_controller.dart';
 import 'package:acp_agent_client/projection/wire.dart';
 import 'package:acp_agent_client/ui/shell/shell_common.dart';
@@ -62,6 +64,17 @@ void main() {
     await c.refreshRegistry(network: true);
     expect(c.sidebarSessions.single.iconSvg, _svg, reason: 'registry 一变就要重投影侧栏');
     c.dispose();
+  });
+
+  // 内置 sidecar（agent id `zed`）不在官方 registry 里、没有可缓存的图标，随包带一份 Zed 的标志，
+  // 由 `rust/acp-core/src/builtin.rs` 放进条目的 `iconSvg`（走的还是同一条投影路）。这里只守「这份 SVG
+  // 真能被 flutter_svg 解析」：文件头有一段来源声明的 XML 注释，解析不了的话前端会静默退回占位菱形。
+  test('随包带的 Zed logo 能被 flutter_svg 解析', () async {
+    final file = File('rust/acp-core/assets/zed-icon.svg');
+    expect(file.existsSync(), isTrue, reason: 'include_str! 进 builtin.rs 的就是这个文件');
+    final svg = file.readAsStringSync();
+    expect(svg, contains('zed-industries/zed'), reason: '复用要标来源（CLAUDE.md 规则 5）');
+    await SvgStringLoader(svg).loadBytes(null);
   });
 
   testWidgets('AgentMark：有 icon.svg 画 logo，没有画占位菱形，两态同尺寸', (tester) async {

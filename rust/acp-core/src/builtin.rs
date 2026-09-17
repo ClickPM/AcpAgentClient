@@ -22,6 +22,12 @@ const ZED_AGENT_NAME: &str = "Zed Agent";
 /// 可执行文件名（不含扩展名）。
 const ZED_AGENT_EXE: &str = "zed-agent-acp";
 
+/// 内置 agent 自己的 logo：Zed 的标志，和 registry 型条目那份缓存的 `icon.svg` 走同一条路
+/// （`registry_list` 的 `iconSvg` → 侧栏会话项 / 线程头的 agent 标记 / 画板 70 的图标框）。
+/// 内置条目不在官方 registry 里、也就没有可缓存的图标，只能随包带一份。
+/// 来源见 `assets/zed-icon.svg` 的文件头（CLAUDE.md 规则 5）。
+const ZED_AGENT_ICON: &str = include_str!("../assets/zed-icon.svg");
+
 /// 覆盖 sidecar 路径的环境变量：开发时 sidecar 在 `CARGO_TARGET_DIR` 里，不在应用目录旁。
 pub const SIDECAR_PATH_ENV: &str = "ACP_ZED_SIDECAR";
 
@@ -91,6 +97,7 @@ fn entry(path: &Path, data_dir: &Path, zed_settings: Option<PathBuf>) -> AgentSe
         extra: BTreeMap::from([
             ("builtin".to_owned(), serde_json::Value::Bool(true)),
             ("name".to_owned(), serde_json::Value::String(ZED_AGENT_NAME.to_owned())),
+            ("iconSvg".to_owned(), serde_json::Value::String(ZED_AGENT_ICON.to_owned())),
         ]),
     }
 }
@@ -159,6 +166,8 @@ mod tests {
                 assert!(env.is_empty());
                 assert_eq!(extra.get("builtin"), Some(&serde_json::Value::Bool(true)));
                 assert_eq!(extra.get("name"), Some(&serde_json::Value::String(ZED_AGENT_NAME.into())));
+                // 随包带的 Zed logo：前端按 `iconSvg` 画，没有它就退回画板的单色占位菱形。
+                assert_eq!(extra.get("iconSvg"), Some(&serde_json::Value::String(ZED_AGENT_ICON.into())));
             }
             other => panic!("unexpected: {other:?}"),
         }
@@ -167,6 +176,7 @@ mod tests {
         assert_eq!(value["type"], "custom");
         assert_eq!(value["builtin"], true);
         assert_eq!(value["name"], ZED_AGENT_NAME);
+        assert!(value["iconSvg"].as_str().is_some_and(|s| s.contains("<svg") && s.contains("currentColor")));
     }
 
     #[test]

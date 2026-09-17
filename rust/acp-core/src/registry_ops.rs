@@ -86,6 +86,8 @@ impl Core {
                 // `extra` 是 Zed 同形字段的原样保留处；内置条目在这里放 `builtin` / `name`（crate::builtin）。
                 let builtin = extra.get("builtin").and_then(Value::as_bool).unwrap_or(false);
                 let name = extra.get("name").and_then(Value::as_str).unwrap_or(id.as_str());
+                // custom 型没有 registry 缓存的 `icon.svg`，条目自带时就用它（内置 sidecar 随包带了 Zed 的标志）。
+                let icon = extra.get("iconSvg").and_then(Value::as_str);
                 agents.push((
                     true,
                     json!({
@@ -93,6 +95,7 @@ impl Core {
                         "name": name,
                         "version": "",
                         "description": "",
+                        "iconSvg": icon,
                         "distribution": "custom",
                         "supported": true,
                         "installed": Value::Null,
