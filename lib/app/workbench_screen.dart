@@ -7,11 +7,13 @@
 import 'dart:convert';
 
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../projection/entries.dart';
+import '../projection/session_store.dart';
 import '../theme/tokens.dart' as t;
 import '../ui/files/files_panel.dart';
 import '../ui/popovers/composer_popovers.dart';
@@ -50,12 +52,107 @@ class WorkbenchScreen extends StatefulWidget {
 class _WorkbenchScreenState extends State<WorkbenchScreen> {
   final ScrollController _transcript = ScrollController();
 
+  /// 转录默认跟随底部：流式回复边来边把视口推到最新一条。用户主动往上翻就停在他翻到的地方，
+  /// 直到他自己滚回底部（或发下一条消息）才重新跟随。判据只看「离底部还有多远」——
+  /// 我们自己的落点永远是底部，所以跟随不会把自己关掉。
+  bool _stick = true;
+  bool _followScheduled = false;
+  int _corrections = 0;
+
+  /// 正在跟随的那条会话的 store：转录长内容只有它会通知（切会话时换一个）。
+  SessionStore? _followed;
+
+  /// 离底部多远还算「在底部」：一格滚轮、一次触控板轻扫都远超这个值，
+  /// 而流式增长留下的零头不会被误判成「用户翻上去了」。
+  static const double _atBottomSlack = 32;
+
   WorkbenchController get c => widget.controller;
 
   @override
+  void initState() {
+    super.initState();
+    c.addListener(_onControllerChanged);
+    _transcript.addListener(_onTranscriptScrolled);
+    _observeStore();
+  }
+
+  @override
+  void didUpdateWidget(WorkbenchScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != c) {
+      oldWidget.controller.removeListener(_onControllerChanged);
+      c.addListener(_onControllerChanged);
+      _observeStore();
+    }
+  }
+
+  @override
   void dispose() {
+    c.removeListener(_onControllerChanged);
+    _followed?.removeListener(_onTranscriptGrew);
+    _transcript.removeListener(_onTranscriptScrolled);
     _transcript.dispose();
     super.dispose();
+  }
+
+  // ---------------------------------------------------------------- 转录跟随底部
+
+  void _onControllerChanged() => _observeStore();
+
+  /// 换会话（或第一次拿到 store）：跟随对象换一个，并回到这条会话的最新一条——
+  /// 转录换了一份内容，停在上一条会话的偏移没有意义。
+  void _observeStore() {
+    final store = c.store;
+    if (identical(store, _followed)) return;
+    _followed?.removeListener(_onTranscriptGrew);
+    _followed = store;
+    store?.addListener(_onTranscriptGrew);
+    _stick = true;
+    _scheduleFollow();
+  }
+
+  /// 转录长出新内容：流式分块、工具卡、终端输出都会通知这个 store。
+  void _onTranscriptGrew() {
+    if (_stick) _scheduleFollow();
+  }
+
+  /// 用户（或任何人）把转录滚到了别处：只要落点离底部够远就停掉跟随，滚回底部即自动接上。
+  void _onTranscriptScrolled() {
+    if (!_transcript.hasClients) return;
+    final p = _transcript.position;
+    _stick = p.maxScrollExtent - p.pixels <= _atBottomSlack;
+  }
+
+  /// 下一帧（新内容已经布完局）把转录推到底。ListView 惰性构建，没建到的那截 maxScrollExtent
+  /// 是估出来的：推完可能又长出一段（估少了），也可能反过来落到底部之外（估多了，不纠正的话
+  /// 会看见一次回弹）。所以允许连着纠正几帧，两个方向都纠；还够不着就等下一次内容更新。
+  void _scheduleFollow({bool correction = false}) {
+    if (!correction) _corrections = 0;
+    if (_followScheduled) return;
+    _followScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _followScheduled = false;
+      if (!_followToBottom()) return;
+      if (++_corrections < 4) _scheduleFollow(correction: true);
+    });
+  }
+
+  /// 返回值：这一帧是否真推了一下（推了就可能还差一截，值得下一帧再看一眼）。
+  bool _followToBottom() {
+    if (!mounted || !_stick || !_transcript.hasClients) return false;
+    final p = _transcript.position;
+    // 用户正在拖 / 触控板正在滑：jumpTo 会 goIdle 把这次拖拽掐断，让他先滑完。
+    if (p.userScrollDirection != ScrollDirection.idle) return false;
+    if ((p.maxScrollExtent - p.pixels).abs() <= 0.5) return false;
+    _transcript.jumpTo(p.maxScrollExtent);
+    return true;
+  }
+
+  /// 发送时无条件回到底部：刚发出去的这条就在最底下，翻上去看过旧内容之后更要看见它。
+  Future<void> _send() {
+    _stick = true;
+    _scheduleFollow();
+    return c.send();
   }
 
   @override
@@ -316,7 +413,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         ),
       ],
       onChanged: c.onComposerChanged,
-      onSend: c.send,
+      onSend: _send,
       onStop: c.cancel,
       onPlus: _openPlusPopover,
       onFollow: _toggleFollow,
