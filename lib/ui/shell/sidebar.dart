@@ -20,6 +20,7 @@ class SidebarSession {
     required this.updatedAt,
     required this.messageCount,
     this.canDelete = true,
+    this.iconSvg,
   });
 
   final String id;
@@ -29,6 +30,9 @@ class SidebarSession {
 
   /// `sessionCapabilities.delete`。
   final bool canDelete;
+
+  /// 这条会话所属 agent 的 `icon.svg`（registry 缓存；组合根按 `agentId` 查出来给）。没有时是画板的单色占位。
+  final String? iconSvg;
 }
 
 class Sidebar extends StatelessWidget {
@@ -270,7 +274,7 @@ class SidebarSessionRow extends StatelessWidget {
           padding: EdgeInsets.only(left: t.Spacing.s12, right: showActions ? t.Spacing.s8 : t.Spacing.s12),
           child: Row(
             children: <Widget>[
-              AgentMark(active: selected),
+              AgentMark(active: selected, svg: session.iconSvg),
               const SizedBox(width: t.Spacing.s8),
               Expanded(child: inlineEdit ? _renameField() : _titleAndMeta(meta)),
               if (showActions) ...<Widget>[

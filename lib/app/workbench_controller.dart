@@ -536,10 +536,20 @@ class WorkbenchController extends ChangeNotifier {
         updatedAt: DateTime.fromMillisecondsSinceEpoch((item['updatedAt'] as num?)?.toInt() ?? 0),
         messageCount: (item['messageCount'] as num?)?.toInt() ?? 0,
         canDelete: _canDeleteSessionOf(owner ?? agentId),
+        iconSvg: agentIconSvgOf(owner ?? agentId),
       ));
     }
     return out;
   }
+
+  /// agent 自己的 logo：registry 缓存的 `icon.svg` 原样内容，侧栏会话项与线程头的 agent 标记直接画它
+  /// （画板 50 / 51 / 70 的图标框用的是同一份）。registry 里没有这条 / 没缓存到图标时为 null，退回画板的单色占位。
+  /// 不按 agent 名判（规则 2）：id 查不到就是没有。
+  String? agentIconSvgOf(String? agent) =>
+      agent == null || agent.isEmpty ? null : registry.byId(agent)?.iconSvg;
+
+  /// 线程头的 agent 标记。
+  String? get agentIconSvg => agentIconSvgOf(agentId);
 
   // ---- agent 能力（R6）：一律读 `agentCapabilities`，不按 agent 名判（规则 2）。
   // 能力是 agent 级的，不是会话级的——侧栏里各条会话可能属于不同 agent，所以按 agentId 查。
@@ -1686,6 +1696,9 @@ class WorkbenchController extends ChangeNotifier {
     await _guard(() async {
       final list = network ? await b.registryRefresh(force: force) : await b.registryList();
       registry.applyList(list);
+      // 侧栏的 agent logo 是从 registry 查出来**烘进** [SidebarSession] 的，所以 registry 一变就要重投影一次：
+      // 首次启动时图标是这轮联网刷新才落盘的，不重投影侧栏会一直停在占位菱形上，直到下次刷新本地索引。
+      sidebarSessions = _toSidebar(_indexEntries);
       final paths = list['paths'];
       if (paths is Map) {
         dataDir = paths['dataDir'] as String? ?? dataDir;

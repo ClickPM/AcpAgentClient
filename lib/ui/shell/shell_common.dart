@@ -2,20 +2,27 @@
 // agent 标记方块、悬浮包装、文本输入、相对时间文案。样式只取 tokens（CLAUDE.md 规则 3）。
 
 import 'package:flutter/widgets.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../theme/tokens.dart' as t;
 import '../transcript/icons.dart';
 
 /// agent 标记方块（画板 01–04 的会话项 / 线程头、41 的 agent 列表）：16 见方的框 + 6 见方的菱形。
-/// 没有 agent 时（画板 01 状态 2 的 `No Agent`）是虚线空框。设计稿注明这是单色占位，各 agent 自己的 logo 由 R5 registry 带来。
+/// 没有 agent 时（画板 01 状态 2 的 `No Agent`）是虚线空框。
+/// 设计稿注明框里的菱形是**单色占位**、「各 agent 自己的 logo 由 R5 registry 带来」：[svg] 非空时就画那张
+/// 已装 agent 的 `icon.svg`（registry 缓存的原样内容，与画板 50 / 51 / 70 的 [AgentIconBox] 同一份数据），
+/// 整 16 见方铺满、不再套占位的边框；没有 / 解析不了才退回占位。外框尺寸两态一致，行高不会因为有没有 logo 而跳。
 class AgentMark extends StatelessWidget {
-  const AgentMark({super.key, this.active = false, this.empty = false});
+  const AgentMark({super.key, this.active = false, this.empty = false, this.svg});
 
-  /// 当前会话 / 当前 agent：菱形取 accent。
+  /// 当前会话 / 当前 agent：菱形取 accent（logo 有自己的配色，不参与这个着色）。
   final bool active;
 
   /// 虚线空框（无 agent）。
   final bool empty;
+
+  /// 会话所属 agent 的 `icon.svg` 内容（见 lib/projection/registry.dart 的 `iconSvg`）。
+  final String? svg;
 
   @override
   Widget build(BuildContext context) {
@@ -26,24 +33,35 @@ class AgentMark extends StatelessWidget {
         child: CustomPaint(painter: _DashedBoxPainter()),
       );
     }
-    return Container(
-      width: t.IconSizes.base,
-      height: t.IconSizes.base,
-      decoration: BoxDecoration(
-        border: Border.all(color: t.Neutral.placeholder, width: t.Borders.width),
-        borderRadius: t.Radii.chip,
-      ),
-      alignment: Alignment.center,
-      child: Transform.rotate(
-        angle: _quarterTurn,
-        child: Container(
-          width: t.Geometry.agentMarkDot,
-          height: t.Geometry.agentMarkDot,
-          color: active ? t.Accent.base : t.Neutral.placeholder,
-        ),
-      ),
-    );
+    final icon = svg;
+    if (icon != null && icon.isNotEmpty) {
+      return SvgPicture.string(
+        icon,
+        width: t.IconSizes.base,
+        height: t.IconSizes.base,
+        errorBuilder: (_, _, _) => _placeholder(),
+      );
+    }
+    return _placeholder();
   }
+
+  Widget _placeholder() => Container(
+        width: t.IconSizes.base,
+        height: t.IconSizes.base,
+        decoration: BoxDecoration(
+          border: Border.all(color: t.Neutral.placeholder, width: t.Borders.width),
+          borderRadius: t.Radii.chip,
+        ),
+        alignment: Alignment.center,
+        child: Transform.rotate(
+          angle: _quarterTurn,
+          child: Container(
+            width: t.Geometry.agentMarkDot,
+            height: t.Geometry.agentMarkDot,
+            color: active ? t.Accent.base : t.Neutral.placeholder,
+          ),
+        ),
+      );
 
   /// 45°（画板的 `transform:rotate(45deg)`）。
   static const double _quarterTurn = 0.7853981633974483;

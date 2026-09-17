@@ -19,6 +19,7 @@ class ThreadHeader extends StatelessWidget {
     this.canRename = true,
     this.canReload = true,
     this.menuSelected = false,
+    this.iconSvg,
     this.onRename,
     this.onNewSession,
     this.onReload,
@@ -40,6 +41,9 @@ class ThreadHeader extends StatelessWidget {
 
   /// 右栏已展开（画板 03）。
   final bool menuSelected;
+
+  /// 当前 agent 的 `icon.svg`（registry 缓存）：agent 标记直接画它，没有时退回单色占位。
+  final String? iconSvg;
   final VoidCallback? onRename;
   final VoidCallback? onNewSession;
   final VoidCallback? onReload;
@@ -57,7 +61,7 @@ class ThreadHeader extends StatelessWidget {
       padding: const EdgeInsets.only(left: t.Spacing.s16, right: t.Spacing.s8),
       child: Row(
         children: <Widget>[
-          AgentMark(active: hasAgent, empty: !hasAgent),
+          AgentMark(active: hasAgent, empty: !hasAgent, svg: iconSvg),
           const SizedBox(width: t.Spacing.s8),
           // 标题吃掉余量、动作贴右（画板 01 的 `margin-left:auto`）。这里不能写成 `Flexible` 加 `Spacer`
           // 并列：两者 flex 都是 1，余量被五五分，动作会停在标题与右边缘的中点上（顶栏踩过同一个坑）。

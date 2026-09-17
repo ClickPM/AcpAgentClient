@@ -198,6 +198,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
           canRename: c.hasAgent,
           canReload: c.hasAgent,
           menuSelected: c.rightPanelOpen,
+          iconSvg: c.agentIconSvg,
           onRename: c.sessionId == null ? null : () => c.startRename(c.sessionId!),
           onNewSession: _openNewSessionPopover,
           onReload: c.reloadAgent,
