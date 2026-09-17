@@ -150,5 +150,30 @@ void main() {
       expect(short, closeTo(expected, 0.5), reason: '画板 18 的三行状态卡 trailing 是对齐的');
       expect(long, closeTo(short, 0.01), reason: 'trailing 的位置不该随副标题长短变');
     });
+
+    // 终端卡的头行标题就是整条命令（lib/ui/transcript/terminal_card.dart），一条 powershell 命令轻松过千像素：
+    // 标题不是 Flexible 的时候，Row 给它的是无上限约束，它就原样铺出去、盖住状态图标与卡片右边框
+    //（所有者手测 2026-09-17 报的「命令内容覆盖容器样式」）。
+    testWidgets('标题超长时自己省略，不越过 trailing', (tester) async {
+      await tester.runAsync(loadGalleryFonts);
+      const String command =
+          r'''powershell -Command "Get-ChildItem -Path $env:USERPROFILE\.codex -Recurse -Filter '*config*' -ErrorAction SilentlyContinue | Select-Object FullName"''';
+      await pump(
+        tester,
+        const CardHeader(
+          title: command,
+          subtitle: r'D:\variFlight_work\AcpAgentClient',
+          trailing: <Widget>[SizedBox(key: trailing, width: t.IconSizes.toolbar, height: t.IconSizes.toolbar)],
+        ),
+        width: width,
+        height: t.Controls.input,
+      );
+      expect(
+        tester.getTopRight(find.text(command)).dx,
+        lessThanOrEqualTo(tester.getTopLeft(find.byKey(trailing)).dx),
+        reason: '标题要在 trailing 之前省略掉',
+      );
+      expect(tester.getTopRight(find.byKey(trailing)).dx, closeTo(expected, 0.5), reason: 'trailing 仍旧贴右');
+    });
   });
 }

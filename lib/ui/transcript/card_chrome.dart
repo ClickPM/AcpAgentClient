@@ -104,6 +104,10 @@ class CardHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final Widget? sub = subtitleWidget ??
+        (subtitle != null && subtitle!.isNotEmpty
+            ? Text(subtitle!, style: CardText.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis)
+            : null);
     final row = SizedBox(
       height: height,
       child: Padding(
@@ -114,17 +118,26 @@ class CardHeader extends StatelessWidget {
             // 标题与副标题吃掉余量、trailing 贴右（画板 18）。`Flexible` 与 `Spacer` 并列不行：
             // 两者 flex 都是 1，余量被五五分，副标题短的卡 trailing 就停在中间、各行还对不齐。
             Expanded(
-              child: Row(
-                children: <Widget>[
-                  Text(title, style: titleStyle ?? CardText.headerTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
-                  if (subtitleWidget != null) ...<Widget>[
-                    const SizedBox(width: t.Spacing.s8),
-                    Flexible(child: subtitleWidget!),
-                  ] else if (subtitle != null && subtitle!.isNotEmpty) ...<Widget>[
-                    const SizedBox(width: t.Spacing.s8),
-                    Flexible(child: Text(subtitle!, style: CardText.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis)),
-                  ],
-                ],
+              child: LayoutBuilder(
+                builder: (BuildContext context, BoxConstraints box) {
+                  // 标题只能用「按头行宽度算出来的上限」约束，不能改成 `Flexible`：
+                  // 那样它与副标题 flex 各半，副标题短的卡标题会被提前截断。而不约束的话 Row 给非 flex 子节点的是
+                  // 无上限约束，终端卡那种「标题 = 整条命令」就原样铺出去，盖住状态图标与卡片右边框
+                  //（所有者手测 2026-09-17「命令内容覆盖容器样式」）。副标题在场时留出它俩之间的 8。
+                  final double titleMax = sub == null ? box.maxWidth : (box.maxWidth - t.Spacing.s8).clamp(0.0, double.infinity);
+                  return Row(
+                    children: <Widget>[
+                      ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: titleMax),
+                        child: Text(title, style: titleStyle ?? CardText.headerTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ),
+                      if (sub != null) ...<Widget>[
+                        const SizedBox(width: t.Spacing.s8),
+                        Flexible(child: sub),
+                      ],
+                    ],
+                  );
+                },
               ),
             ),
             for (var i = 0; i < trailing.length; i++) ...<Widget>[
