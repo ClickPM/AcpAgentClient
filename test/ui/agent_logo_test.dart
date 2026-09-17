@@ -99,6 +99,16 @@ void main() {
     await SvgStringLoader(svg).loadBytes(null);
   });
 
+  // 内置的第二条（agent id `dsh-acp-interactive`）同理：官方 registry 里没有它，图标随包带。
+  test('随包带的 dsh logo 能被 flutter_svg 解析', () async {
+    final file = File('rust/acp-core/assets/dsh-icon.svg');
+    expect(file.existsSync(), isTrue, reason: 'include_str! 进 builtin.rs 的就是这个文件');
+    final svg = file.readAsStringSync();
+    expect(svg, contains('ClickPM/dsh-acp-interactive'), reason: '复用要标来源（CLAUDE.md 规则 5）');
+    expect(svg, contains('currentColor'), reason: '取色方式与 registry 的 icon.svg 一致');
+    await SvgStringLoader(svg).loadBytes(null);
+  });
+
   testWidgets('AgentMark：有 icon.svg 画 logo，没有画占位菱形，两态同尺寸', (tester) async {
     Future<void> pump(Widget child) => tester.pumpWidget(Directionality(textDirection: TextDirection.ltr, child: Center(child: child)));
 

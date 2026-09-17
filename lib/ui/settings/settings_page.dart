@@ -180,12 +180,14 @@ class SettingsPage extends StatelessWidget {
             ),
           ),
           const SizedBox(width: t.Spacing.s8),
-          // 内置 agent（R7 的 sidecar）随包分发：既不可编辑也不可删（docs/design.md § 8）——
-          // 它的 command / args 是按可执行文件位置合成的，存进 settings.json 换台机器就过期。
-          // 两个按钮都置灰，不改布局。
-          AcpButton(label: '编辑', onTap: onEdit == null || a.builtin ? null : () => onEdit!(a.id)),
-          const SizedBox(width: t.Spacing.s4),
-          RemoveButton(onTap: onRemove == null || a.builtin ? null : () => onRemove!(a.id)),
+          // 内置 agent（sidecar 与 dsh）：既不可编辑也不可删（docs/design.md § 6.6 / § 8）——
+          // 它的 command / args 是按本机现状合成的，存进 settings.json 换台机器就过期。
+          // 两个按钮都不画（置灰的按钮看着像坏了），行里只剩图标与名字。
+          if (!a.builtin) ...<Widget>[
+            AcpButton(label: '编辑', onTap: onEdit == null ? null : () => onEdit!(a.id)),
+            const SizedBox(width: t.Spacing.s4),
+            RemoveButton(onTap: onRemove == null ? null : () => onRemove!(a.id)),
+          ],
         ],
       ),
     );

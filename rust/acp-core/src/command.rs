@@ -65,13 +65,17 @@ impl LaunchSpec {
 /// 裸程序名 → PATH 里带扩展名的路径。已含路径分隔符或是绝对路径的原样返回；找不到也原样返回（让 spawn 报错）。
 /// Windows 按 `PATHEXT`（默认 `.COM;.EXE;.BAT;.CMD`）逐个试；有扩展名的名字只试精确匹配。
 pub fn resolve_program(program: &str) -> PathBuf {
+    lookup_program(program).unwrap_or_else(|| PathBuf::from(program))
+}
+
+/// [`resolve_program`] 的「找到了才回」版本：**裸名字**在 PATH 上找不到时回 `None`（内置 agent 要按
+/// 「PATH 上有没有这个命令」分流，见 `crate::builtin`）。已带路径的按原样回，不判存在——那种路径是调用方给的。
+pub fn lookup_program(program: &str) -> Option<PathBuf> {
     let path = Path::new(program);
     if path.is_absolute() || path.components().count() > 1 {
-        return path.to_path_buf();
+        return Some(path.to_path_buf());
     }
-    let Some(path_var) = std::env::var_os("PATH") else {
-        return path.to_path_buf();
-    };
+    let path_var = std::env::var_os("PATH")?;
     let candidates: Vec<String> = candidate_names(program);
     for dir in std::env::split_paths(&path_var) {
         if dir.as_os_str().is_empty() {
@@ -80,11 +84,11 @@ pub fn resolve_program(program: &str) -> PathBuf {
         for name in &candidates {
             let candidate = dir.join(name);
             if candidate.is_file() {
-                return candidate;
+                return Some(candidate);
             }
         }
     }
-    path.to_path_buf()
+    None
 }
 
 fn candidate_names(program: &str) -> Vec<String> {

@@ -370,7 +370,7 @@ void main() {
     c.dispose();
   });
 
-  test('R7 内置 sidecar：agent 列表用条目里的 name，registry 条目带 builtin 标记（Remove 置灰）', () async {
+  test('内置条目：agent 列表用条目里的 name，registry 条目带 builtin 标记（据此不画 Remove）', () async {
     final core = _BuiltinCore();
     final c = await _start(core);
 
@@ -378,7 +378,7 @@ void main() {
     await c.refreshAgents();
     expect(c.installedAgents.map((AgentRef a) => '${a.id}|${a.name}').toList(), <String>['dsh|dsh', 'zed|Zed Agent']);
 
-    // `registry_list` 的 `builtin` 透到投影层：设置页 / registry 卡据此把 Remove 置灰。
+    // `registry_list` 的 `builtin` 透到投影层：设置页 / registry 卡据此不画「编辑」与 Remove。
     await c.refreshRegistry();
     final RegistryEntryData? zed = c.registry.byId('zed');
     expect(zed, isNotNull);
