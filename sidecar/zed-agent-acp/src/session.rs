@@ -49,7 +49,7 @@ pub struct Agent {
     /// 要读的 Zed `settings.json`（`--zed-settings`，默认是 `paths::settings_file()`）。
     settings_path: PathBuf,
     connection: ConnectionTo<Client>,
-    /// 首次用到时才建（要先把 Zed 的 settings 读进来、给 provider 跑一遍 authenticate）。
+    /// [`Agent::warm_up`] 在 dispatcher 跑起来之前填好；之后只读。
     native: RefCell<Option<Native>>,
     sessions: RefCell<HashMap<acp::SessionId, Rc<SessionEntry>>>,
     projects: RefCell<HashMap<PathBuf, Entity<Project>>>,
@@ -168,19 +168,20 @@ impl Agent {
 
     // ------------------------------------------------------------------ 引导
 
-    /// 建 `NativeAgent`（第一次用到时）。在那之前先把 Zed 的 `settings.json` 读进 settings store：
-    /// 模型与密钥都从那里来（docs/design.md § 8）。**只读**，绝不回写（CLAUDE.md 规则 7）。
-    async fn native(self: &Rc<Self>, cx: &mut AsyncApp) -> Result<Native> {
-        if let Some(native) = self.native.borrow().clone() {
-            return Ok(native);
-        }
-
+    /// 把 Zed 的 `settings.json` 读进 settings store（**只读**，规则 7）、给所有 provider 跑一遍
+    /// `authenticate`、建 `NativeAgent`。
+    ///
+    /// **在 dispatcher 处理第一条消息之前跑一次**，不做惰性初始化：惰性版本里两条并发的请求
+    /// （比如 `session/new` 与 `session/list`）会各自越过「还没建」的判断、各建一个 `NativeAgent`，
+    /// 后一个把前一个覆盖掉 —— 于是先建的那条会话在后来的 `connection.thread(&id)` 里查不到，
+    /// 报「no Zed thread registered」。这里没有 async 互斥原语可用，直接去掉并发窗口最省事。
+    /// 代价：`initialize` 的往返里多了这一两秒（`--selftest` 实测整个引导 2.1 s）。
+    pub async fn warm_up(self: &Rc<Self>, cx: &mut AsyncApp) {
         apply_zed_settings(&self.state, &self.settings_path, cx).await;
         authenticate_providers(cx).await;
 
         let native = cx.update(|cx| {
-            // `agent_ui::init` 已经建过全局 ThreadStore，跟它共用同一个，`session/list` 才能看见
-            // Zed 自己建的会话（threads.db 是同一份）。
+            // `agent_ui::init` 已经建过全局 ThreadStore，跟它共用同一个。
             let thread_store =
                 ThreadStore::try_global(cx).unwrap_or_else(|| cx.new(ThreadStore::new));
             let agent = NativeAgent::new(
@@ -194,8 +195,14 @@ impl Agent {
                 thread_store,
             }
         });
-        *self.native.borrow_mut() = Some(native.clone());
-        Ok(native)
+        *self.native.borrow_mut() = Some(native);
+    }
+
+    fn native(self: &Rc<Self>) -> Result<Native> {
+        self.native
+            .borrow()
+            .clone()
+            .ok_or_else(|| anyhow!("agent is not initialized yet"))
     }
 
     async fn project_for(
@@ -247,7 +254,7 @@ impl Agent {
         request: acp::NewSessionRequest,
         cx: &mut AsyncApp,
     ) -> Result<acp::NewSessionResponse> {
-        let native = self.native(cx).await?;
+        let native = self.native()?;
         let project = self.project_for(&request.cwd, cx).await?;
         // `request.mcp_servers` 不接：`initialize` 里 `mcpCapabilities` 三项全是 false，客户端不该发；
         // Zed 自己的 MCP server 来自它的 settings.json，照常生效。`additional_directories` 同理
@@ -285,7 +292,7 @@ impl Agent {
         replay: bool,
         cx: &mut AsyncApp,
     ) -> Result<Option<Vec<acp::SessionConfigOption>>> {
-        let native = self.native(cx).await?;
+        let native = self.native()?;
         let project = self.project_for(&request.cwd, cx).await?;
         let session_id = request.session_id.clone();
 
@@ -321,7 +328,7 @@ impl Agent {
         request: acp::ListSessionsRequest,
         cx: &mut AsyncApp,
     ) -> Result<acp::ListSessionsResponse> {
-        let native = self.native(cx).await?;
+        let native = self.native()?;
         // 刚建好的 ThreadStore 是空的，第一次读要等它把 threads.db 扫完。
         let reload = native
             .thread_store
@@ -363,7 +370,7 @@ impl Agent {
         request: acp::DeleteSessionRequest,
         cx: &mut AsyncApp,
     ) -> Result<acp::DeleteSessionResponse> {
-        let native = self.native(cx).await?;
+        let native = self.native()?;
         // 先放掉本地的会话实体，再删库：不然 `NativeAgent` 的保存 worker 可能把刚删掉的线程又写回去。
         self.sessions.borrow_mut().remove(&request.session_id);
         native

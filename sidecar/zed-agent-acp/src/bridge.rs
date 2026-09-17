@@ -133,6 +133,9 @@ pub fn serve(
             return;
         };
         let agent = session::Agent::new(state, settings_path, connection);
+        // 先把 Zed 的 settings 读进来、provider 认证一遍、建好 NativeAgent，再开始收消息：
+        // 理由见 `Agent::warm_up` 的注释（惰性初始化会被并发请求撞出两个 NativeAgent）。
+        agent.warm_up(cx).await;
 
         while let Some(incoming) = incoming_rx.next().await {
             let agent = agent.clone();

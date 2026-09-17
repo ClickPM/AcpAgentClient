@@ -100,6 +100,7 @@
 | `validate.ps1` | 13 项全 PASS（`VALIDATE OK`） |
 | sidecar clippy | `scripts/build-sidecar.ps1 -Clippy` 绿（修了 `large_enum_variant` 与两处 `cloned_ref_to_slice_refs`） |
 | sidecar 单测 | 6 passed（`translate` 的增量差分 4 条 + 权限选项去重 + `_meta` 形状） |
+| release 产物复跑 | 随包分发的那个（release）也跑了一轮：`stopReason end_turn`，终端一条干净的增量 `\nrelease-build-ok` + `exit_code 0` |
 
 **冷编译路上踩的四个坑**（都在脚本或 manifest 里固化了）：
 
@@ -116,7 +117,7 @@
 - `session/new` 回 `configOptions`：一个 `select`（id `model`，14 个模型，当前 `cliproxy/gemini-3.8-flash-high`）。
 - 一轮 `Use the terminal tool to run: echo hello-from-r7` → `tool_call`（kind `execute`）+ 4 条 `tool_call_update` + `agent_message_chunk`，`stopReason: end_turn`，`usage {total 49108, in 49102, out 6}`。
 - 终端：`_meta.terminal_info {terminal_id, cwd}` 一条、`_meta.terminal_output {data}` 增量、`_meta.terminal_exit {exit_code: 0}` 一条。慢命令（两段 `Start-Sleep`）实测分两帧推出来，证明是**流式**而不是收尾一次性给。
-- 编辑：`Create a file named r7-note.txt …` → 文件真的建出来了，`ToolCallContent::Diff` 的 `path` 是绝对路径、`newText` 是终稿（见下「两个真缺陷」）。
+- 编辑：`Create a file named r7-note.txt …` → 文件真的建出来了，`ToolCallContent::Diff` 的 `path` 是绝对路径、`newText` 是终稿（见下「五个真缺陷」）。
 - 权限：把 Zed settings 复制一份到隔离目录、`tool_permissions.default` 改 `confirm`，跑 `--user-data-dir <隔离目录>` → `session/request_permission` 到达客户端、客户端回 `allow`、回合以 `end_turn` 收尾。
 
 ### Flutter 里的完整生命周期（验收 4）
@@ -152,15 +153,16 @@
 
 `ACP_ZED_SIDECAR` 指向一个不存在的文件：`agent_connect` 干净地报 `agent \`zed\` is not in settings.json agent_servers`（退出码 1），同一个 core 随后 `ping` 照常 `pong`。单测 `builtin::tests::missing_sidecar_is_not_listed` 覆盖「条目表为空 / 合并进设置后仍为空」。
 
-### 两个真缺陷（本轮实跑抓出来的，都已修 + 补了单测或复跑）
+### 五个真缺陷（实跑抓出来的四个 + 提交前自查一个，都已修 + 补了单测或复跑）
 
 1. **终端卡是空的**：Zed 的 terminal 工具把 `ToolCallContent::Terminal` 放进 `ToolCallUpdate::UpdateFields`（`tools/terminal_tool.rs`），**不**走 `acp_thread::ToolCallUpdate::UpdateTerminal`。只处理后者的话 `_meta.terminal_info` 永远不会发，前端拿到一个没有数据源的终端卡。改成在 `UpdateFields` / `ToolCall` 的 `content` 里找 `Terminal` 内容块，按 `terminal_id` 去重后起输出泵。
 2. **diff 卡是空的**：`UpdateDiff` 事件在编辑**开始**时就到了，那时 buffer 还没内容 → 线上的 `oldText` / `newText` 都是空串。改成记下 diff 实体，等这条工具调用 `status` 变成 `completed` / `failed` 时再读一次发终稿；顺带把 worktree 相对路径拼成绝对路径（客户端的「在文件面板里定位」按绝对路径开文件）。
 
-另外两处是实跑看出来的**语义**问题，也修了：
+另外两处是实跑看出来的**语义**问题，也修了（编号接上）：
 
 3. **权限选项 id 重复**：Zed 的 pattern 型下拉让多个 choice 共用同一个 `optionId`（`always_allow:terminal` 同时叫「Always for terminal」和「Always for \`echo …\` commands」），靠 UI 勾选框区分范围。线上只有 id 能回指，重复会让「只对这条命令永久允许」被当成「对整个工具永久允许」—— **授权范围比用户点的更大**。改成按 `optionId` 去重（保留第一个），实跑后是 4 个互不相同的选项；补了单测。
 4. **终端第一帧是一串空行**：`get_content()` 返回整个 PTY 网格含末尾空行，下一帧的真实输出接在前面、前缀不成立，于是整份重发。改成差分前先 `trim_end()`。
+5. **惰性初始化会被并发请求撞出两个 `NativeAgent`**（提交前自查发现）：每条请求是一个独立的前台任务，`native()` 里有 `.await`，两条并发请求（`session/new` 与 `session/list`）会各自越过「还没建」的判断、各建一个，后一个覆盖前一个 —— 先建的那条会话在后来的 `connection.thread(&id)` 里查不到。改成 dispatcher 收第一条消息**之前**跑一次 `warm_up()`，去掉并发窗口；代价是 `initialize` 的往返里多了引导的一两秒。
 
 ### 与计划的偏离
 
