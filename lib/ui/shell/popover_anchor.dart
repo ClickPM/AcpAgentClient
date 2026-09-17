@@ -109,11 +109,18 @@ class _PopoverAnchorState extends State<PopoverAnchor> {
     if (oldWidget.handle != widget.handle) {
       oldWidget.handle?._visible.removeListener(_sync);
       widget.handle?._visible.addListener(_sync);
-      // 这里正处在 build 阶段：controller 已经挂上 OverlayPortal，此时 show() / hide() 会在 build 里 setState
-      //（`_OverlayPortalState.show` 对此有断言，debug 下直接炸）。推到这一帧结束再对齐；晚一帧看不出来。
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _sync();
-      });
+      if (oldWidget.handle == null) {
+        // 上一帧 handle 为 null 时 [build] 直接返回 child、没有 OverlayPortal，controller 还没挂上：
+        // 这时 show() 只记个序号，这一帧建出的 OverlayPortal 挂上就显示——侧栏删除确认走的就是这条路
+        //（行里的 PopoverAnchor 只在「正在确认」时才拿到句柄），必须当帧生效。
+        _sync();
+      } else {
+        // 已经挂上的 controller 在 build 里 show() / hide() 会 setState during build
+        //（`_OverlayPortalState.show` 对此有断言，debug 下直接炸）。推到这一帧结束再对齐；晚一帧看不出来。
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _sync();
+        });
+      }
     }
   }
 
