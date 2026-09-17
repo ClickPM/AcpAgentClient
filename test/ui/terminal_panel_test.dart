@@ -78,6 +78,39 @@ void main() {
     expect(sent.join(), '\x03');
   });
 
+  testWidgets('中文输入法：组字期间不外发、上屏整串交给终端；连接带 viewId（Windows 引擎缺它会拒掉 setClient）', (tester) async {
+    final sent = <String>[];
+    final term = LocalTerminal(id: 't', title: 'x', cwd: r'D:\w', onInput: sent.add);
+    await tester.pumpWidget(host(TerminalPanel(terminal: term, autofocus: true)));
+    await tester.pump(); // autofocus 结算
+    await tester.pump(); // IME 层在首帧之后开连接
+
+    expect(tester.testTextInput.setClientArgs, isNotNull, reason: '终端要有自己的文本输入连接，组字才进得来');
+    expect(tester.testTextInput.setClientArgs!['viewId'], isA<int>(), reason: 'Windows 引擎 setClient 缺 viewId 直接拒');
+
+    // 组字中（拼音还在候选框里）：一个字节都不该进 shell。
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(text: 'nihao', composing: TextRange(start: 0, end: 5)),
+    );
+    await tester.pump();
+    expect(sent, isEmpty);
+
+    // 上屏。
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(text: '你好', selection: TextSelection.collapsed(offset: 2)),
+    );
+    await tester.pump();
+    expect(sent.join(), '你好');
+
+    // 上屏之后编辑状态清回空串：下一次上屏不会把上一次的字再带一遍。
+    sent.clear();
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(text: '世界', selection: TextSelection.collapsed(offset: 2)),
+    );
+    await tester.pump();
+    expect(sent.join(), '世界');
+  });
+
   testWidgets('状态行：运行中显示 cwd + 停止方块；退出后显示退出码且没有停止方块', (tester) async {
     final t = LocalTerminal(id: 't', title: 'x', cwd: r'D:\work\proj');
     var stops = 0;
