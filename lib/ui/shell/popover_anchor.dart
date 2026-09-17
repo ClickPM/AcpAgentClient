@@ -92,7 +92,12 @@ class PopoverAnchor extends StatelessWidget {
               followerAnchor: h._followerAnchor,
               offset: h._offset,
               showWhenUnlinked: false,
-              child: Align(alignment: Alignment.topLeft, child: h._builder(context)),
+              // widthFactor / heightFactor 必须给：Stack 的非定位子节点拿到的是「整屏」的松约束，
+              // 不收紧的话 Align 会撑满整屏，`followerAnchor` 算的就是**整屏**的角而不是弹层自己的角 ——
+              // `showAbove`（followerAnchor: bottomLeft）于是把弹层顶到屏幕顶上去了
+              //（所有者手测 2026-09-17「消息发送区的下拉窗口位置全部漂移」的成因；
+              // 顶栏那些 followerAnchor: topLeft 的弹层因为两个角重合，才一直看着是对的）。
+              child: Align(alignment: Alignment.topLeft, widthFactor: 1, heightFactor: 1, child: h._builder(context)),
             ),
           ],
         ),

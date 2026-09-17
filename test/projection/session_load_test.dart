@@ -341,6 +341,38 @@ void main() {
       expect(storeWith(modes: modes, configOptions: modeConfig).modeFallbackOption, isNull);
     });
 
+    // pi-acp：同一批思考强度既在 modes 里、又在 category thought_level 的 configOption 里。
+    // 再合成一条模式下拉，输入框右下就是两个一模一样的「Thinking: high」（所有者手测 2026-09-17）。
+    final thinkingModes = <String, dynamic>{
+      'currentModeId': 'high',
+      'availableModes': <JsonMap>[
+        <String, dynamic>{'id': 'low', 'name': 'Thinking: low'},
+        <String, dynamic>{'id': 'high', 'name': 'Thinking: high'},
+      ],
+    };
+    final thoughtConfig = <JsonMap>[
+      <String, dynamic>{
+        'id': 'thought_level',
+        'name': 'Thinking',
+        'category': 'thought_level',
+        'type': 'select',
+        'currentValue': 'high',
+        'options': <JsonMap>[
+          <String, dynamic>{'value': 'low', 'name': 'Thinking: low'},
+          <String, dynamic>{'value': 'high', 'name': 'Thinking: high'},
+        ],
+      },
+    ];
+
+    test('同一批值换个 category 又发了一遍（pi-acp 的思考强度）：不合成', () {
+      expect(storeWith(modes: thinkingModes, configOptions: thoughtConfig).modeFallbackOption, isNull);
+    });
+
+    test('值不一样（另有 thought_level，但 modes 是 Plan 模式）：照常合成', () {
+      final s = storeWith(modes: modes, configOptions: thoughtConfig);
+      expect(s.modeFallbackOption!.options.map((o) => o['value']), <String>['ask', 'code']);
+    });
+
     test('都没有 / modes 为空：不合成', () {
       expect(storeWith().modeFallbackOption, isNull);
       expect(storeWith(modes: <String, dynamic>{'availableModes': <JsonMap>[]}).modeFallbackOption, isNull);

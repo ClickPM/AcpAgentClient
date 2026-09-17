@@ -521,7 +521,11 @@ class SessionStore extends ChangeNotifier {
   }
 
   /// modes 回退（R6，ROUNDS § 3）：只发 `current_mode_update` / 只在 `session/new` 里给 `modes`、不发 configOptions 的 agent，
-  /// 模式下拉用这里合成的一条 select；`configOptions` 里已经有 `category == mode` 的条目时返回 null（两者都有只用 configOptions）。
+  /// 模式下拉用这里合成的一条 select；`configOptions` 里已经在管这批值时返回 null（ROUNDS § 3「两者都有只用 configOptions」）：
+  /// 既包括有 `category == mode` 的条目，也包括**同一批值换个 category 发一遍**的 ——
+  /// pi-acp 把思考强度同时发在 `modes` 与 `category == thought_level` 的 configOption 里，
+  /// 再合成一条就是两个一模一样的「Thinking: high」下拉（所有者手测 2026-09-17）。
+  /// 判据不看 agent 也不看 category（规则 2 不做 agent 特判）：可选值集合一样就是同一个选择。
   /// `id` 是本地哨兵，**不会发给 agent**——选中走 `session/set_mode`（见 lib/app/workbench_controller.dart）。
   static const String modeFallbackId = 'acp.modes';
 
@@ -529,6 +533,19 @@ class SessionStore extends ChangeNotifier {
     if (configOptions.any((o) => o.category == 'mode')) return null;
     final available = modes?['availableModes'];
     if (available is! List || available.isEmpty) return null;
+    final modeIds = <String>{
+      for (final m in available)
+        if (m is Map && m['id'] is String) m['id'] as String,
+    };
+    // 严格按「值集合完全相同」判，超集不算：那可能真是另一个更大的选择。
+    if (modeIds.isNotEmpty &&
+        configOptions.any((o) {
+          if (o.type != 'select') return false;
+          final values = _selectValues(o);
+          return values.length == modeIds.length && values.containsAll(modeIds);
+        })) {
+      return null;
+    }
     return ConfigOptionWire(<String, dynamic>{
       'id': modeFallbackId,
       'name': 'Mode',
@@ -545,6 +562,22 @@ class SessionStore extends ChangeNotifier {
             },
       ],
     });
+  }
+
+  /// 一条 select 的可选值集合（扁平或 `{group, name, options}` 两种形状都收），给上面的去重判据用。
+  static Set<String> _selectValues(ConfigOptionWire option) {
+    final values = <String>{};
+    void collect(List<Object?> raw) {
+      for (final o in raw) {
+        if (o is! Map) continue;
+        if (o['value'] is String) values.add(o['value'] as String);
+        final nested = o['options'];
+        if (nested is List) collect(nested);
+      }
+    }
+
+    collect(option.options);
+    return values;
   }
 
   void _setConfigOptions(Object? opts) {
