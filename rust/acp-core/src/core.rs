@@ -519,7 +519,11 @@ impl Core {
         // 用户条目优先，合成的 `--user-data-dir` / `--zed-settings` 就不再生效，换台机器或挪个位置
         // 那条绝对路径还会失效；设置页因此对它禁用「编辑」。这里再挡一道（审查 finding P2，2026-09-17）。
         // 用户自己在 settings.json 里手写过同名条目时不挡 —— 那条是他自己的，编辑照常。
-        if self.settings.get(agent_id)?.is_none() && crate::builtin::is_builtin(agent_id) {
+        if crate::builtin::rejects_settings_write(
+            agent_id,
+            self.settings.get(agent_id)?.is_some(),
+            crate::builtin::sidecar_path().is_some(),
+        ) {
             return Err(CoreError::InvalidArgument(format!(
                 "`{agent_id}` 是随包分发的内置 agent，它的拉起参数按可执行文件位置合成，不写进 settings.json"
             )));

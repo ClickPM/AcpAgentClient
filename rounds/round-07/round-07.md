@@ -81,9 +81,22 @@
 整改 1 加的 `cancel` 会触发 Zed 的 `cx.notify()` → `save_thread`，而 `release_session` 在放掉会话时本来就**必定再存一次**。两次异步保存赶在 `delete_thread` 之后落盘，就把刚删掉的线程原样写回 `threads.db` —— 复跑实测 `delete` 的 `inAgentList` 从 `false` 变成了 `true`（会话又冒出来了）。
 整改：`delete_session` 改成「删 → 核对 → 必要时重删」（上限 3 次、间隔 200 ms，以 `ThreadStore` 自己的 reload 作屏障），三次之后仍在就**如实报错**而不是假装删成功。复跑 `inAgentList: false`。
 
-- 结论：<待第 2 轮>
+### 第 2 轮（仍为全量 `main...HEAD`，被审提交 `925282e`）findings：2 条（high 1 / P2 1），**全部采纳整改**
 
-<!-- 第 2 轮（仍为全量 main...HEAD）结果回填在这里 -->
+结果 `.claude/reviews/20260917-114859-review.out.md`。审查者确认第 1 轮的四处整改都成立，另抓出两条：
+
+1. **[high] `session/delete` 在 `still_there == false` 时立刻回成功，释放后那次异步保存仍能把线程写回 `threads.db`** —— 采纳，指得准。
+   我第 1 轮的重删循环只在「保存比删除**快**」时才起作用；保存**慢**的那条路上，attempt 0 立刻核对只看到「已经没了」的假象，直接回成功，几十到几百毫秒后它又出现在 `session/list` 里 —— 任务卡里紧接着查 `inAgentList: false` 也照样看不出来（我上一轮正是这么「验证」的）。
+   整改两处：① 新增 `release_and_wait`：摘表**之前**先挂 `observe_release`，摘完等这条会话的 `AcpThread` 真被释放（`prompt` 的事件泵也按着一份 `Rc`，摘表 ≠ 释放），上限 5 s；② 删除循环改成每轮「删 → 等 200 ms → 重读 → 核对」，**不再有立刻返回的成功路径**。
+2. **[P2] 内置条目「编辑置灰」的单测是恒真的** —— 采纳，说得对：`_settingsRowEnabled(e) => !e.builtin` 等于什么都没测，把 widget 里的判断改回去照样绿。
+   整改：删掉那个 helper；新增 `test/ui/settings_builtin_test.dart`（建**真的 `SettingsPage`**、点真的按钮，断言内置行两个按钮都没有回调），核心那道拒写抽成纯函数 `builtin::rejects_settings_write` 并补真值表单测。
+   **反向验证**：把 `settings_page.dart` 里的 `|| a.builtin` 去掉，新用例立刻变红（退出码 1）；改回来再变绿 —— 这条门是真的。
+
+**delete 的最终验证**（不再只看删完那一刻）：整改后复跑整条生命周期 `ok: true`、`delete.inAgentList: false`；随后**另起一个进程**、只做 `session/list`，确认被删的 `c461932a-…` 不在列表里（列表里只剩两条更早的测试会话）。
+
+- 结论：<待第 3 轮>
+
+<!-- 第 3 轮起只审整改 diff（-Scope since -Base 925282e），结果回填在这里 -->
 
 
 ## 失败处理

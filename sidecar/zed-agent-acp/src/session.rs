@@ -43,9 +43,11 @@ use crate::translate;
 const MODEL_CONFIG_ID: &str = "model";
 /// 终端输出的轮询间隔：`acp_thread::Terminal` 只给全量快照，没有增量事件，只能定时差。
 const TERMINAL_POLL_INTERVAL: Duration = Duration::from_millis(100);
-/// `session/delete` 的「删 → 核对 → 重删」上限与重试间隔（理由见 `delete_session`）。
+/// `session/delete` 的「删 → 等 → 核对」上限与每轮的等待（理由见 `delete_session`）。
 const DELETE_ATTEMPTS: usize = 3;
 const DELETE_RETRY_DELAY: Duration = Duration::from_millis(200);
+/// 等 `AcpThread` 被释放的上限（见 `release_and_wait`）。
+const RELEASE_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub struct Agent {
     state: Arc<AgentAppState>,
@@ -373,31 +375,31 @@ impl Agent {
     ) -> Result<acp::DeleteSessionResponse> {
         let native = self.native()?;
         let session_id = request.session_id.clone();
-        // 先**等**在途的那一轮真的取消（理由见 `close_session`），再放掉本地的会话实体。
+        // 先**等**在途的那一轮真的取消（理由见 `close_session`），再放掉本地的会话实体，
+        // 并**等这条会话真的被释放**：`session/prompt` 的事件泵自己也按着一份 `Rc<SessionEntry>`，
+        // 它还没收尾的话 `observe_release` 不会跑，而 Zed 的 `release_session` 正是在那时候
+        // `enqueue_save` 最后一次。不等就删，那次保存会把刚删掉的线程原样写回 `threads.db`。
         self.cancel_and_wait(&session_id, cx).await;
-        self.sessions.borrow_mut().remove(&session_id);
+        self.release_and_wait(&session_id, cx).await;
 
-        // 然后「删 → 核对 → 必要时重删」。为什么不能删一次就算数：Zed 的 `release_session` 在放掉
-        // 会话时**必定再存一次**（`enqueue_save` 之后才 detach 保存 worker），那次写是异步的 ——
-        // 落在我们的删除之后，刚删掉的线程就被原样写回 `threads.db`，`session/list` 里又冒出来
-        // （R7 实测见过：整改「close/delete 要先 cancel」之后，cancel 的 `cx.notify()` 又多勾了一次
-        // 保存，删除就失手了）。保存 worker 在会话释放后只会再写一次就退出，所以重来两次足够收敛；
-        // 还不行就如实报错，不假装删成功了。
+        // 释放时排的那次保存是**异步**的，可能比我们的删除更慢，所以每一轮都是
+        // 「删 → 等一个间隔 → 重读 → 核对」，而不是删完立刻回成功 —— 立刻核对只会看到
+        // 「已经没了」的假象，几十到几百毫秒后它又出现在 `session/list` 里
+        //（R7 审查第 2 轮 finding high）。保存 worker 在会话释放后只会再写一次就退出，
+        // 所以重来两次足够收敛；还不行就如实报错，不假装删成功了。
         let mut last_error: Option<anyhow::Error> = None;
         for attempt in 0..DELETE_ATTEMPTS {
-            if attempt > 0 {
-                // 给释放时那次异步保存一点时间落盘，再重删。
-                cx.background_executor().timer(DELETE_RETRY_DELAY).await;
-            }
             let deleted = native
                 .thread_store
                 .update(cx, |store, cx| store.delete_thread(session_id.clone(), cx))
                 .await;
             if let Err(error) = deleted {
                 last_error = Some(error);
+                cx.background_executor().timer(DELETE_RETRY_DELAY).await;
                 continue;
             }
-            // `delete_thread` 自己会 reload，但保存 worker 的写也会 reload；等最近一次读完再核对。
+            // 给那次异步保存落盘的时间，再重读、再核对。
+            cx.background_executor().timer(DELETE_RETRY_DELAY).await;
             let reload = native
                 .thread_store
                 .read_with(cx, |store, _cx| store.reload_task());
@@ -408,7 +410,10 @@ impl Agent {
             if !still_there {
                 return Ok(acp::DeleteSessionResponse::new());
             }
-            log::warn!("thread {session_id} came back after delete (attempt {})", attempt + 1);
+            log::warn!(
+                "thread {session_id} came back after delete (attempt {})",
+                attempt + 1
+            );
         }
         match last_error {
             Some(error) => {
@@ -434,6 +439,8 @@ impl Agent {
         cx: &mut AsyncApp,
     ) -> Result<acp::CloseSessionResponse> {
         self.cancel_and_wait(session_id, cx).await;
+        // close 只要「摘掉 + 让它被释放」，不像 delete 那样还要和释放时的保存赛跑：
+        // 那次保存**正是** close 想要的（关掉之前把转录存下来）。
         self.sessions.borrow_mut().remove(session_id);
         Ok(acp::CloseSessionResponse::new())
     }
@@ -458,6 +465,33 @@ impl Agent {
             .thread
             .update(cx, |thread, cx| thread.cancel(cx))
             .await;
+    }
+
+    /// 把会话从表里摘掉，并等它的 `AcpThread` **真的被释放**（`NativeAgent` 的 `observe_release`
+    /// 跑完）。除了我们表里这一份，`session/prompt` 的事件泵也按着一份 `Rc<SessionEntry>`，
+    /// 所以摘表不等于释放。等不到就按超时往下走 —— 调用方（`delete_session`）后面还会核对结果。
+    async fn release_and_wait(self: &Rc<Self>, session_id: &acp::SessionId, cx: &mut AsyncApp) {
+        let Ok(entry) = self.session(session_id) else {
+            self.sessions.borrow_mut().remove(session_id);
+            return;
+        };
+        let (tx, released) = futures::channel::oneshot::channel::<()>();
+        // 订阅要在放掉引用**之前**挂上，否则可能错过那一下。
+        let _subscription = cx.update(|cx| {
+            cx.observe_release(&entry.acp_thread, move |_, _| {
+                let _ = tx.send(());
+            })
+        });
+        drop(entry);
+        self.sessions.borrow_mut().remove(session_id);
+
+        let mut released = std::pin::pin!(futures::FutureExt::fuse(released));
+        let timeout = cx.background_executor().timer(RELEASE_TIMEOUT);
+        let mut timeout = std::pin::pin!(futures::FutureExt::fuse(timeout));
+        futures::select_biased! {
+            _ = released => {}
+            _ = timeout => log::warn!("session {session_id} was not released within {RELEASE_TIMEOUT:?}"),
+        }
     }
 
     fn register(

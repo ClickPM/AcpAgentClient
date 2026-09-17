@@ -99,6 +99,16 @@ pub fn is_builtin(agent_id: &str) -> bool {
     agent_id == ZED_AGENT_ID && sidecar_path().is_some()
 }
 
+/// 这条 `agent_servers` 条目能不能写进 `settings.json`。
+///
+/// 内置条目不能：它的 `command` / `args` 是按可执行文件位置**合成**的，落盘之后用户条目优先
+/// （见 [`merge_from`]），合成的 `--user-data-dir` / `--zed-settings` 就不再生效，换台机器或把
+/// 应用挪个位置那条绝对路径还会失效。用户自己在 `settings.json` 里手写过同名条目时不挡 ——
+/// 那条是他自己的，编辑照常。
+pub fn rejects_settings_write(agent_id: &str, user_entry_exists: bool, sidecar_present: bool) -> bool {
+    sidecar_present && !user_entry_exists && agent_id == ZED_AGENT_ID
+}
+
 /// 把内置条目并进一份从磁盘读出来的设置。
 ///
 /// 用户设置里同名的条目**优先**（手工指向另一个 sidecar 构建时该生效），所以只填空位。
@@ -198,6 +208,19 @@ mod tests {
             Some(AgentServer::Custom { path, .. }) => assert_eq!(path, "mine"),
             other => panic!("unexpected: {other:?}"),
         }
+    }
+
+    /// 设置页对内置条目禁用「编辑」，核心这里再挡一道（审查 finding P2，2026-09-17）。
+    #[test]
+    fn builtin_entry_is_not_written_to_settings_json() {
+        // sidecar 在 + 用户没写过同名条目 = 挡。
+        assert!(rejects_settings_write(ZED_AGENT_ID, false, true));
+        // 用户自己手写过同名条目：那条归他，编辑照常。
+        assert!(!rejects_settings_write(ZED_AGENT_ID, true, true));
+        // sidecar 不在：根本没有内置条目这回事。
+        assert!(!rejects_settings_write(ZED_AGENT_ID, false, false));
+        // 别的 agent 一律放行。
+        assert!(!rejects_settings_write("dsh", false, true));
     }
 
     #[test]
