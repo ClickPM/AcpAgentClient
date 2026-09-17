@@ -445,6 +445,12 @@ class WorkbenchController extends ChangeNotifier {
     ]) {
       f.dispose();
     }
+    for (final h in <PopoverHandle>[
+      projectAnchor, branchAnchor, newSessionAnchor, threadMenuAnchor, deleteAnchor, plusAnchor,
+      followAnchor, usageAnchor, modelAnchor, thoughtAnchor, modeAnchor,
+    ]) {
+      h.dispose();
+    }
     registry.dispose();
     super.dispose();
   }

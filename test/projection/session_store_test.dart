@@ -407,6 +407,51 @@ void main() {
       expect(msgs[1].messageId, 'msg_u9');
     });
 
+    test('回显内容对不上、又**没带** messageId：照样另起一条，不并进用户那条（审查 P2）', () {
+      final s = newStore();
+      s.startTurn(<ContentBlockWire>[text('hi')]);
+      s.applyUpdateJson(chunk('user_message_chunk', '（agent 改写过的 prompt）'));
+      final msgs = s.entries.whereType<MessageEntry>().toList();
+      expect(msgs, hasLength(2));
+      expect(msgs[0].optimistic, isTrue);
+      expect(msgs[0].text, 'hi'); // 修前：两边 messageId 都是 null，改写文本被并进这条成了 'hi（agent 改写过的 prompt）'
+      expect(msgs[1].optimistic, isFalse);
+      expect(msgs[1].messageId, isNull);
+      expect(msgs[1].text, '（agent 改写过的 prompt）');
+      // 后续 chunk 跟进新起的那条，不再另开。
+      s.applyUpdateJson(chunk('user_message_chunk', ' 补一句'));
+      final after = s.entries.whereType<MessageEntry>().toList();
+      expect(after, hasLength(2));
+      expect(after[1].text, '（agent 改写过的 prompt） 补一句');
+    });
+
+    test('回显后先来了 thought / 工具卡，agent 再回显同一批块：照样去重（审查 P2）', () {
+      final s = newStore();
+      s.startTurn(<ContentBlockWire>[text('看一眼 ')]);
+      // 修前：去重只看 `list.last`，这两条一插进来就失效、同一句话出两遍。
+      s.applyUpdateJson(chunk('agent_thought_chunk', '想一想'));
+      s.applyUpdateJson(tool('t1', title: 'Read', status: 'pending'));
+      s.applyUpdateJson(chunk('user_message_chunk', '看一眼 ', messageId: 'msg_u1'));
+      final msgs = s.entries.whereType<MessageEntry>().toList();
+      expect(msgs, hasLength(1));
+      expect(msgs.single.optimistic, isTrue);
+      expect(msgs.single.messageId, 'msg_u1'); // 认领回来
+    });
+
+    test('上一轮的回显不能拿来给这一轮去重：两轮发同一句话都要在（审查 P2）', () {
+      final s = newStore();
+      s.startTurn(<ContentBlockWire>[text('再来一遍')]);
+      s.endTurn(stopReason: 'end_turn');
+      s.startTurn(<ContentBlockWire>[text('再来一遍')]);
+      // 本轮的回显与上一轮文字一样；`_openEcho` 扫到轮边界就停，只会命中本轮这条。
+      s.applyUpdateJson(chunk('user_message_chunk', '再来一遍', messageId: 'msg_u2'));
+      final msgs = s.entries.whereType<MessageEntry>().toList();
+      expect(msgs, hasLength(2));
+      expect(msgs[0].messageId, isNull); // 上一轮的没被认领
+      expect(msgs[1].messageId, 'msg_u2');
+      expect(msgs[1].blocks, hasLength(1)); // 没出第二遍
+    });
+
     test('Restore 连本地回显一起截断，重发时再回显一次', () {
       final s = newStore();
       final t1 = s.startTurn(<ContentBlockWire>[text('hi')]);

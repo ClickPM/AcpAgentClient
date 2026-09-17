@@ -308,6 +308,18 @@ class SessionStore extends ChangeNotifier {
     return a == b;
   }
 
+  /// 本轮的本地回显（§ 7 第 8 条）：从末尾回头找，**遇轮边界就停**。
+  /// 不能只看 `list.last`：回显之后先来 thought / 工具卡 / agent 消息的话，去重就失效、同一条用户消息会出两遍。
+  /// 也不能一直往前扫：上一轮的回显拿来给这一轮去重，用户两轮发同一句话时第二句会被吞掉。
+  static MessageEntry? _openEcho(List<TranscriptEntry> list) {
+    for (var i = list.length - 1; i >= 0; i--) {
+      final e = list[i];
+      if (e is TurnEntry) return null; // 轮边界：`startTurn` 先放它再放回显，扫到这里就是本轮没回显
+      if (e is MessageEntry && e.optimistic && e.role == MessageRole.user) return e;
+    }
+    return null;
+  }
+
   void _appendMessage(MessageRole role, SessionUpdateWire u, JsonMap? meta, DateTime now) {
     final content = u.content;
     if (content == null) return;
@@ -315,22 +327,34 @@ class SessionStore extends ChangeNotifier {
     _ensureParent(parent, now);
     final list = _containerFor(parent);
     final last = list.isEmpty ? null : list.last;
-    // § 7 第 8 条：`session/prompt` 发出时已经本地回显过这批块，会回显的 agent（pi / dsh / codex 的重放）
-    // 把同一批块再发一遍时按块内容去重，并把协议 messageId 认领到本地那条上（照 Zed acp_thread.rs）。
-    if (role == MessageRole.user && last is MessageEntry && last.optimistic && last.role == role && _canMergeMessage(last.messageId, u.messageId)) {
-      if (last.blocks.any((b) => _sameJson(b.json, content.json))) {
-        last.messageId ??= u.messageId;
-        return;
+    if (role == MessageRole.user) {
+      // § 7 第 8 条：`session/prompt` 发出时已经本地回显过这批块，会回显的 agent（pi / dsh / codex 的重放）
+      // 把同一批块再发一遍时按块内容去重，并把协议 messageId 认领到本地那条上（照 Zed acp_thread.rs）。
+      final echo = _openEcho(list);
+      if (echo != null) {
+        if (_canMergeMessage(echo.messageId, u.messageId) && echo.blocks.any((b) => _sameJson(b.json, content.json))) {
+          echo.messageId ??= u.messageId;
+          return;
+        }
+        // 已经认领了同一个 messageId：确实是同一条消息的新块（agent 回显完还继续发），照常并进来。
+        if (echo.messageId != null && echo.messageId == u.messageId) {
+          echo.blocks.add(content);
+          echo.updatedAt = now;
+          return;
+        }
+        // 内容对不上、messageId 也对不上（含两边都空）：agent 改写过 prompt，**无论带不带 messageId** 都另起一条。
+        // 不能落到下面的角色连续合并：两边 messageId 都是 null 时 `_sameMessage` 为真，会把改写后的文本
+        // 并进用户自己发出去的那条气泡里（审查 P2）。后续 chunk 由下面的合并跟进新起的那条。
+        if (identical(last, echo)) {
+          final entry = MessageEntry(id: _newId('msg'), at: now, role: role, messageId: u.messageId, parentToolCallId: parent);
+          entry.blocks.add(content);
+          _place(entry, now);
+          return;
+        }
       }
     }
-    // 本地回显那条还没认领 messageId，而这条 chunk 带了 id：不是同一条（内容对不上才会走到这里），另起一条。
-    if (role == MessageRole.user && last is MessageEntry && last.optimistic && last.messageId == null && u.messageId != null) {
-      final entry = MessageEntry(id: _newId('msg'), at: now, role: role, messageId: u.messageId, parentToolCallId: parent);
-      entry.blocks.add(content);
-      _place(entry, now);
-      return;
-    }
-    if (last is MessageEntry && last.role == role && _sameMessage(last.messageId, u.messageId)) {
+    // 本地回显那条不走角色连续合并（上面已经把它的两种去处全接走了，这里把不变量写在本地）。
+    if (last is MessageEntry && !last.optimistic && last.role == role && _sameMessage(last.messageId, u.messageId)) {
       last.blocks.add(content);
       last.updatedAt = now;
       return;

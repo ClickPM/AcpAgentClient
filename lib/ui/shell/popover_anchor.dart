@@ -66,6 +66,9 @@ class PopoverHandle {
     onDismiss?.call();
   }
 
+  /// 组合根持有句柄，释放时调一次（审查 P3：`_visible` 是 `ValueNotifier`，不释放就一直活到进程结束）。
+  void dispose() => _visible.dispose();
+
   void toggle(WidgetBuilder builder, {Alignment targetAnchor = Alignment.bottomLeft, Alignment followerAnchor = Alignment.topLeft}) {
     if (isShowing) {
       hide();

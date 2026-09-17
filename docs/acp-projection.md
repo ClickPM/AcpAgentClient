@@ -149,7 +149,7 @@ design.md § 4 定的声明集（照抄 Zed 的 `client_capabilities_for_agent`�
 5. **终端释放后的输出留存**。见 § 4。
 6. **思考块的折叠单元**。`agent_thought_chunk` 是纯流，没有「一段思考」的边界，折叠 / 展开的分段规则由客户端定。
 7. **每轮的边界**。`session/prompt` 的请求与响应之间是一轮，但流里没有「轮开始 / 轮结束」标记；轮的归属靠客户端按请求生命周期自己切。
-8. **用户消息的本地回显**。`session/prompt` 的入参里就带着用户发出去的那批内容块，但**没有哪个 agent 在实时一轮里把它回显成 `user_message_chunk`**：钉版本的 claude-agent-acp / codex-acp / pi-acp / dsh-acp-interactive 四家的发射点全在 `session/load` 的历史重放里（§ 9.1 已更正）。客户端必须在发 `session/prompt` 时自己把这批块落成用户气泡，否则转录里只有轮边界、没有用户消息。重放（或将来有 agent 实时回显）时同一批块会再来一遍，按块内容去重、并把协议 `messageId` 认领到本地那条上——照 Zed `acp_thread.rs` 的 `handle_session_update`。
+8. **用户消息的本地回显**。`session/prompt` 的入参里就带着用户发出去的那批内容块，但**没有哪个 agent 在实时一轮里把它回显成 `user_message_chunk`**：钉版本的 claude-agent-acp / codex-acp / pi-acp / dsh-acp-interactive 四家的发射点全在 `session/load` 的历史重放里（§ 9.1 已更正）。客户端必须在发 `session/prompt` 时自己把这批块落成用户气泡，否则转录里只有轮边界、没有用户消息。重放（或将来有 agent 实时回显）时同一批块会再来一遍，按块内容去重、并把协议 `messageId` 认领到本地那条上——照 Zed `acp_thread.rs` 的 `handle_session_update`。去重的查找范围是**本轮**：从尾部回头找到轮边界为止（回显之后可能已经隔着 thought / 工具卡 / agent 消息，只看最后一条会漏；扫过轮边界则会把用户两轮发的同一句话吞掉第二句）。内容对不上、`messageId` 也对不上时（agent 改写过 prompt）**无论带不带 id** 都另起一条，本地回显那条不参与角色连续合并（否则会把改写后的文本写进用户自己发出去的那条）。
 
 ## 8. 容错与丢失风险
 
