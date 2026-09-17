@@ -324,11 +324,14 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         ),
       );
     }
-    return CenteredContent(
+    // 状态条照旧夹到内容列宽，转录区自己铺满整块面板：滚动命中区要含左右留白，
+    // 不然鼠标在两侧滚滚轮滚不动（内容仍由 TranscriptList 居中到同一列宽）。
+    return Padding(
+      padding: const EdgeInsets.only(top: t.Spacing.s16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          ..._stateBars(),
+          ..._stateBars().map((Widget bar) => ContentWidth(child: bar)),
           Expanded(
             child: TranscriptList(
               store,

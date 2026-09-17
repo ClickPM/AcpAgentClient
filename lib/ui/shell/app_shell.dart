@@ -152,11 +152,24 @@ class CenteredContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(top: t.Spacing.s16),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: t.Geometry.contentMaxWidth),
-          child: child,
-        ),
+      child: ContentWidth(child: child),
+    );
+  }
+}
+
+/// 居中的最大宽度列（画板 02 / 03 的内容列宽），不带外边距。
+/// 注意：滚动区不要套这个——套了留白就不在滚动命中区里，滚轮在两侧滚不动（`TranscriptList` 自己按内边距居中）。
+class ContentWidth extends StatelessWidget {
+  const ContentWidth({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: t.Geometry.contentMaxWidth),
+        child: child,
       ),
     );
   }

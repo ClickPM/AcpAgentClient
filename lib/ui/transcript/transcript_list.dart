@@ -2,6 +2,8 @@
 // 跨消息文本选择用 SelectableRegion。轮边界 → 检查点分隔线（10），轮结束 → 结束行（31）；
 // 工具调用按内容分发：子代理（24）> 终端（22 / 23）> diff（21）> 标准卡（18 / 19 / 20）。
 
+import 'dart:math' as math;
+
 import 'package:flutter/rendering.dart' show SelectedContent;
 import 'package:flutter/widgets.dart';
 
@@ -109,14 +111,21 @@ class TranscriptList extends StatelessWidget {
         return SelectableRegion(
           selectionControls: emptyTextSelectionControls,
           onSelectionChanged: onSelectionChanged,
-          child: ListView.builder(
-            controller: controller,
-            padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s24, vertical: t.Spacing.s16),
-            itemCount: rows.length,
-            itemBuilder: (context, i) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: t.Spacing.s4),
-              child: buildRow(rows[i]),
-            ),
+          // 滚动区铺满整块面板（左右留白里滚滚轮也要能滚），内容列靠内边距居中到 contentMaxWidth——
+          // 不能用 ConstrainedBox 把 ListView 自己夹到 800，那样留白不在滚动命中区里。
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final gutter = constraints.hasBoundedWidth ? math.max(0.0, (constraints.maxWidth - t.Geometry.contentMaxWidth) / 2) : 0.0;
+              return ListView.builder(
+                controller: controller,
+                padding: EdgeInsets.fromLTRB(gutter + t.Spacing.s24, t.Spacing.s16, gutter + t.Spacing.s24, t.Spacing.s16),
+                itemCount: rows.length,
+                itemBuilder: (context, i) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: t.Spacing.s4),
+                  child: buildRow(rows[i]),
+                ),
+              );
+            },
           ),
         );
       },

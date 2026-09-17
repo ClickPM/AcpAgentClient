@@ -143,8 +143,11 @@ TrafficStore _traffic(List<String> files, {required String agentId}) {
   return store;
 }
 
-/// 转录列表（整窗画板里）：与真实壳同一条装配路径。
-Widget _transcript(FixtureReplay r) => CenteredContent(child: TranscriptList(r.session, agentName: _agentName(r)));
+/// 转录列表（整窗画板里）：与真实壳同一条装配路径（滚动区铺满面板宽，内容由 TranscriptList 自己居中）。
+Widget _transcript(FixtureReplay r) => Padding(
+      padding: const EdgeInsets.only(top: t.Spacing.s16),
+      child: TranscriptList(r.session, agentName: _agentName(r)),
+    );
 
 /// 整窗画板：`SelectableRegion` 与 `EditableText` 需要 Overlay 祖先（真实应用由 `MaterialApp` 提供）。
 GalleryBoard _window(String id, String title, WidgetBuilder build) => GalleryBoard(
