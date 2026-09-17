@@ -144,7 +144,7 @@
 | 依赖闭包 | debug 约 730 个 crate、release 约 910 个（`cargo build` 的 `Compiling` 行计数） |
 | 冷编译（debug，含依赖） | 首次 ~50 min（含三次失败重来，见下）；依赖齐了之后改自己代码 40 s |
 | 冷编译（release，含依赖） | 依赖 ~35 min + 自己这一个 crate 连链接 16.5 min（`lto = "thin"` + `codegen-units = 1`） |
-| 产物 | debug 276 MB / **release 176.6 MB**（随包分发的是 release） |
+| 产物 | debug 276 MB / **release 176.7 MB**（随包分发的是 release；这一份是 4 轮审查整改全部落地之后重编的，`--selftest` 退出码 0 / `models: 14`，与 `build/sidecar/` 里的产物同源） |
 | `CARGO_TARGET_DIR` 占用 | 55.9 GB（debug 47.5 + release 8.4）—— 与主程序的 target 目录分开（`D:\cargo-target\AcpAgentClient-sidecar`） |
 | `cargo tree 无 gpui (规则 5)` | `validate.ps1` PASS —— 主进程 `acp_bridge` 的依赖闭包里没有 gpui |
 | `--selftest` | 退出码 0：`settings: C:\Users\Click\AppData\Roaming\Zed\settings.json` / `models: 14` |
