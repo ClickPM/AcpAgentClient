@@ -1,6 +1,7 @@
 //! 窗口 UI 状态（docs/design.md § 10）：`%APPDATA%/AcpAgentClient/ui-state.json`。
 //!
-//! 只存机器态——目前是两栏被拖出来的宽度（画板 04 的分栏把手，所有者裁定 2026-09-16）。
+//! 只存机器态——两栏被拖出来的宽度（画板 04 的分栏把手，所有者裁定 2026-09-16）与文件面板树列的宽度 / 收起态
+//! （画板 60，所有者裁定 2026-09-17）。
 //! 不进 `settings.json`：那份是用户手写的配置（`agent_servers` 与 Zed 同形），不该被窗口操作改写。
 //! 走「临时文件 + rename」（CLAUDE.md 规则 7）；读不动 / 不是合法 JSON 时按缺省，不挡启动。
 //!
@@ -20,6 +21,10 @@ pub struct UiState {
     pub sidebar_width: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub right_panel_width: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub files_tree_width: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub files_tree_collapsed: Option<bool>,
 }
 
 /// 非有限数与非正数一律丢掉：宁可回落到 token，也不把 NaN 写进文件。
@@ -42,7 +47,12 @@ impl UiStateStore {
             .ok()
             .and_then(|text| serde_json::from_str(&text).ok())
             .unwrap_or_default();
-        UiState { sidebar_width: sane(state.sidebar_width), right_panel_width: sane(state.right_panel_width) }
+        UiState {
+            sidebar_width: sane(state.sidebar_width),
+            right_panel_width: sane(state.right_panel_width),
+            files_tree_width: sane(state.files_tree_width),
+            files_tree_collapsed: state.files_tree_collapsed,
+        }
     }
 
     /// 合并写：只覆盖 `patch` 里给到的字段，没给的保留原值。返回落盘后的全量状态。
@@ -53,6 +63,12 @@ impl UiStateStore {
         }
         if let Some(width) = sane(patch.right_panel_width) {
             state.right_panel_width = Some(width);
+        }
+        if let Some(width) = sane(patch.files_tree_width) {
+            state.files_tree_width = Some(width);
+        }
+        if let Some(collapsed) = patch.files_tree_collapsed {
+            state.files_tree_collapsed = Some(collapsed);
         }
         let text = serde_json::to_string_pretty(&state).map_err(|e| SettingsError::Json(e.to_string()))?;
         write_atomic(&self.path, text.as_bytes())?;
@@ -80,10 +96,13 @@ mod tests {
     #[test]
     fn merge_keeps_the_field_that_was_not_given() {
         let store = store("merge");
-        store.merge(UiState { sidebar_width: Some(320.0), right_panel_width: None }).expect("merge");
-        let state = store.merge(UiState { sidebar_width: None, right_panel_width: Some(640.0) }).expect("merge");
+        store.merge(UiState { sidebar_width: Some(320.0), ..UiState::default() }).expect("merge");
+        let state = store.merge(UiState { right_panel_width: Some(640.0), ..UiState::default() }).expect("merge");
         assert_eq!(state.sidebar_width, Some(320.0));
         assert_eq!(state.right_panel_width, Some(640.0));
+        let state = store.merge(UiState { files_tree_collapsed: Some(true), ..UiState::default() }).expect("merge");
+        assert_eq!(state.sidebar_width, Some(320.0));
+        assert_eq!(state.files_tree_collapsed, Some(true));
         assert_eq!(store.load(), state);
     }
 
@@ -92,16 +111,22 @@ mod tests {
         let store = store("corrupt");
         std::fs::write(&store.path, b"{ not json").expect("write");
         assert_eq!(store.load(), UiState::default());
-        let state = store.merge(UiState { sidebar_width: Some(300.0), right_panel_width: None }).expect("merge");
+        let state = store.merge(UiState { sidebar_width: Some(300.0), ..UiState::default() }).expect("merge");
         assert_eq!(state.sidebar_width, Some(300.0));
     }
 
     #[test]
     fn nonsense_widths_are_dropped_not_written() {
         let store = store("nonsense");
-        let state = store.merge(UiState { sidebar_width: Some(f64::NAN), right_panel_width: Some(-1.0) }).expect("merge");
-        assert_eq!(state, UiState::default());
-        std::fs::write(&store.path, br#"{"sidebarWidth": 0, "rightPanelWidth": 1e400}"#).expect("write");
+        let patch = UiState {
+            sidebar_width: Some(f64::NAN),
+            right_panel_width: Some(-1.0),
+            files_tree_width: Some(0.0),
+            ..UiState::default()
+        };
+        assert_eq!(store.merge(patch).expect("merge"), UiState::default());
+        let junk = br#"{"sidebarWidth": 0, "rightPanelWidth": 1e400, "filesTreeWidth": -3}"#;
+        std::fs::write(&store.path, junk).expect("write");
         assert_eq!(store.load(), UiState::default());
     }
 }

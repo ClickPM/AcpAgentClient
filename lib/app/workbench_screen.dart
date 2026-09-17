@@ -725,13 +725,18 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         viewMode: f.viewMode,
         highlightLine: f.highlightLine,
         onToggleSearch: f.toggleSearch,
-        onCollapseAll: f.collapseAll,
         onRefresh: f.refresh,
         onFilterChanged: f.onFilterChanged,
         onOpen: f.open,
         onToggleDir: f.toggleDir,
         onViewMode: f.setViewMode,
         onLink: _openLink,
+        treeWidth: c.filesTreeWidth,
+        treeCollapsed: c.filesTreeCollapsed,
+        onToggleTree: c.toggleFilesTree,
+        onResizeTree: c.resizeFilesTree,
+        onResizeTreeEnd: c.saveUiState,
+        onResetTreeWidth: c.resetFilesTreeWidth,
       );
     }
     return null;

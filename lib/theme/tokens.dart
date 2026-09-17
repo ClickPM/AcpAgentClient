@@ -378,6 +378,13 @@ abstract final class Geometry {
   /// 60：右栏里文件树那一列的宽度。
   static const double filesTreeWidth = 240;
 
+  /// 60：树列宽度的可拖范围（面板内的分栏把手）；双击复位到 [filesTreeWidth]。
+  static const double filesTreeMinWidth = 160;
+  static const double filesTreeMaxWidth = 480;
+
+  /// 60：树列怎么拖都要给查看器留下的宽度（右栏本身可以拖到 [rightPanelMinWidth]）。
+  static const double filesViewerMinWidth = 240;
+
   /// 60 / 61：面板内的头行（树列的「文件浏览器」标签行、终端的状态行）。
   static const double panelHeaderHeight = 28;
 
@@ -427,4 +434,8 @@ abstract final class Geometry {
   static const double settingsContentWidth = 860;
   static const double settingsLabelWidth = 160;
   static const double settingsFieldLabelWidth = 56;
+
+  /// 70：设置行（标签列 + 值 + 尾部按钮）排得下的最窄宽度。设置现在是右栏的一个标签，
+  /// 而右栏能拖到 [rightPanelMinWidth]（360）——比这还窄就整块横向滚，行不会被挤溢出。
+  static const double settingsMinWidth = 420;
 }

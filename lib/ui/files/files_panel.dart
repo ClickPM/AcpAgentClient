@@ -3,6 +3,8 @@
 // Preview（Markdown，R1.5 裁定的 package:markdown 自写渲染）或 Source（re_highlight 高亮 + 行号，可高亮并滚到某一行）；空态）。
 // 查看器头行取画板 03（2026-09-16 改稿后）的 36 高，树列宽取画板 60 的 240；数据全部由调用方给（树模型 file_tree.dart、
 // 内容 [FileViewerData]），接线阶段只换数据源（CLAUDE.md 规则 3）。
+// 树列宽可拖（复用画板 04 的分栏把手 [ColumnSplitter]），头行那个「缩小」按钮收起整列、只留查看器——收起后由查看器头行
+// 左侧的按钮放回来（所有者裁定 2026-09-17；原先那个按钮是「全部折叠」，换成收起列后 [FileTree.collapseAll] 不再有入口）。
 
 import 'dart:math' as math;
 
@@ -11,6 +13,7 @@ import 'package:flutter/widgets.dart';
 
 import '../../theme/tokens.dart' as t;
 import '../shell/shell_common.dart';
+import '../shell/splitter.dart';
 import '../transcript/card_chrome.dart';
 import '../transcript/code_block.dart';
 import '../transcript/icons.dart';
@@ -167,7 +170,6 @@ class FilesPanel extends StatelessWidget {
     this.viewMode = FileViewMode.preview,
     this.highlightLine,
     this.onToggleSearch,
-    this.onCollapseAll,
     this.onRefresh,
     this.onFilterChanged,
     this.onOpen,
@@ -175,6 +177,11 @@ class FilesPanel extends StatelessWidget {
     this.onViewMode,
     this.onLink,
     this.treeWidth = t.Geometry.filesTreeWidth,
+    this.treeCollapsed = false,
+    this.onToggleTree,
+    this.onResizeTree,
+    this.onResizeTreeEnd,
+    this.onResetTreeWidth,
     this.hoveredPath,
   });
 
@@ -192,7 +199,6 @@ class FilesPanel extends StatelessWidget {
   /// Source 视图里要高亮并滚到的行（1-based；定位动作给）。
   final int? highlightLine;
   final VoidCallback? onToggleSearch;
-  final VoidCallback? onCollapseAll;
   final VoidCallback? onRefresh;
   final ValueChanged<String>? onFilterChanged;
 
@@ -203,38 +209,103 @@ class FilesPanel extends StatelessWidget {
   final void Function(String href)? onLink;
   final double treeWidth;
 
+  /// 树列已收起：只剩查看器，放回来的按钮在查看器头行左侧。
+  final bool treeCollapsed;
+
+  /// 收起 / 放回（同一个动作，树列头行的「缩小」与查看器头行的按钮共用）。
+  final VoidCallback? onToggleTree;
+
+  /// 拖树列宽度的增量（逻辑像素，向右为正）；`null` = 不给把手（gallery 画板）。夹取与落盘是调用方的事。
+  final ValueChanged<double>? onResizeTree;
+  final VoidCallback? onResizeTreeEnd;
+  final VoidCallback? onResetTreeWidth;
+
   /// gallery：预先呈现某一行的悬浮态。
   final String? hoveredPath;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        SizedBox(
-          width: treeWidth,
-          child: FileTreeColumn(
-            tree: tree,
-            filterController: filterController,
-            filterFocusNode: filterFocusNode,
-            searchMode: searchMode,
-            searchResults: searchResults,
-            selectedPath: selectedPath,
-            onToggleSearch: onToggleSearch,
-            onCollapseAll: onCollapseAll,
-            onRefresh: onRefresh,
-            onFilterChanged: onFilterChanged,
-            onOpen: onOpen,
-            onToggleDir: onToggleDir,
-            hoveredPath: hoveredPath,
+    if (treeCollapsed) return _viewer(leading: _restoreButton());
+    return LayoutBuilder(builder: (context, constraints) {
+      final double width = _fitTreeWidth(constraints.maxWidth);
+      // 把手叠在树列右边框上、不占布局（同 AppShell：占了布局，分栏线宽度就和画板对不上了）。
+      const double half = t.Geometry.splitterHit / 2;
+      return Stack(
+        children: <Widget>[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              SizedBox(
+                width: width,
+                child: FileTreeColumn(
+                  tree: tree,
+                  filterController: filterController,
+                  filterFocusNode: filterFocusNode,
+                  searchMode: searchMode,
+                  searchResults: searchResults,
+                  selectedPath: selectedPath,
+                  onToggleSearch: onToggleSearch,
+                  onCollapseTree: onToggleTree,
+                  onRefresh: onRefresh,
+                  onFilterChanged: onFilterChanged,
+                  onOpen: onOpen,
+                  onToggleDir: onToggleDir,
+                  hoveredPath: hoveredPath,
+                ),
+              ),
+              Expanded(child: _viewer()),
+            ],
           ),
-        ),
-        Expanded(
-          child: viewer == null
-              ? const FileViewerEmpty()
-              : FileViewer(viewer!, mode: viewMode, highlightLine: highlightLine, onViewMode: onViewMode, onLink: onLink),
-        ),
-      ],
+          if (onResizeTree != null)
+            Positioned(
+              left: width - half,
+              top: 0,
+              bottom: 0,
+              width: t.Geometry.splitterHit,
+              child: ColumnSplitter(onDelta: onResizeTree!, onDragEnd: onResizeTreeEnd, onReset: onResetTreeWidth),
+            ),
+        ],
+      );
+    });
+  }
+
+  /// 面板被拖窄时先压树列：查看器无论如何留 [t.Geometry.filesViewerMinWidth]，树列不低于自己的下限。
+  double _fitTreeWidth(double available) {
+    if (!available.isFinite) return treeWidth;
+    return math.min(treeWidth, math.max(t.Geometry.filesTreeMinWidth, available - t.Geometry.filesViewerMinWidth));
+  }
+
+  Widget? _restoreButton() => onToggleTree == null ? null : PanelIconButton(icon: AcpIcons.panelLeft, onTap: onToggleTree);
+
+  /// 右半边：查看器（或空态）。[leading] 是树列收起时「放回来」的按钮，空态也得给得到，
+  /// 不然树一收起就再也点不回来。
+  Widget _viewer({Widget? leading}) {
+    if (viewer != null) {
+      return FileViewer(
+        viewer!,
+        mode: viewMode,
+        highlightLine: highlightLine,
+        onViewMode: onViewMode,
+        onLink: onLink,
+        leading: leading,
+      );
+    }
+    if (leading == null) return const FileViewerEmpty();
+    return Container(
+      color: t.Surface.canvas,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Container(
+            height: t.Geometry.barHeight,
+            padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s8),
+            decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+            alignment: Alignment.centerLeft,
+            child: leading,
+          ),
+          const Expanded(child: FileViewerEmpty()),
+        ],
+      ),
     );
   }
 }
@@ -250,7 +321,7 @@ class FileTreeColumn extends StatelessWidget {
     this.searchResults = const <FileEntry>[],
     this.selectedPath,
     this.onToggleSearch,
-    this.onCollapseAll,
+    this.onCollapseTree,
     this.onRefresh,
     this.onFilterChanged,
     this.onOpen,
@@ -265,7 +336,7 @@ class FileTreeColumn extends StatelessWidget {
   final List<FileEntry> searchResults;
   final String? selectedPath;
   final VoidCallback? onToggleSearch;
-  final VoidCallback? onCollapseAll;
+  final VoidCallback? onCollapseTree;
   final VoidCallback? onRefresh;
   final ValueChanged<String>? onFilterChanged;
   final ValueChanged<FileEntry>? onOpen;
@@ -297,7 +368,7 @@ class FileTreeColumn extends StatelessWidget {
           children: <Widget>[
             const Expanded(child: Text('文件浏览器', style: t.TextStyles.label, maxLines: 1, overflow: TextOverflow.ellipsis)),
             PanelIconButton(icon: AcpIcons.search, selected: searchMode, onTap: onToggleSearch),
-            PanelIconButton(icon: AcpIcons.collapseAll, onTap: onCollapseAll),
+            PanelIconButton(icon: AcpIcons.collapseAll, onTap: onCollapseTree),
             PanelIconButton(icon: AcpIcons.rotateCw, onTap: onRefresh),
           ],
         ),
@@ -562,13 +633,24 @@ class SegmentedToggle extends StatelessWidget {
 
 /// 查看器：头行 + 正文。
 class FileViewer extends StatelessWidget {
-  const FileViewer(this.data, {super.key, this.mode = FileViewMode.preview, this.highlightLine, this.onViewMode, this.onLink});
+  const FileViewer(
+    this.data, {
+    super.key,
+    this.mode = FileViewMode.preview,
+    this.highlightLine,
+    this.onViewMode,
+    this.onLink,
+    this.leading,
+  });
 
   final FileViewerData data;
   final FileViewMode mode;
   final int? highlightLine;
   final ValueChanged<FileViewMode>? onViewMode;
   final void Function(String href)? onLink;
+
+  /// 头行最左的附加按钮（树列收起时的「放回来」）。
+  final Widget? leading;
 
   Future<void> _copy() => Clipboard.setData(ClipboardData(text: data.text));
 
@@ -582,10 +664,11 @@ class FileViewer extends StatelessWidget {
         children: <Widget>[
           Container(
             height: t.Geometry.barHeight,
-            padding: const EdgeInsets.only(left: t.Spacing.s12, right: t.Spacing.s8),
+            padding: EdgeInsets.only(left: leading == null ? t.Spacing.s12 : t.Spacing.s8, right: t.Spacing.s8),
             decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
             child: Row(
               children: <Widget>[
+                if (leading != null) ...<Widget>[leading!, const SizedBox(width: t.Spacing.s8)],
                 // 文件名优先占满自然宽度、路径吃余量（画板：两者 min-width:0 + ellipsis，右侧那组贴右）。
                 // 右栏 580 宽时查看器只剩 340，路径先被省略、文件名尽量保全。
                 Flexible(

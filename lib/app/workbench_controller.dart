@@ -93,6 +93,10 @@ class WorkbenchController extends ChangeNotifier {
   /// 两栏宽度（画板 04 的分栏把手）：启动时从 `ui-state.json` 读回，没存过就是画板缺省。
   double sidebarWidth = t.Geometry.sidebarWidth;
   double rightPanelWidth = t.Geometry.rightPanelWidth;
+
+  /// 文件面板（画板 60）里树列的宽度与收起态：同样记在 `ui-state.json`（所有者裁定 2026-09-17）。
+  double filesTreeWidth = t.Geometry.filesTreeWidth;
+  bool filesTreeCollapsed = false;
   final List<ShellTab> openTabs = <ShellTab>[];
   ShellTab? rightTab;
 
@@ -322,12 +326,17 @@ class WorkbenchController extends ChangeNotifier {
     final state = await b.uiStateGet();
     final side = state['sidebarWidth'];
     final right = state['rightPanelWidth'];
+    final tree = state['filesTreeWidth'];
+    final treeCollapsed = state['filesTreeCollapsed'];
     if (side is num) sidebarWidth = _clampSidebar(side.toDouble());
     if (right is num) rightPanelWidth = _clampRightPanel(right.toDouble());
+    if (tree is num) filesTreeWidth = _clampFilesTree(tree.toDouble());
+    if (treeCollapsed is bool) filesTreeCollapsed = treeCollapsed;
   }
 
   static double _clampSidebar(double w) => w.clamp(t.Geometry.sidebarMinWidth, t.Geometry.sidebarMaxWidth);
   static double _clampRightPanel(double w) => w.clamp(t.Geometry.rightPanelMinWidth, t.Geometry.rightPanelMaxWidth);
+  static double _clampFilesTree(double w) => w.clamp(t.Geometry.filesTreeMinWidth, t.Geometry.filesTreeMaxWidth);
 
   /// 拖拽增量（正 = 变宽）。夹取在这里做，widget 只报位移。
   void resizeSidebar(double delta) {
@@ -358,6 +367,27 @@ class WorkbenchController extends ChangeNotifier {
     saveUiState();
   }
 
+  void resizeFilesTree(double delta) {
+    final next = _clampFilesTree(filesTreeWidth + delta);
+    if (next == filesTreeWidth) return;
+    filesTreeWidth = next;
+    notifyListeners();
+  }
+
+  void resetFilesTreeWidth() {
+    if (filesTreeWidth == t.Geometry.filesTreeWidth) return;
+    filesTreeWidth = t.Geometry.filesTreeWidth;
+    notifyListeners();
+    saveUiState();
+  }
+
+  /// 文件面板头行的「缩小」 / 查看器头行的「放回来」：同一个开关。
+  void toggleFilesTree() {
+    filesTreeCollapsed = !filesTreeCollapsed;
+    notifyListeners();
+    saveUiState();
+  }
+
   /// 松手才落盘：拖拽途中每帧写文件没有意义。
   Future<void> saveUiState() async {
     final b = bridge;
@@ -365,6 +395,8 @@ class WorkbenchController extends ChangeNotifier {
     await _guard(() => b.uiStateSet(<String, dynamic>{
           'sidebarWidth': sidebarWidth,
           'rightPanelWidth': rightPanelWidth,
+          'filesTreeWidth': filesTreeWidth,
+          'filesTreeCollapsed': filesTreeCollapsed,
         }));
   }
 

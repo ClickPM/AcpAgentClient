@@ -640,7 +640,7 @@ impl Core {
         Ok(json!({ "sessions": serde_json::to_value(self.index.upsert_session(entry)?)? }))
     }
 
-    /// 窗口 UI 状态（`ui_state_get`）：目前是两栏被拖出来的宽度。没存过的字段返回 null，
+    /// 窗口 UI 状态（`ui_state_get`）：两栏被拖出来的宽度与文件面板树列的宽度 / 收起态。没存过的字段返回 null，
     /// 缺省宽度与夹取范围都在前端的 token 里，核心不复制一份（docs/design.md § 10）。
     pub fn ui_state_get(&self) -> Result<Value> {
         Ok(serde_json::to_value(self.ui_state.load())?)

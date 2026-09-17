@@ -132,8 +132,6 @@ class FilesState extends ChangeNotifier {
     await refreshBadges();
   }
 
-  void collapseAll() => tree?.collapseAll();
-
   Future<void> toggleDir(FileNode node) async {
     final t = tree;
     if (t == null) return;
