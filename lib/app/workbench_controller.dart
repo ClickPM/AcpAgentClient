@@ -483,10 +483,22 @@ class WorkbenchController extends ChangeNotifier {
     final servers = settings['agent_servers'];
     installedAgents = <AgentRef>[
       if (servers is Map)
-        for (final id in servers.keys.cast<String>())
-          // 名字：registry 型用 registry.json 的展示名（R5），custom 型用 settings 里的键；连上之后线程头再从 agentInfo 取（规则 2）。
-          AgentRef(id: id, name: registry.byId(id)?.name ?? id),
+        for (final entry in servers.entries)
+          // 名字：条目自带的 `name` 优先（R7 的内置 sidecar 用它显示 "Zed Agent"），其次 registry.json 的
+          // 展示名（R5），最后退回 settings 里的键；连上之后线程头再从 agentInfo 取（规则 2）。
+          AgentRef(
+            id: entry.key as String,
+            name: _agentDisplayName(entry.key as String, entry.value),
+          ),
     ];
+  }
+
+  String _agentDisplayName(String id, Object? server) {
+    if (server is Map) {
+      final name = server['name'];
+      if (name is String && name.isNotEmpty) return name;
+    }
+    return registry.byId(id)?.name ?? id;
   }
 
   Future<void> refreshSessionIndex() async {

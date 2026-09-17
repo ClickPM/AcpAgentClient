@@ -40,6 +40,10 @@ try {
     New-Item -ItemType Directory -Force $CargoTargetDir | Out-Null
     $env:CARGO_TARGET_DIR = $CargoTargetDir
     $rust = Join-Path $root "rust"
+    # sidecar/ 是另一个 cargo workspace（R7），但规则 2 / 6 对它一样生效，下面几步一并扫。
+    $sidecar = Join-Path $root "sidecar"
+    $rustRoots = @($rust)
+    if (Test-Path $sidecar) { $rustRoots += $sidecar }
 
     Step "fetch-upstream -Check (规则 4)" {
         & powershell -NoProfile -File (Join-Path $root "scripts\fetch-upstream.ps1") -Check
@@ -55,7 +59,7 @@ try {
     }
 
     Step "unsafe 字面扫描 (规则 6)" {
-        $hits = Get-SourceFiles $rust @("*.rs") |
+        $hits = ($rustRoots | ForEach-Object { Get-SourceFiles $_ @("*.rs") }) |
             Where-Object { $_.Name -ne "frb_generated.rs" } |
             Select-String -Pattern '\bunsafe\b' |
             Where-Object { $_.Line -notmatch '^\s*//' -and $_.Line -notmatch 'unsafe_code' }
@@ -71,13 +75,20 @@ try {
         foreach ($k in $allowed) {
             if ($design -notmatch [regex]::Escape($k)) { throw "allowed key '$k' is not mentioned in docs/design.md" }
         }
-        $keysFile = Join-Path $rust "acp-core\src\meta_keys.rs"
-        $consts = Select-String -Path $keysFile -Pattern 'pub const \w+: &str = "([^"]+)";' | ForEach-Object { $_.Matches[0].Groups[1].Value }
-        foreach ($k in $consts) {
-            if ($allowed -notcontains $k) { throw "meta_keys.rs declares '$k' which is not in docs/design.md § 4" }
+        # 两份 meta_keys.rs：核心一份，sidecar 一份（独立 workspace，依赖不到 acp-core）。
+        $keyFiles = @(Join-Path $rust "acp-core\src\meta_keys.rs")
+        $sidecarKeys = Join-Path $sidecar "zed-agent-acp\src\meta_keys.rs"
+        if (Test-Path $sidecarKeys) { $keyFiles += $sidecarKeys }
+        foreach ($keysFile in $keyFiles) {
+            $consts = Select-String -Path $keysFile -Pattern 'pub const \w+: &str = "([^"]+)";' | ForEach-Object { $_.Matches[0].Groups[1].Value }
+            foreach ($k in $consts) {
+                # terminal_id 是那三个键共有的**字段名**，不是 _meta 的顶层键，不进 § 4 清单。
+                if ($k -eq "terminal_id") { continue }
+                if ($allowed -notcontains $k) { throw "$keysFile declares '$k' which is not in docs/design.md § 4" }
+            }
         }
         # 其他文件里带 _meta 的行不得携带字符串字面量键：键只能来自 meta_keys 常量。
-        $bad = Get-SourceFiles $rust @("*.rs") |
+        $bad = ($rustRoots | ForEach-Object { Get-SourceFiles $_ @("*.rs") }) |
             Where-Object { $_.Name -notin @("meta_keys.rs", "frb_generated.rs") } |
             Select-String -Pattern '_meta' |
             Where-Object { $_.Line -notmatch '^\s*//' -and (($_.Line -replace '"_meta"', '') -match '"[A-Za-z][\w.\-]*"') }

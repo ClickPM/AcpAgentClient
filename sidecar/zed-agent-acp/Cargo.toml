@@ -1,0 +1,147 @@
+# zed-agent-acp：把 Zed 内置 agent（crates/agent 的 NativeAgent）以 ACP agent 角色包成独立进程。
+#
+# 这是一个**独立的 cargo workspace**（不在 rust/ 那个 workspace 里），因为 CLAUDE.md 规则 5 要求
+# gpui 不进主进程：主进程（Flutter 宿主 + rust/bridge cdylib）与本 sidecar 只经 stdio 上的 ACP 通信，
+# 编译期没有任何共享的依赖闭包。
+#
+# 依赖全部指向 vendor/upstream/zed/crates/*（钉版本见 pins/upstream.json，规则 4）。zed 的这些 crate
+# 自己是 vendor/upstream/zed 那个 workspace 的成员，`xxx.workspace = true` 与 `[lints] workspace = true`
+# 仍按它们**所在的** workspace 解析，所以 path 依赖跨 workspace 是成立的；但 `[patch.crates-io]` 与
+# `[profile]` 不跨 workspace 继承，下面按 zed 根 manifest 抄了必要的部分。
+#
+# agent-client-protocol 用 **crates.io `=2.0.0`**，与 zed 钉版本声明的完全一致（CLAUDE.md 规则 10）。
+# 不能用 rust/ 那边的 git rev（2.1.0）：git 源与 crates.io 源即使版本相同也是两份 crate，`acp::` 类型
+# 会和 zed 的对不上；而 zed 写死 `=2.0.0`，patch 成 2.1.0 也不满足。sidecar 与主进程是两个进程，
+# 线上只要都是 ACP v1 即可。
+
+[workspace]
+resolver = "3"
+members = ["."]
+
+[package]
+name = "zed-agent-acp"
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.98"
+license = "GPL-3.0-or-later"
+publish = false
+
+[[bin]]
+name = "zed-agent-acp"
+path = "src/main.rs"
+
+[lints.rust]
+# CLAUDE.md 规则 6：Rust 禁 unsafe。
+unsafe_code = "deny"
+unexpected_cfgs = { level = "allow" }
+# MSVC 链接时 tree-sitter 与 wasmtime 的 C API 有一批 LNK4217 重复符号导入警告（zed 本体同样有），
+# rustc 会把 linker stdout 当 linker_messages 警告转发；与 rust/Cargo.toml 同样放行。
+linker_messages = "allow"
+
+[lints.clippy]
+todo = "deny"
+unimplemented = "deny"
+
+[dependencies]
+# ACP：agent 角色。features 与 zed 钉版本对齐（规则 10），不开 unstable_protocol_v2。
+agent-client-protocol = { version = "=2.0.0", features = ["unstable"] }
+
+# Zed 复用池（规则 5：只在 sidecar 里，允许含 gpui）。清单照 vendor/upstream/zed/crates/eval_cli/Cargo.toml。
+acp_thread = { path = "../../vendor/upstream/zed/crates/acp_thread" }
+agent = { path = "../../vendor/upstream/zed/crates/agent" }
+agent_settings = { path = "../../vendor/upstream/zed/crates/agent_settings" }
+agent_ui = { path = "../../vendor/upstream/zed/crates/agent_ui" }
+client = { path = "../../vendor/upstream/zed/crates/client" }
+db = { path = "../../vendor/upstream/zed/crates/db" }
+debug_adapter_extension = { path = "../../vendor/upstream/zed/crates/debug_adapter_extension" }
+extension = { path = "../../vendor/upstream/zed/crates/extension" }
+feature_flags = { path = "../../vendor/upstream/zed/crates/feature_flags" }
+fs = { path = "../../vendor/upstream/zed/crates/fs" }
+gpui = { path = "../../vendor/upstream/zed/crates/gpui" }
+gpui_platform = { path = "../../vendor/upstream/zed/crates/gpui_platform" }
+gpui_tokio = { path = "../../vendor/upstream/zed/crates/gpui_tokio" }
+language = { path = "../../vendor/upstream/zed/crates/language" }
+language_extension = { path = "../../vendor/upstream/zed/crates/language_extension" }
+language_model = { path = "../../vendor/upstream/zed/crates/language_model" }
+language_models = { path = "../../vendor/upstream/zed/crates/language_models" }
+# `languages`（语法包 + 各语言的 LSP 适配）**没有**进来，与 eval_cli 的清单在这一处不同。
+# 原因是构建环境而不是取舍：它唯一地依赖 `pet`（python-environment-tools），而 `pet` 打开了
+# `msvc_spectre_libs` 的 `error` 特性 —— 本机 VS 2022 BuildTools 没装「Spectre 缓解库」组件，
+# 那个 build.rs 就直接 panic（R7 实测：`No spectre-mitigated libs were found`）。
+# 代价：`LanguageRegistry` 是空的，靠语法树的工具（read_file 的 outline 模式、跳转类工具）会退化成
+# 纯文本；编辑、终端、grep、权限这些不受影响。装上那个 VS 组件后，把下面这行取消注释即可恢复。
+# languages = { path = "../../vendor/upstream/zed/crates/languages", features = ["load-grammars"] }
+node_runtime = { path = "../../vendor/upstream/zed/crates/node_runtime" }
+paths = { path = "../../vendor/upstream/zed/crates/paths" }
+project = { path = "../../vendor/upstream/zed/crates/project" }
+prompt_store = { path = "../../vendor/upstream/zed/crates/prompt_store" }
+release_channel = { path = "../../vendor/upstream/zed/crates/release_channel" }
+reqwest_client = { path = "../../vendor/upstream/zed/crates/reqwest_client" }
+settings = { path = "../../vendor/upstream/zed/crates/settings" }
+terminal = { path = "../../vendor/upstream/zed/crates/terminal" }
+terminal_view = { path = "../../vendor/upstream/zed/crates/terminal_view" }
+theme = { path = "../../vendor/upstream/zed/crates/theme" }
+theme_settings = { path = "../../vendor/upstream/zed/crates/theme_settings" }
+# `debug-embed`：zed 的 `util::fs_embed!` 在 debug 构建里默认**不**内嵌资源，而是运行时从「可执行文件
+# 向上第一个带 .git 的祖先目录」读 `assets/`。sidecar 的产物在 CARGO_TARGET_DIR（仓库之外），找不到
+# 那个根，`settings/default.json` 直接 panic（R7 实测）。打开这个特性让 debug 也内嵌，与 release 一致。
+util = { path = "../../vendor/upstream/zed/crates/util", features = ["debug-embed"] }
+watch = { path = "../../vendor/upstream/zed/crates/watch" }
+
+anyhow = "1"
+env_logger = "0.11"
+futures = "0.3"
+log = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+shellexpand = "3"
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "macros", "sync", "io-std", "io-util"] }
+
+# 照抄 vendor/upstream/zed/Cargo.toml 的 [patch.crates-io]：patch 不跨 workspace 继承，不抄的话
+# 会拿到 crates.io 版本，与 zed crate 里用的 API / 类型对不上（tree-sitter-language 尤其致命：
+# 两份实例会让 grammar 常量与 tree_sitter::Language 类型不兼容）。
+# 只抄我们依赖闭包里用得到的几条；livekit / webrtc / windows-capture / calloop（屏幕捕获与音视频）
+# 与 corgi 沙箱用的 scratch 不在闭包里，略去。
+[patch.crates-io]
+tree-sitter-language = { git = "https://github.com/tree-sitter/tree-sitter", rev = "43623ec9bf0eaaf7113285c46e8a09018f181b18" }
+async-process = { git = "https://github.com/zed-industries/async-process.git", rev = "0b6d6713570af61806e1e5cb40e0f757cb93fd9d" }
+async-task = { git = "https://github.com/smol-rs/async-task.git", rev = "b4486cd71e4e94fbda54ce6302444de14f4d190e" }
+notify = { git = "https://github.com/zed-industries/notify", rev = "d842f16b2716bd60f09caf3ae3a894237ab38f54" }
+notify-types = { git = "https://github.com/zed-industries/notify", rev = "d842f16b2716bd60f09caf3ae3a894237ab38f54" }
+
+# 照抄 zed 的 profile 要点：不这么设的话 ~400 个 crate 会被编译两遍（build-override），冷编译时间翻倍。
+[profile.dev]
+split-debuginfo = "unpacked"
+incremental = true
+codegen-units = 16
+debug = "limited"
+
+[profile.dev.build-override]
+codegen-units = 16
+split-debuginfo = "unpacked"
+debug = "limited"
+
+[profile.dev.package]
+gpui_macros = { opt-level = 3 }
+derive_refineable = { opt-level = 3 }
+feature_flags_macros = { opt-level = 3 }
+settings_macros = { opt-level = 3 }
+sqlez_macros = { opt-level = 3, codegen-units = 1 }
+ui_macros = { opt-level = 3 }
+util_macros = { opt-level = 3 }
+quote = { opt-level = 3 }
+syn = { opt-level = 3 }
+proc-macro2 = { opt-level = 3 }
+tree-sitter = { opt-level = 3 }
+taffy = { opt-level = 3 }
+resvg = { opt-level = 3 }
+wasmtime = { opt-level = 3 }
+cranelift-codegen = { opt-level = 3 }
+wasmtime-environ = { opt-level = 3 }
+wasmtime-internal-cranelift = { opt-level = 3 }
+serde_json = { opt-level = 3 }
+
+[profile.release]
+debug = "limited"
+lto = "thin"
+codegen-units = 1

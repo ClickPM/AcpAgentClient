@@ -129,10 +129,17 @@ Flutter 宿主进程（Dart）
 
 - 独立 cargo workspace（`sidecar/zed-agent-acp/`），path 依赖指向 `vendor/upstream/zed/crates/*`；GPL-3.0-or-later。
 - 引导：复制 `eval_cli/src/headless.rs`；`session/new` 时 `Project::local` + `create_worktree(cwd)` + `NativeAgent::new`。
-- 映射：`initialize` → 固定能力；`session/new` / `session/load` / `session/list` → `NativeAgent::open_thread` 与 `ThreadStore`；`session/prompt` → `Thread::send` 得到 `ThreadEvent` 流；`session/cancel` → `Thread` 取消；`session/set_mode` 与 config options → `model_selector` / 权限预设。
+- 映射：`initialize` → 固定能力（`loadSession` + `sessionCapabilities.{list, delete, resume, close}`，`authMethods` 空）；`session/new` / `session/load` / `session/list` / `session/delete` → `NativeAgentConnection` 与 `ThreadStore`；`session/resume` = load 的不重放版；`session/close` = 放掉 `AcpThread` 引用；`session/prompt` → `Thread::send` 得到 `ThreadEvent` 流；`session/cancel` → `Thread::cancel`；模型选择走 **config options**（一个 `select`，id `model`），**不**声明 `modes`。
 - 事件翻译：`ThreadEvent::{UserMessage, AgentText, AgentThinking, ToolCall, ToolCallUpdate, SubagentSpawned, Retry, ContextCompaction*}` → `session/update`；`ToolCallAuthorization` → `session/request_permission`，结果写回 `response`；`Elicitation` → `elicitation/create`；`Stop` → `PromptResponse`。
-- 终端：实现 `ThreadEnvironment::create_terminal`，进程内用 Zed `terminal` crate。
-- 数据：默认与本机 Zed 共用 `threads.db` 与 `settings.json`；是否隔离在 R7 实测后裁定。模型密钥沿用 Zed 的 `settings.json` / 环境变量，不做额外配置页（所有者裁定 2026-09-15）。
+- 终端：沿用 Zed 的 `NativeThreadEnvironment::create_terminal`（进程内 `terminal` crate），输出经 § 4 的 `_meta.terminal_info / terminal_output / terminal_exit` 三键推给客户端 —— 终端是 agent 进程内的，客户端没有它的句柄，不能走 `terminal/*`。
+- **数据（R7 实测后按推荐项落地 2026-09-17，待所有者确认）：配置共用、数据隔离。** sidecar 以
+  `--zed-settings <%APPDATA%/Zed/settings.json>` **只读**沿用 Zed 的模型与密钥配置（所有者裁定 2026-09-15），
+  但以 `--user-data-dir <本应用数据目录>/zed-agent` 把 `threads.db` / `db/` / `prompts/` 与本机 Zed 隔开。
+  依据：与运行中的 Zed 共用 `threads.db` 时，两边同时写会让 **Zed 那边**保存线程失败 —— Zed 日志里出现
+  `Sqlite call failed with code 5 … database is locked`（`crates/agent/src/agent.rs` 的保存路径），
+  本 sidecar 侧没报错，即代价由用户的编辑器承担（CLAUDE.md 规则 7：不拿用户数据冒险）。
+  代价要认：**两边的会话列表不互通**（Zed 里建的线程在本客户端看不到，反之亦然）。要共用的话把
+  `--user-data-dir` 参数去掉即可（`rust/acp-core/src/builtin.rs`），行为回到「全共用」。
 - 打包：在 `windows/runner/CMakeLists.txt`（macOS / Linux 对应 runner）加 install 规则，把 `zed-agent-acp(.exe)` 放到应用目录旁随主程序分发；核心按可执行文件相对路径定位它。
 
 ## 9. 前端

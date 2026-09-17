@@ -1,0 +1,20 @@
+# Derived from zed-industries/zed .cargo/config.toml @ d9e1c024f393832765a03f4de204d6c8cd9abcb2 (GPL-3.0-or-later)
+# （转写：只留编译 zed crate 必需的 rustflags，去掉 alias 与 macOS 部署目标。）
+#
+# 注意 cargo 的 rustflags 优先级：只要有 target 段命中，`[build] rustflags` 就整段被忽略，
+# 所以 Windows 上生效的只有下面 target 段里的两条 —— 与 zed 本体在 Windows 上一致。
+#
+# 本文件只在**工作目录位于 sidecar/zed-agent-acp/ 之内**时被 cargo 读到；从仓库根用
+# `--manifest-path` 编译会读不到它（拿不到 windows_slim_errors，windows crate 的
+# Error 布局与 zed crate 编出来的对不上）。scripts/build-sidecar.ps1 因此先切目录。
+
+[build]
+rustflags = ["-C", "symbol-mangling-version=v0", "--cfg", "tokio_unstable"]
+
+[target.'cfg(target_os = "windows")']
+rustflags = [
+    "--cfg",
+    "windows_slim_errors",        # 把 windows::core::Error 从 16 字节压到 4 字节；zed 全仓按这个 cfg 编
+    "-C",
+    "target-feature=+crt-static",
+]

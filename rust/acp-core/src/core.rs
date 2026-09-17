@@ -259,10 +259,13 @@ impl Core {
 
     /// 按 settings 拉起 agent 并完成 `initialize`；已有连接先断开。返回 `{agentId, initialize}`。
     pub async fn agent_connect(&self, agent_id: &str, cwd: Option<PathBuf>) -> Result<Value> {
-        let server = self
-            .settings
-            .get(agent_id)?
-            .ok_or_else(|| CoreError::AgentNotConfigured(agent_id.to_string()))?;
+        let server = match self.settings.get(agent_id)? {
+            Some(server) => server,
+            // settings 里没有就看内置条目（R7 的 sidecar；sidecar 不在时照样报 AgentNotConfigured）。
+            None => crate::builtin::agents(&self.data_dir)
+                .remove(agent_id)
+                .ok_or_else(|| CoreError::AgentNotConfigured(agent_id.to_string()))?,
+        };
         // registry 型：安装记录 + Node（R5）；custom 型：settings 里的 command / args / env。
         let launch = match &server {
             AgentServer::Registry { env, .. } => self.registry_launch(agent_id, env).await?,
@@ -501,13 +504,29 @@ impl Core {
     // ---- 设置
 
     pub fn agent_settings_get(&self) -> Result<Value> {
-        Ok(serde_json::to_value(self.settings.load()?)?)
+        let mut settings = self.settings.load()?;
+        // 内置 sidecar（R7）并进结果但**不落盘**：它的路径跟着应用可执行文件走（crate::builtin）。
+        crate::builtin::merge_into(&mut settings, &self.data_dir);
+        Ok(serde_json::to_value(settings)?)
     }
 
     /// `server` 是 `agent_servers` 一条的 JSON（`{type: "custom", command, args, env}`）；返回落盘后的全量设置。
     pub fn agent_settings_set(&self, agent_id: &str, server: Value) -> Result<Value> {
         if agent_id.trim().is_empty() {
             return Err(CoreError::InvalidArgument("agent id is empty".into()));
+        }
+        // 内置 sidecar（R7）的 command / args 是按可执行文件位置**合成**的，写进 settings.json 之后
+        // 用户条目优先，合成的 `--user-data-dir` / `--zed-settings` 就不再生效，换台机器或挪个位置
+        // 那条绝对路径还会失效；设置页因此对它禁用「编辑」。这里再挡一道（审查 finding P2，2026-09-17）。
+        // 用户自己在 settings.json 里手写过同名条目时不挡 —— 那条是他自己的，编辑照常。
+        if crate::builtin::rejects_settings_write(
+            agent_id,
+            self.settings.get(agent_id)?.is_some(),
+            crate::builtin::sidecar_path().is_some(),
+        ) {
+            return Err(CoreError::InvalidArgument(format!(
+                "`{agent_id}` 是随包分发的内置 agent，它的拉起参数按可执行文件位置合成，不写进 settings.json"
+            )));
         }
         let mut server: AgentServer =
             serde_json::from_value(server).map_err(|e| CoreError::InvalidArgument(format!("agent server entry: {e}")))?;

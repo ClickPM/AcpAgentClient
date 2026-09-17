@@ -46,7 +46,9 @@ impl Core {
     /// 另带拉取状态、Node 状态与几个路径（数据目录、日志、Zed settings）。
     pub async fn registry_list(&self) -> Result<Value> {
         let snap = self.registry_index().snapshot();
-        let settings = self.settings().load()?;
+        let mut settings = self.settings().load()?;
+        // 内置 sidecar（R7）与 custom 型条目一起列，只是多带一个 `builtin` 标记让前端关掉 Remove。
+        crate::builtin::merge_into(&mut settings, self.data_dir());
         let platform = current_platform_key();
         let installing: Vec<String> = lock(self.installs()).keys().cloned().collect();
         let dirs = self.registry_dirs();
@@ -80,18 +82,22 @@ impl Core {
             ));
         }
         for (id, server) in &settings.agent_servers {
-            if let AgentServer::Custom { path, args, env, .. } = server {
+            if let AgentServer::Custom { path, args, env, extra } = server {
+                // `extra` 是 Zed 同形字段的原样保留处；内置条目在这里放 `builtin` / `name`（crate::builtin）。
+                let builtin = extra.get("builtin").and_then(Value::as_bool).unwrap_or(false);
+                let name = extra.get("name").and_then(Value::as_str).unwrap_or(id.as_str());
                 agents.push((
                     true,
                     json!({
                         "id": id,
-                        "name": id,
+                        "name": name,
                         "version": "",
                         "description": "",
                         "distribution": "custom",
                         "supported": true,
                         "installed": Value::Null,
                         "installing": false,
+                        "builtin": builtin,
                         "custom": { "command": path, "args": args, "env": env },
                     }),
                 ));
@@ -313,6 +319,12 @@ impl Core {
 
     /// `agent_settings_remove`：只删 settings.json 的条目（custom 型从设置页删除；registry 型请走 `registry_remove`）。
     pub async fn agent_settings_remove(&self, agent_id: &str) -> Result<Value> {
+        // 内置 sidecar 不在 settings.json 里，删了也只会在下次 `agent_settings_get` 又冒出来；
+        // 与其装作删掉了，不如明确拒绝（画板 70「可见、不可删」）。用户自己在 settings 里写过同名条目时
+        // 那条是可删的 —— 删完剩下的就是内置条目。
+        if self.settings().get(agent_id)?.is_none() && crate::builtin::is_builtin(agent_id) {
+            return Err(CoreError::InvalidArgument(format!("`{agent_id}` 是随包分发的内置 agent，不能删除")));
+        }
         let connection = lock(self.agents()).remove(agent_id);
         if let Some(connection) = connection {
             connection.disconnect().await;

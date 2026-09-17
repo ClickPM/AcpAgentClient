@@ -98,6 +98,24 @@ install(FILES "${acp_bridge_ffi_cargokit_lib}"
   DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 
+# zed-agent-acp sidecar (R7, docs/design.md § 8): shipped next to the runner so the core can find it
+# by a path relative to the application executable (rust/acp-core/src/builtin.rs).
+#
+# The sidecar is NOT built by CMake -- it is its own cargo workspace with its own rustflags and target
+# dir (see scripts/build-sidecar.ps1, which drops a copy at build/sidecar/). The check has to happen at
+# *install* time rather than configure time, so a sidecar built after the CMake configure step is still
+# picked up without reconfiguring. Missing sidecar is not an error: the app then simply does not list it.
+set(ACP_SIDECAR_EXE "${CMAKE_SOURCE_DIR}/../build/sidecar/zed-agent-acp.exe")
+install(CODE "
+  if(EXISTS \"${ACP_SIDECAR_EXE}\")
+    file(INSTALL \"${ACP_SIDECAR_EXE}\"
+      DESTINATION \"${INSTALL_BUNDLE_LIB_DIR}\"
+      USE_SOURCE_PERMISSIONS)
+  else()
+    message(STATUS \"zed-agent-acp sidecar not found at ${ACP_SIDECAR_EXE}; skipping (run scripts/build-sidecar.ps1 to include it)\")
+  endif()
+  " COMPONENT Runtime)
+
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/windows/")
 install(DIRECTORY "${NATIVE_ASSETS_DIR}"
