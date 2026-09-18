@@ -3,6 +3,7 @@
 #include <flutter/method_channel.h>
 #include <flutter/standard_method_codec.h>
 #include <flutter_windows.h>
+#include <commctrl.h>
 #include <dwmapi.h>
 #include <windowsx.h>
 
@@ -120,7 +121,32 @@ LRESULT HitTest(HWND window, LPARAM lparam) {
   return HTCLIENT;
 }
 
+// FLUTTERVIEW 的 subclass：只拦 `WM_NCHITTEST`，落在缩放带里就回 `HTTRANSPARENT`，
+// 系统才会继续往下问到父窗口（见 acp_window.h 的说明）。其余消息原样交回 Flutter。
+LRESULT CALLBACK ChildHitTestProc(HWND child, UINT message, WPARAM wparam, LPARAM lparam,
+                                  UINT_PTR id, DWORD_PTR data) {
+  switch (message) {
+    case WM_NCHITTEST: {
+      HWND parent = ::GetParent(child);
+      if (parent != nullptr && HitTest(parent, lparam) != HTCLIENT) {
+        return HTTRANSPARENT;
+      }
+      break;
+    }
+    case WM_NCDESTROY:
+      ::RemoveWindowSubclass(child, ChildHitTestProc, id);
+      break;
+    default:
+      break;
+  }
+  return ::DefSubclassProc(child, message, wparam, lparam);
+}
+
 }  // namespace
+
+void AcpWindowAttachChildHitTest(HWND child) {
+  ::SetWindowSubclass(child, ChildHitTestProc, 1, 0);
+}
 
 void AcpWindowRegisterChannel(flutter::FlutterEngine* engine, HWND window) {
   g_channel = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(

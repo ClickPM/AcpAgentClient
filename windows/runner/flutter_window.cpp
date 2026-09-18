@@ -30,6 +30,8 @@ bool FlutterWindow::OnCreate() {
   // 无边框窗口的平台通道（docs/design.md § 9）：窗口控制三键与拖拽都由 Flutter 侧发起。
   AcpWindowRegisterChannel(flutter_controller_->engine(), GetHandle());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
+  // 子窗口铺满客户区，真实鼠标的命中测试只会问它 —— 不挂这层 subclass，四边四角拉不动。
+  AcpWindowAttachChildHitTest(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();

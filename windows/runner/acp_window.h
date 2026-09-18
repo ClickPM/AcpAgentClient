@@ -21,6 +21,12 @@
 // 注册 `acp/window` 通道。`window` 是顶层 HWND。
 void AcpWindowRegisterChannel(flutter::FlutterEngine* engine, HWND window);
 
+// 给 Flutter 的子窗口（FLUTTERVIEW）挂一层 subclass，让它在缩放带上回 `HTTRANSPARENT`。
+// 不挂这层，四边四角**根本拉不动**：子窗口铺满整个客户区，系统对真实鼠标的命中测试只问它，
+// 它回 HTCLIENT，顶层那套 `WM_NCHITTEST` 压根轮不上（2026-09-18 实测：把子窗口缩进 30px
+// 就能拉了；而从外部 `SendMessage(WM_NCHITTEST)` 探顶层一直是对的，所以这条骗过了第一次排查）。
+void AcpWindowAttachChildHitTest(HWND child);
+
 // 无边框窗口要自己处理的消息；返回 std::nullopt 表示交回默认处理。
 std::optional<LRESULT> AcpWindowHandleMessage(HWND window, UINT message,
                                               WPARAM wparam, LPARAM lparam);
