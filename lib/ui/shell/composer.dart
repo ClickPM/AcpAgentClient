@@ -162,8 +162,12 @@ class Composer extends StatelessWidget {
     // Ctrl/Cmd+V：顺带看一眼剪贴板里有没有图（截图 / 图片文件），有就加成附件块。
     // 一律 `ignored`：这一下是不是文本粘贴要读完剪贴板才知道，而按键回调必须同步返回，
     // 所以文本粘贴照旧交给 `EditableText`，`onPaste` 那边先看剪贴板里是不是文本、是就什么都不做。
+    // Shift / Alt 一起按的不算：Ctrl+Shift+V（「粘贴为纯文本」的习惯键）Flutter 自己不认，
+    // 不排掉的话它也会拉一次 powershell 读剪贴板、剪贴板里有位图时还静默多出一枚芯片。
     if (key == LogicalKeyboardKey.keyV &&
-        (HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed)) {
+        (HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed) &&
+        !HardwareKeyboard.instance.isShiftPressed &&
+        !HardwareKeyboard.instance.isAltPressed) {
       if (enabled) onPaste?.call();
       return KeyEventResult.ignored;
     }

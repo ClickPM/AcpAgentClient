@@ -68,7 +68,11 @@ Future<({List<ClipboardImage> images, bool skippedTooLarge})> readClipboardImage
       if (mime == null) continue;
       final file = File(value);
       if (!file.existsSync()) continue;
-      if (await file.length() > clipboardImageSizeLimit) {
+      final length = await file.length();
+      // 0 字节也跳过：脚本里 `$img.Save(...)` 抛异常（GDI+ 报错 / 磁盘满 / 杀软占用）时 PowerShell
+      // 只终止那一条语句、照常打印 `bitmap|<路径>` 且退出码 0，不判下限就会发出一个空的 `image` 块。
+      if (length == 0) continue;
+      if (length > clipboardImageSizeLimit) {
         skipped = true;
         continue;
       }
