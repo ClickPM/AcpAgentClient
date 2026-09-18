@@ -20,8 +20,12 @@ Future<void> loadGalleryFonts() async {
   _fontsLoaded = true;
   final geist = FontLoader('Geist')..addFont(rootBundle.load('assets/fonts/Geist-Variable.ttf'));
   final mono = FontLoader('Geist Mono')..addFont(rootBundle.load('assets/fonts/GeistMono-Variable.ttf'));
+  // CJK 回退的第一项随包（tokens 的 Fonts.cjkFallback），gallery 因此不再依赖本机装没装中文字体。
+  final notoSC = FontLoader('Noto Sans SC')..addFont(rootBundle.load('assets/fonts/NotoSansSC-Regular.otf'));
   await geist.load();
   await mono.load();
+  await notoSC.load();
+  // 系统兜底的后两项：装了才加载，缺了不影响 gallery（中文已由 Noto Sans SC 兜住）。
   final cjk = <String, String>{
     'Microsoft YaHei UI': r'C:\Windows\Fonts\msyh.ttc',
     'PingFang SC': '/System/Library/Fonts/PingFang.ttc',

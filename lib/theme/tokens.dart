@@ -82,11 +82,16 @@ abstract final class Shadows {
   );
 }
 
-/// 字体栈：Geist / Geist Mono（OFL），CJK 回退 Microsoft YaHei UI / PingFang SC。
+/// 字体栈：Geist / Geist Mono（OFL），CJK 回退随包的 Noto Sans SC，系统字体只做兜底。
+///
+/// Geist / Geist Mono 对 U+4E00–9FFF 的 cmap 覆盖是 0，所以中文一个字都不走 [sans] / [mono]，
+/// 整段由 [cjkFallback] 的第一项渲染。第一项必须是随包的 Noto Sans SC（注册见 `pubspec.yaml`）：
+/// Microsoft YaHei UI 的字形是按 GDI full hinting 调的，而 Flutter 桌面只做灰度抗锯齿、不吃那套
+/// hinting，中文因此比拉丁文更虚。后两项留着兜 Noto Sans SC 没有的字（生僻字、日文假名以外的补集）。
 abstract final class Fonts {
   static const String sans = 'Geist';
   static const String mono = 'Geist Mono';
-  static const List<String> cjkFallback = <String>['Microsoft YaHei UI', 'PingFang SC'];
+  static const List<String> cjkFallback = <String>['Noto Sans SC', 'Microsoft YaHei UI', 'PingFang SC'];
 }
 
 /// 字重 400 / 500。Geist 是可变字体，`fontWeight` 之外还要带 `fontVariations`。

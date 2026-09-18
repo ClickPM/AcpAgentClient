@@ -95,7 +95,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 - `pubspec.yaml`（Flutter stable 钉版本；依赖只有 CLAUDE.md 规则 1 清单内的）、`flutter_rust_bridge.yaml`、`rust-toolchain.toml`、`rust/Cargo.toml` workspace：`bridge`（cdylib；`api.rs` 暴露 `init(data_dir)`、一个 `ping` 命令、五条 `StreamSink<String>` 事件流的注册）、`acp-core` / `registry` / `pty` / `fs` / `settings` 空壳 crate（只定结构与 `Result` 边界）、`rust/tools/acp-smoke`（开发用 CLI 二进制，本轮只打通「连 bridge 之外直接调 acp-core」的骨架，不发布）。
 - `lib/bridge/`（frb 生成物入库）、`rust/bridge/src/frb_generated.rs`。
 - `lib/theme/tokens.dart`：从 `design/round-design/00-tokens.dc.html` 逐值提炼：浅色中性 10 级、深色中性 10 级 + `d.accent`（只备常量，不接主题切换）、accent 四态、`border.on-accent`、语义色 4 × 2、三级表面、边框两级、`shadow.popover`、字阶五档 + mono 12.5、字重、行高、间距 4 / 8 / 12 / 16 / 24 + `space.chip`、圆角 3 / 4 / 6 + pill、控件高度 24 / 28 / 32、按钮四态叠色 6% / 10%、焦点环 1.5 / +1、图标 16 / 14 + stroke 1.5、`motion.fast` 120ms / `motion.base` 160ms。任务卡附「token 名 → 00 画板位置 → 值」对照表。
-- 字体资产：Geist / Geist Mono（OFL，许可证文件一并入库），CJK 回退 Microsoft YaHei UI / PingFang SC 由 `tokens.dart` 的字体栈声明。
+- 字体资产：Geist / Geist Mono（OFL，许可证文件一并入库），CJK 回退 Noto Sans SC（Regular 一档随包，OFL，上游 notofonts/noto-cjk 的 `Sans/SubsetOTF/SC`），系统的 Microsoft YaHei UI / PingFang SC 只做兜底；三者的次序由 `tokens.dart` 的字体栈声明。
 - `lib/projection/wire.dart`：15 个 `session/update` 变体 + `ContentBlock` 5 种 + `ToolCallContent` 3 种 + permission / elicitation 请求形状的薄封装（只做字段访问与判别，不做校验）。
 - `test/fixtures/`：从 `prototype/assets/fixtures.js` 移植的线上行（JSON Lines，按场景分文件），另加一条故意的 `notice` 行与一条未知变体行；`rust/acp-core` 的测试逐行喂 rust-sdk 类型，断言合规行全部成功、两条故意行失败。
 - `lib/gallery/` + `test/gallery_test.dart`：以画板 frame 尺寸离屏渲染并写 `build/gallery/`；本轮只有 00 的 token 样板页。

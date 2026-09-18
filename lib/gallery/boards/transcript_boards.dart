@@ -15,8 +15,9 @@ import '../board_page.dart';
 import '../fixtures_source.dart';
 import '../gallery.dart';
 
-/// flutter_tester 不做平台字体回退，Mermaid 主题只能给一个家族名：gallery 里用本机的微软雅黑（真机用 tokens 的 Geist）。
-const String galleryMermaidFont = 'Microsoft YaHei UI';
+/// flutter_tester 不做平台字体回退，Mermaid 主题只能给一个家族名：gallery 里用随包的 Noto Sans SC
+/// （即 tokens 的 `Fonts.cjkFallback` 首项，真机用 `Fonts.sans` + 平台回退），不再依赖本机的微软雅黑。
+const String galleryMermaidFont = 'Noto Sans SC';
 
 /// 取 Markdown 文本里第一个围栏的正文。
 String fenceBody(String md) {
