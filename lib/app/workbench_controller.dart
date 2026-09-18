@@ -900,6 +900,16 @@ class WorkbenchController extends ChangeNotifier {
 
   Future<void> newSession(AgentRef agent) async {
     _hide(newSessionAnchor);
+    // 重入守卫（发布前审查 P2，2026-09-18）：等待期里线程头的 `+` 仍可点（`IgnorePointer` 只包住 `_body()`），
+    // 再选一次 agent 会让两条 newSession 交叠：第二条存下的 `wasWaiting` 是 true，它后返回时把等待态永久留在 true
+    // （转录区一直变暗不可点、线程头 spinner 不停、[reloadAgent] 永远被挡）；而且两条都走 `_ensureConnected`，
+    // 第二条的 `agent_connect` 会把第一条刚拉起的进程断掉——正是本轮要避免的那种误杀。`send()` 现开一条
+    // 与 `+` 交错是同一回事。[reloadAgent] 的「没有旧会话」分支自己已经在等待期里，走不带守卫的 [_newSession]。
+    if (waitingForAgent) return;
+    await _newSession(agent);
+  }
+
+  Future<void> _newSession(AgentRef agent) async {
     final b = bridge;
     final cwd = project?.path;
     if (b == null || cwd == null) {
@@ -1009,7 +1019,8 @@ class WorkbenchController extends ChangeNotifier {
       await _guard(() async {
         await b.agentDisconnect(id);
         if (previous == null) {
-          await newSession(AgentRef(id: id, name: id));
+          // 走不带重入守卫的那条：这里的等待态是本方法刚摆出来的，守卫会把它当成「另一条在途」。
+          await _newSession(AgentRef(id: id, name: id));
           return;
         }
         await _connect(b, id, cwd);

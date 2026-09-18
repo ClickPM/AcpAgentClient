@@ -312,6 +312,7 @@ class SidebarSessionRow extends StatelessWidget {
         // 一起从树上摘掉，弹层刚出现一帧就被销毁（所有者手测 2026-09-17「点了没反应」的成因）。
         // `deleteAnchor` 只在 `confirmingDeleteId` 是这一行时才非空（见 [Sidebar._list]）。
         final showActions = (hovered || deleteAnchor != null) && !inlineEdit;
+        final inset = EdgeInsets.only(left: t.Spacing.s12, right: showActions ? t.Spacing.s8 : t.Spacing.s12);
         return Container(
           height: running ? t.Geometry.sidebarRowRunning : height,
           color: selected ? t.Overlays.selected : (showActions ? t.Overlays.hover : null),
@@ -321,13 +322,12 @@ class SidebarSessionRow extends StatelessWidget {
             fit: StackFit.expand,
             children: <Widget>[
               Padding(
-                padding: EdgeInsets.only(
-                  left: t.Spacing.s12,
-                  right: showActions ? t.Spacing.s8 : t.Spacing.s12,
-                  // 运行中行高涨到 58，文字块仍垂直居中于**上方 50px**（余下让给轨道带），
-                  // 这样 48 ↔ 58 的切换里文字几乎不动，列表在流式期间不抽动。
-                  bottom: running ? t.Geometry.sidebarRowRunning - t.Geometry.sidebarRowRunningContent : 0,
-                ),
+                // 运行中行高涨到 58，文字块仍垂直居中于**上方 50px**（余下让给轨道带），
+                // 这样 48 ↔ 58 的切换里文字几乎不动，列表在流式期间不抽动。
+                // 非运行态沿用 [inset] 本身，不另写 `bottom: 0`（规则 3：widget 文件里不写间距字面量，0 也算）。
+                padding: running
+                    ? inset.copyWith(bottom: t.Geometry.sidebarRowRunning - t.Geometry.sidebarRowRunningContent)
+                    : inset,
                 child: Row(
                   children: <Widget>[
                     AgentMark(active: selected, svg: session.iconSvg),

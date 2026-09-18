@@ -41,8 +41,12 @@ class _GatedCore extends FakeCore {
     if (gate != null && !gate.isCompleted) gate.complete();
   }
 
+  /// 拉起过几次进程：重入守卫真挡住了就只有一次。
+  int connects = 0;
+
   @override
   Future<JsonMap> agentConnect(String agentId, {String? cwd}) async {
+    connects++;
     await _gate?.future;
     return super.agentConnect(agentId, cwd: cwd);
   }
@@ -144,5 +148,26 @@ void main() {
     await tester.pump();
     await tester.pump(t.Motion.transition);
     expect(c.waitingForAgent, isFalse);
+  });
+
+  testWidgets('新会话在途时再选一次 agent：第二条被守卫挡住，只拉一次进程，等待态在会话到手后收掉', (tester) async {
+    final core = _GatedCore();
+    final c = await _pumpShell(tester, core);
+
+    core.hold();
+    await _pickAgent(tester);
+    expect(c.waitingForAgent, isTrue);
+    expect(core.connects, 1);
+
+    // 等待期里线程头的 `+` 仍可点：再选一次。没有守卫的话第二条会再 `agent_connect` 一次（把第一条刚拉起的进程断掉），
+    // 而且它存下的 wasWaiting 是 true，后返回时把等待态永久留在 true（发布前审查 P2，2026-09-18）。
+    await _pickAgent(tester);
+    expect(core.connects, 1, reason: '第二条 newSession 被重入守卫挡在门外');
+
+    core.release();
+    await tester.pump();
+    await tester.pump(t.Motion.transition);
+    expect(c.sessionId, 'sess_fake');
+    expect(c.waitingForAgent, isFalse, reason: '等待态不能被交叠的第二条留在 true');
   });
 }
