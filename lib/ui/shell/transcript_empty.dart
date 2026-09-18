@@ -6,17 +6,24 @@ import 'package:flutter/widgets.dart';
 import '../../theme/tokens.dart' as t;
 import '../transcript/card_chrome.dart';
 import '../transcript/icons.dart';
+import 'motion.dart';
 import 'shell_common.dart';
 
 /// 状态 1：新会话。
 class NewThreadEmpty extends StatelessWidget {
-  const NewThreadEmpty({super.key, required this.title});
+  const NewThreadEmpty({super.key, required this.title, this.transitionEpoch});
 
   final String title;
+
+  /// 画板 05 A 组的错开规则：落到这个空态时，三层按 `motion.stagger` 40ms 自上而下递增
+  /// （图标 0ms、标题 40ms、提示行 80ms），**代替**转录区那一下整体入场。
+  /// null = 不做入场（gallery 里的静态画板对照）。
+  final Object? transitionEpoch;
 
   @override
   Widget build(BuildContext context) {
     return _Centered(
+      stagger: transitionEpoch,
       children: <Widget>[
         Container(
           width: t.Controls.input,
@@ -90,9 +97,12 @@ class NoAgentEmpty extends StatelessWidget {
 }
 
 class _Centered extends StatelessWidget {
-  const _Centered({required this.children});
+  const _Centered({required this.children, this.stagger});
 
   final List<Widget> children;
+
+  /// 非空时逐层错开入场（画板 05 A 组）；每变一次重播一次。
+  final Object? stagger;
 
   @override
   Widget build(BuildContext context) {
@@ -105,11 +115,18 @@ class _Centered extends StatelessWidget {
           children: <Widget>[
             for (var i = 0; i < children.length; i++) ...<Widget>[
               if (i > 0) const SizedBox(height: t.Spacing.s12),
-              children[i],
+              _layer(i, children[i]),
             ],
           ],
         ),
       ),
     );
+  }
+
+  Widget _layer(int i, Widget child) {
+    final epoch = stagger;
+    if (epoch == null) return child;
+    // 「成组错开 ≤ 3」（画板 00）：第 4 层起跟第 3 层同时进，不继续往后拖。
+    return MotionEnter(epoch: epoch, delay: t.Motion.stagger * (i < 2 ? i : 2), child: child);
   }
 }

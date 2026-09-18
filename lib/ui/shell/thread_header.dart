@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import '../../theme/tokens.dart' as t;
 import '../transcript/card_chrome.dart';
 import '../transcript/icons.dart';
+import 'motion.dart';
 import 'popover_anchor.dart';
 import 'shell_common.dart';
 
@@ -31,12 +32,17 @@ class ThreadHeader extends StatelessWidget {
     this.onMenu,
     this.newSessionAnchor,
     this.menuAnchor,
+    this.transitionEpoch,
   });
 
   /// 无会话 / 无 agent 时画板给的是 `No Agent`。
   final String title;
   final bool hasAgent;
   final bool running;
+
+  /// 会话内容整块替换时标题与转录区同起同止（画板 05 A 组）；变一次重播一次入场。
+  /// null = 不做入场（gallery 里的静态画板对照）。
+  final Object? transitionEpoch;
 
   /// `sessionCapabilities` 支持改标题（画板 01 注）。
   final bool canRename;
@@ -89,14 +95,7 @@ class ThreadHeader extends StatelessWidget {
                   )
                 : Row(
                     children: <Widget>[
-                      Flexible(
-                        child: Text(
-                          title,
-                          style: hasAgent ? CardText.strong : CardText.strong.copyWith(color: t.Neutral.placeholder),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
+                      Flexible(child: _title()),
                       if (running) ...<Widget>[const SizedBox(width: t.Spacing.s8), const Spinner()],
                     ],
                   ),
@@ -108,6 +107,17 @@ class ThreadHeader extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _title() {
+    final Widget text = Text(
+      title,
+      style: hasAgent ? CardText.strong : CardText.strong.copyWith(color: t.Neutral.placeholder),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+    final epoch = transitionEpoch;
+    return epoch == null ? text : MotionEnter(epoch: epoch, child: text);
   }
 }
 

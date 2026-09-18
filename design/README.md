@@ -22,11 +22,12 @@
 
 | 编号 | 名称 | 页面 | 设计轮 | .dc.html | PNG | 画布 URL | 状态 | token 变更 |
 |---|---|---|---|---|---|---|---|---|
-| 00 | Token 表 | 全局 | round-design | `design/round-design/00-tokens.dc.html` | `design/round-design/00-tokens.png` | — | 已实现（R0） | 首版 token 表（浅色 + 深色色阶、accent、语义色、字阶、圆角、间距、kbd、动效） |
+| 00 | Token 表 | 全局 | round-design | `design/round-design/00-tokens.dc.html` | `design/round-design/00-tokens.png` | — | 已实现（R0）· 动效小节已接线（2026-09-17） | 首版 token 表（浅色 + 深色色阶、accent、语义色、字阶、圆角、间距、kbd、动效）；2026-09-17 动效小节补 6 个值：`motion.ease` / `motion.transition` / `motion.rise` / `motion.pop` / `motion.stagger` / `opacity.pending` |
 | 01 | 工作台 · 新会话 | 会话工作台 | round-design | `design/round-design/01-workbench-empty.dc.html` | `design/round-design/01-workbench-empty.png` | — | 已实现（R3） | — |
 | 02 | 工作台 · 进行中的一轮 | 会话工作台 | round-design | `design/round-design/02-workbench-running.dc.html` | `design/round-design/02-workbench-running.png` | — | 已实现（R3） | — |
 | 03 | 工作台 · 回合结束 + 右栏展开 | 会话工作台 + 文件面板 | round-design | `design/round-design/03-workbench-done.dc.html` | `design/round-design/03-workbench-done.png` | — | 已实现（R3）· 右栏内容已实现（R4） | — |
 | 04 | 侧栏与顶栏状态 | 会话工作台 | round-design | `design/round-design/04-sidebar-states.dc.html` | `design/round-design/04-sidebar-states.png` | — | 已实现（R3） | — |
+| 05 | 转场规格 | 全局 | round-design | `design/round-design/05-motion.dc.html` | `design/round-design/05-motion.png` | — | 已实现（2026-09-17，main 直改） | —（规格值全部登记在画板 00） |
 | 10 | Restore Checkpoint 分隔线 | 转录 | round-design | `design/round-design/10-checkpoint.dc.html` | `design/round-design/10-checkpoint.png` | — | **已废弃（2026-09-17）** | — |
 | 11 | 用户消息气泡 | 转录 | round-design | `design/round-design/11-user-message.dc.html` | `design/round-design/11-user-message.png` | — | 已实现（R2） | — |
 | 12 | 助手富文本正文 | 转录 | round-design | `design/round-design/12-assistant-text.dc.html` | `design/round-design/12-assistant-text.png` | — | 已实现（R2） | — |
@@ -69,6 +70,7 @@
 
 - 2026-09-15 画板 40：`+` 弹层删去 Symbols 与 Selection 两行。需要 LSP 与编辑器选区，与 `docs/requirements.md`「不做」冲突；所有者裁定，见 `ROUNDS.md` § 6。
 - 2026-09-15 画板 42：`/` 命令菜单合并为单组（保留 Commands 标题），去掉 Skills 分组标题与右侧的 built-in / 项目名来源标签；`<path>` 参数提示保留。`AvailableCommand` 只有 name / description / input，没有分组与来源字段；所有者裁定，见 `ROUNDS.md` § 6。
+- 2026-09-17 新增画板 05「转场规格」，并给画板 00 的动效小节补 6 个值。起因是新建 / 切换会话与重载 agent 都是硬切、重载的等待期界面完全不动；原来全套动效资产只有两行时长，不足以实现。简报 `design/round-design/input/revision-02.md`。**画板 05 是纯静态规格图**：分帧只作示意，曲线与数值一律以规格表为准（例：A 组 `t=100ms` 那帧画的是视觉中点，按 `motion.ease` 实际已走完约 87%）。画板 00 的改动只在动效小节，`$preview` 高度由 924 收到 900（与 frame 一致），其余区域零改动。
 
 ## 页面与画板的对应
 

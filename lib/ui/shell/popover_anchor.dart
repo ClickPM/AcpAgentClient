@@ -8,6 +8,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../../theme/tokens.dart' as t;
+import 'motion.dart';
 
 /// 一个弹层的句柄：组合根持有（放在 State 里，别每帧新建），传给壳的 widget 做锚点。
 class PopoverHandle {
@@ -31,6 +32,10 @@ class PopoverHandle {
   Alignment _followerAnchor = Alignment.topLeft;
   Offset _offset = t.Geometry.popoverBelow;
 
+  /// 出场位移的方向（画板 05 D 组）：向下弹的弹层从上方 `-motion.pop` 落下，
+  /// 向上弹的从下方 `+motion.pop` 升起。[showAbove] 会把它置 true。
+  bool _fromAbove = false;
+
   /// 「点弹层之外关闭」时要回收的组合根状态。侧栏删除确认要清 `confirmingDeleteId`，
   /// 否则那一行会一直停在悬浮态（锚点还挂着）。每次 [show] 都重设，不传就是没有。
   VoidCallback? _onDismiss;
@@ -43,18 +48,21 @@ class PopoverHandle {
     Alignment followerAnchor = Alignment.topLeft,
     Offset offset = t.Geometry.popoverBelow,
     VoidCallback? onDismiss,
+    bool fromAbove = false,
   }) {
     _builder = builder;
     _targetAnchor = targetAnchor;
     _followerAnchor = followerAnchor;
     _offset = offset;
     _onDismiss = onDismiss;
+    _fromAbove = fromAbove;
     _visible.value = true;
   }
 
   /// 输入框上方的弹层（`+`、模型 / 思考强度 / 模式、用量）：向上展开。
   void showAbove(WidgetBuilder builder, {Alignment targetAnchor = Alignment.topLeft, Alignment followerAnchor = Alignment.bottomLeft}) =>
-      show(builder, targetAnchor: targetAnchor, followerAnchor: followerAnchor, offset: t.Geometry.popoverAbove);
+      show(builder,
+          targetAnchor: targetAnchor, followerAnchor: followerAnchor, offset: t.Geometry.popoverAbove, fromAbove: true);
 
   void hide() => _visible.value = false;
 
@@ -164,7 +172,20 @@ class _PopoverAnchorState extends State<PopoverAnchor> {
               // `showAbove`（followerAnchor: bottomLeft）于是把弹层顶到屏幕顶上去了
               //（所有者手测 2026-09-17「消息发送区的下拉窗口位置全部漂移」的成因；
               // 顶栏那些 followerAnchor: topLeft 的弹层因为两个角重合，才一直看着是对的）。
-              child: Align(alignment: Alignment.topLeft, widthFactor: 1, heightFactor: 1, child: h._builder(context)),
+              // 画板 05 D 组：出场 opacity 0 → 1 + `motion.pop` 位移，`motion.base` 160ms；
+              // 不缩放，阴影跟着弹层自己那一条时间线；**关闭不做动画**，`OverlayPortal` 直接卸载即可。
+              // 没有 epoch：重播靠的就是这次卸载与下次挂载。
+              child: Align(
+                alignment: Alignment.topLeft,
+                widthFactor: 1,
+                heightFactor: 1,
+                child: MotionEnter(
+                  epoch: null,
+                  distance: h._fromAbove ? t.Motion.pop : -t.Motion.pop,
+                  duration: t.Motion.base,
+                  child: h._builder(context),
+                ),
+              ),
             ),
           ],
         ),

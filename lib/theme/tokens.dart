@@ -273,11 +273,35 @@ abstract final class Kbd {
   static const double lineHeightPx = LineHeights.kbdPx;
 }
 
-/// 动效：fast 120ms ease-out（hover / 颜色），base 160ms ease-out（展开 / 弹层）。
+/// 动效（画板 00 的动效小节，规格图在画板 05）：曲线只有一条，时长三档，位移两档。
 abstract final class Motion {
+  /// `motion.ease` = `cubic-bezier(.215,.61,.355,1)`。Flutter 里叫 [Curves.easeOutCubic]；
+  /// **不是** `Curves.easeOut`（那条是 `cubic-bezier(.0,.0,.58,1)`，比画板定的钝）。
+  static const Curve curve = Curves.easeOutCubic;
+
+  /// `motion.fast`：hover 进出、颜色、等待态变暗。
   static const Duration fast = Duration(milliseconds: 120);
+
+  /// `motion.base`：展开折叠、弹层出现。
   static const Duration base = Duration(milliseconds: 160);
-  static const Curve curve = Curves.easeOut;
+
+  /// `motion.transition`：内容整块替换的入场（画板 05 的 A / B / C 组）。
+  static const Duration transition = Duration(milliseconds: 200);
+
+  /// `motion.rise`：整块替换入场时的上移距离。
+  static const double rise = 8;
+
+  /// `motion.pop`：弹层出现时的位移距离（向下弹用负值，向上弹用正值）。
+  static const double pop = 4;
+
+  /// `motion.stagger`：成组元素入场的错开步长，最多错开 3 个。
+  static const Duration stagger = Duration(milliseconds: 40);
+}
+
+/// 不透明度（画板 00 的动效小节）。
+abstract final class Opacities {
+  /// `opacity.pending`：等待期内容的减弱（画板 05 B 组，配 [Motion.fast]）。
+  static const double pending = 0.5;
 }
 
 /// spinner：accent · 1.5px 弧。

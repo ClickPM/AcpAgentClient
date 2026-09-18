@@ -46,6 +46,32 @@ class SlowCore extends FakeCore {
   }
 }
 
+/// 「装了两个 agent、本地索引里最近一条属于 zed、有一个最近项目」的现场（首次启动的常见样子）。
+class _InstalledCore extends FakeCore {
+  _InstalledCore() {
+    sessionIndex.addAll(<JsonMap>[
+      <String, dynamic>{'agentId': 'codex', 'sessionId': 'older', 'title': '旧的', 'updatedAt': 1000, 'cwd': r'D:\proj'},
+      <String, dynamic>{'agentId': 'zed', 'sessionId': 'recent', 'title': '最近的', 'updatedAt': 2000, 'cwd': r'D:\proj'},
+    ]);
+  }
+
+  /// `workspace_recent` 的返回；置空 = 干净机上还没打开过任何目录。
+  List<Object?> projects = <Object?>[
+    <String, dynamic>{'path': r'D:\proj', 'name': 'proj'},
+  ];
+
+  @override
+  Future<JsonMap> agentSettingsGet() async => <String, dynamic>{
+        'agent_servers': <String, dynamic>{
+          'codex': <String, dynamic>{'type': 'custom', 'command': 'codex-acp'},
+          'zed': <String, dynamic>{'type': 'custom', 'command': 'zed-agent-acp', 'name': 'Zed Agent'},
+        },
+      };
+
+  @override
+  Future<JsonMap> workspaceRecent() async => <String, dynamic>{'projects': projects};
+}
+
 /// `session/prompt` 直接抛错（连接断了 / agent 已退出）。
 class FailingCore extends FakeCore {
   @override
@@ -214,6 +240,45 @@ void main() {
     c.dispose();
   });
 
+  test('装着 agent 时启动：画板 01 状态 1（不是「还没有已安装的 agent」），会话等第一条消息才开', () async {
+    final core = _InstalledCore();
+    final c = WorkbenchController(source: DataSource.bridge, bridge: core);
+    await c.start();
+
+    expect(c.hasAgent, isTrue, reason: '状态 2 只在一个 agent 都没装时出现');
+    expect(c.agentId, 'zed', reason: '本地索引里最近用过、且还装着的那个');
+    expect(c.hasSession, isFalse, reason: '启动不拉 agent 进程');
+    expect(c.threadTitle, 'New Zed Agent Thread', reason: '展示名从已安装列表来，不是裸 id');
+    expect(c.canCompose, isTrue);
+    expect(c.composerPlaceholder, 'Message to Zed Agent , @ to include context , / for commands');
+
+    c.composer.text = '第一条';
+    await c.send();
+
+    expect(c.sessionId, 'sess_fake', reason: '第一条消息把会话现开出来');
+    expect(core.prompts.single.length, 1);
+    expect((core.prompts.single.single as JsonMap)['text'], '第一条');
+    c.dispose();
+  });
+
+  test('装着 agent 但还没选项目：输入框禁用并说明原因，发送不静默失败', () async {
+    final core = _InstalledCore()..projects = const <Object?>[];
+    final c = WorkbenchController(source: DataSource.bridge, bridge: core);
+    await c.start();
+
+    expect(c.hasAgent, isTrue);
+    expect(c.project, isNull);
+    expect(c.canCompose, isFalse);
+    expect(c.composerPlaceholder, '先选一个项目目录，新会话的 cwd 从它来');
+
+    c.composer.text = '发不出去';
+    await c.send();
+    expect(c.sessionId, isNull);
+    expect(core.prompts, isEmpty);
+    expect(c.composer.text, '发不出去', reason: '没发出去就不能把输入清掉');
+    c.dispose();
+  });
+
   test('权限与 elicitation 的回应载荷原样来自投影层', () async {
     final (c, core, _) = _scenario();
     await c.answerPermission('req_perm', 'ok');
@@ -284,5 +349,18 @@ void main() {
     final style = DefaultTextStyle.of(tester.element(find.byType(WorkbenchScreen))).style;
     expect(style.decoration, anyOf(isNull, TextDecoration.none), reason: '继承到下划线就是满屏黄线');
     expect(style.fontFamily, t.Fonts.sans, reason: '基准字样只能来自 token');
+  });
+
+  testWidgets('装着 agent 时开应用，主区是状态 1 的新会话空态，不是「还没有已安装的 agent」', (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.runAsync(loadGalleryFonts);
+    await tester.pumpWidget(AcpApp(source: DataSource.bridge, bridge: _InstalledCore()));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('还没有已安装的 agent'), findsNothing, reason: '所有者 2026-09-17 报的：装了 agent 还画状态 2');
+    expect(find.text('New Zed Agent Thread'), findsWidgets, reason: '线程头与空态标题都是它');
   });
 }

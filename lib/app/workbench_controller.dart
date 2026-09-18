@@ -86,6 +86,14 @@ class WorkbenchController extends ChangeNotifier {
 
   String? agentId;
   String? sessionId;
+
+  /// 中栏内容整块换过几次（画板 05 A 组的入场触发器）。切会话、新建会话、重载完成各 +1。
+  /// 不能只看 `sessionId`：重载 agent 若 `session/load` 回的是同一条，id 没变但内容确实整块换了。
+  int sessionEpoch = 0;
+
+  /// 正在重载 agent（画板 05 B 组的等待期）。断开 → 重连 → `session/load` 这几秒里
+  /// 转录区降到 `opacity.pending` 且不可交互，线程头借用 `isRunning` 那只 spinner。
+  bool reloading = false;
   final Map<String, String> _sessionAgent = <String, String>{}; // sessionId → agentId
 
   // ---- UI 态
@@ -228,12 +236,21 @@ class WorkbenchController extends ChangeNotifier {
 
   SessionStore? get store => sessionId == null ? null : sessions.maybe(sessionId!);
   AgentConnection? get connection => agentId == null ? null : sessions.agents[agentId!];
-  bool get hasAgent => agentId != null && sessionId != null;
+
+  /// 选中了一个 agent（**不要求**已经开着会话、也不要求进程已拉起）：画板 01 的两个空态按它分流，
+  /// 状态 2「还没有已安装的 agent」只在一个都没装时出现。启动时 [_selectDefaultAgent] 会挑一个，
+  /// 会话要到第一条消息才现开（[send]），免得每次开应用都去拉一个 agent 进程。
+  bool get hasAgent => agentId != null;
+
+  /// 已经有一条会话在手：线程头的重命名 / 重载与 ≡ 菜单的三个动作要它。
+  bool get hasSession => agentId != null && sessionId != null;
   bool get isRunning => store?.isRunning ?? false;
 
   String get agentDisplayName {
     final c = connection;
-    return c?.agentTitle ?? c?.agentName ?? agentId ?? 'Agent';
+    // 还没连上时退回已安装列表里的展示名（settings 条目的 `name` 或 registry 的展示名），
+    // 不退回 id：启动后的新会话标题写 `New Codex Thread` 而不是 `New codex Thread`。
+    return c?.agentTitle ?? c?.agentName ?? _installedRef(agentId)?.name ?? agentId ?? 'Agent';
   }
 
   String get threadTitle {
@@ -241,8 +258,15 @@ class WorkbenchController extends ChangeNotifier {
     return store?.title ?? 'New $agentDisplayName Thread';
   }
 
-  String get composerPlaceholder =>
-      hasAgent ? 'Message to $agentDisplayName , @ to include context , / for commands' : '安装并选择一个 agent 后即可输入';
+  String get composerPlaceholder {
+    if (!hasAgent) return '安装并选择一个 agent 后即可输入';
+    // 会话是发第一条消息时才开的，cwd 从当前项目来：没项目就先说清楚，别让发送静默失败。
+    if (!hasSession && project == null) return '先选一个项目目录，新会话的 cwd 从它来';
+    return 'Message to $agentDisplayName , @ to include context , / for commands';
+  }
+
+  /// 输入框可用：选了 agent、没项目也没会话时不可用（发不出去），已关掉的会话只读。
+  bool get canCompose => hasAgent && !sessionClosed && (hasSession || project != null);
 
   /// 侧栏按搜索过滤后的会话（标题子串，大小写不敏感）。
   List<SidebarSession> get visibleSessions {
@@ -328,9 +352,11 @@ class WorkbenchController extends ChangeNotifier {
       final info = await b.init(defaultDataDir());
       dataDir = info['dataDir'] as String? ?? defaultDataDir();
       logPath = info['logPath'] as String?;
+      // 本地索引先读：下面挑「当前 agent」要按索引里最近用过的那条来（`refreshRegistry` 末尾
+      // 会用 registry 的图标把侧栏重投影一次，所以先读索引不会让会话项停在占位菱形上）。
+      await refreshSessionIndex();
       await refreshRegistry();
       await refreshAgents();
-      await refreshSessionIndex();
       await _restoreLastProject();
       await _restoreUiState();
     });
@@ -558,6 +584,46 @@ class WorkbenchController extends ChangeNotifier {
             iconSvg: agentIconSvgOf(entry.key as String),
           ),
     ];
+    _selectDefaultAgent();
+  }
+
+  /// 当前 agent 还没定（启动、或刚把选中的那个卸掉）时挑一个：本地索引里最近用过、且**还装着**的那个，
+  /// 没有就第一个已安装的；一个都没装就留空（画板 01 状态 2）。
+  /// 只挑不连——agent 进程等到第一条消息才拉起（[send]），所以开应用不会白拉一个进程、也不会在启动时弹认证。
+  void _selectDefaultAgent() {
+    // 会话开着的时候当前 agent 归那条会话，列表刷新一概不许动它：`session/new` 之后那一发
+    // `registry_list` / `agent_settings_get` 只要慢一步或回了空，就会把正在用的 agent 抹掉
+    // （线程头回到 No Agent、发送打不出去）。卸载走 `removeAgent`，它自己会先清干净再刷。
+    if (sessionId != null) return;
+    final installed = <String>{for (final a in installedAgents) a.id};
+    final current = agentId;
+    if (current != null && installed.contains(current)) return; // 已经选好且还装着：不动它
+    agentId = _lastUsedAgentId(installed) ?? (installedAgents.isEmpty ? null : installedAgents.first.id);
+  }
+
+  /// 本地索引（`sessions.json`）里 `updatedAt` 最大的那条会话的 agent，限于还装着的。
+  String? _lastUsedAgentId(Set<String> installed) {
+    String? best;
+    var bestAt = -1;
+    for (final e in _indexEntries) {
+      final id = e['agentId'];
+      if (id is! String || !installed.contains(id)) continue;
+      final at = (e['updatedAt'] as num?)?.toInt() ?? 0;
+      if (at > bestAt) {
+        bestAt = at;
+        best = id;
+      }
+    }
+    return best;
+  }
+
+  /// 已安装列表里的这一条（展示名与图标从它来）。
+  AgentRef? _installedRef(String? id) {
+    if (id == null) return null;
+    for (final a in installedAgents) {
+      if (a.id == id) return a;
+    }
+    return null;
   }
 
   String _agentDisplayName(String id, Object? server) {
@@ -641,9 +707,9 @@ class WorkbenchController extends ChangeNotifier {
   /// `-32602 session is already active in this ACP connection`（2026-09-16）：`session/resume` 是给**没在本连接上活着**的
   /// 会话重新挂上下文用的，所以只在 `session/close` 之后给；反过来 Close 只对还活着的给。
   bool get sessionClosed => sessionId != null && _closedSessions.contains(sessionId);
-  bool get canResumeSession => hasAgent && sessionClosed && _sessionCaps.containsKey('resume');
-  bool get canCloseSession => hasAgent && !sessionClosed && _sessionCaps.containsKey('close');
-  bool get canDeleteSession => hasAgent && _sessionCaps.containsKey('delete');
+  bool get canResumeSession => hasSession && sessionClosed && _sessionCaps.containsKey('resume');
+  bool get canCloseSession => hasSession && !sessionClosed && _sessionCaps.containsKey('close');
+  bool get canDeleteSession => hasSession && _sessionCaps.containsKey('delete');
 
   /// 侧栏删除图标（画板 04 注）：agent 声明了 `sessionCapabilities.delete` 才给。
   /// **能力未知**（这个 agent 本次运行还没连过）时照给——那一下只删本地索引，不发 `session/delete`；
@@ -823,6 +889,7 @@ class WorkbenchController extends ChangeNotifier {
     if (sid is! String) throw StateError('session/new 没有返回 sessionId');
     agentId = agent;
     sessionId = sid;
+    sessionEpoch++;
     _sessionAgent[sid] = agent;
     sessions.session(sid, agentId: agent)
       ..cwd = cwd
@@ -839,19 +906,36 @@ class WorkbenchController extends ChangeNotifier {
     final cwd = project?.path;
     if (id == null || b == null || cwd == null) return;
     final previous = sessionId;
-    await _guard(() async {
-      await b.agentDisconnect(id);
-      if (previous == null) {
-        await newSession(AgentRef(id: id, name: id));
-        return;
-      }
-      await _connect(b, id, cwd);
-      if (!canLoadSessionOf(id) || !await loadSession(id, previous, sessions.maybe(previous)?.cwd ?? cwd)) {
-        // 不支持 loadSession：开新会话，旧转录留在内存里只读（R3 的做法）。
-        // 支持但载失败：`loadSession` 已经把那条从内存里拿掉了（转录已清，留空壳会挡住下次重试），这里同样开新会话。
-        await _createSession(id, cwd);
-      }
-    });
+    // 画板 05 B 组阶段 ①：先把等待态摆出来再发命令。断开 → 重连 → load 要几百毫秒到数秒，
+    // 这期间界面一动不动会被当成卡死（所有者反馈 2026-09-17）。
+    reloading = true;
+    _touch();
+    // `session/load` 回的是同一条会话时 `sessionId` 不变、`_adoptSession` 也不走，
+    // 但转录确实整块换过，得单独补一次入场触发（画板 05 阶段 ③）。
+    var loaded = false;
+    try {
+      await _guard(() async {
+        await b.agentDisconnect(id);
+        if (previous == null) {
+          await newSession(AgentRef(id: id, name: id));
+          return;
+        }
+        await _connect(b, id, cwd);
+        if (!canLoadSessionOf(id) || !await loadSession(id, previous, sessions.maybe(previous)?.cwd ?? cwd)) {
+          // 不支持 loadSession：开新会话，旧转录留在内存里只读（R3 的做法）。
+          // 支持但载失败：`loadSession` 已经把那条从内存里拿掉了（转录已清，留空壳会挡住下次重试），这里同样开新会话。
+          await _createSession(id, cwd);
+        } else {
+          loaded = true;
+        }
+      });
+    } finally {
+      // 阶段 ③：载回原会话才补触发；开了新会话的路径 `_adoptSession` 已经 +1 过，
+      // 全都失败的路径不补 —— 画板 05 阶段 ③' 只把亮度恢复，不播入场。
+      if (loaded) sessionEpoch++;
+      reloading = false;
+      _touch();
+    }
   }
 
   /// 侧栏点选一条会话（画板 04）。内存里没有转录且 agent 声明 `loadSession` 时顺带 `session/load` 把历史重放回来。
@@ -859,6 +943,7 @@ class WorkbenchController extends ChangeNotifier {
     page = MainPage.workbench;
     // 线程头正在改名时切走：那个输入框改的是原来那条会话，跟着切过去会把名字落到别人头上。
     if (renamingInHeader && renamingSessionId != id) cancelRename();
+    if (sessionId != id) sessionEpoch++;
     sessionId = id;
     agentId = _sessionAgent[id] ?? agentId;
     _touch();
@@ -1202,15 +1287,30 @@ class WorkbenchController extends ChangeNotifier {
     return true;
   }
 
+  /// 「选了 agent 但还没有会话」时，第一条消息现开一条：在途期间挡住重复点发送。
+  bool _startingSession = false;
+
   Future<void> send() async {
-    final s = store;
     final b = bridge;
     final id = agentId;
-    if (s == null || b == null || id == null) return;
+    if (b == null || id == null) return;
+    final blocks = _promptBlocks(composer.text);
+    if (blocks.isEmpty) return; // 空输入不开会话
+    // 启动后的画板 01 状态 1：agent 已选、会话还没开（进程也没拉）。第一条消息把它开出来，
+    // 失败（认证 / 缺 Node）时 `newSession` 已经把错误与认证页安排好，输入框里的文本原样留着。
+    if (store == null) {
+      if (_startingSession) return;
+      _startingSession = true;
+      try {
+        await newSession(_installedRef(id) ?? AgentRef(id: id, name: id));
+      } finally {
+        _startingSession = false;
+      }
+      if (store == null) return;
+    }
+    final s = store;
+    if (s == null) return;
     if (_blockedByClose()) return;
-    final text = composer.text;
-    final blocks = _promptBlocks(text);
-    if (blocks.isEmpty) return;
     composer.clear();
     pendingBlocks.clear();
     _clearInlineMenu();

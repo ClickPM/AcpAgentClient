@@ -25,7 +25,7 @@
       "x": 0,
       "y": 0,
       "w": 1440,
-      "h": 924
+      "h": 900
     },
     {
       "file": "01-workbench-empty.dc.html",
@@ -62,6 +62,15 @@
       "y": 2096,
       "w": 1440,
       "h": 924
+    },
+    {
+      "file": "05-motion.dc.html",
+      "title": "转场规格",
+      "page": "page-1",
+      "x": 3040,
+      "y": 2096,
+      "w": 1440,
+      "h": 2340
     },
     {
       "file": "10-checkpoint.dc.html",

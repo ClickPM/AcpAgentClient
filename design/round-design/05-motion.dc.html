@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet"><style>body{margin:0;background:#fbfbfc}a{color:#4a59c9;text-decoration:none}a:hover{color:#3d4cb5}</style></helmet>
+<div data-screen-label="05" style="width:1440px;min-width:1440px;height:2340px;flex:none;box-sizing:border-box;padding:24px;background:#fbfbfc;color:#33333d;font-family:Geist,'Noto Sans SC',system-ui,sans-serif;font-size:13px;display:flex;flex-direction:column;gap:18px">
+
+  <div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #e2e2e7;padding-bottom:10px">
+    <span style="font-size:15px;font-weight:500;color:#1e1e26">05 · 转场规格</span>
+    <span style="font-size:11px;color:#8b8b96">纯静态规格图；所有时长 / 位移 / 曲线 / 透明度只取自 00-tokens 的动效小节，本画板不新增数值</span>
+    <span style="margin-left:auto;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">虚线框 = 受影响区域 · 未标注的一切不动 · 分帧时间轴 2px / ms</span>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:baseline;gap:10px">
+      <span style="font-size:13px;font-weight:500;color:#1e1e26">A · 会话内容整块替换</span>
+      <span style="font-size:11px;color:#62626e">触发：侧栏点另一条会话；或线程头 + 选 agent 后新会话建好（弹层见画板 41）。两者视觉上是同一件事。受影响的只有线程头标题文字与转录区，两处同起同止。</span>
+    </div>
+
+    <div style="display:flex;gap:16px">
+      <div style="width:448px;flex:none">
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d;margin-bottom:6px">t = 0ms</div>
+        <div style="height:180px;box-sizing:border-box;border:1px solid #d3d3da;border-radius:4px;background:#fbfbfc;overflow:hidden;display:flex;flex-direction:column">
+          <div style="height:26px;flex:none;display:flex;align-items:center;gap:6px;padding:0 8px;border-bottom:1px solid #e2e2e7">
+            <span style="width:12px;height:12px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:4px;height:4px;background:#5566d8;transform:rotate(45deg)"></span></span>
+            <span style="width:164px;height:14px;border:1px dashed #5566d8;border-radius:3px"></span>
+            <span style="margin-left:auto;display:flex;align-items:center;gap:3px"><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span></span>
+          </div>
+          <div style="flex:1;min-height:0;padding:8px;box-sizing:border-box">
+            <div style="height:100%;box-sizing:border-box;border:1px dashed #5566d8;border-radius:4px"></div>
+          </div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">旧内容已移除；新内容 opacity 0 + translateY 8px，不可见</div>
+      </div>
+      <div style="width:448px;flex:none">
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d;margin-bottom:6px">t = 100ms</div>
+        <div style="height:180px;box-sizing:border-box;border:1px solid #d3d3da;border-radius:4px;background:#fbfbfc;overflow:hidden;display:flex;flex-direction:column">
+          <div style="height:26px;flex:none;display:flex;align-items:center;gap:6px;padding:0 8px;border-bottom:1px solid #e2e2e7">
+            <span style="width:12px;height:12px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:4px;height:4px;background:#5566d8;transform:rotate(45deg)"></span></span>
+            <span style="width:164px;height:14px;border:1px dashed #5566d8;border-radius:3px;display:flex;align-items:center;padding:0 3px;box-sizing:border-box"><span style="font-size:11px;font-weight:500;color:#1e1e26;opacity:.45;transform:translateY(4px)">Pi用户级安装Figma插件</span></span>
+            <span style="margin-left:auto;display:flex;align-items:center;gap:3px"><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span></span>
+          </div>
+          <div style="flex:1;min-height:0;padding:8px;box-sizing:border-box">
+            <div style="height:100%;box-sizing:border-box;border:1px dashed #5566d8;border-radius:4px;padding:6px;display:flex;flex-direction:column;gap:5px;opacity:.45;transform:translateY(4px)">
+              <div style="align-self:flex-end;max-width:70%;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px;padding:3px 7px;font-size:11px;color:#33333d">帮我装一下 Figma 插件</div>
+              <div style="font-size:11px;line-height:1.5;color:#33333d">先确认用户级插件目录，再写入 manifest。</div>
+              <div style="border:1px solid #e2e2e7;border-radius:4px;background:#f4f4f6;padding:3px 6px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">Read ~/.config/figma/manifest.json</div>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">入场中；opacity 与 translateY 同一条时间线推进</div>
+      </div>
+      <div style="width:448px;flex:none">
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d;margin-bottom:6px">t = 200ms</div>
+        <div style="height:180px;box-sizing:border-box;border:1px solid #d3d3da;border-radius:4px;background:#fbfbfc;overflow:hidden;display:flex;flex-direction:column">
+          <div style="height:26px;flex:none;display:flex;align-items:center;gap:6px;padding:0 8px;border-bottom:1px solid #e2e2e7">
+            <span style="width:12px;height:12px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:4px;height:4px;background:#5566d8;transform:rotate(45deg)"></span></span>
+            <span style="width:164px;height:14px;border:1px dashed #5566d8;border-radius:3px;display:flex;align-items:center;padding:0 3px;box-sizing:border-box"><span style="font-size:11px;font-weight:500;color:#1e1e26">Pi用户级安装Figma插件</span></span>
+            <span style="margin-left:auto;display:flex;align-items:center;gap:3px"><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span></span>
+          </div>
+          <div style="flex:1;min-height:0;padding:8px;box-sizing:border-box">
+            <div style="height:100%;box-sizing:border-box;border:1px dashed #5566d8;border-radius:4px;padding:6px;display:flex;flex-direction:column;gap:5px">
+              <div style="align-self:flex-end;max-width:70%;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px;padding:3px 7px;font-size:11px;color:#33333d">帮我装一下 Figma 插件</div>
+              <div style="font-size:11px;line-height:1.5;color:#33333d">先确认用户级插件目录，再写入 manifest。</div>
+              <div style="border:1px solid #e2e2e7;border-radius:4px;background:#f4f4f6;padding:3px 6px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">Read ~/.config/figma/manifest.json</div>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">入场完成；opacity 1 + translateY 0</div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:flex-end;gap:16px">
+      <div style="width:400px;flex:none">
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e;margin-bottom:4px">| 0ms 旧内容瞬间移除（不淡出）</div>
+        <div style="height:16px;border-radius:3px;background:#ecedfa;border:1px solid #d3d3da;display:flex;align-items:center;padding:0 6px;box-sizing:border-box"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#4a59c9">opacity 0 → 1 · translateY 8px → 0 · motion.transition</span></div>
+        <div style="display:flex;justify-content:space-between;margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96"><span>0ms</span><span>200ms</span></div>
+      </div>
+      <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e;line-height:1.6;padding-bottom:18px">错开规则：落到新建会话空态（画板 01 的居中 agent 图标 / 标题 / 提示行）时，这三层错开入场，步长 motion.stagger 40ms，顺序自上而下 —— 图标 0ms、标题 40ms、提示行 80ms。<br>落到已有转录时，整个转录区作为一个整体入场，不逐卡错开。</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:230px 200px 200px 120px 110px 1fr;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;border-top:1px solid #e2e2e7">
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">属性</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">起 → 止</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">时长</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">曲线</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">延迟</div>
+      <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">备注</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">旧内容</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">可见 → 移除</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">0ms</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">—</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">无延迟</div>
+      <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">不做淡出，触发瞬间直接消失</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">新内容 opacity</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">0 → 1</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">motion.transition 200ms</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">motion.ease</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">无延迟</div>
+      <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">—</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">新内容 translateY</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">motion.rise 8px → 0</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">motion.transition 200ms</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">motion.ease</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">无延迟</div>
+      <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">—</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">线程头标题</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">同上两行</div>
+      <div style="grid-column:3 / -1;padding:5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">与转录区同起同止</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">线程头的四个图标按钮</div>
+      <div style="grid-column:2 / -1;padding:5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">不动</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">输入框</div>
+      <div style="grid-column:2 / -1;padding:5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">不动</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">左侧栏</div>
+      <div style="grid-column:2 / -1;padding:5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">不动</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">右栏</div>
+      <div style="grid-column:2 / -1;padding:5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">不动</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">顶栏（项目名 / 分支 / 窗口控制）</div>
+      <div style="grid-column:2 / -1;padding:5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">不动</div>
+    </div>
+
+    <div style="background:#fbeeea;border:1px solid #e2e2e7;border-radius:4px;padding:6px 8px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#bc4e39">反例：不做旧内容淡出，不做横向滑动，不做缩放，不做 opacity 以外的滤镜，新旧内容任何一帧都不得同时可读，长转录不得逐卡错开。</div>
+  </div>
+
+  <div style="height:1px;background:#e2e2e7"></div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:baseline;gap:10px">
+      <span style="font-size:13px;font-weight:500;color:#1e1e26">B · 重载 agent（带等待期的替换）</span>
+      <span style="font-size:11px;color:#62626e">触发：线程头上的 reload 图标（画板 01 / 41 里那个）。等待时长不可预知，几百毫秒到数秒。</span>
+    </div>
+
+    <div style="display:flex;gap:16px">
+      <div style="width:336px;flex:none">
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d;margin-bottom:6px">① t = 0ms · 点击瞬间</div>
+        <div style="height:180px;box-sizing:border-box;border:1px solid #d3d3da;border-radius:4px;background:#fbfbfc;overflow:hidden;display:flex;flex-direction:column">
+          <div style="height:26px;flex:none;display:flex;align-items:center;gap:6px;padding:0 8px;border-bottom:1px solid #e2e2e7">
+            <span style="width:12px;height:12px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:4px;height:4px;background:#5566d8;transform:rotate(45deg)"></span></span>
+            <span style="font-size:11px;font-weight:500;color:#1e1e26">Pi用户级安装Figma插件</span>
+            <span style="width:12px;height:12px;border:1px dashed #5566d8;border-radius:3px"></span>
+            <span style="margin-left:auto;display:flex;align-items:center;gap:3px"><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span><span style="width:14px;height:14px;border-radius:3px;background:#e7e7eb"></span><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span></span>
+          </div>
+          <div style="flex:1;min-height:0;padding:8px;box-sizing:border-box">
+            <div style="height:100%;box-sizing:border-box;border:1px dashed #5566d8;border-radius:4px;padding:6px;display:flex;flex-direction:column;gap:5px">
+              <div style="align-self:flex-end;max-width:76%;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px;padding:3px 7px;font-size:11px;color:#33333d">帮我装一下 Figma 插件</div>
+              <div style="font-size:11px;line-height:1.5;color:#33333d">先确认用户级插件目录，再写入 manifest。</div>
+              <div style="border:1px solid #e2e2e7;border-radius:4px;background:#f4f4f6;padding:3px 6px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">Read manifest.json</div>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">spinner 位就位；转录区仍 opacity 1，开始变暗</div>
+      </div>
+      <div style="width:336px;flex:none">
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d;margin-bottom:6px">② t = 120ms · 等待中</div>
+        <div style="height:180px;box-sizing:border-box;border:1px solid #d3d3da;border-radius:4px;background:#fbfbfc;overflow:hidden;display:flex;flex-direction:column">
+          <div style="height:26px;flex:none;display:flex;align-items:center;gap:6px;padding:0 8px;border-bottom:1px solid #e2e2e7">
+            <span style="width:12px;height:12px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:4px;height:4px;background:#5566d8;transform:rotate(45deg)"></span></span>
+            <span style="font-size:11px;font-weight:500;color:#1e1e26">Pi用户级安装Figma插件</span>
+            <span style="display:inline-flex;border:1px dashed #5566d8;border-radius:3px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5566d8" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.55"></path></svg></span>
+            <span style="margin-left:auto;display:flex;align-items:center;gap:3px"><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span></span>
+          </div>
+          <div style="flex:1;min-height:0;padding:8px;box-sizing:border-box">
+            <div style="height:100%;box-sizing:border-box;border:1px dashed #5566d8;border-radius:4px;padding:6px;display:flex;flex-direction:column;gap:5px;opacity:.5">
+              <div style="align-self:flex-end;max-width:76%;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px;padding:3px 7px;font-size:11px;color:#33333d">帮我装一下 Figma 插件</div>
+              <div style="font-size:11px;line-height:1.5;color:#33333d">先确认用户级插件目录，再写入 manifest。</div>
+              <div style="border:1px solid #e2e2e7;border-radius:4px;background:#f4f4f6;padding:3px 6px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">Read manifest.json</div>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">转录区停在 opacity.pending 0.5、不可交互；无新增元素</div>
+      </div>
+      <div style="width:336px;flex:none">
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d;margin-bottom:6px">③ 完成 t = 0ms</div>
+        <div style="height:180px;box-sizing:border-box;border:1px solid #d3d3da;border-radius:4px;background:#fbfbfc;overflow:hidden;display:flex;flex-direction:column">
+          <div style="height:26px;flex:none;display:flex;align-items:center;gap:6px;padding:0 8px;border-bottom:1px solid #e2e2e7">
+            <span style="width:12px;height:12px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:4px;height:4px;background:#5566d8;transform:rotate(45deg)"></span></span>
+            <span style="font-size:11px;font-weight:500;color:#1e1e26">Pi用户级安装Figma插件</span>
+            <span style="width:12px;height:12px;border:1px dashed #5566d8;border-radius:3px"></span>
+            <span style="margin-left:auto;display:flex;align-items:center;gap:3px"><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span></span>
+          </div>
+          <div style="flex:1;min-height:0;padding:8px;box-sizing:border-box">
+            <div style="height:100%;box-sizing:border-box;border:1px dashed #5566d8;border-radius:4px"></div>
+          </div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">spinner 撤去；旧内容瞬间移除，新内容起点 opacity 0（不是 0.5）</div>
+      </div>
+      <div style="width:336px;flex:none">
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d;margin-bottom:6px">③ 完成 t = 200ms</div>
+        <div style="height:180px;box-sizing:border-box;border:1px solid #d3d3da;border-radius:4px;background:#fbfbfc;overflow:hidden;display:flex;flex-direction:column">
+          <div style="height:26px;flex:none;display:flex;align-items:center;gap:6px;padding:0 8px;border-bottom:1px solid #e2e2e7">
+            <span style="width:12px;height:12px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:4px;height:4px;background:#5566d8;transform:rotate(45deg)"></span></span>
+            <span style="font-size:11px;font-weight:500;color:#1e1e26">Pi用户级安装Figma插件</span>
+            <span style="width:12px;height:12px;border:1px dashed #5566d8;border-radius:3px"></span>
+            <span style="margin-left:auto;display:flex;align-items:center;gap:3px"><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span><span style="width:14px;height:14px;border-radius:3px;background:#eeeef1"></span></span>
+          </div>
+          <div style="flex:1;min-height:0;padding:8px;box-sizing:border-box">
+            <div style="height:100%;box-sizing:border-box;border:1px dashed #5566d8;border-radius:4px;padding:6px;display:flex;flex-direction:column;gap:5px">
+              <div style="align-self:flex-end;max-width:76%;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px;padding:3px 7px;font-size:11px;color:#33333d">帮我装一下 Figma 插件</div>
+              <div style="font-size:11px;line-height:1.5;color:#33333d">插件目录已确认，重新读取 manifest。</div>
+              <div style="border:1px solid #e2e2e7;border-radius:4px;background:#f4f4f6;padding:3px 6px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">Read manifest.json</div>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">入场完成，整套复用 A 组规格</div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:flex-end;gap:12px">
+      <div style="width:240px;flex:none">
+        <div style="height:16px;border-radius:3px;background:#ecedfa;border:1px solid #d3d3da;display:flex;align-items:center;padding:0 6px;box-sizing:border-box"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#4a59c9">转录区 1 → 0.5 · motion.fast</span></div>
+        <div style="display:flex;justify-content:space-between;margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96"><span>0ms</span><span>120ms</span></div>
+      </div>
+      <div style="width:260px;flex:none">
+        <div style="height:16px;border-radius:3px;background:#f4f4f6;border:1px dashed #d3d3da;display:flex;align-items:center;padding:0 6px;box-sizing:border-box"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">等待中 · 时长不可预知</span></div>
+        <div style="display:flex;justify-content:space-between;margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96"><span>保持终态</span><span>完成 0ms</span></div>
+      </div>
+      <div style="width:400px;flex:none">
+        <div style="height:16px;border-radius:3px;background:#ecedfa;border:1px solid #d3d3da;display:flex;align-items:center;padding:0 6px;box-sizing:border-box"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#4a59c9">opacity 0 → 1 · translateY 8px → 0 · motion.transition</span></div>
+        <div style="display:flex;justify-content:space-between;margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96"><span>0ms</span><span>200ms</span></div>
+      </div>
+      <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e;padding-bottom:18px">③' 失败分支不走这段入场</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:230px 200px 200px 120px 110px 1fr;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;border-top:1px solid #e2e2e7">
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">属性</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">起 → 止</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">时长</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">曲线</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">延迟</div>
+      <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">备注</div>
+
+      <div style="grid-column:1 / -1;padding:7px 0 4px;color:#62626e;font-weight:500">阶段 ① 点击 → 进入等待</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">线程头 spinner</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">无 → 出现</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">0ms</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">—</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">无延迟</div>
+      <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">复用画板 02 / 31 那个 accent 1.5px 弧，不新画</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">转录区 opacity</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">1 → opacity.pending 0.5</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">motion.fast 120ms</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">motion.ease</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">无延迟</div>
+      <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">—</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">转录区交互</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">启用 → 禁用</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">0ms</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">—</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">—</div>
+      <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">不响应点击，悬浮不出容器</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">输入框 / 左侧栏 / 右栏 / 顶栏</div>
+      <div style="grid-column:2 / -1;padding:5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">不动，不变暗</div>
+
+      <div style="grid-column:1 / -1;padding:7px 0 4px;color:#62626e;font-weight:500">阶段 ② 等待中（时长不可预知，几百毫秒到数秒）</div>
+      <div style="grid-column:1 / -1;padding:5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">保持阶段 ① 的终态：转录区停在 0.5、spinner 持续转</div>
+      <div style="grid-column:1 / -1;padding:5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">不加任何新元素：无骨架屏、无进度条、无遮罩、无 toast、无百分比、无「正在重载…」文案</div>
+
+      <div style="grid-column:1 / -1;padding:7px 0 4px;color:#62626e;font-weight:500">阶段 ③ 完成</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">线程头 spinner</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">出现 → 无</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">0ms</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">—</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">无延迟</div>
+      <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">—</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">转录区</div>
+      <div style="grid-column:2 / -1;padding:5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">整套复用 A 组的入场：旧内容瞬间移除，新内容 opacity 0 → 1（起点是 0，不是 0.5）+ translateY 8px → 0，motion.transition 200ms，motion.ease</div>
+
+      <div style="grid-column:1 / -1;padding:7px 0 4px;color:#62626e;font-weight:500">阶段 ③' 失败（重载没成功）</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">转录区 opacity</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">0.5 → 1</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">motion.fast 120ms</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">motion.ease</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">—</div>
+      <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">—</div>
+
+      <div style="grid-column:1 / -1;padding:5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">不做入场动画，错误走画板 34 的状态条，样式不动</div>
+    </div>
+
+    <div style="background:#fbeeea;border:1px solid #e2e2e7;border-radius:4px;padding:6px 8px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#bc4e39">反例：等待期不得新增任何组件，不得做进度表达，不得让输入框或左右栏跟着变暗，完成后的入场不得从 0.5 起。</div>
+  </div>
+
+  <div style="height:1px;background:#e2e2e7"></div>
+
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <div style="font-size:13px;font-weight:500;color:#1e1e26">C · 右栏标签切换（设置 / 文件 / Agents / 终端）</div>
+    <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d;line-height:1.7">C · 右栏标签切换：完全复用 A 组入场规格（新内容 opacity 0 → 1 + translateY 8px → 0，motion.transition 200ms，motion.ease；旧内容瞬间移除）。替换区域 = 右栏标签栏以下的内容区；右栏标签栏本身、分隔线、栏宽都不动。</div>
+  </div>
+
+  <div style="height:1px;background:#e2e2e7"></div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:baseline;gap:10px">
+      <span style="font-size:13px;font-weight:500;color:#1e1e26">D · 弹层出现与关闭</span>
+      <span style="font-size:11px;color:#62626e">覆盖画板 40 / 41 / 42 里所有弹层与菜单；弹层本身的样式一概不动，只定出场。例：线程头 + 的新建会话弹层（画板 41）。</span>
+    </div>
+
+    <div style="display:flex;gap:16px">
+      <div style="width:448px;flex:none">
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d;margin-bottom:6px">t = 0ms</div>
+        <div style="height:168px;box-sizing:border-box;border:1px solid #d3d3da;border-radius:4px;background:#fbfbfc;overflow:hidden;padding:8px 12px">
+          <div style="display:flex;align-items:center;gap:6px;height:22px">
+            <span style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:4px;background:rgba(30,30,38,.10);color:#4a59c9"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></span>
+            <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">触发按钮选中容器 0ms 立即出现</span>
+          </div>
+          <div style="margin-top:6px;width:240px;height:96px;box-sizing:border-box;border:1px dashed #5566d8;border-radius:6px"></div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">弹层 opacity 0 + translateY −4px，不可见</div>
+      </div>
+      <div style="width:448px;flex:none">
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d;margin-bottom:6px">t = 80ms</div>
+        <div style="height:168px;box-sizing:border-box;border:1px solid #d3d3da;border-radius:4px;background:#fbfbfc;overflow:hidden;padding:8px 12px">
+          <div style="display:flex;align-items:center;gap:6px;height:22px">
+            <span style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:4px;background:rgba(30,30,38,.10);color:#4a59c9"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></span>
+            <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">出场中</span>
+          </div>
+          <div style="margin-top:6px;width:240px;height:96px;box-sizing:border-box;border:1px dashed #5566d8;border-radius:6px;opacity:.5;transform:translateY(-2px)">
+            <div style="height:100%;box-sizing:border-box;background:#ffffff;border:1px solid #e2e2e7;border-radius:6px;box-shadow:0 4px 12px rgba(28,28,35,.10);padding:4px">
+              <div style="height:22px;display:flex;align-items:center;gap:6px;padding:0 6px;border-radius:4px"><span style="width:12px;height:12px;flex:none;border:1px solid #8b8b96;border-radius:3px"></span><span style="font-size:11px;color:#33333d">Zed Agent</span></div>
+              <div style="height:1px;background:#e2e2e7;margin:3px 0"></div>
+              <div style="height:22px;display:flex;align-items:center;gap:6px;padding:0 6px;border-radius:4px"><span style="width:12px;height:12px;flex:none;border:1px solid #8b8b96;border-radius:3px"></span><span style="font-size:11px;color:#33333d">Claude Agent</span></div>
+              <div style="height:22px;display:flex;align-items:center;gap:6px;padding:0 6px;border-radius:4px"><span style="width:12px;height:12px;flex:none;border:1px solid #8b8b96;border-radius:3px"></span><span style="font-size:11px;color:#33333d">Codex</span></div>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">opacity 与 translateY 同一条时间线；阴影跟随，不单独设</div>
+      </div>
+      <div style="width:448px;flex:none">
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d;margin-bottom:6px">t = 160ms</div>
+        <div style="height:168px;box-sizing:border-box;border:1px solid #d3d3da;border-radius:4px;background:#fbfbfc;overflow:hidden;padding:8px 12px">
+          <div style="display:flex;align-items:center;gap:6px;height:22px">
+            <span style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:4px;background:rgba(30,30,38,.10);color:#4a59c9"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></span>
+            <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">出场完成</span>
+          </div>
+          <div style="margin-top:6px;width:240px;height:96px;box-sizing:border-box;border:1px dashed #5566d8;border-radius:6px">
+            <div style="height:100%;box-sizing:border-box;background:#ffffff;border:1px solid #e2e2e7;border-radius:6px;box-shadow:0 4px 12px rgba(28,28,35,.10);padding:4px">
+              <div style="height:22px;display:flex;align-items:center;gap:6px;padding:0 6px;border-radius:4px"><span style="width:12px;height:12px;flex:none;border:1px solid #8b8b96;border-radius:3px"></span><span style="font-size:11px;color:#33333d">Zed Agent</span></div>
+              <div style="height:1px;background:#e2e2e7;margin:3px 0"></div>
+              <div style="height:22px;display:flex;align-items:center;gap:6px;padding:0 6px;border-radius:4px"><span style="width:12px;height:12px;flex:none;border:1px solid #8b8b96;border-radius:3px"></span><span style="font-size:11px;color:#33333d">Claude Agent</span></div>
+              <div style="height:22px;display:flex;align-items:center;gap:6px;padding:0 6px;border-radius:4px"><span style="width:12px;height:12px;flex:none;border:1px solid #8b8b96;border-radius:3px"></span><span style="font-size:11px;color:#33333d">Codex</span></div>
+            </div>
+          </div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">底层内容全程不变暗、不模糊</div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:flex-end;gap:16px">
+      <div style="width:320px;flex:none">
+        <div style="height:16px;border-radius:3px;background:#ecedfa;border:1px solid #d3d3da;display:flex;align-items:center;padding:0 6px;box-sizing:border-box"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#4a59c9">opacity 0→1 · translateY ∓4px→0 · motion.base</span></div>
+        <div style="display:flex;justify-content:space-between;margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96"><span>0ms</span><span>160ms</span></div>
+      </div>
+      <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e;line-height:1.6;padding-bottom:18px">向上弹的弹层（@ / / 菜单、模型与思考强度选择器、用量弹层）方向取反，位移 +4px → 0，其余完全相同，不另画。<br>关闭不做动画，立即消失（0ms）。</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:230px 200px 200px 120px 110px 1fr;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;border-top:1px solid #e2e2e7">
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">属性</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">起 → 止</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">时长</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">曲线</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">延迟</div>
+      <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">备注</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">弹层 opacity</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">0 → 1</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">motion.base 160ms</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">motion.ease</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">无延迟</div>
+      <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">—</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">弹层 translateY</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">向下弹 −motion.pop −4px → 0；向上弹 +motion.pop +4px → 0</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">motion.base 160ms</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">motion.ease</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">无延迟</div>
+      <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">—</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">阴影</div>
+      <div style="grid-column:2 / -1;padding:5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">与弹层同一条时间线，不单独设</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">缩放</div>
+      <div style="grid-column:2 / -1;padding:5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">不做</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">触发按钮的选中容器</div>
+      <div style="grid-column:2 / -1;padding:5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">0ms 立即出现，不等弹层</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">关闭</div>
+      <div style="grid-column:2 / -1;padding:5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">不做动画，立即消失（0ms）</div>
+    </div>
+
+    <div style="background:#fbeeea;border:1px solid #e2e2e7;border-radius:4px;padding:6px 8px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#bc4e39">反例：不做缩放，不做从触发点放大的效果，关闭不做退场动画，弹层出现期间底层内容不变暗、不模糊。</div>
+  </div>
+
+  <div style="height:1px;background:#e2e2e7"></div>
+
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <div style="font-size:13px;font-weight:500;color:#1e1e26">轻量交互规格</div>
+    <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d;line-height:1.8">
+      <div>hover 进入 / 离开：容器底色与其中的文字、图标颜色走同一条 motion.fast 120ms / motion.ease，进出同时长。</div>
+      <div>active（按下）：不做过渡，立即换到按下叠色；松开回 hover 态走 motion.fast 120ms。</div>
+      <div>焦点环：不做过渡，立即出现、立即消失。</div>
+      <div>展开 / 折叠（工具卡、思考块、计划卡、diff 卡）：高度与 opacity 走 motion.base 160ms / motion.ease，同起同止。</div>
+    </div>
+  </div>
+
+  <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;line-height:1.6">注：本画板不含转录区流式内容的出现动效（新工具卡 / 文本块逐步追加、spinner 转速、Thinking... 呼吸）、不含加载骨架屏、不含整页级转场与任何回弹。</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:2340}}"></script>
+</body>
+</html>

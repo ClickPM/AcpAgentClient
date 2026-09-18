@@ -27,6 +27,7 @@ import '../ui/settings/settings_page.dart';
 import '../ui/shell/agent_state_bar.dart';
 import '../ui/shell/app_shell.dart';
 import '../ui/shell/composer.dart';
+import '../ui/shell/motion.dart';
 import '../ui/shell/popover_anchor.dart';
 import '../ui/shell/right_panel.dart';
 import '../ui/shell/shell_common.dart';
@@ -304,9 +305,12 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         threadHeader: ThreadHeader(
           title: c.threadTitle,
           hasAgent: c.hasAgent,
-          running: c.isRunning,
-          canRename: c.hasAgent,
-          canReload: c.hasAgent,
+          // 重载等待期借用同一只 spinner（画板 05 B 组阶段 ①：不新增元素）。
+          running: c.isRunning || c.reloading,
+          // 标题与转录区同起同止（画板 05 A 组）。
+          transitionEpoch: c.sessionEpoch,
+          canRename: c.hasSession,
+          canReload: c.hasSession,
           menuSelected: c.rightPanelOpen,
           iconSvg: c.agentIconSvg,
           renaming: c.renamingInHeader && c.renamingSessionId == c.sessionId,
@@ -325,7 +329,28 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         composer: _composer(),
       );
 
+  /// 画板 05 的 A 组（会话内容整块替换的入场）与 B 组（重载等待期）都落在中栏这一块。
+  ///
+  /// 两层透明度会相乘：重载完成那一下 `AnimatedOpacity` 从 `opacity.pending` 回 1，
+  /// 同时入场从 0 起，中段比规格的单条曲线低 0.1 上下 —— 200ms 内看不出。
+  /// 不给 `AnimatedOpacity` 挂 epoch key 去换严格一致：那会整棵重建转录子树，
+  /// 把卡片的展开态与滚动位置一起丢掉，代价远大于收益。
   Widget _body() {
+    // 新会话空态自己按 motion.stagger 错开三层（画板 05 A 组的错开规则），那一下**代替**整体入场。
+    final staggered = c.hasAgent && (c.store?.entries.isEmpty ?? true);
+    final Widget content = IgnorePointer(
+      ignoring: c.reloading,
+      child: AnimatedOpacity(
+        opacity: c.reloading ? t.Opacities.pending : 1,
+        duration: t.Motion.fast,
+        curve: t.Motion.curve,
+        child: _bodyContent(),
+      ),
+    );
+    return staggered ? content : MotionEnter(epoch: c.sessionEpoch, child: content);
+  }
+
+  Widget _bodyContent() {
     final store = c.store;
     if (store == null || store.entries.isEmpty) {
       return CenteredContent(
@@ -335,7 +360,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
             ..._stateBars(),
             Expanded(
               child: c.hasAgent
-                  ? NewThreadEmpty(title: c.threadTitle)
+                  ? NewThreadEmpty(title: c.threadTitle, transitionEpoch: c.sessionEpoch)
                   : NoAgentEmpty(onOpenAgents: () => c.openTab(ShellTab.agents)),
             ),
           ],
@@ -416,7 +441,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       focusNode: c.composerFocus,
       placeholder: c.composerPlaceholder,
       // 关掉的会话转录只读（画板 41 的 Close；R6 审查 finding P2）。
-      enabled: c.hasAgent && !c.sessionClosed,
+      enabled: c.canCompose,
       running: c.isRunning,
       usage: store?.usage,
       model: _currentName('model'),
@@ -700,6 +725,9 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
 
   Widget _rightPanel() {
     final active = c.activePanel!;
+    // 画板 05 C 组：标签互切时内容区复用 A 组的入场；标签条本身、分隔线、栏宽都不动。
+    // `PanelTab` 自带 == / hashCode，直接当触发器。
+    final body = _panelBody(active);
     return RightPanel(
       tabs: c.panelTabs,
       active: active,
@@ -708,7 +736,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       onMinimize: AppWindow.minimize,
       onMaximize: AppWindow.toggleMaximize,
       onCloseWindow: AppWindow.close,
-      body: _panelBody(active),
+      body: body == null ? null : MotionEnter(epoch: active, child: body),
       // 右栏展开时窗口控制在标签条上：那一段同样是顶栏那一行。
       dragArea: _dragArea(),
     );
