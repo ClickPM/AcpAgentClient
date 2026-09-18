@@ -205,8 +205,12 @@ class MenuTwoLineRow extends StatelessWidget {
   }
 }
 
-/// 选中行自动露出：`/` 菜单几十条时键盘上下键必然把高亮移出滚动区，打开有搜索框的弹层时
-/// 当前值也可能在视口之外。没有滚动祖先（画板对照页里的静态样张）就什么都不做。
+/// 选中行自动露出：`/` 菜单几十条时键盘上下键必然把高亮移出滚动区。没有滚动祖先（画板对照页里的
+/// 静态样张）就什么都不做。
+///
+/// **只在高亮移动时露出，打开那一下不露**：搜索框是 [MenuPopover] 的第一个 child、和条目在同一个
+/// 滚动区里，开局就把靠后的当前值滚到正中会顺带把搜索框推出视口，而它正是长列表弹层的主交互
+///（发布前审查 P2，2026-09-18）。代价是打开时当前值可能在视口外，翻一下或敲字过滤即可。
 class _RevealWhenSelected extends StatefulWidget {
   const _RevealWhenSelected({required this.selected, required this.child});
 
@@ -219,18 +223,12 @@ class _RevealWhenSelected extends StatefulWidget {
 
 class _RevealWhenSelectedState extends State<_RevealWhenSelected> {
   @override
-  void initState() {
-    super.initState();
-    if (widget.selected) _reveal();
-  }
-
-  @override
   void didUpdateWidget(_RevealWhenSelected oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.selected && !oldWidget.selected) _reveal();
   }
 
-  /// 这一帧还没布局（`initState` 时连 RenderBox 都还没有），推到帧末再滚。
+  /// 改高亮的这一帧还没布局（新位置要等这帧的 layout 才算得出来），推到帧末再滚。
   void _reveal() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !widget.selected) return;

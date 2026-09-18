@@ -38,7 +38,7 @@ class _Core extends FakeCore {
   Future<JsonMap> fsListDir(String root, String path) async => <String, dynamic>{
         'entries': <Object?>[
           for (var i = 0; i < 12; i++)
-            <String, dynamic>{'path': 'D:\proj\f$i.dart', 'name': 'f$i.dart', 'parent': 'proj', 'isDir': false},
+            <String, dynamic>{'path': 'D:\\proj\\f$i.dart', 'name': 'f$i.dart', 'parent': 'proj', 'isDir': false},
         ],
       };
 }

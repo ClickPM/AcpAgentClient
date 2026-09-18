@@ -139,13 +139,13 @@ class TurnEndLine extends StatelessWidget {
         crossAxisAlignment: failed ? CrossAxisAlignment.start : CrossAxisAlignment.center,
         children: <Widget>[
           Padding(
-            padding: EdgeInsets.only(top: failed ? t.Spacing.s8 : 0),
+            padding: failed ? const EdgeInsets.only(top: t.Spacing.s8) : EdgeInsets.zero,
             child: ToneChip(failed ? '失败' : (reason ?? '?'), tone: failed ? ChipTone.error : toneOf(reason)),
           ),
           const SizedBox(width: t.Spacing.s8),
           Expanded(
             child: Padding(
-              padding: EdgeInsets.symmetric(vertical: failed ? t.Spacing.s8 : 0),
+              padding: failed ? const EdgeInsets.symmetric(vertical: t.Spacing.s8) : EdgeInsets.zero,
               child: Text(
                 parts.join(' · '),
                 style: CardText.headerTitle.copyWith(color: failed ? t.Semantic.error : t.Neutral.muted),
