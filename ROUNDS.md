@@ -1,6 +1,6 @@
 # ROUNDS — 轮次总览与 roadmap
 
-> 设计稿已于 2026-09-14 收口（40 张画板；2026-09-17 增画板 05「转场规格」，现 41 张。清单与计数以 [`design/README.md`](design/README.md) 为准），本文据此把实现拆成 **R0–R8（含 R1.5 spike）**，取代 `docs/design.md` § 11 的草案（2026-09-15）。
+> 设计稿已于 2026-09-14 收口（40 张画板；2026-09-17 增画板 05「转场规格」、2026-09-18 增画板 06「侧栏会话活动指示」，现 42 张。清单与计数以 [`design/README.md`](design/README.md) 为准），本文据此把实现拆成 **R0–R8（含 R1.5 spike）**，取代 `docs/design.md` § 11 的草案（2026-09-15）。
 > 本文只管三件事：**哪一轮做什么画板与协议面、验收什么、开工前要所有者裁定什么**。流程、审查与硬性规则在 [`CLAUDE.md`](CLAUDE.md)，任务卡模板在 [`rounds/TEMPLATE.md`](rounds/TEMPLATE.md)，每轮开工 `cp rounds/TEMPLATE.md rounds/round-NN/round-NN.md` 后按本文对应节填。
 > 轮次编号只增不改；R1.5 沿用 CLAUDE.md 规则 1 的写法（Markdown 库 spike）。R7 = sidecar、R8 = 打包，与 CLAUDE.md 仓库结构里的标注一致。
 
@@ -44,6 +44,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 | 03 | 工作台 · 回合结束 + 右栏展开 | R3（右栏内容 R4） | 同上 + `lib/ui/shell/right_panel.dart` |
 | 04 | 侧栏与顶栏状态 | R3 | `sidebar.dart`、`topbar.dart`（会话项、搜索、折叠态） |
 | 05 | 转场规格 | main 直改（2026-09-17） | `lib/ui/shell/motion.dart`（`MotionEnter`，A / B / C / D 四组共用）+ 接线点 `workbench_screen.dart`、`workbench_controller.dart`、`thread_header.dart`、`transcript_empty.dart`、`popover_anchor.dart`；数值在 `tokens.dart` 的 `Motion` / `Opacities` |
+| 06 | 侧栏会话活动指示 | main 直改（2026-09-18） | `sidebar.dart`（`SessionSweepLine` / `SessionUnreadDot` + 会话项的 running / unread 两态）+ 接线点 `workbench_controller.dart`（`runningSessionIds` / `unreadSessionIds`）、`workbench_screen.dart`；数值在 `tokens.dart` 的 `Sweep` / `UnreadDot` / `Geometry` |
 | 10 | ~~Restore Checkpoint 分隔线~~ 已废弃（2026-09-17） | R2 | 已删除（与画板 11 的 Restore 同一动作） |
 | 11 | 用户消息气泡 | R2 | `lib/ui/transcript/user_message.dart` |
 | 12 | 助手富文本正文 | R2 | `lib/ui/transcript/assistant_text.dart` |

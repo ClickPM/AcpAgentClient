@@ -1,4 +1,4 @@
-// 画板 01 / 02 / 03 / 04 / 40 / 41 / 42 / 80 的 gallery 页（R3）：整窗画板按 1440 × 900 的 frame 渲染，
+// 画板 01 / 02 / 03 / 04 / 06 / 40 / 41 / 42 / 80 的 gallery 页（R3；06 是 2026-09-18 的增补）：整窗画板按 1440 × 900 的 frame 渲染，
 // 合集画板沿用 R2 的 BoardPage 版式。数据源：协议面（会话流 / configOptions / 命令 / 用量 / 流量）一律来自
 // test/fixtures 回放；协议之外的本地态（会话索引、项目与分支列表、已安装 agent、@ 提及候选）是本地假数据，
 // 接线阶段换成 `sessions.json` / `projects.json` / git CLI / `fs_search`，widget 不动（CLAUDE.md 规则 3）。
@@ -357,6 +357,43 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
       footnote: '会话项时间戳是客户端本地态（协议只给 SessionInfo.updatedAt）；「N 条消息」由本地消息分组计数得出。'
           '删除会话需 sessionCapabilities.delete，无此能力时删除图标不渲染（确认弹层见画板 41）；'
           '本画板的样张按「有 delete 能力」画，01-connect 的 initialize 给的是 ${_sessionCaps(r).keys.join(' / ')}。',
+    );
+  }),
+  _page('06-session-activity', '侧栏会话活动指示', () {
+    return BoardPage(
+      number: '06',
+      title: '侧栏会话活动指示',
+      source: 'session/prompt 在途（运行中）· stop_reason = end_turn / max_tokens / …（完成）· session/cancel ·「已读」为客户端本地态',
+      sections: <BoardSection>[
+        BoardSection('A · 运行中 · 会话项底部的扫掠亮点线（本页唯一动起来的元素；相邻会话项不动、不缩进、不变色）',
+            child: _panel(<Widget>[
+              SidebarSessionRow(_sessions[0], now: _now, selected: true, running: true),
+              SidebarSessionRow(_sessions[1], now: _now),
+            ])),
+        BoardSection('A · 运行中 + 悬浮（重命名 / 删除照常出现，压在细线之上；细线不为它让位）',
+            child: _panel(<Widget>[
+              SidebarSessionRow(_sessions[2], now: _now, running: true, forceHover: true),
+            ])),
+        BoardSection('B · ① 运行中（无绿点）· ② 完成 t=0（细线已撤、行高回 48、绿点 opacity 0）· ③ 完成 t=120ms（绿点 opacity 1）· ④ 已读（绿点淡出后不占位）',
+            child: _panel(<Widget>[
+              SidebarSessionRow(_sessions[3], now: _now, running: true),
+              SidebarSessionRow(_sessions[3], now: _now),
+              SidebarSessionRow(_sessions[3], now: _now, unread: true),
+              SidebarSessionRow(_sessions[3], now: _now, selected: true),
+            ])),
+        BoardSection('C · 列表全景（两条在跑、一条跑完未读；各自独立扫掠、不同步相位）',
+            child: _panel(<Widget>[
+              SidebarSessionRow(_sessions[0], now: _now, selected: true, running: true),
+              SidebarSessionRow(_sessions[1], now: _now, unread: true),
+              SidebarSessionRow(_sessions[2], now: _now),
+              SidebarSessionRow(_sessions[3], now: _now, running: true),
+            ])),
+      ],
+      footnote: '亮点线只表示「在动」，不表达进度：单向匀速、不回弹、不反向，亮点位置与完成度无关；'
+          'sweep.cycle 是全系统唯一允许用 linear 的动效。绿点是「未读完成」标记而非状态灯，'
+          '只在回合从运行中转为结束（stop_reason ≠ cancelled / refusal）时点亮，该会话被查看后淡出；'
+          '取消与失败侧栏不表达，走画板 31 / 34。两者严格互斥，任何一帧都不同时出现。'
+          '偏离：清除条件里的「窗口聚焦」这一维没有实现（宿主没给这个信号），按「当前会话 + 停在工作台页」判。',
     );
   }),
   _page('40-composer-popovers', '输入框弹层合集', () {

@@ -323,6 +323,44 @@ abstract final class Spinner {
   static const double strokeWidth = 1.5;
 }
 
+/// 画板 06 A 组「运行中 · 会话项底部的扫掠亮点线」的 token（画板自己列的「本画板新增 token」表）。
+abstract final class Sweep {
+  /// `sweep.track` 1px · border.subtle：全宽常亮底线。
+  static const Color track = Borders.subtle;
+  static const double trackWidth = Borders.width;
+
+  /// `sweep.focus` 96px · accent：亮点宽度与颜色。
+  static const Color focus = Accent.base;
+  static const double focusWidth = 96;
+
+  /// 亮点的横向渐变：中心不透明度 1、两端 0（线性）。两端那两个色值是 [focus] 的全透明版。
+  static const List<Color> focusGradient = <Color>[Color(0x005566D8), focus, Color(0x005566D8)];
+  static const List<double> focusStops = <double>[0, 0.5, 1];
+
+  /// `sweep.cycle` 1400ms · linear · infinite：亮点从线左端外走到线右端外的一个周期。
+  /// **这是全系统唯一允许用 linear 的动效**（其余一律 [Motion.curve]）：匀速才读得出「在动」而不是「在进度」。
+  static const Duration cycle = Duration(milliseconds: 1400);
+
+  /// `sweep.band` 8px：轨道带高度，线居中于带内。
+  static const double band = 8;
+
+  /// `sweep.inset` 12px：左右内缩，与会话项文字对齐。
+  static const double inset = Spacing.s12;
+
+  /// 轨道带贴会话项底边的距离（画板 06 A 组几何 `bottom:6px`）。
+  static const double bottom = 6;
+}
+
+/// 画板 06 B 组「完成 ·『N 条消息』后的绿点」的 token：`dot.unread`。
+abstract final class UnreadDot {
+  /// 6px 实心圆 · success，无描边无光晕。
+  static const double size = 6;
+  static const Color color = Semantic.success;
+
+  /// 与条数文字之间的间距。
+  static const double gap = 6;
+}
+
 /// 几何（所有者裁定 2026-09-15，R2 审查留下的 7 个局部常量收进来）：它们不是画板 00 的 token，而是画板上量出来的
 /// 单点尺寸；集中在这里是为了「widget 文件里不出现裸数字」。第 6 条是时长不是尺寸，按裁定与其余六条同组收纳。
 abstract final class Geometry {
@@ -356,6 +394,13 @@ abstract final class Geometry {
 
   /// 01–04：顶栏 / 线程头 / 侧栏头 / 侧栏底部导航的条高。
   static const double barHeight = 36;
+
+  /// 06：运行中的会话项行高 `row.running`（默认态是 48 = [Controls.input] + [Spacing.s16]）。
+  /// 48 ↔ 58 不做过渡（画板 06 A 组规格表：避免列表在流式期间抽动）。
+  static const double sidebarRowRunning = 58;
+
+  /// 06：运行中那 58px 里留给内容的高度——「文字块仍垂直居中于上方 50px」，余下 8px 归扫掠轨道带。
+  static const double sidebarRowRunningContent = 50;
 
   /// 01–04：窗口控制三键的格宽（点击热区，图标仍是 [IconSizes.toolbar]）。
   static const double windowButtonWidth = 44;

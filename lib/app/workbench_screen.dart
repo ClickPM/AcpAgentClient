@@ -220,6 +220,9 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         onTab: c.toggleNavTab,
         deleteAnchor: c.deleteAnchor,
         confirmingDeleteId: c.confirmingDeleteId,
+        // 画板 06：在跑的出扫掠亮点线，跑完没看的出绿点。
+        runningIds: c.runningSessionIds,
+        unreadIds: c.unreadSessionIds,
         // 侧栏标题条与顶栏是同一行：那一段也要能拖窗口、双击最大化。
         dragArea: _dragArea(),
       );

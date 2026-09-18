@@ -1,5 +1,5 @@
-// 画板 01 / 04 · 侧栏：应用标题条、会话搜索、会话项（默认 / 悬浮出重命名与删除 / 选中 / 行内重命名）、
-// 空态与无结果态、底部四个导航入口。
+// 画板 01 / 04 / 06 · 侧栏：应用标题条、会话搜索、会话项（默认 / 悬浮出重命名与删除 / 选中 / 行内重命名 /
+// 运行中的扫掠亮点线 / 完成未读的绿点）、空态与无结果态、底部四个导航入口。
 // 会话列表以本地索引为准（docs/design.md § 3 末条）：时间戳是客户端本地态，「N 条消息」由投影层分组计数得出（画板 04 注）。
 // 删除图标一律渲染（确认弹层在画板 41）：它删的首先是本地索引这条记录，agent 侧删不删由组合根判——
 // 按 `sessionCapabilities.delete` 裁剪过一版，结果是没声明 delete 的 agent 的会话在侧栏里永远清不掉。
@@ -61,6 +61,8 @@ class Sidebar extends StatelessWidget {
     this.deleteAnchor,
     this.confirmingDeleteId,
     this.dragArea,
+    this.runningIds = const <String>{},
+    this.unreadIds = const <String>{},
   });
 
   final List<SidebarSession> sessions;
@@ -88,6 +90,11 @@ class Sidebar extends StatelessWidget {
 
   /// 无边框窗口的拖拽层（docs/design.md § 9），转交给 [SidebarTitleBar]；内容由组合根给。
   final Widget? dragArea;
+
+  /// 画板 06：有在途 prompt 的会话（出扫掠亮点线）与跑完还没被看过的会话（出绿点）。
+  /// 这两个是**高频变动**的运行时态，所以不烘进 [SidebarSession]（它只随本地索引重投影）。
+  final Set<String> runningIds;
+  final Set<String> unreadIds;
 
   @override
   Widget build(BuildContext context) {
@@ -124,7 +131,12 @@ class Sidebar extends StatelessWidget {
         final s = sessions[i];
         return SidebarSessionRow(
           s,
+          // 扫掠的相位与绿点的淡入淡出都是行内状态：列表按 updatedAt 重排时不给 key，
+          // 这些状态会留在原来那个位置上、落到别条会话头上。
+          key: ValueKey<String>(s.id),
           now: now,
+          running: runningIds.contains(s.id),
+          unread: unreadIds.contains(s.id),
           query: query,
           selected: s.id == selectedId,
           renaming: s.id == renamingId,
@@ -248,6 +260,8 @@ class SidebarSessionRow extends StatelessWidget {
     this.query = '',
     this.selected = false,
     this.forceHover = false,
+    this.running = false,
+    this.unread = false,
     this.renaming = false,
     this.renameController,
     this.renameFocusNode,
@@ -264,6 +278,13 @@ class SidebarSessionRow extends StatelessWidget {
   final String query;
   final bool selected;
   final bool forceHover;
+
+  /// 画板 06 A：这条会话有在途 prompt —— 行高涨到 [t.Geometry.sidebarRowRunning]、底边出扫掠亮点线。
+  final bool running;
+
+  /// 画板 06 B：跑完了、还没被看过 —— 条数文字后出绿点。
+  final bool unread;
+
   final bool renaming;
   final TextEditingController? renameController;
   final FocusNode? renameFocusNode;
@@ -292,28 +313,51 @@ class SidebarSessionRow extends StatelessWidget {
         // `deleteAnchor` 只在 `confirmingDeleteId` 是这一行时才非空（见 [Sidebar._list]）。
         final showActions = (hovered || deleteAnchor != null) && !inlineEdit;
         return Container(
-          height: height,
+          height: running ? t.Geometry.sidebarRowRunning : height,
           color: selected ? t.Overlays.selected : (showActions ? t.Overlays.hover : null),
-          padding: EdgeInsets.only(left: t.Spacing.s12, right: showActions ? t.Spacing.s8 : t.Spacing.s12),
-          child: Row(
+          // 行内缩在 Stack **里面**：亮点线的 12px 内缩不跟着悬浮态的右内缩变（画板 06 A
+          //「悬浮态的重命名 / 删除图标压在细线之上；细线不为它让位」）。
+          child: Stack(
+            fit: StackFit.expand,
             children: <Widget>[
-              AgentMark(active: selected, svg: session.iconSvg),
-              const SizedBox(width: t.Spacing.s8),
-              Expanded(child: inlineEdit ? _renameField() : _titleAndMeta(meta)),
-              if (showActions) ...<Widget>[
-                AcpTooltip(
-                  message: 'Edit session title',
-                  child: IconButtonGhost(icon: AcpIcons.pencil, size: t.Controls.compact, onTap: onRename),
+              Padding(
+                padding: EdgeInsets.only(
+                  left: t.Spacing.s12,
+                  right: showActions ? t.Spacing.s8 : t.Spacing.s12,
+                  // 运行中行高涨到 58，文字块仍垂直居中于**上方 50px**（余下让给轨道带），
+                  // 这样 48 ↔ 58 的切换里文字几乎不动，列表在流式期间不抽动。
+                  bottom: running ? t.Geometry.sidebarRowRunning - t.Geometry.sidebarRowRunningContent : 0,
                 ),
-                if (session.canDelete)
-                  AcpTooltip(
-                    message: 'Delete session',
-                    child: PopoverAnchor(
-                      handle: deleteAnchor,
-                      child: IconButtonGhost(icon: AcpIcons.trash, size: t.Controls.compact, onTap: onDelete),
-                    ),
-                  ),
-              ],
+                child: Row(
+                  children: <Widget>[
+                    AgentMark(active: selected, svg: session.iconSvg),
+                    const SizedBox(width: t.Spacing.s8),
+                    Expanded(child: inlineEdit ? _renameField() : _titleAndMeta(meta)),
+                    if (showActions) ...<Widget>[
+                      AcpTooltip(
+                        message: 'Edit session title',
+                        child: IconButtonGhost(icon: AcpIcons.pencil, size: t.Controls.compact, onTap: onRename),
+                      ),
+                      if (session.canDelete)
+                        AcpTooltip(
+                          message: 'Delete session',
+                          child: PopoverAnchor(
+                            handle: deleteAnchor,
+                            child: IconButtonGhost(icon: AcpIcons.trash, size: t.Controls.compact, onTap: onDelete),
+                          ),
+                        ),
+                    ],
+                  ],
+                ),
+              ),
+              if (running)
+                const Positioned(
+                  left: t.Sweep.inset,
+                  right: t.Sweep.inset,
+                  bottom: t.Sweep.bottom,
+                  height: t.Sweep.band,
+                  child: SessionSweepLine(),
+                ),
             ],
           ),
         );
@@ -331,7 +375,22 @@ class SidebarSessionRow extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          Text(meta, style: t.TextStyles.meta.copyWith(fontFeatures: const <FontFeature>[FontFeature.tabularFigures()])),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Flexible(
+                child: Text(
+                  meta,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: t.TextStyles.meta.copyWith(fontFeatures: const <FontFeature>[FontFeature.tabularFigures()]),
+                ),
+              ),
+              // 画板 06 D「两者严格互斥：任何一帧都不得同时出现亮点线与绿点」——
+              // 运行中即便还挂着未读标记也先撤掉（下一轮结束时再点亮）。
+              SessionUnreadDot(visible: unread && !running),
+            ],
+          ),
         ],
       );
 
@@ -375,6 +434,141 @@ class SidebarSessionRow extends StatelessWidget {
       ],
     );
   }
+}
+
+/// 画板 06 A · 运行中的会话项底边那条扫掠亮点线：一条常亮的 1px 细线上，一段 [t.Sweep.focusWidth] 的
+/// accent 亮点自左向右匀速掠过，走完即从左侧重新进入。**亮点位置与进度无关**，单向、不回弹、不反向。
+///
+/// 由外面的 [Positioned] 给它 [t.Sweep.band] 高的轨道带，线画在带的中线上。
+class SessionSweepLine extends StatefulWidget {
+  const SessionSweepLine({super.key});
+
+  @override
+  State<SessionSweepLine> createState() => _SessionSweepLineState();
+}
+
+class _SessionSweepLineState extends State<SessionSweepLine> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(vsync: this, duration: t.Sweep.cycle);
+
+  /// prefers-reduced-motion。关掉动效时**不能只是不画**：`AnimationController` 在这个开关下会把时长当 0，
+  /// `repeat()` 就成了每帧空转一个周期。
+  bool _reduced = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduced = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (_reduced) {
+      _controller.stop();
+    } else if (!_controller.isAnimating) {
+      _controller.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // 降级为同位置、同内缩的静态 1px accent 实线（亮点不移动），运行中依然可辨。
+    if (_reduced) return const CustomPaint(painter: _SweepPainter(null));
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) => CustomPaint(painter: _SweepPainter(_controller.value)),
+    );
+  }
+}
+
+class _SweepPainter extends CustomPainter {
+  const _SweepPainter(this.progress);
+
+  /// 一个周期内的进度 0 → 1（linear）。null = reduced-motion 的静态替代线。
+  final double? progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final top = (size.height - t.Sweep.trackWidth) / 2;
+    final track = Rect.fromLTWH(0, top, size.width, t.Sweep.trackWidth);
+    final at = progress;
+    if (at == null) {
+      canvas.drawRect(track, Paint()..color = t.Sweep.focus);
+      return;
+    }
+    canvas.drawRect(track, Paint()..color = t.Sweep.track);
+    // 亮点左端从线左端外（-96）走到线右端外（整条线的宽度），全程匀速；越界的部分裁掉。
+    final left = -t.Sweep.focusWidth + (size.width + t.Sweep.focusWidth) * at;
+    final focus = Rect.fromLTWH(left, top, t.Sweep.focusWidth, t.Sweep.trackWidth);
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+    canvas.drawRect(
+      focus,
+      Paint()
+        ..shader = const LinearGradient(colors: t.Sweep.focusGradient, stops: t.Sweep.focusStops).createShader(focus),
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_SweepPainter old) => old.progress != progress;
+}
+
+/// 画板 06 B ·「N 条消息」后的完成未读绿点：出现与清除都**只做 opacity**（[t.Motion.fast] · [t.Motion.curve]），
+/// 不缩放、不弹跳、不呼吸、不闪烁；淡出走完就从布局里移除，不留 [t.UnreadDot.gap] 的占位。
+class SessionUnreadDot extends StatefulWidget {
+  const SessionUnreadDot({super.key, required this.visible});
+
+  final bool visible;
+
+  @override
+  State<SessionUnreadDot> createState() => _SessionUnreadDotState();
+}
+
+class _SessionUnreadDotState extends State<SessionUnreadDot> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: t.Motion.fast,
+    value: widget.visible ? 1 : 0,
+  );
+  late final Animation<double> _opacity = _controller.drive(CurveTween(curve: t.Motion.curve));
+
+  @override
+  void didUpdateWidget(SessionUnreadDot old) {
+    super.didUpdateWidget(old);
+    if (widget.visible == old.visible) return;
+    if (widget.visible) {
+      _controller.forward();
+    } else {
+      _controller.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: _opacity,
+        builder: (context, _) {
+          if (_opacity.value == 0) return const SizedBox.shrink();
+          return Padding(
+            padding: const EdgeInsets.only(left: t.UnreadDot.gap),
+            child: Opacity(
+              opacity: _opacity.value,
+              child: Container(
+                width: t.UnreadDot.size,
+                height: t.UnreadDot.size,
+                decoration: const BoxDecoration(color: t.UnreadDot.color, shape: BoxShape.circle),
+              ),
+            ),
+          );
+        },
+      );
 }
 
 /// 侧栏底部导航（画板 01 / 04）：默认 muted、悬浮 text + hover 底、选中 accent + selected 底。

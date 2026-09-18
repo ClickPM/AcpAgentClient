@@ -73,6 +73,15 @@
       "h": 2340
     },
     {
+      "file": "06-session-activity.dc.html",
+      "title": "侧栏会话活动指示",
+      "page": "page-1",
+      "x": 0,
+      "y": 4516,
+      "w": 1440,
+      "h": 1500
+    },
+    {
       "file": "10-checkpoint.dc.html",
       "title": "Restore Checkpoint 分隔线",
       "page": "page-2",

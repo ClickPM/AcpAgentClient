@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet"><style>body{margin:0;background:#fbfbfc}a{color:#4a59c9;text-decoration:none}a:hover{color:#3d4cb5}@keyframes acpSweep{from{background-position-x:-96px,0}to{background-position-x:calc(100% + 96px),0}}@media (prefers-reduced-motion:reduce){.acp-sweep{animation:none!important;background-image:linear-gradient(#5566d8,#5566d8)!important;background-size:100% 1px!important;background-position:0 50%!important}}</style></helmet>
+<div data-screen-label="06" style="width:1440px;min-width:1440px;height:1500px;flex:none;box-sizing:border-box;padding:24px;background:#fbfbfc;color:#33333d;font-family:Geist,'Noto Sans SC',system-ui,sans-serif;font-size:13px;display:flex;flex-direction:column;gap:18px">
+
+  <div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #e2e2e7;padding-bottom:10px">
+    <span style="font-size:15px;font-weight:500;color:#1e1e26">06 · 侧栏会话活动指示</span>
+    <span style="font-size:11px;color:#8b8b96">协议来源：session/prompt 在途（运行中）· stop_reason = end_turn / max_tokens / …（完成）· session/cancel · 「已读」为客户端本地态</span>
+    <span style="margin-left:auto;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">解决的问题：会话在后台跑时，侧栏看不出哪条在动、哪条已经跑完</span>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:baseline;gap:10px">
+      <span style="font-size:13px;font-weight:500;color:#1e1e26">A · 运行中 · 会话项底部的扫掠亮点线</span>
+      <span style="font-size:11px;color:#62626e">该会话有在途 prompt 时出现，贴会话项底边，横贯整行（左右与文字同一 12px 内缩）。一条常亮的 1px 细线上，一段 96px 的 accent 亮点自左向右匀速掠过，走完即从左侧重新进入；亮点位置与进度无关。</span>
+    </div>
+
+    <div style="display:flex;gap:20px;align-items:flex-start">
+      <div>
+        <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">实时（本画板唯一动起来的元素）</div>
+        <div style="width:280px;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px;padding:4px 0">
+          <div style="height:58px;display:flex;align-items:center;gap:8px;padding:0 12px;background:rgba(30,30,38,.10);position:relative">
+            <span style="width:16px;height:16px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:6px;height:6px;background:#5566d8;transform:rotate(45deg)"></span></span>
+            <span style="flex:1;min-width:0">
+              <span style="display:block;font-size:13px;font-weight:500;color:#4a59c9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">New dsh-acp-interactive Thread</span>
+              <span style="display:block;font-size:11px;color:#8b8b96;font-variant-numeric:tabular-nums">4 分钟前 · 0 条消息</span>
+            </span>
+            <span class="acp-sweep" style="position:absolute;left:12px;right:12px;bottom:6px;height:8px;background-image:linear-gradient(90deg,rgba(85,102,216,0) 0%,#5566d8 50%,rgba(85,102,216,0) 100%),linear-gradient(#e2e2e7,#e2e2e7);background-repeat:no-repeat,no-repeat;background-size:96px 1px,100% 1px;background-position:-96px 50%,0 50%;animation:acpSweep 1400ms linear infinite"></span>
+          </div>
+          <div style="height:48px;display:flex;align-items:center;gap:8px;padding:0 12px">
+            <span style="width:16px;height:16px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:6px;height:6px;background:#8b8b96;transform:rotate(45deg)"></span></span>
+            <span style="flex:1;min-width:0">
+              <span style="display:block;font-size:13px;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">你能够看到图片内容吗</span>
+              <span style="display:block;font-size:11px;color:#8b8b96;font-variant-numeric:tabular-nums">4 分钟前 · 9 条消息</span>
+            </span>
+          </div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">相邻会话项不动、不缩进、不变色</div>
+      </div>
+
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">分帧 · 周期 1400ms，焦点从线左端外走到线右端外</div>
+        <div style="display:flex;gap:12px">
+          <div style="flex:1"><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d;margin-bottom:4px">t = 0ms · 焦点自左端外进入</div><div style="height:8px;background-image:linear-gradient(90deg,rgba(85,102,216,0) 0%,#5566d8 50%,rgba(85,102,216,0) 100%),linear-gradient(#e2e2e7,#e2e2e7);background-repeat:no-repeat,no-repeat;background-size:96px 1px,100% 1px;background-position:-56px 50%,0 50%"></div></div>
+          <div style="flex:1"><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d;margin-bottom:4px">t = 350ms</div><div style="height:8px;background-image:linear-gradient(90deg,rgba(85,102,216,0) 0%,#5566d8 50%,rgba(85,102,216,0) 100%),linear-gradient(#e2e2e7,#e2e2e7);background-repeat:no-repeat,no-repeat;background-size:96px 1px,100% 1px;background-position:25% 50%,0 50%"></div></div>
+          <div style="flex:1"><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d;margin-bottom:4px">t = 700ms</div><div style="height:8px;background-image:linear-gradient(90deg,rgba(85,102,216,0) 0%,#5566d8 50%,rgba(85,102,216,0) 100%),linear-gradient(#e2e2e7,#e2e2e7);background-repeat:no-repeat,no-repeat;background-size:96px 1px,100% 1px;background-position:55% 50%,0 50%"></div></div>
+          <div style="flex:1"><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d;margin-bottom:4px">t = 1050ms</div><div style="height:8px;background-image:linear-gradient(90deg,rgba(85,102,216,0) 0%,#5566d8 50%,rgba(85,102,216,0) 100%),linear-gradient(#e2e2e7,#e2e2e7);background-repeat:no-repeat,no-repeat;background-size:96px 1px,100% 1px;background-position:85% 50%,0 50%"></div></div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">t = 1400ms 焦点完全离开右端，下一周期从左端外重新进入（单向、不回弹、不反向、不表达进度）</div>
+
+        <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin:16px 0 8px">几何（放大 4 倍，虚线 = 8px 轨道带上下边界与线所在中线）</div>
+        <div style="height:32px;position:relative;border-top:1px dashed #d3d3da;border-bottom:1px dashed #d3d3da;background-image:linear-gradient(90deg,rgba(85,102,216,0) 0%,#5566d8 50%,rgba(85,102,216,0) 100%),linear-gradient(#e2e2e7,#e2e2e7);background-repeat:no-repeat,no-repeat;background-size:384px 4px,100% 4px;background-position:0 50%,0 50%">
+          <span style="position:absolute;left:0;right:0;top:16px;border-top:1px dashed #d3d3da"></span>
+        </div>
+        <div style="display:flex;gap:18px;margin-top:6px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">
+          <span>底线 1px · #e2e2e7 · 全宽常亮</span><span>焦点宽 96px</span><span>焦点中心不透明度 1 → 两端 0（线性）</span><span>色 accent #5566d8</span><span>轨道带高 8px</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:230px 230px 200px 130px 1fr;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;border-top:1px solid #e2e2e7">
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">属性</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">起 → 止</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">时长</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">曲线</div>
+      <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">备注</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">亮点横向位移</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">线左端外 → 线右端外</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">sweep.cycle 1400ms · 无限循环</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">linear</div>
+      <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">全程匀速；这是本系统唯一允许用 linear 的动效（其余一律 motion.ease）</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">底线 + 亮点出现</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">opacity 0 → 1</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">motion.fast 120ms</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">motion.ease</div>
+      <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">prompt 发出即出现；不等首个 chunk</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">底线 + 亮点消失</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">可见 → 移除</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">0ms</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">—</div>
+      <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">回合结束瞬间直接撤去，同帧换上绿点（见 B）</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">会话项行高</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">48px → 58px</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">0ms</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">—</div>
+      <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">不做高度过渡，避免列表在流式期间抽动；文字块仍垂直居中于上方 50px</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">标题 / 时间戳 / 条数 / 图标</div>
+      <div style="grid-column:2 / -1;padding:5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">不动，颜色与字重全部沿用画板 04 的默认 / 选中态</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">悬浮态的重命名 / 删除图标</div>
+      <div style="grid-column:2 / -1;padding:5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">照常出现，压在细线之上；细线不为它让位</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">prefers-reduced-motion</div>
+      <div style="grid-column:2 / -1;padding:5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">降级为同位置、同内缩的静态 1px accent 实线（亮点不移动）；运行中依然可辨</div>
+    </div>
+  </div>
+
+  <div style="height:1px;background:#e2e2e7"></div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:baseline;gap:10px">
+      <span style="font-size:13px;font-weight:500;color:#1e1e26">B · 完成 · 「N 条消息」后的绿点</span>
+      <span style="font-size:11px;color:#62626e">回合结束（拿到 stop_reason）时，细线撤去、同帧在条数文字后 6px 处点亮 success 实心圆点，意为「跑完了、你还没看」。</span>
+    </div>
+
+    <div style="display:flex;gap:20px;align-items:flex-start">
+      <div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d;margin-bottom:6px">① 运行中 · t = 0ms</div>
+        <div style="width:280px;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px;padding:4px 0">
+          <div style="height:58px;display:flex;align-items:center;gap:8px;padding:0 12px;position:relative">
+            <span style="width:16px;height:16px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:6px;height:6px;background:#8b8b96;transform:rotate(45deg)"></span></span>
+            <span style="flex:1;min-width:0">
+              <span style="display:block;font-size:13px;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">分析 AAC 项目代码质量</span>
+              <span style="display:block;font-size:11px;color:#8b8b96;font-variant-numeric:tabular-nums">刚刚 · 12 条消息</span>
+            </span>
+            <span style="position:absolute;left:12px;right:12px;bottom:6px;height:8px;background-image:linear-gradient(90deg,rgba(85,102,216,0) 0%,#5566d8 50%,rgba(85,102,216,0) 100%),linear-gradient(#e2e2e7,#e2e2e7);background-repeat:no-repeat,no-repeat;background-size:96px 1px,100% 1px;background-position:38% 50%,0 50%"></span>
+          </div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">无绿点 · 亮点在掠过</div>
+      </div>
+      <div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d;margin-bottom:6px">② 完成 · t = 0ms</div>
+        <div style="width:280px;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px;padding:4px 0">
+          <div style="height:48px;display:flex;align-items:center;gap:8px;padding:0 12px">
+            <span style="width:16px;height:16px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:6px;height:6px;background:#8b8b96;transform:rotate(45deg)"></span></span>
+            <span style="flex:1;min-width:0">
+              <span style="display:block;font-size:13px;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">分析 AAC 项目代码质量</span>
+              <span style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;color:#8b8b96;font-variant-numeric:tabular-nums">刚刚 · 14 条消息</span><span style="width:6px;height:6px;flex:none;border-radius:50%;background:#477f40;opacity:0"></span></span>
+            </span>
+          </div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">细线已撤、行高回 48px；绿点 opacity 0</div>
+      </div>
+      <div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d;margin-bottom:6px">③ 完成 · t = 120ms</div>
+        <div style="width:280px;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px;padding:4px 0">
+          <div style="height:48px;display:flex;align-items:center;gap:8px;padding:0 12px">
+            <span style="width:16px;height:16px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:6px;height:6px;background:#8b8b96;transform:rotate(45deg)"></span></span>
+            <span style="flex:1;min-width:0">
+              <span style="display:block;font-size:13px;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">分析 AAC 项目代码质量</span>
+              <span style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;color:#8b8b96;font-variant-numeric:tabular-nums">刚刚 · 14 条消息</span><span style="width:6px;height:6px;flex:none;border-radius:50%;background:#477f40"></span></span>
+            </span>
+          </div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">绿点 opacity 1；条数已随消息增长更新</div>
+      </div>
+      <div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d;margin-bottom:6px">④ 已读 · 点进该会话后 120ms</div>
+        <div style="width:280px;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px;padding:4px 0">
+          <div style="height:48px;display:flex;align-items:center;gap:8px;padding:0 12px;background:rgba(30,30,38,.10)">
+            <span style="width:16px;height:16px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:6px;height:6px;background:#5566d8;transform:rotate(45deg)"></span></span>
+            <span style="flex:1;min-width:0">
+              <span style="display:block;font-size:13px;font-weight:500;color:#4a59c9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">分析 AAC 项目代码质量</span>
+              <span style="display:block;font-size:11px;color:#8b8b96;font-variant-numeric:tabular-nums">刚刚 · 14 条消息</span>
+            </span>
+          </div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">绿点淡出后不再占位，文字不回移（gap 随之消失）</div>
+      </div>
+      <div style="flex:1;min-width:0;padding-top:22px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e;line-height:1.7">
+        <div>绿点是「未读完成」标记，不是状态灯：它只在回合从运行中转为结束时点亮。</div>
+        <div>清除条件 —— 该会话被查看（切入该会话，或它已是当前会话且窗口聚焦）后立即淡出。</div>
+        <div>不区分成功 / 被取消 / 报错：取消与失败不点绿点，走画板 31 / 34 的既有表达。</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:230px 230px 200px 130px 1fr;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;border-top:1px solid #e2e2e7">
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">属性</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">起 → 止</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">时长</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">曲线</div>
+      <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">备注</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">绿点 opacity</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">0 → 1</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">motion.fast 120ms</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">motion.ease</div>
+      <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">只做 opacity；不缩放、不弹跳、不呼吸、不闪烁</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">绿点几何</div>
+      <div style="grid-column:2 / -1;padding:5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">6px 实心圆 · success #477f40 · 无描边无光晕 · 与条数文字基线视觉居中 · 间距 6px</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">绿点清除</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">1 → 0</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">motion.fast 120ms</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">motion.ease</div>
+      <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">淡出后从布局中移除，不留 6px 占位</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">「N 条消息」文字</div>
+      <div style="grid-column:2 / -1;padding:5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">不变色、不加粗；只有数字随本地计数更新</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">标题</div>
+      <div style="grid-column:2 / -1;padding:5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">不加粗、不变色（未读不靠标题表达）</div>
+
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">会话排序</div>
+      <div style="grid-column:2 / -1;padding:5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">不因完成而重排；顺序仍只由 updatedAt 决定（画板 04）</div>
+    </div>
+  </div>
+
+  <div style="height:1px;background:#e2e2e7"></div>
+
+  <div style="display:flex;gap:24px;align-items:flex-start">
+    <div>
+      <div style="font-size:13px;font-weight:500;color:#1e1e26;margin-bottom:8px">C · 列表全景（两条在跑、一条跑完未读）</div>
+      <div style="width:280px;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px;padding:4px 0">
+        <div style="height:58px;display:flex;align-items:center;gap:8px;padding:0 12px;background:rgba(30,30,38,.10);position:relative">
+          <span style="width:16px;height:16px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:6px;height:6px;background:#5566d8;transform:rotate(45deg)"></span></span>
+          <span style="flex:1;min-width:0">
+            <span style="display:block;font-size:13px;font-weight:500;color:#4a59c9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">New dsh-acp-interactive Thread</span>
+            <span style="display:block;font-size:11px;color:#8b8b96;font-variant-numeric:tabular-nums">6 分钟前 · 0 条消息</span>
+          </span>
+          <span class="acp-sweep" style="position:absolute;left:12px;right:12px;bottom:6px;height:8px;background-image:linear-gradient(90deg,rgba(85,102,216,0) 0%,#5566d8 50%,rgba(85,102,216,0) 100%),linear-gradient(#e2e2e7,#e2e2e7);background-repeat:no-repeat,no-repeat;background-size:96px 1px,100% 1px;background-position:-96px 50%,0 50%;animation:acpSweep 1400ms linear infinite"></span>
+        </div>
+        <div style="height:48px;display:flex;align-items:center;gap:8px;padding:0 12px">
+          <span style="width:16px;height:16px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:6px;height:6px;background:#8b8b96;transform:rotate(45deg)"></span></span>
+          <span style="flex:1;min-width:0">
+            <span style="display:block;font-size:13px;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">你能够看到图片内容吗</span>
+            <span style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;color:#8b8b96;font-variant-numeric:tabular-nums">7 分钟前 · 9 条消息</span><span style="width:6px;height:6px;flex:none;border-radius:50%;background:#477f40"></span></span>
+          </span>
+        </div>
+        <div style="height:48px;display:flex;align-items:center;gap:8px;padding:0 12px">
+          <span style="width:16px;height:16px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:6px;height:6px;background:#8b8b96;transform:rotate(45deg)"></span></span>
+          <span style="flex:1;min-width:0">
+            <span style="display:block;font-size:13px;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">New Codex Thread</span>
+            <span style="display:block;font-size:11px;color:#8b8b96;font-variant-numeric:tabular-nums">36 分钟前 · 0 条消息</span>
+          </span>
+        </div>
+        <div style="height:58px;display:flex;align-items:center;gap:8px;padding:0 12px;position:relative">
+          <span style="width:16px;height:16px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:6px;height:6px;background:#8b8b96;transform:rotate(45deg)"></span></span>
+          <span style="flex:1;min-width:0">
+            <span style="display:block;font-size:13px;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Agent ACP Client Interface Recognit…</span>
+            <span style="display:block;font-size:11px;color:#8b8b96;font-variant-numeric:tabular-nums">1 小时前 · 10 条消息</span>
+          </span>
+          <span class="acp-sweep" style="position:absolute;left:12px;right:12px;bottom:6px;height:8px;background-image:linear-gradient(90deg,rgba(85,102,216,0) 0%,#5566d8 50%,rgba(85,102,216,0) 100%),linear-gradient(#e2e2e7,#e2e2e7);background-repeat:no-repeat,no-repeat;background-size:96px 1px,100% 1px;background-position:-96px 50%,0 50%;animation:acpSweep 1400ms linear infinite"></span>
+        </div>
+        <div style="height:48px;display:flex;align-items:center;gap:8px;padding:0 12px">
+          <span style="width:16px;height:16px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:6px;height:6px;background:#8b8b96;transform:rotate(45deg)"></span></span>
+          <span style="flex:1;min-width:0">
+            <span style="display:block;font-size:13px;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Loaded Agent Skills Overview</span>
+            <span style="display:block;font-size:11px;color:#8b8b96;font-variant-numeric:tabular-nums">19 小时前 · 11 条消息</span>
+          </span>
+        </div>
+      </div>
+      <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">多条同时运行时各自独立扫掠，不同步相位；不做「共 N 条在跑」的汇总</div>
+    </div>
+
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:14px">
+      <div>
+        <div style="font-size:13px;font-weight:500;color:#1e1e26;margin-bottom:8px">D · 状态机与互斥</div>
+        <div style="display:grid;grid-template-columns:150px 170px 170px 1fr;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;border-top:1px solid #e2e2e7">
+          <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">会话态</div>
+          <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">亮点线</div>
+          <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">绿点</div>
+          <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">入 / 出条件</div>
+
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">空闲 · 已读</div>
+          <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">无</div>
+          <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">无</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">默认态，等于画板 04 的会话项</div>
+
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">运行中</div>
+          <div style="padding:5px 8px 5px 0;color:#4a59c9;border-bottom:1px solid #e2e2e7">扫掠</div>
+          <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">无（有则立即撤）</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">入：session/prompt 发出 · 出：拿到 stop_reason / cancel / agent 退出</div>
+
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">已完成 · 未读</div>
+          <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">无</div>
+          <div style="padding:5px 8px 5px 0;color:#477f40;border-bottom:1px solid #e2e2e7">亮</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">入：stop_reason ≠ cancelled / refusal · 出：该会话被查看</div>
+
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">被取消 / 出错</div>
+          <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">无</div>
+          <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">无</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">侧栏不表达；错误只在转录区（画板 31 / 34）</div>
+
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">等待授权 / 追问</div>
+          <div style="padding:5px 8px 5px 0;color:#4a59c9;border-bottom:1px solid #e2e2e7">扫掠（不变）</div>
+          <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">无</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">回合未结束即算运行中；侧栏不为「卡在等你」另设样式（待裁定）</div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e;margin-top:6px">两者严格互斥：任何一帧都不得同时出现亮点线与绿点。搜索结果里的会话项同样遵守本表。</div>
+      </div>
+
+      <div>
+        <div style="font-size:13px;font-weight:500;color:#1e1e26;margin-bottom:8px">本画板新增 token（需回写 00-tokens）</div>
+        <div style="display:grid;grid-template-columns:220px 200px 1fr;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;border-top:1px solid #e2e2e7">
+          <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">token</div>
+          <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">值</div>
+          <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">用途</div>
+
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">sweep.track</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">1px · #e2e2e7</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">常亮底线</div>
+
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">sweep.focus</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">96px · accent #5566d8</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">亮点宽度与颜色（中心实、两端 0）</div>
+
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">sweep.cycle</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">1400ms · linear · infinite</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">扫掠周期（单向）</div>
+
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">sweep.band</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">8px</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">轨道带高度（贴行底 6px，线居中）</div>
+
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">sweep.inset</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">12px</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">左右内缩，与会话项文字对齐</div>
+
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">sweep.reduced</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">1px · accent #5566d8</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">reduced-motion 下的静态替代线</div>
+
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">dot.unread</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">6px · success #477f40</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">完成未读点，间距 6px</div>
+
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">row.running</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">58px</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">运行中的会话项行高（默认 48px）</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="background:#fbeeea;border:1px solid #e2e2e7;border-radius:4px;padding:6px 8px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#bc4e39">反例：亮点线不得表达进度（不做 0→100% 填充、不做长度变化、亮点位置不映射完成度）；不得加 spinner、百分比、「运行中…」文案、骨架屏；不得让运行中的会话项变色、加粗、置顶或跳动；亮点不得往复折返（不做 alternate）、不得多点串行；绿点不得呼吸 / 闪烁 / 加光晕 / 换成对勾或数字角标；取消与失败不得复用绿点；行高 48 ↔ 58 的变化不得做过渡动画。</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1500}}"></script>
+</body>
+</html>

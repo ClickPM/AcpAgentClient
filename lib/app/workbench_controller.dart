@@ -285,6 +285,37 @@ class WorkbenchController extends ChangeNotifier {
     ];
   }
 
+  // ---------------------------------------------------------------- 画板 06：侧栏会话活动指示
+
+  /// 跑完了、还没被看过的会话（画板 06 B 的绿点）。纯客户端本地态，不落盘、不进协议。
+  final Set<String> _unreadDone = <String>{};
+
+  /// 画板 06 A：有在途 prompt 的会话（出扫掠亮点线）。只有内存里有投影的会话才可能在跑，
+  /// 所以直接从会话表算，不另记一份（少一处要对齐的状态）。
+  Set<String> get runningSessionIds => <String>{
+        for (final s in sessions.all)
+          if (s.isRunning) s.sessionId,
+      };
+
+  /// 画板 06 B：完成未读的会话。
+  Set<String> get unreadSessionIds => _unreadDone;
+
+  /// 回合结束时点亮绿点（画板 06 D 表）：`stopReason` 是 cancelled / refusal 的不点，失败收轮（没有 `stopReason`）
+  /// 的也不点 —— 取消与出错侧栏一律不表达，错误只在转录区（画板 31 / 34）。
+  ///
+  /// 「正在看着的那条」不点：它当场就满足画板 06 的清除条件。**偏离**：画板写的是「切入该会话，或它已是当前会话
+  /// 且窗口聚焦」，这里没有窗口聚焦这一维（宿主没给这个信号），按「当前会话 + 停在工作台页」判。
+  void _markDone(String id, String? stopReason) {
+    if (stopReason == null || stopReason == 'cancelled' || stopReason == 'refusal') return;
+    if (_isViewing(id)) return;
+    _unreadDone.add(id);
+  }
+
+  bool _isViewing(String id) => page == MainPage.workbench && sessionId == id;
+
+  /// 该会话被查看 / 被删 / 又开了新一轮：绿点撤掉（运行中与绿点严格互斥）。
+  void _clearUnread(String id) => _unreadDone.remove(id);
+
   ConfigOptionWire? optionOf(String category) {
     for (final o in store?.configOptions ?? const <ConfigOptionWire>[]) {
       if (o.category == category) return o;
@@ -1007,6 +1038,8 @@ class WorkbenchController extends ChangeNotifier {
     if (sessionId != id) sessionEpoch++;
     sessionId = id;
     agentId = _sessionAgent[id] ?? agentId;
+    // 切进来就算「被查看」：绿点淡出（画板 06 B ④）。
+    _clearUnread(id);
     _touch();
     await _ensureLoaded(id);
   }
@@ -1355,6 +1388,7 @@ class WorkbenchController extends ChangeNotifier {
       _updateArrivals.remove(id);
       _deletedOnAgent.remove(id);
       _sessionAgent.remove(id);
+      _clearUnread(id);
       sessions.forget(id);
       if (sessionId == id) sessionId = null;
     });
@@ -1408,6 +1442,8 @@ class WorkbenchController extends ChangeNotifier {
     composer.clear();
     pendingBlocks.clear();
     _clearInlineMenu();
+    // 又开了一轮：上一轮留下的绿点立即撤（画板 06 D「运行中 · 绿点：无（有则立即撤）」）。
+    _clearUnread(s.sessionId);
     s.startTurn(<ContentBlockWire>[for (final b in blocks) ContentBlockWire(b)]);
     await _runTurn(b, id, s, blocks);
   }
@@ -1421,10 +1457,12 @@ class WorkbenchController extends ChangeNotifier {
     final turn = () async {
       try {
         final result = await b.sessionPrompt(id, s.sessionId, blocks);
+        final stopReason = result['stopReason'] as String?;
         s.endTurn(
-          stopReason: result['stopReason'] as String?,
+          stopReason: stopReason,
           usage: result['usage'] is Map ? (result['usage'] as Map).cast<String, dynamic>() : null,
         );
+        _markDone(s.sessionId, stopReason);
         await _saveIndex();
       } catch (e) {
         // 失败也必须收轮：不收的话 `currentTurn` 一直挂着，线程头永远转 spinner、发送位永远是停止键，
@@ -1527,6 +1565,7 @@ class WorkbenchController extends ChangeNotifier {
       _touch();
       return;
     }
+    _clearUnread(s.sessionId);
     s.startTurn(<ContentBlockWire>[for (final x in blocks) ContentBlockWire(x)]);
     await _runTurn(b, id, s, blocks);
   }
@@ -2046,6 +2085,9 @@ class WorkbenchController extends ChangeNotifier {
 
   void openWorkbench() {
     page = MainPage.workbench;
+    // 从流量页回到工作台，当前那条会话就又在眼前了：它的绿点一并撤掉（画板 06 的清除条件）。
+    final id = sessionId;
+    if (id != null) _clearUnread(id);
     _touch();
   }
 
