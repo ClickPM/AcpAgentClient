@@ -905,6 +905,10 @@ class WorkbenchController extends ChangeNotifier {
     final b = bridge;
     final cwd = project?.path;
     if (id == null || b == null || cwd == null) return;
+    // 重入守卫：等待期里线程头的重载按钮仍可点（`canReload` 全程为真，`IgnorePointer` 只包住 `_body()`），
+    // 连点两下会让两条 disconnect → reconnect → load 序列交叠，且先返回的那条提前把等待态收掉
+    // （审查 finding P2，2026-09-18）。
+    if (reloading) return;
     final previous = sessionId;
     // 画板 05 B 组阶段 ①：先把等待态摆出来再发命令。断开 → 重连 → load 要几百毫秒到数秒，
     // 这期间界面一动不动会被当成卡死（所有者反馈 2026-09-17）。
@@ -1294,11 +1298,13 @@ class WorkbenchController extends ChangeNotifier {
     final b = bridge;
     final id = agentId;
     if (b == null || id == null) return;
-    final blocks = _promptBlocks(composer.text);
-    if (blocks.isEmpty) return; // 空输入不开会话
+    if (composer.text.trim().isEmpty && pendingBlocks.isEmpty) return; // 空输入不开会话
     // 启动后的画板 01 状态 1：agent 已选、会话还没开（进程也没拉）。第一条消息把它开出来，
     // 失败（认证 / 缺 Node）时 `newSession` 已经把错误与认证页安排好，输入框里的文本原样留着。
-    if (store == null) {
+    // 守卫看 `sessionId` 而不是 `store`：选中的会话载不回转录时（agent 不支持 loadSession /
+    // `_ensureConnected` 抛错 / 拿不到 cwd）`store` 也是 null，用 `store` 判会在那种情况下
+    // 开一条新会话、把选中的那条静默顶掉（审查 finding P2，2026-09-18）。
+    if (sessionId == null) {
       if (_startingSession) return;
       _startingSession = true;
       try {
@@ -1306,11 +1312,14 @@ class WorkbenchController extends ChangeNotifier {
       } finally {
         _startingSession = false;
       }
-      if (store == null) return;
     }
     final s = store;
     if (s == null) return;
     if (_blockedByClose()) return;
+    // 快照要取在开会话之后：拉起进程 + `initialize` + `session/new` 要几百毫秒到数秒，
+    // 这期间新打的字与新加的附件也得发出去，否则下面的 clear 会把它们静默抹掉（审查 finding P2，2026-09-18）。
+    final blocks = _promptBlocks(composer.text);
+    if (blocks.isEmpty) return;
     composer.clear();
     pendingBlocks.clear();
     _clearInlineMenu();
