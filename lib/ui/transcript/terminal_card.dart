@@ -2,6 +2,9 @@
 // 展开 = 命令块 + xterm 渲染的输出（ANSI 三色按语义色映射：黄 → warning、绿 → success、青 → info/accent）+
 // Exit Code · terminalId · released 元信息行；折叠 = 头行 + Exit Code；进行中 = spinner + 红色停止方块（→ terminal/kill，R4 接）。
 // 终端被嵌进工具卡后即使 release 也继续显示输出（缓冲跟卡走，TerminalBuffer）。本轮只喂固定字节流，PTY 在 R4。
+// 跑完自动收起（所有者裁定 2026-09-18）：status 转 completed / failed（或终端自己 exit）的那一下，用户没手动点过头行就折叠。
+// 协议里没有「折叠」这回事（ToolCall 只给 status），这是客户端自定的呈现规则，与 acp-projection.md § 7 第 6 条同类；
+// 只认「转换」的那一下，生来就结束的卡由 initiallyExpanded 定（画板 22 的展开态、转录列表的历史卡各按各的）。
 
 import 'package:flutter/widgets.dart';
 import 'package:xterm/xterm.dart' as xt;
@@ -79,6 +82,12 @@ class _TerminalCardState extends State<TerminalCard> {
   late final xt.Terminal _terminal = xt.Terminal(maxLines: t.Geometry.terminalScrollbackLines);
   int _written = 0;
 
+  /// 用户点过头行之后就不再替他做主：手动展开的卡跑完不收，手动收起的也不会被重新打开。
+  bool _userToggled = false;
+
+  /// 上一次看到的「已结束」，用来只在转换的那一下收起。
+  late bool _wasFinished = _isFinished;
+
   /// 回滚行数上限（几何，不是样式）。
 
   /// 只读展示不显示光标（DECTCEM 关）。
@@ -101,6 +110,8 @@ class _TerminalCardState extends State<TerminalCard> {
       widget.buffer.addListener(_sync);
       _sync();
     }
+    // 工具调用的 status 是就地改在同一个 ToolCallEntry 上的，只有转录列表重建时才看得到：收尾就在这里收。
+    _autoCollapseOnFinish();
   }
 
   @override
@@ -122,7 +133,18 @@ class _TerminalCardState extends State<TerminalCard> {
       _terminal.write(out.substring(_written).replaceAll('\n', '\r\n'));
       _written = out.length;
     }
+    _autoCollapseOnFinish();
     if (mounted) setState(() {});
+  }
+
+  /// 工具调用收尾（completed / failed / 本地取消）或终端自己退出，都算跑完。
+  bool get _isFinished => widget.entry.isFinished || widget.buffer.exited;
+
+  /// 跑完自动收起：只在跑完的那一下、且用户没手动点过头行时收，把版面让给后面的输出。
+  void _autoCollapseOnFinish() {
+    final finished = _isFinished;
+    if (finished && !_wasFinished && !_userToggled) _expanded = false;
+    _wasFinished = finished;
   }
 
   int get _rows {
@@ -153,7 +175,10 @@ class _TerminalCardState extends State<TerminalCard> {
               if (running) ...<Widget>[const Spinner(), StopSquareButton(onTap: widget.onKill)] else ToolStatusIcon(e.displayStatus),
               Chevron(expanded: _expanded),
             ],
-            onTap: () => setState(() => _expanded = !_expanded),
+            onTap: () => setState(() {
+              _userToggled = true;
+              _expanded = !_expanded;
+            }),
           ),
           if (_expanded)
             CardBody(

@@ -211,6 +211,8 @@ class TranscriptList extends StatelessWidget {
         tc,
         buffer: buffer,
         cwd: buffer.cwd ?? cwd,
+        // 生来就结束的卡（session/load 回放的历史、滚出视口又滚回来的卡）直接给折叠态，与「跑完自动收起」是同一条规则。
+        initiallyExpanded: !tc.isFinished && !buffer.exited,
         onKill: onKillTerminal == null ? null : () => onKillTerminal!(terminalId),
       );
     }
