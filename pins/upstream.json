@@ -65,6 +65,14 @@
       "commit": "0b10058dd75d1fdddc6cd455471d748cb010247d",
       "license": "MIT",
       "role": "first-class agent (own project): reference agent for round 1, widest capability surface"
+    },
+    {
+      "name": "deepseek-harness",
+      "url": "https://github.com/deepseek-ai/deepseek-harness.git",
+      "branch": "master",
+      "commit": "47f943859bef60e4160492346772ded9b24f765a",
+      "license": "MIT",
+      "role": "upstream that dsh-acp-interactive composes; asset source only: apps/web/public/favicon.svg is copied into rust/acp-core/assets/dsh-icon.svg (no code dependency)"
     }
   ],
   "docs_only": [
