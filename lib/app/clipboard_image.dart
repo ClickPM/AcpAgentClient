@@ -69,8 +69,9 @@ Future<({List<ClipboardImage> images, bool skippedTooLarge})> readClipboardImage
       final file = File(value);
       if (!file.existsSync()) continue;
       final length = await file.length();
-      // 0 字节也跳过：脚本里 `$img.Save(...)` 抛异常（GDI+ 报错 / 磁盘满 / 杀软占用）时 PowerShell
-      // 只终止那一条语句、照常打印 `bitmap|<路径>` 且退出码 0，不判下限就会发出一个空的 `image` 块。
+      // 0 字节也跳过：脚本里 `$img.Save(...)` 在编码前就失败（GDI+ 报错 / 杀软占用）时文件停在 0 字节，
+      // 而 PowerShell 只终止那一条语句、照常打印 `bitmap|<路径>` 且退出码 0，不判下限就会发出一个空的
+      // `image` 块。写到一半才失败（磁盘满）留下的是截断的非空 PNG，这一句挡不住，见 rounds/BACKLOG.md。
       if (length == 0) continue;
       if (length > clipboardImageSizeLimit) {
         skipped = true;
