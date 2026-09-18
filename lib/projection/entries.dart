@@ -373,6 +373,11 @@ class TurnEntry extends TranscriptEntry {
   /// 本轮发出的 prompt 块（Restore / Regenerate 用它在同一会话重发）。
   final List<ContentBlockWire> prompt;
   String? stopReason;
+
+  /// 本轮**没有走到协议给的结束**时的本地失败原因（`session/prompt` 回 JSON-RPC error、
+  /// 连接断了、agent 进程没了）。协议没有对应的 `stopReason`，所以不编一个塞进上面那个字段（规则 2）：
+  /// 这条是客户端自己的记录，画板 31 的结束行拿它把「一个 `?` 徽章加一个耗时」换成看得见的原因。
+  String? error;
   TurnUsage? usage;
   DateTime? endedAt;
 

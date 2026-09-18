@@ -325,6 +325,21 @@ void main() {
       expect(s.isRunning, isFalse);
     });
 
+    test('失败收轮：stopReason 留空、原因进 error，转录才有得显示（2026-09-18 dsh 回 -32603 时界面全无提示）', () {
+      final s = newStore();
+      final t1 = s.startTurn(const <ContentBlockWire>[ContentBlockWire(<String, dynamic>{'type': 'text', 'text': 'hi'})]);
+      s.endTurn(error: 'acp: agent error -32603: Internal error: turn failed');
+      expect(t1.stopReason, isNull, reason: '协议没给结束值就不编一个（规则 2）');
+      expect(t1.error, 'acp: agent error -32603: Internal error: turn failed');
+      expect(t1.isRunning, isFalse);
+      expect(s.isRunning, isFalse);
+      // 下一轮成功不该留着上一轮的失败原因。
+      final t2 = s.startTurn(const <ContentBlockWire>[]);
+      s.endTurn(stopReason: 'end_turn');
+      expect(t2.error, isNull);
+      expect(t2.stopReason, 'end_turn');
+    });
+
     test('Restore 截断范围内仍挂起的 permission / elicitation 标 cancelled 并返回 id（截断前的不动）', () {
       final s = newStore();
       s.startTurn(const <ContentBlockWire>[]);

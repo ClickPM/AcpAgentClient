@@ -404,7 +404,8 @@ class SessionStore extends ChangeNotifier {
   }
 
   /// `session/prompt` 返回：`stopReason` 五种之一，`usage` 是回合级用量（可空）。
-  void endTurn({String? stopReason, JsonMap? usage}) {
+  /// 失败收轮时 `stopReason` 留空、把原因给 [error]（见 [TurnEntry.error]）。
+  void endTurn({String? stopReason, JsonMap? usage, String? error}) {
     final now = this.now;
     _closeOpenThought(entries);
     for (final e in entries) {
@@ -414,6 +415,7 @@ class SessionStore extends ChangeNotifier {
     if (t != null) {
       t
         ..stopReason = stopReason
+        ..error = error
         ..usage = usage == null ? null : TurnUsage.fromJson(usage)
         ..endedAt = now;
     }
@@ -811,6 +813,7 @@ class SessionStore extends ChangeNotifier {
             'n': t.n,
             'prompt': <JsonMap>[for (final b in t.prompt) b.json],
             'stopReason': t.stopReason,
+            'error': t.error,
             'usage': t.usage?.toJson(),
           },
         _ => <String, dynamic>{'t': 'unknown', 'id': e.id},

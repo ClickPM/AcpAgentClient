@@ -1380,10 +1380,13 @@ class WorkbenchController extends ChangeNotifier {
       } catch (e) {
         // 失败也必须收轮：不收的话 `currentTurn` 一直挂着，线程头永远转 spinner、发送位永远是停止键，
         // 之后的 Restore 还会拿新连接去操作一个 agent 侧已不存在的 sessionId（审查第 2 轮 finding P2，2026-09-15）。
-        // `stopReason` 留空：连接断了本来就没有协议给的结束值，不编一个（规则 2）。
-        s.endTurn();
-        lastError = describeError(e);
-        debugPrint('[workbench] session/prompt failed: ${describeError(e)}');
+        // `stopReason` 留空：连接断了本来就没有协议给的结束值，不编一个（规则 2）；原因走 `TurnEntry.error`，
+        // 由画板 31 的结束行显示——只记 `lastError` 的话整条错误在界面上无处可见，用户只看到一个 `?` 徽章
+        // （2026-09-18 实测：dsh 回 `-32602 model does not declare image input` 与 `-32603 turn failed`，界面全无提示）。
+        final message = describeError(e);
+        s.endTurn(error: message);
+        lastError = message;
+        debugPrint('[workbench] session/prompt failed: $message');
       }
     }();
     _turnInFlight = turn;

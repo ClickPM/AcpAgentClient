@@ -1,6 +1,8 @@
 // 画板 31 · 回合态与结束：运行中（线程头 spinner + 发送位替换为停止方块）与五种 stopReason 的结束行
 // （end_turn success / max_tokens · max_turn_requests warning / refusal error / cancelled 中性；徽章文字即协议枚举原值）。
 // 轮的边界是客户端自己切的（TurnEntry）；回合级 usage 来自 PromptResponse，cost 来自会话级 usage_update。
+// 第六种是画板外的失败态（2026-09-18）：`session/prompt` 回 JSON-RPC error 时协议没有 stopReason，
+// 结束行改显「失败」徽章 + `TurnEntry.error` 的原文，画板 31 补这一态的事记在 rounds/BACKLOG.md。
 
 import 'package:flutter/widgets.dart';
 
@@ -115,8 +117,13 @@ class TurnEndLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final reason = turn.stopReason;
+    // 失败收轮：`session/prompt` 回了 JSON-RPC error（或连接断了），协议没给 stopReason。
+    // 画板 31 只画了五种协议结束值，这一态是画板外的；不另起一张卡，就在这条结束行上把徽章换成
+    // 「失败」、把原因写进说明位（转录里的文字还不能选中，所以允许折行，别让原因被 ellipsis 吃掉）。
+    final failed = reason == null && turn.error != null;
     final u = turn.usage;
     final parts = <String>[];
+    if (failed) parts.add(turn.error!);
     final d = describe(reason);
     if (d.isNotEmpty) parts.add(d);
     if (u?.total != null) {
@@ -126,13 +133,27 @@ class TurnEndLine extends StatelessWidget {
     if (reason == 'end_turn' && usage != null && usage!.hasCost) parts.add('\$${usage!.costAmount}');
     final elapsed = formatSeconds(turn.elapsed);
     if (elapsed.isNotEmpty) parts.add(elapsed);
-    return SizedBox(
-      height: t.Controls.standard,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: t.Controls.standard),
       child: Row(
+        crossAxisAlignment: failed ? CrossAxisAlignment.start : CrossAxisAlignment.center,
         children: <Widget>[
-          ToneChip(reason ?? '?', tone: toneOf(reason)),
+          Padding(
+            padding: EdgeInsets.only(top: failed ? t.Spacing.s8 : 0),
+            child: ToneChip(failed ? '失败' : (reason ?? '?'), tone: failed ? ChipTone.error : toneOf(reason)),
+          ),
           const SizedBox(width: t.Spacing.s8),
-          Expanded(child: Text(parts.join(' · '), style: CardText.headerTitle.copyWith(color: t.Neutral.muted), maxLines: 1, overflow: TextOverflow.ellipsis)),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: failed ? t.Spacing.s8 : 0),
+              child: Text(
+                parts.join(' · '),
+                style: CardText.headerTitle.copyWith(color: failed ? t.Semantic.error : t.Neutral.muted),
+                maxLines: failed ? 3 : 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
         ],
       ),
     );

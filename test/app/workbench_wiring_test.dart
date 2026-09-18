@@ -219,6 +219,8 @@ void main() {
     final turn = store.entries.whereType<TurnEntry>().single;
     expect(turn.endedAt, isNotNull);
     expect(turn.stopReason, isNull, reason: '连接断了没有协议给的结束值，不编一个');
+    expect(turn.error, contains('not_connected'),
+        reason: '原因必须落在轮上：lastError 界面上没人读，只记它等于什么都没说（2026-09-18）');
     expect(c.lastError, contains('not_connected'));
     c.dispose();
   });
