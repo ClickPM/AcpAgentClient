@@ -374,6 +374,10 @@ abstract final class Geometry {
   static const double menuWidthWide = 320;
   static const double menuWidthInline = 420;
 
+  /// 40 / 41 / 42：弹层内容区的最高高度。超过就在弹层内部滚动（条目多到出屏时选不中下面的条目，
+  /// 所有者手测 2026-09-18）；这一档约十来行，短窗口里也还能完整落在触发控件上方。
+  static const double menuMaxHeight = 320;
+
   /// 80：方法名列宽，也是过滤输入框宽。
   static const double trafficMethodWidth = 220;
 

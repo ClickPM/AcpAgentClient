@@ -9,20 +9,35 @@ import '../transcript/card_chrome.dart';
 import '../transcript/icons.dart';
 
 /// 弹层容器：popover 底 + subtle 边框 + radius 6 + shadow.popover，内边距 4。
+///
+/// 内容高过 [maxHeight] 时在弹层内部滚动：条目数没有上限（`/` 菜单是 `available_commands_update`
+/// 的全量列表，装了几十个 skill 就是几十行），不封顶的话弹层会顶出窗口，下面的条目既看不见也选不中
+/// （所有者手测 2026-09-18）。内容不足这个高度时弹层仍按内容收窄，画板上那些三五行的菜单外观不变。
 class MenuPopover extends StatelessWidget {
-  const MenuPopover({super.key, required this.children, this.width = t.Geometry.menuWidth});
+  const MenuPopover({
+    super.key,
+    required this.children,
+    this.width = t.Geometry.menuWidth,
+    this.maxHeight = t.Geometry.menuMaxHeight,
+  });
 
   final List<Widget> children;
   final double width;
+  final double maxHeight;
 
   @override
   Widget build(BuildContext context) {
     return Popover(
       radius: t.Radii.card,
       padding: const EdgeInsets.all(t.Spacing.s4),
-      child: SizedBox(
-        width: width,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: children),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        child: SizedBox(
+          width: width,
+          child: SingleChildScrollView(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: children),
+          ),
+        ),
       ),
     );
   }
@@ -83,44 +98,47 @@ class MenuRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fg = danger ? t.Semantic.error : (selected ? t.Accent.text : t.Neutral.text);
-    return Hoverable(
-      onTap: onTap,
-      forceHover: forceHover,
-      builder: (context, hovered) => Container(
-        height: t.Controls.standard,
-        padding: t.Controls.padCompact,
-        decoration: BoxDecoration(
-          color: selected ? t.Overlays.selected : (hovered ? t.Overlays.hover : null),
-          borderRadius: t.Radii.control,
-        ),
-        child: Row(
-          children: <Widget>[
-            if (leading != null) ...<Widget>[leading!, const SizedBox(width: t.Spacing.s8)]
-            else if (icon != null) ...<Widget>[
-              AcpIcon(icon!, color: danger ? t.Semantic.error : t.Neutral.muted, size: t.IconSizes.toolbar),
-              const SizedBox(width: t.Spacing.s8),
-            ],
-            Expanded(
-              child: Row(
-                children: <Widget>[
-                  Flexible(
-                    child: Text(label, style: (labelStyle ?? CardText.secondary).copyWith(color: fg), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  ),
-                  if (secondary != null) ...<Widget>[
-                    const SizedBox(width: t.Spacing.s8),
+    return _RevealWhenSelected(
+      selected: selected,
+      child: Hoverable(
+        onTap: onTap,
+        forceHover: forceHover,
+        builder: (context, hovered) => Container(
+          height: t.Controls.standard,
+          padding: t.Controls.padCompact,
+          decoration: BoxDecoration(
+            color: selected ? t.Overlays.selected : (hovered ? t.Overlays.hover : null),
+            borderRadius: t.Radii.control,
+          ),
+          child: Row(
+            children: <Widget>[
+              if (leading != null) ...<Widget>[leading!, const SizedBox(width: t.Spacing.s8)]
+              else if (icon != null) ...<Widget>[
+                AcpIcon(icon!, color: danger ? t.Semantic.error : t.Neutral.muted, size: t.IconSizes.toolbar),
+                const SizedBox(width: t.Spacing.s8),
+              ],
+              Expanded(
+                child: Row(
+                  children: <Widget>[
                     Flexible(
-                      child: Text(secondary!, style: secondaryStyle ?? CardText.secondary, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      child: Text(label, style: (labelStyle ?? CardText.secondary).copyWith(color: fg), maxLines: 1, overflow: TextOverflow.ellipsis),
                     ),
+                    if (secondary != null) ...<Widget>[
+                      const SizedBox(width: t.Spacing.s8),
+                      Flexible(
+                        child: Text(secondary!, style: secondaryStyle ?? CardText.secondary, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-            if (trailing != null) ...<Widget>[const SizedBox(width: t.Spacing.s8), trailing!]
-            else if (selected) ...<Widget>[
-              const SizedBox(width: t.Spacing.s8),
-              const AcpIcon(AcpIcons.check, color: t.Accent.text, size: t.IconSizes.toolbar),
+              if (trailing != null) ...<Widget>[const SizedBox(width: t.Spacing.s8), trailing!]
+              else if (selected) ...<Widget>[
+                const SizedBox(width: t.Spacing.s8),
+                const AcpIcon(AcpIcons.check, color: t.Accent.text, size: t.IconSizes.toolbar),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -150,38 +168,79 @@ class MenuTwoLineRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Hoverable(
-      onTap: onTap,
-      forceHover: forceHover,
-      builder: (context, hovered) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s8, vertical: t.Spacing.s4),
-        decoration: BoxDecoration(
-          color: selected ? t.Overlays.selected : (hovered ? t.Overlays.hover : null),
-          borderRadius: t.Radii.control,
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            SizedBox(
-              width: t.IconSizes.toolbar,
-              child: showCheck ? const AcpIcon(AcpIcons.check, color: t.Accent.text, size: t.IconSizes.toolbar) : null,
-            ),
-            const SizedBox(width: t.Spacing.s8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Text(title, style: CardText.secondary.copyWith(color: selected ? t.Accent.text : t.Neutral.text)),
-                  Text(meta, style: t.TextStyles.monoMeta),
-                ],
+    return _RevealWhenSelected(
+      selected: selected,
+      child: Hoverable(
+        onTap: onTap,
+        forceHover: forceHover,
+        builder: (context, hovered) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s8, vertical: t.Spacing.s4),
+          decoration: BoxDecoration(
+            color: selected ? t.Overlays.selected : (hovered ? t.Overlays.hover : null),
+            borderRadius: t.Radii.control,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              SizedBox(
+                width: t.IconSizes.toolbar,
+                child: showCheck ? const AcpIcon(AcpIcons.check, color: t.Accent.text, size: t.IconSizes.toolbar) : null,
               ),
-            ),
-          ],
+              const SizedBox(width: t.Spacing.s8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(title, style: CardText.secondary.copyWith(color: selected ? t.Accent.text : t.Neutral.text)),
+                    Text(meta, style: t.TextStyles.monoMeta),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+/// 选中行自动露出：`/` 菜单几十条时键盘上下键必然把高亮移出滚动区，打开有搜索框的弹层时
+/// 当前值也可能在视口之外。没有滚动祖先（画板对照页里的静态样张）就什么都不做。
+class _RevealWhenSelected extends StatefulWidget {
+  const _RevealWhenSelected({required this.selected, required this.child});
+
+  final bool selected;
+  final Widget child;
+
+  @override
+  State<_RevealWhenSelected> createState() => _RevealWhenSelectedState();
+}
+
+class _RevealWhenSelectedState extends State<_RevealWhenSelected> {
+  @override
+  void initState() {
+    super.initState();
+    if (widget.selected) _reveal();
+  }
+
+  @override
+  void didUpdateWidget(_RevealWhenSelected oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selected && !oldWidget.selected) _reveal();
+  }
+
+  /// 这一帧还没布局（`initState` 时连 RenderBox 都还没有），推到帧末再滚。
+  void _reveal() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !widget.selected) return;
+      if (Scrollable.maybeOf(context) == null) return;
+      Scrollable.ensureVisible(context, alignment: 0.5);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// 分组之间的分隔线。

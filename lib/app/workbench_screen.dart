@@ -72,6 +72,9 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
 
   WorkbenchController get c => widget.controller;
 
+  /// 输入框连同上方的 `@` / `/` 菜单（画板 42）占的那一块：判断「点在菜单之外」用。
+  final GlobalKey _composerArea = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -163,22 +166,35 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: c,
-      builder: (context, _) => AppShell(
-        sidebar: c.sidebarCollapsed ? null : _sidebar(),
-        main: switch (c.page) {
-          MainPage.traffic => _trafficColumn(),
-          MainPage.workbench => _workbenchColumn(),
-        },
-        rightPanel: c.rightPanelOpen ? _rightPanel() : null,
-        sidebarWidth: c.sidebarWidth,
-        rightPanelWidth: c.rightPanelWidth,
-        onResizeSidebar: c.resizeSidebar,
-        onResizeRightPanel: c.resizeRightPanel,
-        onResizeEnd: c.saveUiState,
-        onResetSidebar: c.resetSidebarWidth,
-        onResetRightPanel: c.resetRightPanelWidth,
+      builder: (context, _) => Listener(
+        onPointerDown: _closeInlineMenuOnOutsideTap,
+        child: AppShell(
+          sidebar: c.sidebarCollapsed ? null : _sidebar(),
+          main: switch (c.page) {
+            MainPage.traffic => _trafficColumn(),
+            MainPage.workbench => _workbenchColumn(),
+          },
+          rightPanel: c.rightPanelOpen ? _rightPanel() : null,
+          sidebarWidth: c.sidebarWidth,
+          rightPanelWidth: c.rightPanelWidth,
+          onResizeSidebar: c.resizeSidebar,
+          onResizeRightPanel: c.resizeRightPanel,
+          onResizeEnd: c.saveUiState,
+          onResetSidebar: c.resetSidebarWidth,
+          onResetRightPanel: c.resetRightPanelWidth,
+        ),
       ),
     );
+  }
+
+  /// 点输入框以外的地方就关掉 `@` / `/` 菜单。它内联在输入框上方（不是 Overlay 里的弹层），
+  /// 没有画板 40 / 41 那层「点外即关」的透明遮罩，在这里补上（所有者手测 2026-09-18）。
+  /// 画板 40 / 41 的弹层开着时点击先落到它们自己的遮罩上、根本到不了这里，两者不会互相打架。
+  void _closeInlineMenuOnOutsideTap(PointerDownEvent event) {
+    if (!c.inlineMenuOpen) return;
+    final box = _composerArea.currentContext?.findRenderObject();
+    if (box is RenderBox && box.hasSize && box.paintBounds.contains(box.globalToLocal(event.position))) return;
+    c.closeInlineMenu();
   }
 
   // ---------------------------------------------------------------- 侧栏（画板 01 / 04）
@@ -438,6 +454,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     final pending = c.firstPending;
     final plan = _activePlan();
     return Composer(
+      key: _composerArea,
       controller: c.composer,
       focusNode: c.composerFocus,
       placeholder: c.composerPlaceholder,

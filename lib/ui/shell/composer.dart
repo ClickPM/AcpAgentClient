@@ -121,7 +121,12 @@ class Composer extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               if (inlineMenu != null) ...<Widget>[
-                Align(alignment: Alignment.centerLeft, child: inlineMenu!),
+                // Esc 走全局处理器而不是下面那个 `Focus`：鼠标在别处点过之后焦点就不在输入框里了，
+                // 键事件再也不经过输入框的焦点链（所有者手测 2026-09-18）。
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: EscapeDismissible(onDismiss: onInlineMenuDismiss, child: inlineMenu!),
+                ),
                 const SizedBox(height: t.Spacing.s8),
               ],
               for (final dock in docks) ...<Widget>[dock, const SizedBox(height: t.Spacing.s8)],
@@ -138,8 +143,9 @@ class Composer extends StatelessWidget {
   /// 去挪光标。
   /// 中文 IME 组合窗开着时（`composing` 有效）一律放行：那一下 Enter 是给候选词上屏用的，上下键是翻候选页的。
   ///
-  /// `@` / `/` 菜单开着时（画板 42）这三个键归菜单：上下键移动高亮（按住连发，所以 repeat 也收）、
-  /// Enter 把高亮项填进输入框（不发送）、Esc 关掉菜单。菜单关着时一切照旧——上下键仍是多行文本里的换行移动。
+  /// `@` / `/` 菜单开着时（画板 42）这两个键归菜单：上下键移动高亮（按住连发，所以 repeat 也收）、
+  /// Enter 把高亮项填进输入框（不发送）。菜单关着时一切照旧——上下键仍是多行文本里的换行移动。
+  /// Esc 不在这里：它归菜单自己的 [EscapeDismissible]，焦点不在输入框时也得管用。
   KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) return KeyEventResult.ignored;
     if (controller.value.composing.isValid) return KeyEventResult.ignored;
@@ -151,10 +157,6 @@ class Composer extends StatelessWidget {
       }
       if (key == LogicalKeyboardKey.arrowUp) {
         onInlineMenuMove?.call(-1);
-        return KeyEventResult.handled;
-      }
-      if (key == LogicalKeyboardKey.escape && event is KeyDownEvent) {
-        onInlineMenuDismiss?.call();
         return KeyEventResult.handled;
       }
     }

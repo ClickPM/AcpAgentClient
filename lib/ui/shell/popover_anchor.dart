@@ -5,6 +5,7 @@
 // 用 `OverlayPortal` + `CompositedTransformFollower`：弹层浮在 Overlay 上，位置跟着触发控件走，
 // 点弹层之外的任何地方关闭（画板上弹层都是点外即关的临时表面）。
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../theme/tokens.dart' as t;
@@ -157,40 +158,84 @@ class _PopoverAnchorState extends State<PopoverAnchor> {
       link: h.link,
       child: OverlayPortal(
         controller: _controller,
-        overlayChildBuilder: (context) => Stack(
-          children: <Widget>[
-            // 点弹层之外关闭。
-            Positioned.fill(child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: h._dismiss)),
-            CompositedTransformFollower(
-              link: h.link,
-              targetAnchor: h._targetAnchor,
-              followerAnchor: h._followerAnchor,
-              offset: h._offset,
-              showWhenUnlinked: false,
-              // widthFactor / heightFactor 必须给：Stack 的非定位子节点拿到的是「整屏」的松约束，
-              // 不收紧的话 Align 会撑满整屏，`followerAnchor` 算的就是**整屏**的角而不是弹层自己的角 ——
-              // `showAbove`（followerAnchor: bottomLeft）于是把弹层顶到屏幕顶上去了
-              //（所有者手测 2026-09-17「消息发送区的下拉窗口位置全部漂移」的成因；
-              // 顶栏那些 followerAnchor: topLeft 的弹层因为两个角重合，才一直看着是对的）。
-              // 画板 05 D 组：出场 opacity 0 → 1 + `motion.pop` 位移，`motion.base` 160ms；
-              // 不缩放，阴影跟着弹层自己那一条时间线；**关闭不做动画**，`OverlayPortal` 直接卸载即可。
-              // 没有 epoch：重播靠的就是这次卸载与下次挂载。
-              child: Align(
-                alignment: Alignment.topLeft,
-                widthFactor: 1,
-                heightFactor: 1,
-                child: MotionEnter(
-                  epoch: null,
-                  distance: h._fromAbove ? t.Motion.pop : -t.Motion.pop,
-                  duration: t.Motion.base,
-                  child: h._builder(context),
+        overlayChildBuilder: (context) => EscapeDismissible(
+          onDismiss: h._dismiss,
+          child: Stack(
+            children: <Widget>[
+              // 点弹层之外关闭。
+              Positioned.fill(child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: h._dismiss)),
+              CompositedTransformFollower(
+                link: h.link,
+                targetAnchor: h._targetAnchor,
+                followerAnchor: h._followerAnchor,
+                offset: h._offset,
+                showWhenUnlinked: false,
+                // widthFactor / heightFactor 必须给：Stack 的非定位子节点拿到的是「整屏」的松约束，
+                // 不收紧的话 Align 会撑满整屏，`followerAnchor` 算的就是**整屏**的角而不是弹层自己的角 ——
+                // `showAbove`（followerAnchor: bottomLeft）于是把弹层顶到屏幕顶上去了
+                //（所有者手测 2026-09-17「消息发送区的下拉窗口位置全部漂移」的成因；
+                // 顶栏那些 followerAnchor: topLeft 的弹层因为两个角重合，才一直看着是对的）。
+                // 画板 05 D 组：出场 opacity 0 → 1 + `motion.pop` 位移，`motion.base` 160ms；
+                // 不缩放，阴影跟着弹层自己那一条时间线；**关闭不做动画**，`OverlayPortal` 直接卸载即可。
+                // 没有 epoch：重播靠的就是这次卸载与下次挂载。
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  widthFactor: 1,
+                  heightFactor: 1,
+                  child: MotionEnter(
+                    epoch: null,
+                    distance: h._fromAbove ? t.Motion.pop : -t.Motion.pop,
+                    duration: t.Motion.base,
+                    child: h._builder(context),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         child: widget.child,
       ),
     );
   }
+}
+
+/// Esc 关掉挂着的临时表面（画板 40 / 41 的弹层、画板 42 的内联菜单）。
+///
+/// 走 [HardwareKeyboard] 的全局处理器而不是 `Focus`：焦点未必在这层里面 —— `+` 菜单开着时焦点还在输入框，
+/// 而输入框里出 `@` / `/` 菜单后只要用鼠标点一下别处，焦点就彻底离开了输入框（所有者手测 2026-09-18：
+/// 「点击弹窗外再按 esc 就没反应了」）。处理器随这层挂载 / 卸载登记与注销，所以只有开着的表面才吃这一下。
+class EscapeDismissible extends StatefulWidget {
+  const EscapeDismissible({super.key, required this.onDismiss, required this.child});
+
+  /// null（画板对照页里的静态样张）= 不吃这一下，Esc 照常交给别人。
+  final VoidCallback? onDismiss;
+  final Widget child;
+
+  @override
+  State<EscapeDismissible> createState() => _EscapeDismissibleState();
+}
+
+class _EscapeDismissibleState extends State<EscapeDismissible> {
+  @override
+  void initState() {
+    super.initState();
+    HardwareKeyboard.instance.addHandler(_onKey);
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onKey);
+    super.dispose();
+  }
+
+  bool _onKey(KeyEvent event) {
+    final onDismiss = widget.onDismiss;
+    if (onDismiss == null) return false;
+    if (event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.escape) return false;
+    onDismiss();
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

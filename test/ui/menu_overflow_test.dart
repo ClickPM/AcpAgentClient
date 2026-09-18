@@ -1,0 +1,126 @@
+// 弹层的两桩手测缺陷（所有者 2026-09-18）：
+// ① `/` 与 `@` 菜单、以及输入框右下的模型选择器，高度不封顶也不能在内部滚 ——
+//    命令装到几十条时菜单顶出窗口，下面的条目既看不见也选不中。
+// ② 菜单只有「选中一条」才会消失：点页面空白不关，鼠标在别处点过之后连 Esc 都不再有反应
+//    （那一下把焦点带离了输入框，键事件不再经过输入框的焦点链）。
+
+import 'package:acp_agent_client/app/app.dart';
+import 'package:acp_agent_client/app/workbench_controller.dart';
+import 'package:acp_agent_client/app/workbench_screen.dart';
+import 'package:acp_agent_client/projection/wire.dart';
+import 'package:acp_agent_client/theme/tokens.dart' as t;
+import 'package:acp_agent_client/ui/popovers/inline_menus.dart';
+import 'package:acp_agent_client/ui/popovers/menu.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import '../app/fake_core.dart';
+import '../gallery_harness.dart';
+
+/// 装了一个 agent、有一个最近项目、项目根下有一打文件：`@` 菜单一敲就有东西可选。
+class _Core extends FakeCore {
+  @override
+  Future<JsonMap> agentSettingsGet() async => <String, dynamic>{
+        'agent_servers': <String, dynamic>{
+          'codex': <String, dynamic>{'type': 'custom', 'command': 'codex-acp'},
+        },
+      };
+
+  @override
+  Future<JsonMap> workspaceRecent() async => <String, dynamic>{
+        'projects': <Object?>[
+          <String, dynamic>{'path': r'D:\proj', 'name': 'proj'},
+        ],
+      };
+
+  @override
+  Future<JsonMap> fsListDir(String root, String path) async => <String, dynamic>{
+        'entries': <Object?>[
+          for (var i = 0; i < 12; i++)
+            <String, dynamic>{'path': 'D:\proj\f$i.dart', 'name': 'f$i.dart', 'parent': 'proj', 'isDir': false},
+        ],
+      };
+}
+
+void main() {
+  Future<void> pumpMenu(WidgetTester tester, {required int rows, int selected = -1}) {
+    return tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: MenuPopover(
+            children: <Widget>[
+              for (var i = 0; i < rows; i++) MenuRow(label: 'row $i', selected: i == selected, onTap: () {}),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  ScrollableState scrollerOf(WidgetTester tester) => tester.state<ScrollableState>(
+        find.descendant(of: find.byType(MenuPopover), matching: find.byType(Scrollable)),
+      );
+
+  testWidgets('条目多到装不下时弹层封顶，并在内部滚动', (tester) async {
+    await pumpMenu(tester, rows: 40);
+
+    // Popover 自己的 padding 4 与 1px 边框在 [Geometry.menuMaxHeight] 之外。
+    const double chrome = 2 * t.Spacing.s4 + 2 * t.Borders.width;
+    expect(tester.getSize(find.byType(MenuPopover)).height, lessThanOrEqualTo(t.Geometry.menuMaxHeight + chrome));
+    expect(scrollerOf(tester).position.maxScrollExtent, greaterThan(0), reason: '封顶之后必须能在弹层内部滚');
+  });
+
+  testWidgets('条目装得下时弹层还是按内容收窄（画板上那些三五行的菜单外观不变）', (tester) async {
+    await pumpMenu(tester, rows: 3);
+
+    expect(tester.getSize(find.byType(MenuPopover)).height, lessThan(t.Geometry.menuMaxHeight));
+    expect(scrollerOf(tester).position.maxScrollExtent, 0);
+  });
+
+  testWidgets('高亮项在滚动区外时自动露出（键盘上下键走到下面的条目）', (tester) async {
+    await pumpMenu(tester, rows: 40);
+    expect(scrollerOf(tester).position.pixels, 0);
+
+    await pumpMenu(tester, rows: 40, selected: 30);
+    await tester.pumpAndSettle();
+
+    expect(scrollerOf(tester).position.pixels, greaterThan(0));
+    final menu = tester.getRect(find.byType(MenuPopover));
+    final row = tester.getRect(find.text('row 30'));
+    expect(menu.contains(row.topLeft) && menu.contains(row.bottomRight), isTrue, reason: '高亮项得落在可见区里');
+  });
+
+  testWidgets('点输入框之外关掉 `@` 菜单，鼠标点过之后 Esc 仍然管用', (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.runAsync(loadGalleryFonts);
+    await tester.pumpWidget(AcpApp(source: DataSource.bridge, bridge: _Core()));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final c = tester.widget<WorkbenchScreen>(find.byType(WorkbenchScreen)).controller;
+
+    // 先按下鼠标把焦点从输入框挪走（所有者手测的那一步），再按 Esc。
+    await c.onComposerChanged('@');
+    await tester.pump();
+    expect(find.byType(MentionMenu), findsOneWidget);
+    await tester.tapAt(tester.getCenter(find.text('Files')));
+    await tester.pump();
+    expect(find.byType(MentionMenu), findsOneWidget, reason: '点在菜单自己身上不算「点外面」');
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    expect(find.byType(MentionMenu), findsNothing, reason: '焦点已不在输入框，Esc 也得关掉菜单');
+
+    // 点页面空白（转录区）：直接关。
+    await c.onComposerChanged('@');
+    await tester.pump();
+    expect(find.byType(MentionMenu), findsOneWidget);
+    await tester.tapAt(const Offset(700, 200));
+    await tester.pump();
+    expect(find.byType(MentionMenu), findsNothing);
+  });
+}
