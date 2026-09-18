@@ -93,9 +93,13 @@ class WorkbenchController extends ChangeNotifier {
   /// 不能只看 `sessionId`：重载 agent 若 `session/load` 回的是同一条，id 没变但内容确实整块换了。
   int sessionEpoch = 0;
 
-  /// 正在重载 agent（画板 05 B 组的等待期）。断开 → 重连 → `session/load` 这几秒里
-  /// 转录区降到 `opacity.pending` 且不可交互，线程头借用 `isRunning` 那只 spinner。
-  bool reloading = false;
+  /// 正在等 agent 把会话换过来（画板 05 B 组的等待期）：转录区降到 `opacity.pending` 且不可交互，
+  /// 线程头借用 `isRunning` 那只 spinner。两个触发共用同一套 —— 重载 agent（[reloadAgent]：断开 → 重连
+  /// → `session/load`）与新建会话（[newSession]：拉进程 → `initialize` → `session/new`，含 `send()`
+  /// 现开一条那条路）。画板 05 B 组只画了 reload 图标那个触发，但两者都是「时长不可预知的整块替换」，
+  /// 等待期的规格一字不差地套用；新建会话那条是所有者手测报回来的（2026-09-18：选完 agent
+  /// 到会话出来这几秒界面一动不动，像卡住了）。
+  bool waitingForAgent = false;
   final Map<String, String> _sessionAgent = <String, String>{}; // sessionId → agentId
 
   // ---- UI 态
@@ -840,6 +844,12 @@ class WorkbenchController extends ChangeNotifier {
       _touch();
       return;
     }
+    // 画板 05 B 组阶段 ①：先把等待态摆出来再发命令。拉起进程 + `initialize` + `session/new`
+    // 要几百毫秒到数秒，这期间界面一动不动会被当成卡死（所有者手测 2026-09-18，与重载 agent 同一回事）。
+    // 先存旧值再恢复：[reloadAgent] 的「没有旧会话」分支会调到这里，直接写 false 会把它的等待态提前收掉。
+    final wasWaiting = waitingForAgent;
+    waitingForAgent = true;
+    _touch();
     try {
       await _connect(b, agent.id, cwd);
       await _createSession(agent.id, cwd);
@@ -858,8 +868,10 @@ class WorkbenchController extends ChangeNotifier {
     } catch (e) {
       lastError = e.toString();
       debugPrint('[workbench] newSession: $e');
+    } finally {
+      waitingForAgent = wasWaiting;
+      _touch();
     }
-    _touch();
   }
 
   /// 已连接的 agent 上开一个会话并切过去（`newSession` 的后半段；认证成功后的自动重试也走这里）。
@@ -915,12 +927,13 @@ class WorkbenchController extends ChangeNotifier {
     if (id == null || b == null || cwd == null) return;
     // 重入守卫：等待期里线程头的重载按钮仍可点（`canReload` 全程为真，`IgnorePointer` 只包住 `_body()`），
     // 连点两下会让两条 disconnect → reconnect → load 序列交叠，且先返回的那条提前把等待态收掉
-    // （审查 finding P2，2026-09-18）。
-    if (reloading) return;
+    // （审查 finding P2，2026-09-18）。判据换成 [waitingForAgent] 之后，「新会话正在开」时点重载
+    // 也一并挡住 —— 那同样是 disconnect 撞 `session/new` 的交叠。
+    if (waitingForAgent) return;
     final previous = sessionId;
     // 画板 05 B 组阶段 ①：先把等待态摆出来再发命令。断开 → 重连 → load 要几百毫秒到数秒，
     // 这期间界面一动不动会被当成卡死（所有者反馈 2026-09-17）。
-    reloading = true;
+    waitingForAgent = true;
     _touch();
     // `session/load` 回的是同一条会话时 `sessionId` 不变、`_adoptSession` 也不走，
     // 但转录确实整块换过，得单独补一次入场触发（画板 05 阶段 ③）。
@@ -945,7 +958,7 @@ class WorkbenchController extends ChangeNotifier {
       // 阶段 ③：载回原会话才补触发；开了新会话的路径 `_adoptSession` 已经 +1 过，
       // 全都失败的路径不补 —— 画板 05 阶段 ③' 只把亮度恢复，不播入场。
       if (loaded) sessionEpoch++;
-      reloading = false;
+      waitingForAgent = false;
       _touch();
     }
   }

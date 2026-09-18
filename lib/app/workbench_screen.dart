@@ -322,8 +322,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         threadHeader: ThreadHeader(
           title: c.threadTitle,
           hasAgent: c.hasAgent,
-          // 重载等待期借用同一只 spinner（画板 05 B 组阶段 ①：不新增元素）。
-          running: c.isRunning || c.reloading,
+          // 等待期（重载 agent / 新建会话）借用同一只 spinner（画板 05 B 组阶段 ①：不新增元素）。
+          running: c.isRunning || c.waitingForAgent,
           // 标题与转录区同起同止（画板 05 A 组）。
           transitionEpoch: c.sessionEpoch,
           canRename: c.hasSession,
@@ -346,9 +346,9 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         composer: _composer(),
       );
 
-  /// 画板 05 的 A 组（会话内容整块替换的入场）与 B 组（重载等待期）都落在中栏这一块。
+  /// 画板 05 的 A 组（会话内容整块替换的入场）与 B 组（等待期：重载 agent、新建会话）都落在中栏这一块。
   ///
-  /// 两层透明度会相乘：重载完成那一下 `AnimatedOpacity` 从 `opacity.pending` 回 1，
+  /// 两层透明度会相乘：等待期结束那一下 `AnimatedOpacity` 从 `opacity.pending` 回 1，
   /// 同时入场从 0 起，中段比规格的单条曲线低 0.1 上下 —— 200ms 内看不出。
   /// 不给 `AnimatedOpacity` 挂 epoch key 去换严格一致：那会整棵重建转录子树，
   /// 把卡片的展开态与滚动位置一起丢掉，代价远大于收益。
@@ -356,9 +356,9 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     // 新会话空态自己按 motion.stagger 错开三层（画板 05 A 组的错开规则），那一下**代替**整体入场。
     final staggered = c.hasAgent && (c.store?.entries.isEmpty ?? true);
     final Widget content = IgnorePointer(
-      ignoring: c.reloading,
+      ignoring: c.waitingForAgent,
       child: AnimatedOpacity(
-        opacity: c.reloading ? t.Opacities.pending : 1,
+        opacity: c.waitingForAgent ? t.Opacities.pending : 1,
         duration: t.Motion.fast,
         curve: t.Motion.curve,
         child: _bodyContent(),
