@@ -27,6 +27,11 @@ class MenuPopover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 搜索框（有的话一定是第一个 child：模型选择器、项目 / 分支切换器三处都这么排）钉在滚动区之外。
+    // 它和条目同在一个滚动区时，敲字过滤把当前值换到靠后的位置会触发下面那个「选中行自动露出」，
+    // 顺带把搜索框推出视口，而用户正打着字（发布前审查第 1 / 2 轮同一条 P2，2026-09-18）。
+    final pinned = children.isNotEmpty && children.first is MenuSearchField;
+    final body = pinned ? children.sublist(1) : children;
     return Popover(
       radius: t.Radii.card,
       padding: const EdgeInsets.all(t.Spacing.s4),
@@ -34,8 +39,17 @@ class MenuPopover extends StatelessWidget {
         constraints: BoxConstraints(maxHeight: maxHeight),
         child: SizedBox(
           width: width,
-          child: SingleChildScrollView(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: children),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              if (pinned) children.first,
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: body),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -205,12 +219,11 @@ class MenuTwoLineRow extends StatelessWidget {
   }
 }
 
-/// 选中行自动露出：`/` 菜单几十条时键盘上下键必然把高亮移出滚动区。没有滚动祖先（画板对照页里的
-/// 静态样张）就什么都不做。
+/// 选中行自动露出：`/` 菜单几十条时键盘上下键必然把高亮移出滚动区。
 ///
-/// **只在高亮移动时露出，打开那一下不露**：搜索框是 [MenuPopover] 的第一个 child、和条目在同一个
-/// 滚动区里，开局就把靠后的当前值滚到正中会顺带把搜索框推出视口，而它正是长列表弹层的主交互
-///（发布前审查 P2，2026-09-18）。代价是打开时当前值可能在视口外，翻一下或敲字过滤即可。
+/// **只在高亮移动时露出，打开那一下不露**（发布前审查 P2，2026-09-18）：代价是打开时当前值可能在
+/// 视口外，翻一下或敲字过滤即可。画板对照页里的静态样张不会乱滚，靠的是 `selected` 自始至终不变、
+/// 压根不触发下面那一次 flip —— [MenuPopover] 现在总是带滚动区，别指望「没有滚动祖先」来兜底。
 class _RevealWhenSelected extends StatefulWidget {
   const _RevealWhenSelected({required this.selected, required this.child});
 
@@ -232,7 +245,6 @@ class _RevealWhenSelectedState extends State<_RevealWhenSelected> {
   void _reveal() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !widget.selected) return;
-      if (Scrollable.maybeOf(context) == null) return;
       Scrollable.ensureVisible(context, alignment: 0.5);
     });
   }

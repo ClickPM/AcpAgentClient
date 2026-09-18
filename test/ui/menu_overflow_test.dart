@@ -111,6 +111,11 @@ void main() {
     await tester.tapAt(tester.getCenter(find.text('Files')));
     await tester.pump();
     expect(find.byType(MentionMenu), findsOneWidget, reason: '点在菜单自己身上不算「点外面」');
+    // `flutter_test` 的 defaultTargetPlatform 是 android，而 `EditableText` 的「点外面失焦」只在桌面
+    // 平台生效，所以上面那一下点不走焦点；显式挪走，让下面的 Esc 真落在「焦点不在输入框」这个前提上
+    //（不然这桩用旧的「Esc 走输入框焦点链」实现也照样通过，锁不住那个回归）。
+    c.composerFocus.unfocus();
+    await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pump();
     expect(find.byType(MentionMenu), findsNothing, reason: '焦点已不在输入框，Esc 也得关掉菜单');
