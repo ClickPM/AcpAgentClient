@@ -9,6 +9,7 @@ import 'package:acp_agent_client/app/workbench_controller.dart';
 import 'package:acp_agent_client/projection/wire.dart';
 import 'package:acp_agent_client/ui/popovers/topbar_popovers.dart';
 import 'package:acp_agent_client/ui/shell/shell_common.dart';
+import 'package:acp_agent_client/ui/shell/transcript_empty.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -110,6 +111,23 @@ void main() {
     // 而根元素带着 `fill="none"`，path 上的取色一旦写错整张图一个像素都不画（审查 finding P2）。
     expect(svg, contains('fill="currentColor"'), reason: '取色方式与 registry 的 icon.svg 一致');
     await SvgStringLoader(svg).loadBytes(null);
+  });
+
+  testWidgets('转录区空态的大图标位同样吃 agent 的 icon.svg，没有才退占位菱形', (tester) async {
+    Future<void> pump(String? svg) => tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Center(child: NewThreadEmpty(title: 'New Codex Thread', svg: svg)),
+          ),
+        );
+
+    await pump(null);
+    expect(find.byType(SvgPicture), findsNothing, reason: '没有 icon.svg 就是占位菱形');
+
+    await pump('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">'
+        '<circle cx="8" cy="8" r="6" fill="currentColor"/></svg>');
+    await tester.pumpAndSettle();
+    expect(find.byType(SvgPicture), findsOneWidget, reason: '有 icon.svg 就画那张 logo');
   });
 
   testWidgets('AgentMark：有 icon.svg 画 logo，没有画占位菱形，两态同尺寸', (tester) async {

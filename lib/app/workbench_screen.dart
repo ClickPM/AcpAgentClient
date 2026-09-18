@@ -360,7 +360,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
             ..._stateBars(),
             Expanded(
               child: c.hasAgent
-                  ? NewThreadEmpty(title: c.threadTitle, transitionEpoch: c.sessionEpoch)
+                  ? NewThreadEmpty(title: c.threadTitle, transitionEpoch: c.sessionEpoch, svg: c.agentIconSvg)
                   : NoAgentEmpty(onOpenAgents: () => c.openTab(ShellTab.agents)),
             ),
           ],
