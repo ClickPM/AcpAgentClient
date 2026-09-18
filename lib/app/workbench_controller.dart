@@ -883,7 +883,11 @@ class WorkbenchController extends ChangeNotifier {
     waitingForAgent = true;
     _touch();
     try {
-      await _connect(b, agent.id, cwd);
+      // 已经连着就别重连：`agent_connect` 会先断开旧连接，把这个 agent 上**所有**会话连着正在跑的那一轮
+      // 一起杀掉。所有者报障 2026-09-18（dsh-acp-interactive）：一条会话跑着任务时新建另一条，
+      // 跑着的那条当场中断，回头再给它发消息就撞 agent 的 `-32602 unknown session`——
+      // 进程已经换了一个，旧 sessionId 在新进程里不存在。要换进程走线程头的「重载 agent」。
+      await _ensureConnected(b, agent.id, cwd);
       await _createSession(agent.id, cwd);
     } on CoreCommandError catch (e) {
       lastError = e.message;
@@ -2187,7 +2191,10 @@ class WorkbenchController extends ChangeNotifier {
     _cancelAuthElicitations();
     openTab(ShellTab.agents);
     final b = bridge;
-    if (b != null && authMethods.isEmpty) {
+    // 「没连上的」这句判据原先只看 `authMethods.isEmpty`：已经连上、且 `initialize` 里本来就没有 authMethods 的
+    // agent 从画板 51 / 34 的登录键进来会白白重连一次，把它上面正在跑的会话全杀掉（与 [newSession] 同一个坑）。
+    // 重连也换不出新的 authMethods（它就是从 `initialize` 来的），所以连上了就不重连。
+    if (b != null && authMethods.isEmpty && sessions.agents[agent]?.state != AgentLifecycle.initialized) {
       await _guard(() async {
         final result = await b.agentConnect(agent, cwd: _authRetryCwd);
         final init = result['initialize'];

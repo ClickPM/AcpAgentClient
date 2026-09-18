@@ -6,7 +6,8 @@
 // - 侧栏删除图标：一律给（本地记录不被 agent 的能力声明锁住）；
 // - `session/list` 校对：分页取完、只补标题不覆盖本地改名、agent 有本地没有的不进侧栏；
 // - modes 回退：没有 `category == mode` 的 configOptions 时模式下拉走 `session/set_mode`；
-// - 重载 agent：声明 loadSession 的重连后自动 load 回原会话，没声明的退回新会话。
+// - 重载 agent：声明 loadSession 的重连后自动 load 回原会话，没声明的退回新会话；
+// - 新建会话：agent 已经连着就不重连（重连会把它上面所有会话连着在途那轮一起杀掉），进程死了才重连。
 
 import 'package:acp_agent_client/app/core_bridge.dart';
 import 'package:acp_agent_client/app/workbench_controller.dart';
@@ -543,5 +544,30 @@ void main() {
     expect(plainCore.calls, contains('new:$_agent'));
     expect(plain.sessionId, 'sess_new');
     plain.dispose();
+  });
+
+  test('新建会话：已经连着就不重连（在途那轮不能被杀）；进程死了才重连', () async {
+    final (c, core) = await _connected();
+    c.sessionId = _session;
+    c.sessions.session(_session, agentId: _agent).cwd = _cwd;
+    core.calls.clear();
+
+    await c.newSession(const AgentRef(id: _agent, name: _agent));
+
+    expect(
+      core.calls,
+      <String>['new:$_agent'],
+      reason: '只发 session/new：`agent_connect` 会先断开旧连接，把这个 agent 上所有会话（含正在跑的那轮）一起杀掉',
+    );
+    expect(c.sessionId, 'sess_new');
+
+    // 进程真的没了（`acp/agent_state: exited`）：下一次新建会话照常重连。
+    c.sessions.agents.apply(<String, dynamic>{'agentId': _agent, 'state': 'exited', 'code': 1});
+    core.calls.clear();
+
+    await c.newSession(const AgentRef(id: _agent, name: _agent));
+
+    expect(core.calls, <String>['connect:$_agent', 'new:$_agent']);
+    c.dispose();
   });
 }
