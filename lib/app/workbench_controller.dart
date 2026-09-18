@@ -1301,12 +1301,12 @@ class WorkbenchController extends ChangeNotifier {
     if (composer.text.trim().isEmpty && pendingBlocks.isEmpty) return; // 空输入不开会话
     // 启动后的画板 01 状态 1：agent 已选、会话还没开（进程也没拉）。第一条消息把它开出来，
     // 失败（认证 / 缺 Node）时 `newSession` 已经把错误与认证页安排好，输入框里的文本原样留着。
-    // 守卫不能光看 `store`：`store` 是 `sessionId == null ? null : sessions.maybe(sessionId!)`，
-    // 选中的会话只是载不回转录时它也是 null，那种情况下开新会话会把选中的那条静默顶掉
-    //（审查 finding P2，2026-09-18）。但也不能光看 `sessionId`：agent 压根没声明 `loadSession` 时
-    // `_ensureLoaded` 本来就不建 store，「开一条新会话、旧转录留在内存里只读」是 R3 的既定语义
-    //（同 `reloadAgent`），去掉它会让那类 agent 的旧会话按发送零响应（复审 finding P2，2026-09-18）。
-    if (store == null && (sessionId == null || !canLoadSessionOf(id))) {
+    // 守卫看 `store`（= 没有可用转录）。已知问题：选中的会话只是**载不回**转录时 `store` 也是 null，
+    // 于是这里会开一条新会话把选中的那条静默顶掉（审查 finding P2）。两轮针对性整改都在别处引入了
+    // 新缺陷（改 `sessionId` 判据 → 不支持 loadSession 的 agent 按发送零响应；加能力判据 →
+    // 覆盖掉 `newSession` 安排好的认证 / 缺 Node 报错，且能力未知时仍会顶掉），
+    // 所有者裁定 2026-09-18：回退到出厂行为，记 `rounds/BACKLOG.md` 等单独一轮做。
+    if (store == null) {
       if (_startingSession) return;
       _startingSession = true;
       try {
@@ -1315,14 +1315,10 @@ class WorkbenchController extends ChangeNotifier {
         _startingSession = false;
       }
     }
+    // 静默 return 是有意的：走到这里说明 `newSession` 失败了，而它的每条失败路径都已经把
+    // 真实原因写进 `lastError`（认证 / 缺 Node / 没选项目目录）并安排好认证页，这里再写一句会盖掉它。
     final s = store;
-    if (s == null) {
-      // 走到这里只剩「声明了 loadSession 但载回失败」（连不上 / 认证过期 / 拿不到 cwd）。
-      // 不能一声不吭地 return，否则用户按发送屏幕零变化、也不知道该做什么（复审 finding P2，2026-09-18）。
-      lastError = '这条会话的转录没能载回来；用 ≡ 菜单的 Resume 挂回来，或新建一个会话';
-      _touch();
-      return;
-    }
+    if (s == null) return;
     if (_blockedByClose()) return;
     // 快照要取在开会话之后：拉起进程 + `initialize` + `session/new` 要几百毫秒到数秒，
     // 这期间新打的字与新加的附件也得发出去，否则下面的 clear 会把它们静默抹掉（审查 finding P2，2026-09-18）。
