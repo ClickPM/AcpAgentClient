@@ -63,3 +63,15 @@ flutter:
     - family: Geist Mono
       fonts:
         - asset: assets/fonts/GeistMono-Variable.ttf
+    # CJK 回退随包（OFL 1.1，许可证 assets/fonts/OFL-NotoSansSC.txt）。Geist / Geist Mono 的 cmap 对
+    # U+4E00–9FFF 覆盖为 0——中文一个字都不走 Geist，此前整段落到系统的 Microsoft YaHei UI，而 YaHei 的
+    # 字形是按 GDI full hinting 调的，Flutter 桌面只做灰度抗锯齿、不吃那套 hinting，于是中文比拉丁文更虚。
+    # 上游：notofonts/noto-cjk @ 165c01b46ea533872e002e0785ff17e44f6d97d8，
+    #       Sans/SubsetOTF/SC/NotoSansSC-Regular.otf（v2.004，8331336 B）。换版本照规则 4 的流程走。
+    # 只打 Regular 一档：YaHei UI 只有 Light / Regular / Bold，w500 本来也匹配到 Regular，一档不是退步。
+    # 别换成 google/fonts 的 NotoSansSC[wght].ttf：那份可变字体 fvar 的默认实例是 wght 100（Thin），而
+    # Flutter 不会把 fontWeight 映射到 wght 轴，凡是没带 fontVariations 的路径（xterm 的 TerminalStyle、
+    # mermaid 主题、Material textTheme 的非 bodyMedium 档）都会把中文渲成发丝体，比现状更糟。
+    - family: Noto Sans SC
+      fonts:
+        - asset: assets/fonts/NotoSansSC-Regular.otf
