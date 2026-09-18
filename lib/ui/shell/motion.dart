@@ -73,7 +73,7 @@ class _MotionEnterState extends State<MotionEnter> with SingleTickerProviderStat
       child: widget.child,
       builder: (BuildContext context, Widget? child) => Opacity(
         opacity: _enter.value,
-        child: Transform.translate(offset: Offset(0, widget.distance * (1 - _enter.value)), child: child),
+        child: Transform.translate(offset: t.Motion.offsetY(widget.distance * (1 - _enter.value)), child: child),
       ),
     );
   }

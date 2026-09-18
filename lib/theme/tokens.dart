@@ -296,6 +296,10 @@ abstract final class Motion {
 
   /// `motion.stagger`：成组元素入场的错开步长，最多错开 3 个。
   static const Duration stagger = Duration(milliseconds: 40);
+
+  /// 入场位移只发生在纵轴上（[rise] 上移、[pop] 上下弹），横轴恒 0。
+  /// 这个「横轴恒 0」也是几何字面量，按规则 3 归 tokens.dart，widget 文件里不写 `Offset(0, …)`。
+  static Offset offsetY(double dy) => Offset(0, dy);
 }
 
 /// 不透明度（画板 00 的动效小节）。

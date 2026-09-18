@@ -49,7 +49,9 @@ void main() {
     final handle = PopoverHandle();
     await pump(tester, handle);
     handle.showAbove(content);
-    await tester.pump();
+    // 要 settle：画板 05 D 组给弹层加了入场位移（向上弹的从下方 `motion.pop` 升起），
+    // 只 pump 一帧量到的是 t=0 那一帧、差一个 `pop`，而这条用例量的是静止位置。
+    await tester.pumpAndSettle();
 
     final r = rect(tester);
     expect(r.left, trigger.left);
@@ -61,7 +63,8 @@ void main() {
     final handle = PopoverHandle();
     await pump(tester, handle);
     handle.show(content);
-    await tester.pump();
+    // 同上：向下弹的从上方 `-motion.pop` 落下，量静止位置要等动画走完。
+    await tester.pumpAndSettle();
 
     final r = rect(tester);
     expect(r.left, trigger.left);
