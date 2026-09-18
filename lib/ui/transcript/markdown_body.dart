@@ -5,6 +5,7 @@
 // - `$…$` / `$$…$$` 在这里以 InlineSyntax 识别，交给 math_block.dart；
 // - 围栏交给 code_block.dart（语言 mermaid 交给 mermaid_block.dart）、表格交给 gfm_table.dart；
 // - 表头行启发式：只有一行 `| a | b |` 还没等到分隔行时先按表头渲染，避免分隔行到达那一帧跳变。
+// - 列表项里行内内容与嵌套块（子列表 / 围栏 / 表格）共存时，行内的先并成一段再渲染（见 [MarkdownBlock._mixedChildren]）。
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
@@ -241,7 +242,7 @@ class MarkdownBlock extends StatelessWidget {
         ? Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
-            children: <Widget>[for (final k in kids) MarkdownBlock(node: k, onLink: onLink, links: links, mermaidFontFamily: mermaidFontFamily, base: base)],
+            children: _mixedChildren(kids),
           )
         : Text.rich(inlines(kids, base), style: base);
     return Padding(
@@ -257,6 +258,31 @@ class MarkdownBlock extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// 紧凑列表（项之间没有空行）的 `li` 不会给行内内容包 `<p>`：`**标题**：` + 子列表解析成
+  /// `[<strong>, Text(：), <ul>]`。把它们逐个当块渲染的话，每个行内节点都会独占一行（冒号单独一行），
+  /// 行内元素还会掉进 [build] 的 `default` 分支丢掉粗体 / 行内代码 / 链接 recognizer，
+  /// 所以这里先把连续的行内兄弟并回一段，再让真正的块级子节点各自成块。
+  List<Widget> _mixedChildren(List<md.Node> kids) {
+    final out = <Widget>[];
+    final run = <md.Node>[];
+    void flush() {
+      if (run.isEmpty) return;
+      out.add(Text.rich(inlines(run, base), style: base));
+      run.clear();
+    }
+
+    for (final k in kids) {
+      if (k is md.Element && _blockTags.contains(k.tag)) {
+        flush();
+        out.add(MarkdownBlock(node: k, onLink: onLink, links: links, mermaidFontFamily: mermaidFontFamily, base: base));
+      } else {
+        run.add(k);
+      }
+    }
+    flush();
+    return out;
   }
 
   InlineSpan _withRecognizer(InlineSpan span, GestureRecognizer recognizer) {
