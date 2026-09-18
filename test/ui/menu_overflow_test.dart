@@ -105,6 +105,14 @@ void main() {
       rows: 40,
       search: MenuSearchField(controller: searchController, focusNode: searchFocus, placeholder: '搜索'),
     );
+    // 这一条要排在下面那个 state 查找之前：搜索框被塞回滚动区时它连带 EditableText 的 Scrollable
+    // 一起进去，下面的 finder 会先因命中两个而抛「Too many elements」，报错文本指向 finder 而不是
+    // 真正回退的那条性质（复审 P3）。
+    expect(
+      find.descendant(of: find.byType(SingleChildScrollView), matching: find.byType(MenuSearchField)),
+      findsNothing,
+      reason: '搜索框不该在滚动区里',
+    );
     // 搜索框自己带一个 Scrollable（EditableText），所以这里按 SingleChildScrollView 定位弹层那个。
     final body = tester.state<ScrollableState>(
       find.descendant(of: find.byType(SingleChildScrollView), matching: find.byType(Scrollable)),
