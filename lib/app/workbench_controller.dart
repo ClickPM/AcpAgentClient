@@ -723,6 +723,9 @@ class WorkbenchController extends ChangeNotifier {
   /// 把 `sessions.json` 的一条映射成侧栏项，**顺带把 agentId 记进 [_sessionAgent]**：
   /// 重启后点侧栏 / 改名 / 删除都要用 (agentId, sessionId) 这一对键，只靠 `newSession` 时写入
   /// 会让重启后的删除按空 agentId 去匹配、删不掉（审查 finding P2，2026-09-15）。
+  /// **只留当前 workspace 的**：cwd 是当前项目目录的才进侧栏，换项目时 [_enterWorkspace] 重投影一次，
+  /// 别的目录下的会话就不再露出来（所有者报障 2026-09-18）。agentId 的登记在过滤之前，
+  /// 不在侧栏里的会话（比如刚从线程区放下的那条）之后要删 / 要载还得靠它。
   List<SidebarSession> _toSidebar(Object? raw) {
     final out = <SidebarSession>[];
     if (raw is! List) return out;
@@ -732,6 +735,8 @@ class WorkbenchController extends ChangeNotifier {
       if (sessionId.isEmpty) continue;
       final owner = item['agentId'] as String?;
       if (owner != null && owner.isNotEmpty) _sessionAgent[sessionId] = owner;
+      final cwd = item['cwd'];
+      if (!_inCurrentWorkspace(cwd is String ? cwd : null)) continue;
       out.add(SidebarSession(
         id: sessionId,
         title: item['title'] as String? ?? sessionId,
@@ -742,6 +747,23 @@ class WorkbenchController extends ChangeNotifier {
       ));
     }
     return out;
+  }
+
+  /// 这条索引记录属不属于当前 workspace。还没选项目时不过滤；没记 cwd 的老条目分不清归属，照给，
+  /// 免得永远找不回来。两边路径同源（都是 `workspace_open` 回的那份），但仍按分隔符、尾斜杠与
+  /// （Windows 上）大小写归一后再比，同一目录的两种写法不能被判成两个 workspace。
+  bool _inCurrentWorkspace(String? cwd) {
+    final scope = project?.path;
+    if (scope == null || cwd == null || cwd.isEmpty) return true;
+    return _normalizeCwd(cwd) == _normalizeCwd(scope);
+  }
+
+  static String _normalizeCwd(String path) {
+    var p = path.replaceAll('\\', '/');
+    while (p.length > 1 && p.endsWith('/')) {
+      p = p.substring(0, p.length - 1);
+    }
+    return Platform.isWindows ? p.toLowerCase() : p;
   }
 
   /// agent 自己的 logo：registry 缓存的 `icon.svg` 原样内容，侧栏会话项与线程头的 agent 标记直接画它
@@ -824,11 +846,25 @@ class WorkbenchController extends ChangeNotifier {
       final p = result['project'];
       project = p is Map ? ProjectRef(path: p['path'] as String? ?? ref.path, name: p['name'] as String? ?? ref.name) : ref;
       recentProjects = _toProjects(result['projects']);
+      _enterWorkspace();
       await refreshBranches();
       await refreshRules();
       await files.setProject(project?.path);
     });
     _touch();
+  }
+
+  /// 换了项目：侧栏只留这个目录下的会话（[_toSidebar] 按 [project] 过滤）；正开着的会话若属于别的目录，
+  /// 就从线程区放下（回到画板 01 的空态，下一条消息在新目录里现开会话）——不然顶栏写着新项目、
+  /// 消息却发进旧目录的会话，侧栏里还找不到它。放下不等于关掉：它在 agent 侧照跑，切回那个目录再点回来。
+  /// 同一个目录换种写法（分隔符 / 尾斜杠）不算换项目，会话不动。
+  void _enterWorkspace() {
+    sidebarSessions = _toSidebar(_indexEntries);
+    final id = sessionId;
+    if (id == null || _inCurrentWorkspace(_indexCwdOf(id))) return;
+    if (renamingInHeader) cancelRename();
+    sessionId = null;
+    sessionEpoch++;
   }
 
   Future<void> refreshBranches() async {
@@ -1426,7 +1462,8 @@ class WorkbenchController extends ChangeNotifier {
       // 拿当前连接的 agentId 去删会一条都对不上，核心照样返回成功，于是那一行纹丝不动、也没有任何提示。
       final result = await b.sessionIndexRemove(_indexAgentOf(id) ?? owner, id);
       _applyIndex(result['sessions']);
-      if (sidebarSessions.any((s) => s.id == id)) {
+      // 查索引本身而不是侧栏：侧栏只投影当前 workspace 的条目（[_toSidebar]），不在侧栏 ≠ 已删掉。
+      if (_indexEntries.any((e) => e['sessionId'] == id)) {
         lastError = '这条会话的本地记录没能删掉（索引里找不到匹配的记录）';
       }
       missingOnAgent.remove(id);

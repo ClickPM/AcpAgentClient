@@ -11,6 +11,7 @@ import 'package:acp_agent_client/app/workbench_screen.dart';
 import 'package:acp_agent_client/projection/entries.dart';
 import 'package:acp_agent_client/theme/tokens.dart' as t;
 import 'package:acp_agent_client/projection/wire.dart';
+import 'package:acp_agent_client/ui/popovers/topbar_popovers.dart';
 import 'package:acp_agent_client/ui/shell/shell_common.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -325,6 +326,37 @@ void main() {
     expect(c.sessionId, isNull);
     expect(core.prompts, isEmpty);
     expect(c.composer.text, '发不出去', reason: '没发出去就不能把输入清掉');
+    c.dispose();
+  });
+
+  test('换项目：侧栏只留当前目录下的会话，正开着的别的目录的会话从线程区放下', () async {
+    final core = _InstalledCore()
+      ..sessionIndex.add(<String, dynamic>{
+        'agentId': 'zed',
+        'sessionId': 'other',
+        'title': '别的项目里的',
+        'updatedAt': 1500,
+        'cwd': r'D:\other',
+      });
+    final c = WorkbenchController(source: DataSource.bridge, bridge: core);
+    await c.start();
+    expect(c.project?.path, r'D:\proj');
+    expect(c.sidebarSessions.map((s) => s.id), unorderedEquals(<String>['older', 'recent']), reason: '别的目录下的会话不露出来');
+
+    c.sessionId = 'recent';
+    // 同一个目录换种写法（分隔符 / 尾斜杠）：还是这个 workspace，会话与侧栏都不动。
+    await c.openProject(const ProjectRef(path: 'D:/proj/', name: 'proj'));
+    expect(c.sessionId, 'recent');
+    expect(c.sidebarSessions.map((s) => s.id), unorderedEquals(<String>['older', 'recent']));
+
+    await c.openProject(const ProjectRef(path: r'D:\other', name: 'other'));
+    expect(c.sidebarSessions.map((s) => s.id), <String>['other']);
+    expect(c.sessionId, isNull, reason: '正开着的会话属于旧目录：线程区回到空态，下一条消息在新目录里现开');
+    expect(c.canCompose, isTrue, reason: '空态下照样能发：agent 与项目都在');
+
+    await c.openProject(const ProjectRef(path: r'D:\proj', name: 'proj'));
+    expect(c.sidebarSessions.map((s) => s.id), unorderedEquals(<String>['older', 'recent']));
+    expect(c.sessionId, isNull, reason: '切回来不替用户自动选会话');
     c.dispose();
   });
 
