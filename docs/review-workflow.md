@@ -60,7 +60,7 @@ powershell -File .claude\cursor-review.ps1 -Wait
 - **「等待期间不要改仓库里的文件」是认真的**（R6 第 1 轮踩到）：审查者按自己的节奏读工作树，中途改动会让它报出你已经修掉的东西，
   收 findings 时得逐条拿当前代码核对才分得清「真缺陷」与「你看到的是旧版」。要自查就等审查结束再动。
 
-### 六条容易踩的
+### 七条容易踩的
 
 1. **`cursor-agent` 不在 PATH**：Windows 装在 `%LOCALAPPDATA%\cursor-agent\cursor-agent.cmd`，Git Bash 里裸敲是 command not found。脚本按绝对路径找，不要自己改成裸命令。
 2. **必须先 `cursor-agent login`**：未登录时它会等交互输入，后台跑就是**永远不结束、`.out` 永远空**。脚本起手先跑 `cursor-agent status` 拦这一种。
@@ -68,6 +68,7 @@ powershell -File .claude\cursor-review.ps1 -Wait
 4. **只读要靠 `--mode ask`，不能用 `--plan`**：plan 模式下模型的终稿走 `createPlanRequestQuery` 这条独立通道，而 `-p` 非交互模式没有 plan 面板可落（响应里 `planUri` 是空串），CLI 直接丢弃；stdout 只剩工具调用之间的旁白，模型不说旁白时就是**一个换行**。表现是跑满 7–10 分钟、退出码 0、`.err.log` 0 字节、`.out.md` 1 字节，极像「进程已死」，其实是 token 全烧完才丢结果。`--mode ask` 同样由 CLI 强制只读（实测拒绝创建文件、`git diff` 照常能跑），但终稿走正常 text 通道。要确认结果去哪了，用 `--output-format stream-json` 抓流看 `interaction_query` / `tool_call` 事件。
 5. **项目级 `.cursor/cli.json` 只认 `permissions` 一个键**（2026-09-15 实测）：`model` / `approvalMode` / `sandbox` / `subagentModels` / `exploreSubagentModel` 等写进去一律 `unrecognized_keys`，而且是**硬失败 exit 1、整个 CLI 起不来**（连 `cursor-agent -p "ok"` 都跑不了）。想按仓库钉模型或审批档只能改 home 的 `~/.cursor/cli-config.json`，那是全局生效。别照搬 `update-cli-config` skill 里那张设置表——那张表描述的是 home config，项目覆盖的 schema 窄得多。
 6. **Zed 开着时 cursor-agent 起不来**（2026-09-15 R1 实测）：`cursor-agent` 启动要原子重写 `~/.cursor/cli-config.json`（写临时文件再 rename），本机 Zed 会一直占着这个文件，于是进程在启动瞬间退出、`.out.md` 0 字节、`.err.log` 只有一行 `Error: EPERM: operation not permitted, rename '...cli-config.json.<pid>.<uuid>.tmp' -> '...cli-config.json'`，而 `cursor-agent status` 照常显示已登录（它不写配置）。判据：PowerShell 里 `[System.IO.File]::Open('C:\Users\<user>\.cursor\cli-config.json','Open','ReadWrite','None')` 抛「正由另一进程使用」。解法：关掉 Zed（或释放占用）再发起；锁着时算「启动失败」硬失败，可回落子代理，但只要能关 Zed 就优先重试 cursor。
+7. **cursor 中途掉线会卡死而不是退出**（2026-09-17 R7 第 3 轮实测）：`.err.log` 里出现 `Connection lost, reconnecting to …cursor.sh (attempt 1)` / `Retry attempt 1...`，工作进程没了而 `.out.md` 一直空（那次空了 58 分钟）。这是瞬时故障：**重发同一轮 cursor 即可**（重发后 10 分钟内正常出结果），不必回落子代理；只有重发仍复现才按「启动失败」硬失败处理。
 
 ## 2. 路径 ②：Claude Code 子代理（cursor 硬失败时）
 

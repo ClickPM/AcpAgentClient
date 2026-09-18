@@ -17,6 +17,7 @@
 - `.dc.html` 是 HTML 加内联样式，**只作设计源，不复用为代码**；组件全部从画板手写（CLAUDE.md 规则 1 / 3）。
 - 画布上 Save 过的改动，先读回仓库覆盖 `design/round-NN/` 里的源文件，再跑 `scripts/render-design.ps1` 重渲染 PNG；不在画布与仓库两边各改一份。
 - 每张画板的实现轮次与 widget 文件见仓库根 `ROUNDS.md` § 2；实现轮收口时把下表「状态」改为 `已实现（R<N>）`。
+- `design/brand/` 放应用图标与应用内标记的来源（`app-icon.svg`、参考位图、说明），**不是画板**：不进下表、不走 `render-design.ps1`；`.ico` 用 `scripts/render-icon.ps1` 重出，应用内标记在 `lib/ui/shell/app_logo.dart` 里按同一几何拼（所有者裁定 2026-09-17）。
 
 ## 画板
 
@@ -62,7 +63,7 @@
 | 52 | agent 认证 | agent 管理 | round-design | `design/round-design/52-auth.dc.html` | `design/round-design/52-auth.png` | — | 已实现（R5） | — |
 | 60 | 文件面板 | 文件面板 | round-design | `design/round-design/60-files-panel.dc.html` | `design/round-design/60-files-panel.png` | — | 已实现（R4） | — |
 | 61 | 终端面板 | 文件面板（右栏） | round-design | `design/round-design/61-terminal-panel.dc.html` | `design/round-design/61-terminal-panel.png` | — | 已实现（R4） | — |
-| 70 | 设置 | 设置 | round-design | `design/round-design/70-settings.dc.html` | `design/round-design/70-settings.png` | — | 已实现（R5） | — |
+| 70 | 设置 | 设置（2026-09-17 起是右栏的一个标签） | round-design | `design/round-design/70-settings.dc.html` | `design/round-design/70-settings.png` | — | 已实现（R5）· 2026-09-17 改为右栏标签（画板本身未改） | — |
 | 80 | ACP 流量调试 | ACP 流量调试 | round-design | `design/round-design/80-traffic.dc.html` | `design/round-design/80-traffic.png` | — | 已实现（R3） | — |
 
 状态取值：`待实现` / `已实现（R<N>）` / `已废弃`。
@@ -72,6 +73,8 @@
 - 2026-09-15 画板 40：`+` 弹层删去 Symbols 与 Selection 两行。需要 LSP 与编辑器选区，与 `docs/requirements.md`「不做」冲突；所有者裁定，见 `ROUNDS.md` § 6。
 - 2026-09-15 画板 42：`/` 命令菜单合并为单组（保留 Commands 标题），去掉 Skills 分组标题与右侧的 built-in / 项目名来源标签；`<path>` 参数提示保留。`AvailableCommand` 只有 name / description / input，没有分组与来源字段；所有者裁定，见 `ROUNDS.md` § 6。
 - 2026-09-18 新增画板 06「侧栏会话活动指示」。起因是会话在后台跑时侧栏看不出哪条在动、哪条已经跑完。A 组是运行中会话项底边的扫掠亮点线（1px 常亮底线 + 96px accent 亮点匀速单向掠过，`sweep.cycle` 1400ms · linear，**全系统唯一允许用 linear 的动效**；行高 48 → 58 不做过渡），B 组是回合结束后「N 条消息」之后的 6px success 绿点（只做 opacity，会话被查看后淡出且不留占位）；D 表规定两者严格互斥，取消与失败侧栏一律不表达。画板自带「本画板新增 token」表，已按表回写 `lib/theme/tokens.dart`（画板 00 未改，这组值只服务画板 06）。
+- 2026-09-17 画板 10「Restore Checkpoint 分隔线」废弃（所有者裁定）：我们没有 git checkpoint（Zed 那条线恢复的是项目文件），它点下去与画板 11 用户气泡上的 Restore 是同一个动作；源文件与 PNG 留档，实现已删除 `lib/ui/transcript/checkpoint_divider.dart`。
+- **实现先行、设计稿待补**（2026-09-17 / 18 所有者手测后直接改实现的，按规则 3 要在下个设计轮补稿并重出 PNG；每条的细节在 `rounds/BACKLOG.md` 的「设计稿补注记」条目）：画板 00 缺 tooltip 一组 token；画板 01 空态的大图标位改画各 agent 自己的 logo、侧栏顶部改正式标记（`design/brand/`）；画板 01–03 / 40 缺输入框上方的附件芯片条与悬浮预览（图片粘贴）；画板 05 B 组「带等待期的替换」的触发要补上新建会话；画板 31 缺「一轮没走到结束值」的失败态；画板 40 会话配置改为固定档序平铺（`mode → model → model_config → thought_level → 其余`）；画板 40 / 41 / 42 缺弹层封顶滚动这一态；画板 01–04 / 40 缺悬停提示条样张；画板 04 的删除图标改为一律显示（不再按 `sessionCapabilities.delete` 裁剪）。
 - 2026-09-17 新增画板 05「转场规格」，并给画板 00 的动效小节补 6 个值。起因是新建 / 切换会话与重载 agent 都是硬切、重载的等待期界面完全不动；原来全套动效资产只有两行时长，不足以实现。简报 `design/round-design/input/revision-02.md`。**画板 05 是纯静态规格图**：分帧只作示意，曲线与数值一律以规格表为准（例：A 组 `t=100ms` 那帧画的是视觉中点，按 `motion.ease` 实际已走完约 87%）。画板 00 的改动只在动效小节，`$preview` 高度由 924 收到 900（与 frame 一致），其余区域零改动。
 
 ## 页面与画板的对应

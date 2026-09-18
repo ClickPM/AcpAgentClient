@@ -18,7 +18,7 @@
    | codex-acp | npx（内置 codex 二进制） | ChatGPT 登录走 URL elicitation；或 `OPENAI_API_KEY` | 终端、fs、权限、URL elicitation；三种 mode，config options |
    | Cursor（`agent acp`） | 六平台 binary 压缩包 | 先 `agent login`（terminal auth）或 `--api-key` | fs 与终端可声明为 false；三种 mode |
    | pi-acp | npx | terminal auth `--terminal-login`；密钥在 pi 自己的配置里 | 不用客户端 fs 与终端；`session/load`；slash 命令 |
-   | dsh-acp-interactive | custom 命令 | terminal auth `--setup`；`session/new` 回 `auth_required` | 读 `_meta.terminal_output`、`elicitation.form`、`session.configOptions.boolean`；权限预设是 config option |
+   | dsh-acp-interactive | custom 命令（2026-09-17 起由核心内建条目提供、免配置；`settings.json` 里手写同名条目时用户那条优先） | terminal auth `--setup`；`session/new` 回 `auth_required` | 读 `_meta.terminal_output`、`elicitation.form`、`session.configOptions.boolean`；权限预设是 config option |
 
 4. **Zed 内置 agent 可用。** 以独立 sidecar `zed-agent-acp` 经 ACP stdio 接入，与其他 agent 走同一条路。
 5. **前端完全自研。** Claude Design 设计稿是功能边界：设计稿没有的功能不做，设计稿有的逐画板对照实现；每个画板的 `.dc.html` 源与 PNG 快照入库，PNG 作验收基准（见 `design/README.md`）。
@@ -30,6 +30,7 @@
    - 官方 `agentclientprotocol/registry`
    - `zed-industries/zed`
    - 五个 agent：`claude-agent-acp`、`codex-acp`、Cursor CLI ACP（仅文档）、`svkozak/pi-acp`、`ClickPM/dsh-acp-interactive`
+   - `deepseek-ai/deepseek-harness`：**只作资产来源**（dsh 的图标复制成 `rust/acp-core/assets/dsh-icon.svg`，钉在 pins 里以便 `-Check` 覆盖），没有代码依赖（2026-09-18）
 
    **界定：** 白名单约束的是「ACP 客户端逻辑、agent 状态模型、会话 UI」这类实现来源。语言级基础库与工具（Rust 侧 tokio、serde、serde_json、reqwest、sha2、portable-pty、notify、flutter_rust_bridge；Dart 侧 Flutter SDK 自带的 Material / Cupertino、flutter_rust_bridge、xterm、url_launcher、file_selector、flutter_svg（所有者裁定 2026-09-15）、R1.5 spike 裁定的 `markdown`（只用解析器，渲染层自写）、`re_highlight`、`flutter_math_fork`、`mermaid_flutter` + `mermaid_core`、`audioplayers`、`diffutil_dart`（即「一个 diff 库」；所有者裁定 2026-09-15 按推荐项，依据 `rounds/round-1.5/spike.md`；传递依赖不算引入）；构建期的 schema 代码生成器与 frb codegen）属于工具，不受白名单限制，清单之外的新增要在任务卡写明理由；任何实现了 ACP 客户端、agent 会话状态或会话 UI 的第三方库（例如 acp-components、acp-ui、pi-web）一律不引入，第三方 UI 组件库（shadcn_ui、GetWidget、fluent_ui 及同类）与状态管理库（riverpod、bloc、getx 及同类）同样不引入。
 9. **平台。** Windows 首发；macOS 随后；Linux 尽量。

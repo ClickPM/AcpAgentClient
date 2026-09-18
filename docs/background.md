@@ -33,3 +33,6 @@
 - 2026-09-11：三轮可行性分析（源码级核对 Zed、rust-sdk、registry 与五个 agent），结论收敛为「Rust 核心 + 严格 ACP 投影 + Zed agent 独立 sidecar」，建仓。
 - 2026-09-12：技术栈调整（编码尚未开始）：壳 Tauri → Flutter（frb v2，进程内 cdylib），设计 Claude Design → Figma Make；Rust 核心与 ACP 契约不变。Markdown 渲染库待 spike 后进白名单。
 - 2026-09-14：设计工具改回 Claude Design（`.dc.html` 源与 PNG 入库，见 `design/README.md`）；Flutter + Rust 技术栈不变。
+- 2026-09-15：按设计稿完成轮次拆解（R0–R8，`ROUNDS.md`）；当日 R0 脚手架、R1 Rust 核心主线、R1.5 富文本 spike、R2 转录卡片、R3 工作台壳与接线收口合并 `main`。
+- 2026-09-16：R4 fs / terminal 与文件 / 终端面板、R5 registry / 认证 / 设置、R6 会话生命周期与五 agent 全通合并 `main`。
+- 2026-09-17：R7 zed-agent-acp sidecar 合并 `main`（`44cd33a`）。此后所有者手测报障的修复直接在 `main` 上做（`ROUNDS.md` § 7「main 直改」行）；R8 打包与发布未开始。

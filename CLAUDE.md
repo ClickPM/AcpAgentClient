@@ -25,21 +25,23 @@ AcpAgentClient/
 ├── docs/                                  background / requirements / research / design / acp-projection / review-workflow
 ├── design/                                设计稿与简报：design/round-NN/{input/（交给 Claude Design 的简报与附件）, canvas.json, NN-<画板>.dc.html, NN-<画板>.png}
 │                                          + design/README.md 画板索引（编号 / 名称 / .dc.html / PNG / 画布 URL）
+│                                          + design/brand/（应用图标 app-icon.svg 与标记来源；不是画板，见 design/brand/README.md）
 ├── rounds/                                README（目录约定）/ TEMPLATE（任务卡模板）/ BACKLOG
 │                                          + rounds/round-NN/{round-NN.md, BLOCKED.md}
 ├── .claude/                               cursor-review.ps1（审查启动脚本）+ cursor-review-prompt.md（任务书契约，入库）
 │                                          + reviews/（审查产物，gitignored）
 ├── pins/upstream.json                     上游钉版本清单（提交进仓库；改版本先改这里）
-├── scripts/                               fetch-upstream.ps1 / .sh；R0 起 validate / build
+├── scripts/                               fetch-upstream.ps1 / .sh、validate.ps1、build.ps1、build-sidecar.ps1（R7）、render-design.ps1（画板 → PNG）、render-icon.ps1（app-icon.svg → .ico）
 ├── vendor/upstream/<name>/                钉版本源码（gitignored；fetch 脚本按 pins 填充）
-├── rust/                                  Rust 核心 workspace：acp-core / registry / pty / fs / settings + bridge（frb cdylib，包名 acp_bridge）+ tools/acp-smoke
+├── rust/                                  Rust 核心 workspace：acp-core（含 assets/ 里内置条目的图标）/ registry / pty / fs / settings + bridge（frb cdylib，包名 acp_bridge）+ tools/acp-smoke
 ├── cargokit/                              frb 模板自带的 cargokit 副本；windows/CMakeLists.txt 直接 apply_cargokit（不走 pub 插件，见 rounds/round-00）
-├── assets/fonts/                          Geist / Geist Mono 可变字体 + OFL 许可证
-├── lib/                                   Flutter 前端（Dart）：app/（组合根）/ bridge/（frb 生成物）/ projection/（ACP 投影状态层）/ theme/tokens.dart / gallery/（画板对照）/ ui/（画板 widget，R2 起）
-├── test/fixtures/                         ACP 线上行（JSON Lines），Rust 测试 / Dart 单测 / gallery 三处共用
+├── assets/fonts/                          Geist / Geist Mono 可变字体 + CJK 回退 Noto Sans SC（Regular 一档）+ 各自的 OFL 许可证
+├── lib/                                   Flutter 前端（Dart）：app/（组合根：workbench_controller / workbench_screen / window_controls / clipboard_image / files_state / local_terminals / headless_run）/ bridge/（frb 生成物）/ projection/（ACP 投影状态层）/ theme/tokens.dart / gallery/（画板对照）/ ui/（画板 widget）
+├── test/                                  fixtures/（ACP 线上行，JSON Lines，Rust 测试 / Dart 单测 / gallery 三处共用）+ fake-agent/fake-agent.mjs（离线确定性 agent）+ projection/ ui/ app/ 单测
+├── prototype/                             早期 HTML 原型：fixtures 与投影规则的来源，不维护、不作功能边界
 ├── pubspec.yaml / flutter_rust_bridge.yaml Flutter 项目与 frb codegen 配置
-├── windows/ macos/ linux/                 （R0 / R8）Flutter 平台 runner；sidecar 的 CMake install 规则在这里
-└── sidecar/zed-agent-acp/                 （R7）独立 cargo workspace，path 依赖 vendor/upstream/zed
+├── windows/                               Flutter Windows runner：runner/acp_window.cpp 是无边框窗口的平台通道（拖拽 / 四边四角缩放 / 三键 / 双击）；sidecar 的 CMake install 规则在 windows/CMakeLists.txt；macos/ linux/ 待 R8
+└── sidecar/zed-agent-acp/                 （R7）独立 cargo workspace，path 依赖 vendor/upstream/zed；用 scripts/build-sidecar.ps1 构建
 ```
 
 ## 开发模式与轮次流程
@@ -72,7 +74,7 @@ AcpAgentClient/
 - **审查边界**：**严禁以审查代替设计**，审查是缺陷门禁，不负责长出方案；findings 若指向设计缺陷，停下回任务卡 / 所有者层面重定方案。**非严重阻塞性 findings 严禁新增机制类修复**（新队列 / 新协议 / 新抽象 / 新配置 / 新导出面）：只允许最小改动（改判断、改文案、删代码）或写明理由记 BACKLOG；机制类修复仅限严重阻塞性 bug / 漏洞。
 - **回落只认硬失败**（`cursor-agent` 未安装 / 未登录 / 启动失败 / 限流 / 后台进程已死而 `.out` 仍空），「等得久」「改动小」不是理由；回落原因写进任务卡。回落 = 主会话用 Agent 工具委派一个只读子代理，提示词是「读 `.claude/cursor-review-prompt.md`，把 `{{RANGE}}` 当作 `<范围>`、`{{NOTE}}` 当作 `<要点>` 执行，只输出结论不改文件」；范围口径不变（前两轮 `main...HEAD`，第 3 轮起 `<上一轮已审提交>..HEAD`）。
 - 同一验收项针对性整改后连续 2 次仍不过 → 写 `rounds/round-NN/BLOCKED.md` 停下呼人，禁止放宽验收（rounds/README.md）。
-- 分支：每轮在 `round-NN` 分支开发，审查通过后合并 `main`；纯文档与微修可直接 `main`。
+- 分支：每轮在 `round-NN` 分支开发，审查通过后合并 `main`；纯文档与微修可直接 `main`。R7 合并后（2026-09-17 起）所有者手测报障的修复也直接在 `main` 上做：每批是否构建、是否走独立审查由所有者逐批指示，不走的在提交说明里写明「未构建 / 未审查（所有者指定）」；走审查的按同一套缺陷门禁（发布前审查 → 整改 → 复审）。这一段的汇总在 `ROUNDS.md` § 7「main 直改」行；设计稿因此滞后的项记 `rounds/BACKLOG.md`「设计稿补注记」条目，下个设计轮补稿并重出 PNG。
 - 跨轮次发现的问题写 `rounds/BACKLOG.md`，不当场顺手改。
 
 ## 硬性规则
@@ -90,11 +92,11 @@ AcpAgentClient/
 
 ## 本地开发
 
-- **前置**：Rust stable（`rust-toolchain.toml` 在 R0 钉）、Flutter stable（版本在 `pubspec.yaml` `environment` 钉，R0 定）、`flutter_rust_bridge_codegen`（与 Rust 侧 crate 同版本，另需 `cargo-expand`）、Node ≥ 22（跑 npx 类 agent 用）、Flutter Windows 前置（VS 2022「使用 C++ 的桌面开发」工作负载、CMake、Windows 10 SDK）；sidecar 另需 Zed 的构建前置（Windows SDK ≥ 10.0.20348，见 `vendor/upstream/zed/docs/src/development/windows.md`）。R0 起 `CARGO_TARGET_DIR` 固定为纯 ASCII 路径 `D:\cargo-target\AcpAgentClient`（所有者裁定 2026-09-15；本机用户名已是 ASCII，此项为含中文 / 空格的工作副本兜底，见 `docs/research.md` § 9.3）。
+- **前置**：Rust stable（`rust-toolchain.toml` 在 R0 钉）、Flutter stable（版本在 `pubspec.yaml` `environment` 钉，R0 定）、`flutter_rust_bridge_codegen`（与 Rust 侧 crate 同版本，另需 `cargo-expand`）、Node ≥ 22（跑 npx 类 agent 用）、Flutter Windows 前置（VS 2022「使用 C++ 的桌面开发」工作负载、CMake、Windows 10 SDK）；sidecar 另需 Zed 的构建前置（Windows SDK ≥ 10.0.20348，见 `vendor/upstream/zed/docs/src/development/windows.md`；cmake 在 VS 2022 BuildTools 里即可，`build-sidecar.ps1` 自己找；本机没装 VS「Spectre 缓解库」组件，所以 R7 把 `languages` crate 从 sidecar 依赖里去掉了，装上后取消 `sidecar/zed-agent-acp/Cargo.toml` 那一行注释即可恢复，见 BACKLOG）。R0 起 `CARGO_TARGET_DIR` 固定为纯 ASCII 路径 `D:\cargo-target\AcpAgentClient`（所有者裁定 2026-09-15；本机用户名已是 ASCII，此项为含中文 / 空格的工作副本兜底，见 `docs/research.md` § 9.3）。
 - **上游源码**：`powershell -File scripts/fetch-upstream.ps1`（首次填充）、`-Check`（验证钉版本）；Git Bash 用 `scripts/fetch-upstream.sh [--check]`。
 - **审查器**：`cursor-agent` 装在 `%LOCALAPPDATA%\cursor-agent\cursor-agent.cmd`（不在 PATH），须先 `cursor-agent login`；脚本按绝对路径找。
-- **本机坑**（沿用全局记忆）：用户名含中文与全角括号，含中文的 `.ps1` 必须 UTF-8 with BOM（`cursor-review.ps1` 已带）；Bash 工具里 `\\` 会塌成 `\`；`%TEMP%` 是 8.3 短名，路径比较要双边规范化。
-- **命令**：`scripts/validate.ps1`（编译 + 测试 + 契约检查；`-Quick` 只跑静态检查）与 `scripts/build.ps1`（`flutter build windows --release`；`-Smoke` 跑一次无头往返自检）。frb 生成：`flutter_rust_bridge_codegen generate`（改 `rust/bridge/src/api.rs` 后必跑，生成物入库）。
+- **本机坑**（沿用全局记忆）：本机用户名已是纯 ASCII（`Click`），含中文 / 空格的路径风险只剩工作副本本身（用 `build.ps1` 兜，见下条）；含中文的 `.ps1` 必须 UTF-8 with BOM（`cursor-review.ps1` / `build-sidecar.ps1` / `render-icon.ps1` 已带）；Bash 工具里 `\\` 会塌成 `\`；`%TEMP%` 是 8.3 短名，路径比较要双边规范化。
+- **命令**：`scripts/validate.ps1`（编译 + 测试 + 契约检查；`-Quick` 只跑静态检查；不含 sidecar）与 `scripts/build.ps1`（`flutter build windows --release`；`-Smoke` 跑一次无头往返自检）。sidecar：`scripts/build-sidecar.ps1`（R7；`-Debug` / `-Check` / `-Clippy` / `-Selftest`；target 目录独立为 `D:\cargo-target\AcpAgentClient-sidecar`，产物落 `build/sidecar/` 再由 runner 的 install 规则随包；冷编译 debug / release 各约 50 分钟，target 目录约 56 GB，release 产物 176.7 MB）。设计与品牌：`scripts/render-design.ps1`（`.dc.html` → PNG，改画板源后必跑）、`scripts/render-icon.ps1`（`design/brand/app-icon.svg` → `windows/runner/resources/app_icon.ico`）。frb 生成：`flutter_rust_bridge_codegen generate`（改 `rust/bridge/src/api.rs` 后必跑，生成物入库）。
 - **项目路径含中文 / 空格时只用 `scripts/build.ps1`**：Flutter 自己的 Windows 构建链会把非 ASCII 项目路径转码坏（R0 实测），`build.ps1` 检测到后经 `CARGO_TARGET_DIR\ascii-root` 目录联接构建；裸 `flutter build windows` 会失败。
 - **`objective_c` override**（R1.5 实测 2026-09-15）：`audioplayers` → `path_provider` → `path_provider_foundation` 2.6.0 → `objective_c ^9.2.1` 解析到 9.6.1，其构建钩子在 Dart 3.13.3 上编不过（`Architecture.arm64e` 不存在），`flutter test` / `flutter build` 在「Building native assets」阶段整体失败。引入 audioplayers 的轮次要在 `pubspec.yaml` 带 `dependency_overrides: objective_c: 9.4.1` 并注明解除条件（升 Flutter 走规则 4）；任何拉进 path_provider 的包都会复发。
 - **Windows 开发者模式**：Flutter 为 pub 插件建符号链接需要它；R0 的 Rust 核心不走插件所以不依赖，本机已于 2026-09-15 开启（设置 → 系统 → 开发者选项），换机器先看注册表 `AppModelUnlock\AllowDevelopmentWithoutDevLicense`。

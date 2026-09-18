@@ -76,8 +76,8 @@ macOS 的 headless `run()` 仍然调用 `CFRunLoopRun()` 并把前台任务投�
 - 事件：`pub enum ThreadEvent { UserMessage, AgentText, AgentThinking, ToolCall(acp::ToolCall), ToolCallUpdate, ToolCallAuthorization, ToolCallAuthorizationResolved, Elicitation, SubagentSpawned, Retry, ContextCompaction, ContextCompactionUpdate, Stop(acp::StopReason) }`（`thread.rs:890`）。`NativeAgentConnection::handle_thread_events`（`agent.rs:2276`）把它们翻成对 `AcpThread` 的方法调用，sidecar 镜像这段翻成线上 `session/update`。
 - 公开钩子：`Thread::send` 返回 `mpsc::UnboundedReceiver<Result<ThreadEvent>>`；`NativeAgent::open_thread` 公开；`ToolCallAuthorization` 字段公开（含 `response: oneshot::Sender`）；终端经 `pub trait ThreadEnvironment { fn create_terminal(...) }`。不需要 fork Zed。
 - 引导：`crates/eval_cli/src/headless.rs`（140 行）初始化 SettingsStore、theme base、`Client::production`、languages、extension、`language_model(s)`、`prompt_store`、`terminal_view`、`agent_ui`；`main.rs` 746–812 行构建 `Project::local` + `create_worktree` + `NativeAgent::new(ThreadStore, Templates, fs)`。
-- 数据：线程库在 `paths::data_dir()/threads/threads.db`，设置读 Zed 自己的 `settings.json`，即与本机 Zed 共用；未发现现成的目录覆盖变量。模型密钥走环境变量（如 `ANTHROPIC_API_KEY`）、系统凭据库或 `openai_compatible` / `anthropic_compatible` 配置。
-- 构建：闭包约 150 个 crate；Windows 需 VS C++ 生成工具（含 Spectre 库）、Windows SDK ≥ 10.0.20348、CMake（wasmtime 依赖）；冷编译 30 到 60 分钟。
+- 数据：线程库在 `paths::data_dir()/threads/threads.db`，设置读 Zed 自己的 `settings.json`，即与本机 Zed 共用；未发现现成的目录覆盖变量。模型密钥走环境变量（如 `ANTHROPIC_API_KEY`）、系统凭据库或 `openai_compatible` / `anthropic_compatible` 配置。**R7 实测（2026-09-17）**：覆盖变量确实没有，但 `paths::set_custom_data_dir` 是公开 API，sidecar 以 `--user-data-dir` 把 `threads.db` / `db/` / `prompts/` 隔到本应用数据目录、`--zed-settings` 只读沿用配置；与运行中的 Zed 共用 `threads.db` 会让 **Zed 那边**报 `database is locked`（`docs/design.md` § 8）。
+- 构建：闭包约 150 个 crate；Windows 需 VS C++ 生成工具（含 Spectre 库）、Windows SDK ≥ 10.0.20348、CMake（wasmtime 依赖）；冷编译 30 到 60 分钟。**R7 实测**：依赖闭包 debug 约 730 / release 约 910 个 crate，冷编译各约 50 分钟，`CARGO_TARGET_DIR` 占 56 GB，release 产物 176.7 MB；`languages` crate 因本机 VS 缺「Spectre 缓解库」未带（BACKLOG）；`Cargo.lock` 要以 zed 自己的为种子才解得出可编译的版本组合（`rounds/round-07/round-07.md`）。
 
 ## 7. 被排除的路线
 
@@ -95,12 +95,12 @@ macOS 的 headless `run()` 仍然调用 `CFRunLoopRun()` 并把前台任务投�
 
 ## 8. 待验证的假设（进首轮任务卡）
 
-- rust-sdk v2 的 `AcpAgent` 在 Windows 上拉起 `.cmd` 包装的 npx agent 时引号与路径处理是否正确（dsh 在 Zed 里踩过）。
-- 无系统 Node 时复用 Zed `node_runtime` 下载受管 Node 的路径在中文用户名下是否可用。
-- sidecar 与运行中的 Zed 同时打开 `threads.db` 的行为。
-- `unstable` 特性集与五个 agent 的对齐（usage、compaction、session fork）。
+- ~~rust-sdk v2 的 `AcpAgent` 在 Windows 上拉起 `.cmd` 包装的 npx agent 时引号与路径处理是否正确（dsh 在 Zed 里踩过）~~ → R1 已验证（2026-09-15）：npx 型 `.cmd` 在含中文与空格的工作目录下完成 initialize；结束进程树用 `taskkill /F /T`（`rounds/round-01/round-01.md`）。
+- ~~无系统 Node 时复用 Zed `node_runtime` 下载受管 Node 的路径在中文用户名下是否可用~~ → R5：改为参考转写到 `rust/registry/src/node.rs`（理由见 `docs/design.md` § 2），受管 Node 下载与 npx 型拉起已实测（`rounds/round-05/round-05.md`）；内置 dsh 条目的 `npx` 回退还没走受管 Node（BACKLOG）。
+- ~~sidecar 与运行中的 Zed 同时打开 `threads.db` 的行为~~ → R7 已验证：共用会锁住 Zed，已按「配置共用、数据隔离」落地（§ 6）。
+- ~~`unstable` 特性集与五个 agent 的对齐（usage、compaction、session fork）~~ → R6 五 agent 全通矩阵已收口（`ROUNDS.md` § 4）；sidecar 用的 2.0.0 缺 `plan_operations` / `session_compaction`（§ 2）。
 - ~~Flutter 构建链（CMake → cargokit → cargo）在含中文与全角括号的用户名路径下能否完成 Windows release 构建（§ 9.3）~~ → R0 已验证：本机用户名已是 ASCII；含中文与空格的项目路径经 `build.ps1` 的目录联接可过，裸 `flutter build` 不行（§ 9.3）。
-- Flutter Windows 桌面的中文 IME 组合窗行为；`SelectionArea` 包住惰性列表后跨消息选择的表现。
+- Flutter Windows 桌面的中文 IME 组合窗行为；`SelectionArea` 包住惰性列表后跨消息选择的表现。→ 跨消息选择 R2 已实测记录；终端面板的中文输入法 2026-09-17 由自建的 `TerminalIme` 接通（组字串暂不画在光标处，BACKLOG）；输入框的组合窗行为留给所有者手测（`rounds/round-00/round-00.md` 验收 6）。
 
 ## 9. Flutter + Rust 桥接（2026-09-12 技术栈调整依据）
 

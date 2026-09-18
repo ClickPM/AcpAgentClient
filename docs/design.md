@@ -19,8 +19,8 @@ Flutter 宿主进程（Dart）
          ├── codex-acp            npx
          ├── cursor `agent acp`   binary
          ├── pi-acp               npx
-         ├── dsh-acp-interactive  custom
-         └── zed-agent-acp        sidecar（GPL；headless gpui + Zed NativeAgent；随主程序打包）
+         ├── dsh-acp-interactive  custom（核心内建条目，§ 6 第 6 条）
+         └── zed-agent-acp        sidecar（GPL；headless gpui + Zed NativeAgent；随主程序打包；核心内建条目）
 ```
 
 规则：主进程（Flutter 宿主及其加载的 Rust cdylib）里没有 gpui；所有 agent，包括 Zed 内置 agent，都是子进程；前端与核心之间只传 ACP 形状的数据。
@@ -45,7 +45,7 @@ Flutter 宿主进程（Dart）
 
 ## 3. 核心与前端的契约（严格 ACP 投影）
 
-> 可投影内容的完整清单（15 个 `session/update` 变体、能力门总表、协议不给必须自造的 7 项、容错与丢失风险）见 [`acp-projection.md`](acp-projection.md)；本节只定契约形状。
+> 可投影内容的完整清单（15 个 `session/update` 变体、能力门总表、协议不给必须自造的 8 项、容错与丢失风险）见 [`acp-projection.md`](acp-projection.md)；本节只定契约形状。
 
 **传输形状**：每个事件是一条 frb `StreamSink<String>`，每个命令是一个 frb `async fn(...) -> Result<String>`；`String` 里是下表的 JSON。Dart 侧 `jsonDecode` 后进投影状态层，不在桥层做任何类型镜像。
 
@@ -68,6 +68,7 @@ Flutter 宿主进程（Dart）
 - 文件面板与 git：`fs_list_dir`、`fs_read`（查看器：`{path, text, size, lines, binary, truncated}`，超 2 MiB 只给前一段）、`fs_watch` / `fs_unwatch`（R4：`fs_watch` 是**流命令**——frb 的 `StreamSink`，每批去抖后的变化推一条 `{root, dirs: [绝对路径…], git}`，`dirs` 是内容变了的目录、`git` = `.git` 之下有变化；取消流即停，不另开事件通道）、`fs_search`、`git_status`（文件树徽章：`{available, isRepo, root, entries: [{path, badge, code}]}`）、`git_branches`、`git_switch`、`git_create_branch`、`git_diff`（Branch Diff 上下文）
 - 本地 shell 与终端控制（终端面板）：`terminal_open`（`{terminalId, cwd, program}`，系统默认 shell）、`terminal_write`、`terminal_resize`、`terminal_close`（kill + 释放）、`terminal_kill`（R4：只结束进程不释放 = `terminal/kill` 语义；画板 23 的停止方块对 agent 建的终端也用它）；输出走 `acp/terminal_output`（`terminal_write` 在 R1 先出：terminal auth 的可见终端要接键盘输入）
 - 退出收尾：`core_shutdown`（R4：释放全部终端、断开全部 agent、停掉目录监视；Dart 在 `AppLifecycleListener.onExitRequested` 里等它回来再放行）
+- 开发期排查：`agents_status`（每个已连接 agent 的 `droppedUpdates` / 退出状态 / 挂起请求；R1，无头实跑与 `acp-smoke` 用）
 - 项目与本地索引：`workspace_recent`、`workspace_open`、`session_index_list/upsert/remove`（会话索引：agentId + sessionId + 标题 + cwd + 时间 + 消息计数）
 - 窗口 UI 状态：`ui_state_get`、`ui_state_set`（合并写；载荷 `{sidebarWidth?, rightPanelWidth?, filesTreeWidth?, filesTreeCollapsed?}`，缺省与夹取范围都在前端 token，核心不存第二份）
 
@@ -87,6 +88,10 @@ Flutter 宿主进程（Dart）
 - `session/close` 之后会话是**只读**的：转录留着，但 prompt / Restore / Regenerate / 三个下拉 / 停止方块都不再发命令，直到 `session/resume` 把它挂回来（R6；`session/resume` 只对没在本连接上活着的会话有效，实测 dsh 1.3.0 对活着的回 `-32602`）。
 - `/` 命令菜单单组渲染：`AvailableCommand` 没有分组与来源字段，不按名字猜分组（所有者裁定 2026-09-15）。
 - 侧栏会话列表以本地索引为准；`session/list` 只用来校对存在性与补标题，agent 有、本地没有的会话不自动出现（所有者裁定 2026-09-15，R6）。
+- 侧栏的删除图标**一律给**（2026-09-18，替代 R6「无 `sessionCapabilities.delete` 不出图标」）：本地索引总能删；agent 已连上且声明了 delete 时顺带发 `session/delete`，agent 侧删不掉（报错或没连）不锁死本地记录。R6 那条裁剪的结果是没声明 delete 的 agent 的会话在侧栏里永远清不掉。
+- 新建会话**不重连 agent**（2026-09-18）：线程头 `+` 选 agent 与 `send()` 现开会话都走 `_ensureConnected`（没连才连），不再断开重拉——另一条会话正在跑的那一轮不会被杀；两个触发共用画板 05 B 组的等待期（`waitingForAgent`）。重载 agent（线程头 reload）仍是断开 + 重拉；重载 / 崩溃之后内存里其它会话拿的还是旧进程的 sessionId，记 BACKLOG 等单独一轮。
+- 一轮**没走到协议结束值**时的失败原因是本地态（2026-09-18）：`session/prompt` 回 JSON-RPC error（实测 dsh 的 `-32602 model does not declare image input`、`-32603 turn failed …`）时原文落在 `TurnEntry.error`，画板 31 的结束行多一档「失败」徽章显示它，不再只剩一个 `?` 徽章；设计稿待补这一态（BACKLOG）。
+- 会话配置（`config_option_update`）按**固定档序平铺**（所有者裁定 2026-09-18，替代 R3「模型 / 思考强度 / 模式三个固定下拉 + 未知分类一个面板」）：`mode → model → model_config → thought_level → 其余`，档内保持数组顺序，一条 configOption 一格，`boolean` 就地开关，未知 `type` 整条忽略。依据是旧渲染下五个 agent 里四个丢格（dsh 的 `permission`、codex 的 `collaboration_mode`、claude 的 `agent` / `fast`、cursor 的 `fast`）。modes 回退（R6）不变：只在没有 `category == mode` 的 configOption、且没有任何 `select` 型 configOption 的可选值集合与 modes 完全相同（超集不算）时，才用 `current_mode_update` 合成一格，排在 mode 档头一格、经 `session/set_mode` 发；判重只看值集合、不看 agent 名（pi 曾因此出两个思考强度下拉，2026-09-17）。
 
 ## 4. initialize 能力声明
 
@@ -142,7 +147,8 @@ Flutter 宿主进程（Dart）
   本 sidecar 侧没报错，即代价由用户的编辑器承担（CLAUDE.md 规则 7：不拿用户数据冒险）。
   代价要认：**两边的会话列表不互通**（Zed 里建的线程在本客户端看不到，反之亦然）。要共用的话把
   `--user-data-dir` 参数去掉即可（`rust/acp-core/src/builtin.rs`），行为回到「全共用」。
-- 打包：在 `windows/runner/CMakeLists.txt`（macOS / Linux 对应 runner）加 install 规则，把 `zed-agent-acp(.exe)` 放到应用目录旁随主程序分发；核心按可执行文件相对路径定位它。
+- 打包：在 `windows/CMakeLists.txt`（macOS / Linux 对应 runner）加 install 规则，把 `build/sidecar/zed-agent-acp(.exe)` 放到应用目录旁随主程序分发（缺了不报错）；核心按可执行文件相对路径定位它，开发期可用 `ACP_ZED_SIDECAR` 环境变量覆盖路径（`rounds/round-07/round-07.md` 偏离 4）。构建用 `scripts/build-sidecar.ps1`。
+- 进程生命周期：sidecar 由主程序按 stdio 拉起；stdin EOF（主程序退出或 `agent_disconnect`）时 `connect_with` 的 `main_fn` 跟着返回、进程退出，不留孤儿（2026-09-17 修：此前主程序关掉后 `zed-agent-acp.exe` 还活着）。
 
 ## 9. 前端
 
@@ -153,22 +159,24 @@ Flutter 宿主进程（Dart）
 - 终端渲染用 `xterm`（pub.dev）；PTY 仍在 Rust 侧 portable-pty，`acp/terminal_output` 推字节，Dart 只渲染。文件对话框与打开 URL 用 Flutter 官方 `file_selector` / `url_launcher`，其余系统交互一律走 Rust。
 - ACP 投影的状态层自己写，约五百行，是唯一不允许第三方替代的部分；规则来自 `prototype/assets/projection.js`。
 - 设计稿存 `design/`：每轮一个子目录，含 `design-prompt.md`（给 Claude Design 的设计简报）、每个画板一个 `.dc.html` 源、`canvas.json` 布局与每个画板一张 PNG 快照；`design/README.md` 是画板索引（编号、名称、`.dc.html`、PNG、画布 URL），画板编号只增不改。`.dc.html` 是设计的唯一事实来源，PNG 是审查与验收的基准，画布上的后续改动不影响已开工轮次；改设计走「先拉回 `.dc.html`、重导 PNG、更新索引，再进轮次」。
-- 页面：会话工作台（消息、思考、工具卡、计划、用量、权限与 elicitation；顶栏的项目与分支切换）；agent 管理（registry、custom、认证状态）；文件面板（含终端面板）；设置；ACP 流量调试。
+- 页面：会话工作台（消息、思考、工具卡、计划、用量、权限与 elicitation；顶栏的项目与分支切换）；右栏三个标签——文件面板（含终端面板）、agent 管理（registry、custom、认证状态）、设置（2026-09-17 起也是右栏标签）；ACP 流量调试（占会话区，从画板 34 的入口进、点侧栏会话返回）。
 - 画板要求、文档原本没有的几项，所有者 2026-09-15 按 `ROUNDS.md` § 6 的推荐一并裁定：
   - **项目** = 一个本地目录，作为 `session/new` 的 cwd；顶栏可在已打开项目、最近项目（本地列表）与 `file_selector` 选目录之间切换；不做 Zed 的 worktree 模型。
   - **分支**：顶栏显示当前分支，弹层列本地分支、可搜索、可切换与新建（`git switch` / `git switch -c`）；非 git 目录整块隐藏。
-  - **窗口控制**（— ☐ ✕ 画在应用顶栏，即无边框窗口）：Windows runner 自写平台通道（`WM_NCHITTEST` 拖拽区 + 最小化 / 最大化 / 关闭三个方法），不引 `window_manager` 类库；macOS 用原生 traffic lights。
+  - **窗口控制**（— ☐ ✕ 画在应用顶栏，即无边框窗口）：Windows runner 自写平台通道（`WM_NCHITTEST` 拖拽区 + 最小化 / 最大化 / 关闭三个方法），不引 `window_manager` 类库；macOS 用原生 traffic lights。2026-09-17 / 18 补齐：缩放热区按 DPI 换算、四边四角都可拉（给 FLUTTERVIEW 子类化，缩放带上回 `HTTRANSPARENT`）、双击顶栏最大化 / 还原（`windows/runner/acp_window.cpp`）。
   - **`Rules` 行**（画板 30 / 40 的用量弹层）：当前项目根目录下规则文件的计数（AGENTS.md、CLAUDE.md、`.rules`；清单在 R3 任务卡定），点击在文件面板打开。
   - **文件树 git 状态徽章**（画板 60）：保留，由 `git status --porcelain` 得出。
   - **`+` 弹层**只有 Files & Directories / Threads / Image / Branch Diff 四项；原稿的 Symbols 与 Selection 需要 LSP 与编辑器选区，与 `requirements.md`「不做」冲突，已从画板 40 删除。
   - **图片粘贴与附件芯片条**（所有者 2026-09-18 直接要求，对齐 Zed）：输入框里 Ctrl/Cmd+V，剪贴板里是截图或图片文件就加成 ACP `image` 块（同样受 `promptCapabilities.image` 门，与 `+` 的 Image 一项共用），待发的 `image` 块以芯片显示在输入行之上、悬浮浮出原图预览、芯片上的 × 去掉它。Flutter 的 `Clipboard` 只给 text/plain，位图与文件列表读不到，第三方剪贴板包又在规则 1 的清单之外，所以 Windows（规则 9 首发）借 `powershell.exe` 读一次 `System.Windows.Forms.Clipboard`（位图存临时 PNG 再读回字节）；其他平台暂时读不到图，Ctrl+V 照旧只贴文本。**设计稿还没有这一条**，补稿记在 `rounds/BACKLOG.md`。
   - **终端面板**（画板 61）含本地交互 shell、多标签；复用 `rust/pty` 与 `acp/terminal_output`，命令见 § 3。
   - **分栏宽度**（画板 01–03 的两条分栏线，所有者裁定 2026-09-16）：拖拽命中区 4px 叠在 1px 分栏线上、**不占布局**；侧栏 220–480、右栏 360–900、中栏至少留 360（窗口变窄时先压右栏、再压侧栏）；双击复位到 280 / 580；宽度记在 `ui-state.json`。把手的默认与悬停态见画板 04。文件面板（画板 60）里树列与查看器之间用同一个把手：树列 160–480、查看器至少留 240，双击复位到 240；树列头行那个「缩小」按钮把整列收起（收起后由查看器头行左侧的按钮放回来），宽度与收起态同样记在 `ui-state.json`（所有者裁定 2026-09-17）。
+  - **R7 合并后按所有者手测直接定下的交互**（2026-09-17 / 18；设计稿未改的都记在 `rounds/BACKLOG.md`「设计稿补注记」里）：输入框 Enter 发送、Shift+Enter 换行；转录默认跟着底部走、用户翻上去就停，转录区左右留白也在滚动区内；线程头的铅笔就在线程头上改标题；设置是右栏的一个标签（与文件 / Agents 并列），右栏没有关闭键，开合都交给侧栏底部导航；文件面板树列可拖、「缩小」是收起整列；agent 的标记（侧栏会话项、新建会话选 agent 弹层、画板 01 空态的大图标位）都画各 agent 自己的 logo（registry 缓存的 `icon.svg`，内置条目随包带）；侧栏顶部是正式标记（`design/brand/`）；终端面板的键盘输入走硬件按键（Windows 引擎拒了 xterm 的文本输入通道），中文输入法由自建的 `TerminalIme` 接（组字串暂不画在光标处）；终端卡跑完自动收起；弹层内容区封顶 `Geometry.menuMaxHeight` 并内部滚动、搜索框钉在滚动区外，Esc 与点外面都能关，`@` / `/` 菜单支持上下键与 Enter，裸 `@` 列会话 cwd 的一层；壳上 14 个入口有悬停提示（`lib/ui/shell/tooltip.dart`）；画板 05 的转场（新建 / 切换会话、重载 agent、右栏切标签、弹层）与画板 06 的侧栏活动指示（运行中扫掠线、完成未读绿点）已接线，新建会话与重载共用 B 组等待期（转录降到 `opacity.pending`、线程头 spinner）。
+  - **字体**：Geist / Geist Mono 随包；CJK 回退随包的 Noto Sans SC（Regular 一档，OFL），不再让中文落到系统的 Microsoft YaHei UI（2026-09-18；原因与「别换成可变字体」的坑见 `pubspec.yaml` 注释）。
 - 接后端只换数据源，不改样式：接线轮里 `lib/theme/tokens.dart` 与画板 widget 文件应零 diff。
 
 ## 10. 数据目录
 
-Windows：`%APPDATA%/AcpAgentClient/{settings.json, sessions.json, projects.json, ui-state.json, registry-cache/, agents/, node/, logs/}`。`registry-cache/` 放 `registry.json` 与 `icons/<id>.svg`；`agents/<id>/` 放该 agent 的安装（npx 型的 `node_modules/`、binary 型的 `<version>/`）与 `install.json`；`node/` 放受管 Node；`logs/acp-<日期>.log` 是脱敏后的 ACP 流量行（与 `acp/traffic` 同源，规则 8），设置页（画板 70）给打开 / 复制路径（R5）。会话数据归各 agent 自己（claude、codex、pi、dsh 各有自己的存储）；本客户端只存会话索引 `sessions.json`（agentId + sessionId + 标题 + cwd + 时间 + 消息计数）与最近项目列表 `projects.json`，两者都走临时文件 + rename。日志脱敏：`Authorization`、`api_key`、`token` 字段一律打码。
+Windows：`%APPDATA%/AcpAgentClient/{settings.json, sessions.json, projects.json, ui-state.json, registry-cache/, agents/, node/, logs/, zed-agent/}`。`registry-cache/` 放 `registry.json` 与 `icons/<id>.svg`；`zed-agent/` 是 sidecar 的隔离数据目录（`threads.db` / `db/` / `prompts/`，R7，§ 8）；`agents/<id>/` 放该 agent 的安装（npx 型的 `node_modules/`、binary 型的 `<version>/`）与 `install.json`；`node/` 放受管 Node；`logs/acp-<日期>.log` 是脱敏后的 ACP 流量行（与 `acp/traffic` 同源，规则 8），设置页（画板 70）给打开 / 复制路径（R5）。会话数据归各 agent 自己（claude、codex、pi、dsh 各有自己的存储）；本客户端只存会话索引 `sessions.json`（agentId + sessionId + 标题 + cwd + 时间 + 消息计数）与最近项目列表 `projects.json`，两者都走临时文件 + rename。日志脱敏：`Authorization`、`api_key`、`token` 字段一律打码。
 
 `ui-state.json` 是窗口的机器态（两栏宽度、文件面板树列的宽度与收起态），同样走临时文件 + rename。它与 `settings.json` 分开：后者是用户手写的配置（`agent_servers` 与 Zed 同形），不该被拖窗口改写。字段一律可缺省，缺省宽度与夹取范围只在前端 token 里（`lib/theme/tokens.dart`），核心不复制一份；读不动或不是合法 JSON 时按缺省重建，不挡启动。
 
@@ -181,11 +189,11 @@ Windows：`%APPDATA%/AcpAgentClient/{settings.json, sessions.json, projects.json
 | 风险 | 对策 |
 |---|---|
 | Windows 上 npx 类 agent 的 `.cmd` 包装与引号 | R1 第一项验收就是用 dsh 在 Windows 实测；转写 Zed `ShellBuilder` 的处理 |
-| Flutter 构建链（CMake → cargokit → cargo）在含中文与全角括号的用户名路径下失败 | R0 第一项验收；失败则在 `flutter_rust_bridge.yaml` / CMake 里把 `CARGO_TARGET_DIR` 指到纯 ASCII 路径 |
+| Flutter 构建链（CMake → cargokit → cargo）在含中文与全角括号的用户名路径下失败 | R0 已验证：cargokit 段没问题，出问题的是 Flutter 自己的 MSBuild 规则；`scripts/build.ps1` 用 ASCII 目录联接绕过（`research.md` § 9.3）；本机用户名已是 ASCII |
 | Flutter 侧 Markdown 渲染不如 Web 成熟（流式、高亮、选择复制） | R1.5 spike 已做并裁定（2026-09-15，见 § 9）；R2 的自写渲染层按 spike 的判据（流式不闪、SelectionArea、链接、CJK）逐项验收 |
 | Rust panic 会带倒整个 Flutter 进程 | 核心对外 API 边界统一 `catch_unwind` 转 `Result`；agent 子进程崩溃只上报 `acp/agent_state` |
-| Windows 中文 IME 组合窗与转录跨消息文本选择 | R0 / R2 各实测一次记录；设计稿有「复制整段」按钮可绕过大部分选择需求 |
+| Windows 中文 IME 组合窗与转录跨消息文本选择 | R2 跨消息选择已实测记录；终端面板的中文输入法 2026-09-17 由自建 `TerminalIme` 接通（组字串不画在光标处，BACKLOG）；输入框的组合窗行为留给所有者手测（R0 验收 6）；设计稿有「复制整段」按钮可绕过大部分选择需求 |
 | `unstable` 特性集漂移 | 钉 rust-sdk commit；改钉先改 `pins/upstream.json` 与 `research.md` |
-| sidecar 与运行中的 Zed 争用 `threads.db` | R7 实测后裁定：只读共用 / 隔离目录二选一 |
+| sidecar 与运行中的 Zed 争用 `threads.db` | R7 实测 2026-09-17：共用会让 Zed 报 `database is locked`，已按「配置共用、数据隔离」落地（§ 8，待所有者确认） |
 | Zed 构建环境重 | sidecar 独立 workspace，主程序不依赖它也能跑；CI 分开 |
 | 设计稿范围蔓延 | 画板编号只增不改；设计稿没有的功能进 BACKLOG |

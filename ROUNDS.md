@@ -39,7 +39,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 | 画板 | 名称 | 轮 | widget 文件（拟） |
 |---|---|---|---|
 | 00 | Token 表 | R0 | `lib/theme/tokens.dart`（不是 widget；gallery 里有一张 token 样板页） |
-| 01 | 工作台 · 新会话 | R3 | `lib/ui/shell/app_shell.dart` + `sidebar.dart` + `topbar.dart` + `thread_header.dart` + `composer.dart` + `transcript_empty.dart`（另有三张以上画板共用的 `shell_common.dart` 与 `popover_anchor.dart`） |
+| 01 | 工作台 · 新会话 | R3 | `lib/ui/shell/app_shell.dart` + `sidebar.dart` + `topbar.dart` + `thread_header.dart` + `composer.dart` + `transcript_empty.dart`（另有三张以上画板共用的 `shell_common.dart`、`popover_anchor.dart`、`splitter.dart`；2026-09-17 起加 `app_logo.dart`（正式标记），2026-09-18 起加 `composer_attachments.dart`（附件芯片条）与 `tooltip.dart`（悬停提示）——后三者是设计稿之外的增补，见 BACKLOG「设计稿补注记」） |
 | 02 | 工作台 · 进行中的一轮 | R3 | 同上（状态由投影层驱动） |
 | 03 | 工作台 · 回合结束 + 右栏展开 | R3（右栏内容 R4） | 同上 + `lib/ui/shell/right_panel.dart` |
 | 04 | 侧栏与顶栏状态 | R3 | `sidebar.dart`、`topbar.dart`（会话项、搜索、折叠态） |
@@ -76,12 +76,12 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 | 50 | Agents 面板（ACP Registry） | R5 | `lib/ui/registry/registry_panel.dart` |
 | 51 | Registry 条目状态 | R5 | `lib/ui/registry/registry_entry.dart` |
 | 52 | agent 认证 | R5 | `lib/ui/registry/auth_page.dart` |
-| 60 | 文件面板 | R4 | `lib/ui/files/files_panel.dart` |
-| 61 | 终端面板 | R4 | `lib/ui/terminal/terminal_panel.dart` |
-| 70 | 设置 | R5 | `lib/ui/settings/settings_page.dart` |
+| 60 | 文件面板 | R4 | `lib/ui/files/files_panel.dart` + `file_tree.dart`（2026-09-17 起树列可拖、「缩小」改为收起整列） |
+| 61 | 终端面板 | R4 | `lib/ui/terminal/terminal_panel.dart` + `local_terminal.dart` + `terminal_ime.dart`（2026-09-17，中文输入法；键盘输入走硬件按键） |
+| 70 | 设置 | R5 | `lib/ui/settings/settings_page.dart`（2026-09-17 起是右栏的一个标签，与文件 / Agents 并列，不再占会话区） |
 | 80 | ACP 流量调试 | R3 | `lib/ui/traffic/traffic_page.dart`（数据源 `lib/projection/traffic.dart`） |
 
-前端其余目录（R0 定型）：`lib/app/`（组合根：R3 落 `workbench_controller.dart` 状态与动作、`workbench_screen.dart` widget 装配、`window_controls.dart` 平台通道、`headless_run.dart` 无头实跑；数据源选择 fixtures / bridge）、`lib/bridge/`（frb 生成物，入库）、`lib/projection/`（投影状态层，纯 Dart，无 widget 依赖）、`lib/theme/tokens.dart`、`lib/gallery/`（画板对照，debug 构建才编入）。
+前端其余目录（R0 定型）：`lib/app/`（组合根：R3 落 `workbench_controller.dart` 状态与动作、`workbench_screen.dart` widget 装配、`window_controls.dart` 平台通道、`headless_run.dart` 无头实跑；R4 加 `files_state.dart` 与 `local_terminals.dart`；2026-09-18 加 `clipboard_image.dart`（剪贴板图片，Windows 借 `powershell.exe` 读）；数据源选择 fixtures / bridge）、`lib/bridge/`（frb 生成物，入库）、`lib/projection/`（投影状态层，纯 Dart，无 widget 依赖）、`lib/theme/tokens.dart`、`lib/gallery/`（画板对照，debug 构建才编入）。
 
 ## 3. 各轮拆解
 
@@ -326,7 +326,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 3. 与运行中的 Zed 同时打开 `threads.db` 的行为实测（读、写、锁），据此裁定共用 / 隔离并写回 `docs/design.md` § 8。
 4. 主程序无 sidecar 时功能不受影响。
 
-**裁定（开工前）**：`threads.db` 与 `settings.json` 共用还是隔离（`rounds/BACKLOG.md` 工程项，待 R7 实测后裁定）；模型密钥来源沿用 Zed 的 `settings.json` / 环境变量，不做额外配置页（70 没有）—— 后者已裁定 2026-09-15，落 `docs/design.md` § 8。
+**裁定（开工前）**：`threads.db` 与 `settings.json` 共用还是隔离 —— R7 实测 2026-09-17 共用会让运行中的 Zed 报 `database is locked`，按推荐项落地「配置共用、数据隔离」（`--zed-settings` 只读沿用 + `--user-data-dir <数据目录>/zed-agent`），已写 `docs/design.md` § 8，**待所有者确认**；模型密钥来源沿用 Zed 的 `settings.json` / 环境变量，不做额外配置页（70 没有）—— 已裁定 2026-09-15，落 `docs/design.md` § 8。
 
 **契约变更**：无（sidecar 走标准 ACP）。
 
@@ -362,7 +362,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 | codex-acp（npx） | R5 / **R6 重跑 11.4 s** | R5（本机网关，不要求登录） | R5 / **R6** | R5 | R5 | R5 / **R6（`cancelled`）** | **R6 ✅**（25 条 slash 命令随 load 回来） |
 | Cursor（binary） | R5 / **R6 重跑 159 s / 74 MB** | **R6：本机 `cursor-agent` CLI 已登录，凭据共用，`session/new` 直接成功**（R5 的浏览器登录不再阻塞） | R5 / **R6** | R5 | R5（fs / terminal 可为 false） | R5 | **R6 ✅**（只声明 `list`，≡ 菜单三行都不渲染） |
 | pi-acp（npx） | R5 / **R6 重跑 5.8 s** | **R6：本机 `pi` CLI 已配好，`--terminal-login` 没走到**（R5 卡在没装 pi，已不成立） | **R6 ✅** | **R6 ✅** | 不适用（不用客户端终端） | R5 | **R6 ✅**（`session/load` + 8 条 slash 命令） |
-| dsh-acp-interactive（custom） | R3（settings 手填）/ R5（70 编辑） | R1（terminal auth `--setup`） | R1 / **R6** | R1 / R3 | R4 | R1 / R3 | **R6 ✅**（`session/load` + 5 条 slash 命令）。**本机模型网关 404，R6 拿不到它的 `stopReason` / usage** |
+| dsh-acp-interactive（custom；2026-09-17 起核心内建条目） | R3（settings 手填）/ R5（70 编辑）/ **2026-09-17 内建免配置**（`ACP_DSH_PATH` → PATH 上的全局安装 → `npx` 三路回退；只有受管 Node 的机器拉不起，记 BACKLOG） | R1（terminal auth `--setup`） | R1 / **R6** | R1 / R3 | R4 | R1 / R3 | **R6 ✅**（`session/load` + 5 条 slash 命令）。**本机模型网关 404，R6 拿不到它的 `stopReason` / usage** |
 | zed-agent-acp（sidecar） | **R7 ✅**（随包：CMake install 到应用目录旁，核心按相对路径定位） | **R7 ✅**（无 `authMethods`；模型与密钥经 `--zed-settings` 只读沿用 Zed 的 settings.json，14 个模型可用） | **R7 ✅** | **R7 ✅**（terminal 工具 + `session/request_permission`，选项按 optionId 去重） | **R7 ✅**（进程内 Zed terminal，输出走 `_meta.terminal_*` 三键） | **R7 ✅**（`cancelled`） | **R7 ✅**（`session/load` 重放，11/12 行与实时一致，差的一行是 R6 已裁定的轮边界限制） |
 
 R6 的逐格证据（报告 JSON 路径、能力声明、重放 digest 比对、踩到的坑）在 `rounds/round-06/round-06.md`「本轮实测」。
@@ -381,7 +381,7 @@ R6 的逐格证据（报告 JSON 路径、能力声明、重放 digest 比对、
 | R4 | § 3 本地 shell 四命令与 `acp/terminal_output` payload；§ 7 截断与留存 | `rounds/BACKLOG.md` git 徽章条目关闭 |
 | R5 | § 3 `registry/progress` 与四命令；§ 5 requestScope 落点 | — |
 | R6 | § 3 `session_resume` / `session_delete` / 分页 | — |
-| R7 | § 8 `threads.db` 裁定结果 | `rounds/BACKLOG.md` 争用条目关闭 |
+| R7 | § 8 `threads.db` 裁定结果（已落 2026-09-17：配置共用、数据隔离，待所有者确认） | `rounds/BACKLOG.md` 争用条目已关闭；新增 6 条 R7 已知限制 |
 | R8 | — | README、LICENSE、NOTICE |
 
 ## 6. 设计稿之外与待裁定汇总
@@ -420,4 +420,5 @@ R6 的逐格证据（报告 JSON 路径、能力声明、重放 digest 比对、
 | R5 | 已完成 | `round-05` | 5a9c5a6 | b1339c8 | 3 轮 / cursor CLI `--mode ask`（第 1–2 轮全量 `main...HEAD`：3 条 high 1 / P2 2，2 条 P2；第 3 轮只审整改 diff：0 条；5 条全部采纳） | 任务卡 `rounds/round-05/round-05.md`；7 项验收全有证据：fake-agent 两种认证离线确定性 + codex-acp / Cursor / pi-acp 真跑（安装、`-32000` → 认证页、Zed 导入 5 条、Remove、受管 Node、断网），其中 Cursor / codex 的浏览器登录与 `OPENAI_API_KEY` 路径待所有者手测；新增无头口子 `ACP_R5_REPORT`（含按步骤取消）；Zed `node_runtime` 等改为参考转写待所有者确认（`docs/design.md` § 2）；跨轮问题 10 条记 BACKLOG；与 R4 并行开发（基于 `main`，右栏文件 / 终端标签归 R4） |
 | R6 | 已完成 | `claude/r6-development-e3bd8c`（Claude Code 桌面端 worktree 分支，≙ `round-06`） | —（R6 无画板阶段） | 681a7e2 | 5 轮 / cursor CLI `--mode ask`（第 1–2 轮全量 `main...HEAD`：7 条 high 2 / P2 4 / P3 1，3 条 P2；第 3–5 轮只审整改 diff：2 条 P2 1 / P3 1，**0 条**，**0 条**；12 条里 11 条采纳整改、1 条设计取舍所有者已裁定） | 任务卡 `rounds/round-06/round-06.md`；7 项验收全过（会话生命周期五命令 + 侧栏 / ≡ 菜单按能力裁剪 + modes 回退 + `session/list` 校对 + 290 条重放等价 + 五 agent 真跑矩阵）；真跑抓出 5 个真缺陷（resume 不能对活着的会话发、list 校对的 cwd 口径、重连后 requestId 复用、resume 空响应抹掉 modes、重放前清空会闪 UI）；两项裁定 2026-09-16：① ≡ 保持右栏开关、会话菜单要入口先改设计稿（本轮把菜单动作接通并做了单测，产品 UI 里只有 Delete 有入口，Resume / Close 等改完画板那一轮）；② `session/load` 重放不带回轮边界，记已知限制不在本地补（落 `docs/design.md` § 3） |
 | R7 | 已完成 | `claude/r7-implementation-f52398`（Claude Code 桌面端 worktree 分支，≙ `round-07`） | —（R7 无画板阶段） | 44cd33a | 4 轮 / cursor CLI `--mode ask`（第 1–2 轮全量 `main...HEAD`：3 条 high 1 / P2 2，2 条 high 1 / P2 1；第 3–4 轮只审整改 diff：1 条 high，**0 条**；6 条全部采纳整改） | 任务卡 `rounds/round-07/round-07.md`；sidecar 是独立 cargo workspace（`sidecar/zed-agent-acp/`，`agent-client-protocol` 用 crates.io `=2.0.0` 与 zed 钉版本对齐，规则 10）；7 项验收全有证据；`threads.db` 实测后按推荐项改成「配置共用、数据隔离」（落 `docs/design.md` § 8，**待所有者确认**）；未带 `languages` crate（VS Spectre 组件缺失，记 BACKLOG）；实跑 + 自查 + 审查共修掉 10 个缺陷（终端卡与 diff 卡拿不到数据源、权限选项 id 重复会放大授权、close/delete 停不掉在途回合、delete 被释放时的保存写回、`release_and_wait` 没真的等到释放、`session/list` 把读失败报成空表等）；第 3 轮首发时 cursor 掉线卡死，重发即恢复（未回落子代理） |
-| R8 | 未开始 | `round-08` | — | — | — | |
+| main 直改（R7 后） | 进行中（2026-09-17 起） | `main` | —（画板 05 / 06 随修复一起入库） | 直接提交 `main`（`44cd33a..HEAD`） | 2026-09-17 两轮 / cursor CLI `--mode ask`（全量 `44cd33a..HEAD`：2 条 P2 1 / P3 1，复审 0 条；产物在 `.claude/reviews/20260917-15*`）。之后各批由所有者逐批指示是否构建、是否走审查：走了的按「发布前审查 → 整改 → 复审」记在提交说明（执行器未逐批记，`.claude/reviews/` 里没有再落产物），未走的在提交说明写明「未构建 / 未审查（所有者指定）」 | 所有者手测报障的修复（按提交顺序）：侧栏删除确认弹层、弹层位置与锚点、用户消息本地回显（`acp-projection.md` § 7 第 8 条）、转录跟随、终端面板硬件按键 + `TerminalIme`、Enter 发送、agent 自己的 logo（侧栏 / 新建弹层 / 空态）、正式 logo 与 `.ico`、右栏去关闭键 / 设置改右栏标签 / 树列可拖、无边框窗口缩放与双击、`@` `/` 键盘导航与裸 `@`、画板 10 废弃、内建 dsh 条目与 DeepSeek 图标（pins 加 `deepseek-harness`）、画板 05 转场 + 新建会话等待期、画板 06 活动指示、Noto Sans SC、图片粘贴与芯片条、一轮失败原因落结束行、弹层封顶滚动 / Esc / 点外面关、终端卡自动收起、14 个 tooltip、会话配置固定档序平铺、新建会话不重连、sidecar 孤儿进程；在途未提交：Restore / Regenerate 改按用户气泡定位（`docs/design.md` § 3 已改）、侧栏只留当前 workspace 的会话（换项目时别的目录下的会话不露出、正开着的那条若属于别的目录就从线程区放下回空态；未构建 / 未审查，所有者指定）。设计稿待补的注记记 BACKLOG（清单见 `design/README.md` 变更记录） |
+| R8 | 未开始 | `round-08` | — | — | — | 前置 R7 已完成；打包时注意 sidecar 体积（release 176.7 MB） |
