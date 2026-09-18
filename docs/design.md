@@ -88,6 +88,7 @@ Flutter 宿主进程（Dart）
 - `session/close` 之后会话是**只读**的：转录留着，但 prompt / Restore / Regenerate / 三个下拉 / 停止方块都不再发命令，直到 `session/resume` 把它挂回来（R6；`session/resume` 只对没在本连接上活着的会话有效，实测 dsh 1.3.0 对活着的回 `-32602`）。
 - `/` 命令菜单单组渲染：`AvailableCommand` 没有分组与来源字段，不按名字猜分组（所有者裁定 2026-09-15）。
 - 侧栏会话列表以本地索引为准；`session/list` 只用来校对存在性与补标题，agent 有、本地没有的会话不自动出现（所有者裁定 2026-09-15，R6）。
+- 侧栏只列**当前项目目录**下的会话（2026-09-18，所有者报障）：按索引里的 cwd 与当前项目路径归一后比（分隔符 / 尾斜杠 / Windows 大小写），没记 cwd 的老条目各处都列；换项目时正开着的会话若属于别的目录就从线程区放下（不关、不取消，agent 侧照跑），下一条消息在新目录里现开会话；等待期（`session/new` / 重载在途）里不换项目。
 - 侧栏的删除图标**一律给**（2026-09-18，替代 R6「无 `sessionCapabilities.delete` 不出图标」）：本地索引总能删；agent 已连上且声明了 delete 时顺带发 `session/delete`，agent 侧删不掉（报错或没连）不锁死本地记录。R6 那条裁剪的结果是没声明 delete 的 agent 的会话在侧栏里永远清不掉。
 - 新建会话**不重连 agent**（2026-09-18）：线程头 `+` 选 agent 与 `send()` 现开会话都走 `_ensureConnected`（没连才连），不再断开重拉——另一条会话正在跑的那一轮不会被杀；两个触发共用画板 05 B 组的等待期（`waitingForAgent`）。重载 agent（线程头 reload）仍是断开 + 重拉；重载 / 崩溃之后内存里其它会话拿的还是旧进程的 sessionId，记 BACKLOG 等单独一轮。
 - 一轮**没走到协议结束值**时的失败原因是本地态（2026-09-18）：`session/prompt` 回 JSON-RPC error（实测 dsh 的 `-32602 model does not declare image input`、`-32603 turn failed …`）时原文落在 `TurnEntry.error`，画板 31 的结束行多一档「失败」徽章显示它，不再只剩一个 `?` 徽章；设计稿待补这一态（BACKLOG）。

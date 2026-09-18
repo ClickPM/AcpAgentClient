@@ -73,6 +73,14 @@ class _InstalledCore extends FakeCore {
   Future<JsonMap> workspaceRecent() async => <String, dynamic>{'projects': projects};
 }
 
+/// `session/new` 挂着不回，直到 [gate] 完成：复现「等待期里做别的事」。
+class _GatedNewCore extends _InstalledCore {
+  final Completer<JsonMap> gate = Completer<JsonMap>();
+
+  @override
+  Future<JsonMap> sessionNew(String agentId, String cwd) => gate.future;
+}
+
 /// `session/prompt` 直接抛错（连接断了 / agent 已退出）。
 class FailingCore extends FakeCore {
   @override
@@ -357,6 +365,38 @@ void main() {
     await c.openProject(const ProjectRef(path: r'D:\proj', name: 'proj'));
     expect(c.sidebarSessions.map((s) => s.id), unorderedEquals(<String>['older', 'recent']));
     expect(c.sessionId, isNull, reason: '切回来不替用户自动选会话');
+    c.dispose();
+  });
+
+  test('换项目时正在改名的那条不在新目录里：改名态一起撤掉（合并复审 2026-09-18）', () async {
+    final core = _InstalledCore();
+    final c = WorkbenchController(source: DataSource.bridge, bridge: core);
+    await c.start();
+    c.startRename('recent');
+    expect(c.renamingSessionId, 'recent');
+    await c.openProject(const ProjectRef(path: r'D:\other', name: 'other'));
+    expect(c.renamingSessionId, isNull, reason: '那一行随侧栏一起没了，改名态不能悬着');
+    await c.openProject(const ProjectRef(path: r'D:\proj', name: 'proj'));
+    expect(c.renamingSessionId, isNull);
+    c.dispose();
+  });
+
+  test('等待期里换项目被挡住：在途的 session/new 回来后仍挂在原目录、侧栏里找得到（合并复审 2026-09-18）', () async {
+    final core = _GatedNewCore();
+    final c = WorkbenchController(source: DataSource.bridge, bridge: core);
+    await c.start();
+    final creating = c.newSession(const AgentRef(id: 'zed', name: 'Zed Agent'));
+    expect(c.waitingForAgent, isTrue);
+    await c.openProject(const ProjectRef(path: r'D:\other', name: 'other'));
+    expect(c.project?.path, r'D:\proj', reason: '等待期里不换项目：不然回来的会话挂在旧目录、侧栏里找不到');
+    core.gate.complete(<String, dynamic>{'sessionId': 'fresh'});
+    await creating;
+    expect(c.waitingForAgent, isFalse);
+    expect(c.sessionId, 'fresh');
+    expect(c.sidebarSessions.map((s) => s.id), contains('fresh'));
+    await c.openProject(const ProjectRef(path: r'D:\other', name: 'other'));
+    expect(c.project?.path, r'D:\other');
+    expect(c.sessionId, isNull);
     c.dispose();
   });
 

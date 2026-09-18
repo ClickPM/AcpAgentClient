@@ -28,6 +28,23 @@ class _GatedCore extends FakeCore {
   }
 }
 
+/// 发消息那次索引写「落地了、但返回晚」：核心是每条命令各起一个任务（`rust/bridge/src/api.rs` 的 `on_core`），
+/// 一轮跑得比索引写回来还快时，收轮那次索引写读到的本地镜像还是旧时间。
+class _LaggyIndexCore extends FakeCore {
+  /// 设了就把下一次 upsert 的**返回**挂在它上（写本身照常落地）。
+  Completer<void>? holdNextUpsert;
+
+  @override
+  Future<JsonMap> sessionIndexUpsert(JsonMap entry) async {
+    final result = await super.sessionIndexUpsert(entry);
+    final hold = holdNextUpsert;
+    if (hold == null) return result;
+    holdNextUpsert = null;
+    await hold.future;
+    return sessionIndexList();
+  }
+}
+
 int _updatedAtOf(FakeCore core, String sessionId) {
   final entry = core.sessionIndex.singleWhere((e) => e['sessionId'] == sessionId);
   return (entry['updatedAt'] as num).toInt();
@@ -78,6 +95,27 @@ void main() {
     await c.send();
     expect(_updatedAtOf(core, sid), greaterThan(t1));
     expect(core.sessionIndex.single['messageCount'], 2);
+    c.dispose();
+  });
+
+  test('发消息那次索引写还没回来、这一轮就收了：收轮不把时间盖回旧值（合并复审 2026-09-18）', () async {
+    final core = _LaggyIndexCore();
+    final c = WorkbenchController(source: DataSource.bridge, bridge: core, scheduler: WorkbenchController.scheduleOnMicrotask)
+      ..project = const ProjectRef(path: 'D:/repo', name: 'repo');
+    await c.newSession(const AgentRef(id: 'a', name: 'a'));
+    final sid = c.sessionId!;
+
+    final hold = core.holdNextUpsert = Completer<void>();
+    final before = DateTime.now().millisecondsSinceEpoch;
+    c.composer.text = '一轮秒回';
+    // 发消息那次 upsert 已落地但还没回来；prompt 立刻返回，收轮那次 upsert 先跑。
+    await c.send();
+    expect(core.prompts, hasLength(1));
+    expect(_updatedAtOf(core, sid), greaterThanOrEqualTo(before), reason: '收轮那次不能把发消息时打的时间盖回去');
+    hold.complete();
+    await Future<void>.delayed(Duration.zero);
+    expect(_updatedAtOf(core, sid), greaterThanOrEqualTo(before));
+    expect(core.sessionIndex.single['messageCount'], 1);
     c.dispose();
   });
 }

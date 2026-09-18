@@ -835,6 +835,11 @@ class WorkbenchController extends ChangeNotifier {
 
   Future<void> openProject(ProjectRef ref) async {
     _hide(projectAnchor);
+    // 等待期（`session/new` / 重载在途）里顶栏仍可点（`IgnorePointer` 只包住 `_body()`）：这时换项目，
+    // 在途那条 `session/new` 回来后 `_adoptSession` 会把它挂成当前会话，而它的 cwd 是旧目录——线程区开着一条
+    // 侧栏（只投影当前 workspace，见 [_toSidebar]）里找不到的会话。与 [newSession] / [reloadAgent] 同一道守卫：
+    // 等待期里不换项目（合并复审 2026-09-18）。
+    if (waitingForAgent) return;
     final b = bridge;
     if (b == null) {
       project = ref;
@@ -860,9 +865,12 @@ class WorkbenchController extends ChangeNotifier {
   /// 同一个目录换种写法（分隔符 / 尾斜杠）不算换项目，会话不动。
   void _enterWorkspace() {
     sidebarSessions = _toSidebar(_indexEntries);
+    // 正在改名的那条（侧栏行或线程头）若不属于这个 workspace，它的输入框随行一起没了，`renamingSessionId`
+    // 不能悬着：切回来时那行会直接以改名态出现、带着上次没提交的文本（合并复审 2026-09-18）。
+    final renaming = renamingSessionId;
+    if (renaming != null && !_inCurrentWorkspace(_indexCwdOf(renaming))) cancelRename();
     final id = sessionId;
     if (id == null || _inCurrentWorkspace(_indexCwdOf(id))) return;
-    if (renamingInHeader) cancelRename();
     sessionId = null;
     sessionEpoch++;
   }
@@ -1162,6 +1170,13 @@ class WorkbenchController extends ChangeNotifier {
   /// 本地索引原始条目（`sessions.json` 的投影；侧栏项只留了展示要用的字段，cwd 在这里）。
   List<JsonMap> _indexEntries = const <JsonMap>[];
 
+  /// 每条会话最近一次发消息时打的 `updatedAt`（[_saveIndex] 的 promptSent 那次）。[_indexEntries] 只在那条
+  /// 命令**回来**之后才带上新时间，而它是不 await 的（见 [_stampPromptSent]）；核心又是每条命令各起一个任务
+  /// （`rust/bridge/src/api.rs` 的 `on_core`），不保证先发的先回——一轮跑得比索引写回来还快时，收轮那次
+  /// [_saveIndex] 从 [_indexEntries] 读到的还是发消息之前的旧时间、把刚打的盖回去（概率很低，但顺序不该靠运气）。
+  /// 这里记一份本地的，[_indexUpdatedAtOf] 取两者里大的（合并复审 2026-09-18）。
+  final Map<String, int> _promptSentAt = <String, int>{};
+
   /// `session/load`（R6）：整段历史由 agent 用 `session/update` 重放，**重放期间不逐条刷新 UI**——
   /// 事件照常入队，但 batcher 挂起到命令返回后一次性刷完。成功返回 true。
   Future<bool> loadSession(String agent, String id, String cwd) async {
@@ -1327,6 +1342,7 @@ class WorkbenchController extends ChangeNotifier {
     final s = store;
     if (b == null || s == null) return;
     final updatedAt = promptSent ? DateTime.now().millisecondsSinceEpoch : _indexUpdatedAtOf(s.sessionId);
+    if (promptSent && updatedAt != null) _promptSentAt[s.sessionId] = updatedAt;
     final result = await b.sessionIndexUpsert(<String, dynamic>{
       'agentId': s.agentId ?? agentId ?? '',
       'sessionId': s.sessionId,
@@ -1341,9 +1357,8 @@ class WorkbenchController extends ChangeNotifier {
   /// 用户发出一条消息（发送 / Restore / Regenerate）：把索引的 `updatedAt` 打成现在，侧栏这条立刻升到最上面。
   /// **不 await**：`startTurn` 与 `_runTurn` 之间不能有异步间隙，否则这段里 `isRunning` 已是 true 而
   /// `_turnInFlight` 还是 null，Restore / cancel 等不到在途那一轮就会重叠两个 `session/prompt`
-  /// （审查 finding high，2026-09-15）。先后不用担心：索引写与 `session/prompt` 都是核心命令、按发出顺序处理，
-  /// 收轮那次 [_saveIndex] 读到的 [_indexEntries] 早就是打过时间的。写不动只记日志不挡发送——索引是可再生缓存
-  /// （`rust/settings/src/index.rs`），发送才是正事。
+  /// （审查 finding high，2026-09-15）。先后由 [_promptSentAt] 兜住：收轮那次 [_saveIndex] 不靠这条命令回没回来，
+  /// 本地记的那份时间总在。写不动只记日志不挡发送——索引是可再生缓存（`rust/settings/src/index.rs`），发送才是正事。
   Future<void> _stampPromptSent() async {
     try {
       await _saveIndex(promptSent: true);
@@ -1360,10 +1375,13 @@ class WorkbenchController extends ChangeNotifier {
     return null;
   }
 
-  /// 索引里这条会话的 `updatedAt`；没有这条或还没打过时间时为 null。
+  /// 索引里这条会话的 `updatedAt`，与本地记的最近一次发消息时间（[_promptSentAt]）取大；
+  /// 没有这条或还没打过时间时为 null。
   int? _indexUpdatedAtOf(String sessionId) {
-    final at = (_indexEntryOf(sessionId)?['updatedAt'] as num?)?.toInt();
-    return at == null || at <= 0 ? null : at;
+    var at = (_indexEntryOf(sessionId)?['updatedAt'] as num?)?.toInt() ?? 0;
+    final sent = _promptSentAt[sessionId];
+    if (sent != null && sent > at) at = sent;
+    return at <= 0 ? null : at;
   }
 
   void startRename(String id, {bool inHeader = false}) {
@@ -1395,13 +1413,14 @@ class WorkbenchController extends ChangeNotifier {
     sessions.maybe(id)?.title = title.trim();
     await _guard(() async {
       final owner = _ownerOf(id);
-      final existing = sidebarSessions.where((s) => s.id == id).firstOrNull;
+      // 计数与 cwd 都从索引本身取，不从侧栏：侧栏只投影当前 workspace 的条目（[_toSidebar]），
+      // 核心的 upsert 是整行替换，这里少给一个字段就是把它抹成默认值。
       final result = await b.sessionIndexUpsert(<String, dynamic>{
         'agentId': owner,
         'sessionId': id,
         'title': title.trim(),
-        'cwd': sessions.maybe(id)?.cwd ?? project?.path,
-        'messageCount': existing?.messageCount ?? 0,
+        'cwd': _indexCwdOf(id) ?? project?.path,
+        'messageCount': (_indexEntryOf(id)?['messageCount'] as num?)?.toInt() ?? 0,
         // 改名不是发消息：沿用原时间，侧栏不因此重排（见 [_saveIndex]）。
         'updatedAt': ?_indexUpdatedAtOf(id),
       });
@@ -1472,6 +1491,7 @@ class WorkbenchController extends ChangeNotifier {
       _updateArrivals.remove(id);
       _deletedOnAgent.remove(id);
       _sessionAgent.remove(id);
+      _promptSentAt.remove(id);
       _clearUnread(id);
       sessions.forget(id);
       if (sessionId == id) sessionId = null;
