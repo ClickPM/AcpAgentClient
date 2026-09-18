@@ -16,6 +16,7 @@ import '../transcript/icons.dart';
 import 'composer_attachments.dart';
 import 'popover_anchor.dart';
 import 'shell_common.dart';
+import 'tooltip.dart';
 
 class Composer extends StatelessWidget {
   const Composer({
@@ -226,24 +227,30 @@ class Composer extends StatelessWidget {
 
   Widget _actions() => Row(
         children: <Widget>[
-          PopoverAnchor(
-            handle: plusAnchor,
-            child: IconButtonGhost(
-              icon: AcpIcons.plus,
-              size: t.Controls.compact,
-              color: enabled ? t.Neutral.muted : t.Neutral.border,
-              onTap: enabled ? onPlus : null,
+          AcpTooltip(
+            message: 'Add context',
+            child: PopoverAnchor(
+              handle: plusAnchor,
+              child: IconButtonGhost(
+                icon: AcpIcons.plus,
+                size: t.Controls.compact,
+                color: enabled ? t.Neutral.muted : t.Neutral.border,
+                onTap: enabled ? onPlus : null,
+              ),
             ),
           ),
           if (enabled) ...<Widget>[
             const SizedBox(width: t.Spacing.s4),
-            PopoverAnchor(
-              handle: followAnchor,
-              child: IconButtonGhost(
-                icon: AcpIcons.target,
-                size: t.Controls.compact,
-                color: followOn ? t.Accent.text : t.Neutral.muted,
-                onTap: onFollow,
+            AcpTooltip(
+              message: 'Follow agent',
+              child: PopoverAnchor(
+                handle: followAnchor,
+                child: IconButtonGhost(
+                  icon: AcpIcons.target,
+                  size: t.Controls.compact,
+                  color: followOn ? t.Accent.text : t.Neutral.muted,
+                  onTap: onFollow,
+                ),
               ),
             ),
           ],

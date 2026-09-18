@@ -12,6 +12,7 @@ import '../transcript/icons.dart';
 import 'app_logo.dart';
 import 'popover_anchor.dart';
 import 'shell_common.dart';
+import 'tooltip.dart';
 
 /// 侧栏一条会话（本地索引 `sessions.json` 的投影：agentId + sessionId + 标题 + cwd + 时间 + 消息计数）。
 class SidebarSession {
@@ -300,11 +301,17 @@ class SidebarSessionRow extends StatelessWidget {
               const SizedBox(width: t.Spacing.s8),
               Expanded(child: inlineEdit ? _renameField() : _titleAndMeta(meta)),
               if (showActions) ...<Widget>[
-                IconButtonGhost(icon: AcpIcons.pencil, size: t.Controls.compact, onTap: onRename),
+                AcpTooltip(
+                  message: 'Edit session title',
+                  child: IconButtonGhost(icon: AcpIcons.pencil, size: t.Controls.compact, onTap: onRename),
+                ),
                 if (session.canDelete)
-                  PopoverAnchor(
-                    handle: deleteAnchor,
-                    child: IconButtonGhost(icon: AcpIcons.trash, size: t.Controls.compact, onTap: onDelete),
+                  AcpTooltip(
+                    message: 'Delete session',
+                    child: PopoverAnchor(
+                      handle: deleteAnchor,
+                      child: IconButtonGhost(icon: AcpIcons.trash, size: t.Controls.compact, onTap: onDelete),
+                    ),
                   ),
               ],
             ],
@@ -389,29 +396,32 @@ class SidebarNav extends StatelessWidget {
       child: Row(
         children: <Widget>[
           for (final tab in ShellTab.values) ...<Widget>[
-            Hoverable(
-              onTap: onTap == null ? null : () => onTap!(tab),
-              forceHover: tab == hoveredTab,
-              builder: (context, hovered) {
-                final selected = tab == active;
-                final color = selected ? t.Accent.text : (hovered ? t.Neutral.text : t.Neutral.muted);
-                return Container(
-                  height: t.Controls.compact,
-                  padding: t.Controls.padCompact,
-                  decoration: BoxDecoration(
-                    color: selected ? t.Overlays.selected : (hovered ? t.Overlays.hover : null),
-                    borderRadius: t.Radii.control,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      AcpIcon(tab.icon, color: color, size: t.IconSizes.toolbar),
-                      const SizedBox(width: t.Spacing.s4),
-                      Text(tab.label, style: t.TextStyles.meta.copyWith(color: color, height: t.LineHeights.control)),
-                    ],
-                  ),
-                );
-              },
+            AcpTooltip(
+              message: tab.tooltip,
+              child: Hoverable(
+                onTap: onTap == null ? null : () => onTap!(tab),
+                forceHover: tab == hoveredTab,
+                builder: (context, hovered) {
+                  final selected = tab == active;
+                  final color = selected ? t.Accent.text : (hovered ? t.Neutral.text : t.Neutral.muted);
+                  return Container(
+                    height: t.Controls.compact,
+                    padding: t.Controls.padCompact,
+                    decoration: BoxDecoration(
+                      color: selected ? t.Overlays.selected : (hovered ? t.Overlays.hover : null),
+                      borderRadius: t.Radii.control,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        AcpIcon(tab.icon, color: color, size: t.IconSizes.toolbar),
+                        const SizedBox(width: t.Spacing.s4),
+                        Text(tab.label, style: t.TextStyles.meta.copyWith(color: color, height: t.LineHeights.control)),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
             const SizedBox(width: t.Spacing.s4),
           ],

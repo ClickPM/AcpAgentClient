@@ -9,6 +9,7 @@ import '../transcript/card_chrome.dart';
 import '../transcript/icons.dart';
 import 'popover_anchor.dart';
 import 'shell_common.dart';
+import 'tooltip.dart';
 
 /// 顶栏一条（高 [t.Geometry.barHeight]，下边框 subtle）。
 class TopBar extends StatelessWidget {
@@ -82,7 +83,7 @@ class TopBar extends StatelessWidget {
       padding: const EdgeInsets.only(left: t.Spacing.s8),
       child: Row(
         children: <Widget>[
-          _ToggleButton(collapsed: sidebarCollapsed, onTap: onToggleSidebar),
+          AcpTooltip(message: 'Session-sidebar', child: _ToggleButton(collapsed: sidebarCollapsed, onTap: onToggleSidebar)),
           const SizedBox(width: t.Spacing.s4),
           // 项目名与分支挤在左侧、剩余空白留给窗口控制：内层 Row 的 Flexible 只按内容取宽（loose），
           // 多出来的空间留在 Expanded 的右侧。不能用 Flexible + Spacer——那会把空白对半分掉。
@@ -90,34 +91,40 @@ class TopBar extends StatelessWidget {
             child: Row(
               children: <Widget>[
                 Flexible(
-                  child: PopoverAnchor(
-                    handle: projectAnchor,
-                    child: Hoverable(
-                      onTap: onProject,
-                      forceHover: hoverProject,
-                      builder: (context, hovered) => _chip(
-                        hovered: hovered,
-                        child: Text(projectName, style: CardText.headerTitle.copyWith(color: t.Neutral.strong), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  child: AcpTooltip(
+                    message: 'Recent workspace',
+                    child: PopoverAnchor(
+                      handle: projectAnchor,
+                      child: Hoverable(
+                        onTap: onProject,
+                        forceHover: hoverProject,
+                        builder: (context, hovered) => _chip(
+                          hovered: hovered,
+                          child: Text(projectName, style: CardText.headerTitle.copyWith(color: t.Neutral.strong), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ),
                       ),
                     ),
                   ),
                 ),
                 if (branch != null) ...<Widget>[
                   const SizedBox(width: t.Spacing.s4),
-                  PopoverAnchor(
-                    handle: branchAnchor,
-                    child: Hoverable(
-                      onTap: onBranch,
-                      forceHover: hoverBranch,
-                      builder: (context, hovered) => _chip(
-                        hovered: hovered,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            AcpIcon(AcpIcons.gitBranch, color: hovered ? t.Neutral.text : t.Neutral.muted, size: t.IconSizes.toolbar),
-                            const SizedBox(width: t.Spacing.s4),
-                            Text(branch!, style: CardText.secondary.copyWith(color: hovered ? t.Neutral.text : t.Neutral.muted)),
-                          ],
+                  AcpTooltip(
+                    message: 'Branch',
+                    child: PopoverAnchor(
+                      handle: branchAnchor,
+                      child: Hoverable(
+                        onTap: onBranch,
+                        forceHover: hoverBranch,
+                        builder: (context, hovered) => _chip(
+                          hovered: hovered,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              AcpIcon(AcpIcons.gitBranch, color: hovered ? t.Neutral.text : t.Neutral.muted, size: t.IconSizes.toolbar),
+                              const SizedBox(width: t.Spacing.s4),
+                              Text(branch!, style: CardText.secondary.copyWith(color: hovered ? t.Neutral.text : t.Neutral.muted)),
+                            ],
+                          ),
                         ),
                       ),
                     ),

@@ -302,6 +302,10 @@ abstract final class Motion {
   /// `motion.stagger`：成组元素入场的错开步长，最多错开 3 个。
   static const Duration stagger = Duration(milliseconds: 40);
 
+  /// 悬停提示的出现延迟（设计稿之外的增补）：动效 token 里没有这一档，取 [fast] 的 4 倍（480ms）——
+  /// 鼠标扫过一排按钮时不会一路弹提示，停下来又不用等太久。
+  static final Duration tooltipDelay = fast * 4;
+
   /// 入场位移只发生在纵轴上（[rise] 上移、[pop] 上下弹），横轴恒 0。
   /// 这个「横轴恒 0」也是几何字面量，按规则 3 归 tokens.dart，widget 文件里不写 `Offset(0, …)`。
   static Offset offsetY(double dy) => Offset(0, dy);
@@ -479,4 +483,22 @@ abstract final class Geometry {
   /// 70：设置行（标签列 + 值 + 尾部按钮）排得下的最窄宽度。设置现在是右栏的一个标签，
   /// 而右栏能拖到 [rightPanelMinWidth]（360）——比这还窄就整块横向滚，行不会被挤溢出。
   static const double settingsMinWidth = 420;
+
+  // ---- 悬停提示（设计稿之外的增补，所有者 2026-09-18 直接要求；见 lib/ui/shell/tooltip.dart）
+
+  /// 提示条与触发控件之间的间隙。
+  static const double tooltipGap = Spacing.s8;
+
+  /// 提示条贴到窗口边上时留的余量（上下左右同一档）。
+  static const double tooltipMargin = Spacing.s8;
+
+  /// 提示条的最大宽度：都是一行短说明，真超了就在这个宽度内折行。
+  static const double tooltipMaxWidth = 240;
+
+  /// 提示条的内边距。
+  static const EdgeInsets tooltipPadding = EdgeInsets.symmetric(horizontal: Spacing.s8, vertical: Spacing.s4);
+
+  /// 提示条在 Overlay 里的落点。位置由布局代理现算（见 lib/ui/shell/tooltip.dart），但 `Offset(…)` 本身
+  /// 是几何字面量、按规则 3 归 tokens.dart，widget 文件里不写——与 [Motion.offsetY] 同一个道理。
+  static Offset tooltipOffset(double dx, double dy) => Offset(dx, dy);
 }

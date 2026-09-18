@@ -266,12 +266,12 @@ String relativeTime(DateTime at, {required DateTime now}) {
 
 /// 侧栏底部导航的四个入口（画板 01 / 04），同时是右栏的四个标签（画板 03）。
 enum ShellTab {
-  settings('设置', '设置', AcpIcons.settings),
-  files('文件', '文件浏览器', AcpIcons.folder),
-  agents('Agents', 'ACP Registry', AcpIcons.layers),
-  terminal('终端', '终端', AcpIcons.terminal);
+  settings('设置', '设置', AcpIcons.settings, 'Open settings'),
+  files('文件', '文件浏览器', AcpIcons.folder, 'Open workspace'),
+  agents('Agents', 'ACP Registry', AcpIcons.layers, 'Open ACP registry'),
+  terminal('终端', '终端', AcpIcons.terminal, 'Open terminal');
 
-  const ShellTab(this.label, this.panelTitle, this.icon);
+  const ShellTab(this.label, this.panelTitle, this.icon, this.tooltip);
 
   /// 侧栏底部导航上的文案（画板 01 / 04）。
   final String label;
@@ -279,4 +279,7 @@ enum ShellTab {
   /// 右栏标签条上的文案（画板 03）。
   final String panelTitle;
   final String icon;
+
+  /// 悬停提示（设计稿之外的增补，所有者 2026-09-18 直接要求；见 lib/ui/shell/tooltip.dart）。
+  final String tooltip;
 }

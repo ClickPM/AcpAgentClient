@@ -10,6 +10,7 @@ import '../transcript/icons.dart';
 import 'motion.dart';
 import 'popover_anchor.dart';
 import 'shell_common.dart';
+import 'tooltip.dart';
 
 class ThreadHeader extends StatelessWidget {
   const ThreadHeader({
@@ -100,10 +101,18 @@ class ThreadHeader extends StatelessWidget {
                     ],
                   ),
           ),
-          if (hasAgent && canRename && !inlineEdit) IconButtonGhost(icon: AcpIcons.pencil, onTap: onRename),
-          PopoverAnchor(handle: newSessionAnchor, child: IconButtonGhost(icon: AcpIcons.plusSquare, onTap: onNewSession)),
-          if (hasAgent && canReload) IconButtonGhost(icon: AcpIcons.reload, onTap: onReload),
-          PopoverAnchor(handle: menuAnchor, child: _MenuButton(selected: menuSelected, onTap: onMenu)),
+          if (hasAgent && canRename && !inlineEdit)
+            AcpTooltip(message: 'Edit session title', child: IconButtonGhost(icon: AcpIcons.pencil, onTap: onRename)),
+          AcpTooltip(
+            message: 'New agent session',
+            child: PopoverAnchor(handle: newSessionAnchor, child: IconButtonGhost(icon: AcpIcons.plusSquare, onTap: onNewSession)),
+          ),
+          if (hasAgent && canReload)
+            AcpTooltip(message: 'Reload this session', child: IconButtonGhost(icon: AcpIcons.reload, onTap: onReload)),
+          AcpTooltip(
+            message: 'Tools-sidebar',
+            child: PopoverAnchor(handle: menuAnchor, child: _MenuButton(selected: menuSelected, onTap: onMenu)),
+          ),
         ],
       ),
     );
