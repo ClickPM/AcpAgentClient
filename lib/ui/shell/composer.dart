@@ -1,8 +1,8 @@
 // 画板 01 / 02 / 03 / 42 · 输入框：占位文案、`+`（画板 40 的上下文加入弹层）、Follow、用量圆环（画板 30）、
-// 模型 / 思考强度 / 模式三个下拉（`config_option_update` 按 category 分配，画板 40）、发送 / 停止（`session/cancel`）。
+// 会话配置格（`configOptions` 与 modes 回退平铺，画板 40）、发送 / 停止（`session/cancel`）。
 // 上方可叠 Awaiting 停靠条（画板 26）与 `@` / `/` 内联菜单（画板 42）。
 // 输入行之上还有待发图片的芯片条（composer_attachments.dart，所有者 2026-09-18 直接要求，设计稿外的增补）。
-// 无已安装 agent 时（画板 01 状态 2 注）：三个下拉与用量圆环都不渲染，发送为禁用态。
+// 无已安装 agent 时（画板 01 状态 2 注）：配置格与用量圆环都不渲染，发送为禁用态。
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -10,6 +10,7 @@ import 'package:flutter/widgets.dart';
 import '../../projection/usage.dart';
 import '../../projection/wire.dart';
 import '../../theme/tokens.dart' as t;
+import '../popovers/menu.dart';
 import '../transcript/card_chrome.dart';
 import '../transcript/context_window.dart';
 import '../transcript/icons.dart';
@@ -27,9 +28,7 @@ class Composer extends StatelessWidget {
     this.enabled = true,
     this.running = false,
     this.usage,
-    this.model,
-    this.thoughtLevel,
-    this.mode,
+    this.options = const <ComposerOption>[],
     this.docks = const <Widget>[],
     this.attachments = const <ContentBlockWire>[],
     this.onRemoveAttachment,
@@ -43,17 +42,11 @@ class Composer extends StatelessWidget {
     this.onFollow,
     this.followOn = false,
     this.onUsage,
-    this.onModel,
-    this.onThoughtLevel,
-    this.onMode,
     this.onSend,
     this.onStop,
     this.plusAnchor,
     this.followAnchor,
     this.usageAnchor,
-    this.modelAnchor,
-    this.thoughtAnchor,
-    this.modeAnchor,
   });
 
   final TextEditingController controller;
@@ -67,10 +60,9 @@ class Composer extends StatelessWidget {
   final bool running;
   final UsageState? usage;
 
-  /// 三个下拉的当前值文案；`null` = 没有对应 category 的 configOption，该下拉不渲染。
-  final String? model;
-  final String? thoughtLevel;
-  final String? mode;
+  /// 输入框右下的会话配置格，从左到右照给的顺序排（档序归组合根定，见 workbench_controller.dart）：
+  /// select 型是下拉芯片，boolean 型是就地开关（画板 40）。空列表 = 没连上 agent 或 agent 不发 configOptions。
+  final List<ComposerOption> options;
 
   /// 输入框上方的停靠条，自上而下依次排：画板 29 的折叠计划条、画板 26 的 Awaiting 条。
   final List<Widget> docks;
@@ -96,19 +88,13 @@ class Composer extends StatelessWidget {
   /// Follow 开关（客户端本地态，画板 40 的提示）：开着时图标走 accent。
   final bool followOn;
   final VoidCallback? onUsage;
-  final VoidCallback? onModel;
-  final VoidCallback? onThoughtLevel;
-  final VoidCallback? onMode;
   final VoidCallback? onSend;
   final VoidCallback? onStop;
 
-  /// 画板 40 六个弹层的锚点（内容由组合根给；gallery 里为 null）。
+  /// 画板 40 里固定那三个弹层的锚点（配置格各自的锚点在 [ComposerOption.anchor]；gallery 里为 null）。
   final PopoverHandle? plusAnchor;
   final PopoverHandle? followAnchor;
   final PopoverHandle? usageAnchor;
-  final PopoverHandle? modelAnchor;
-  final PopoverHandle? thoughtAnchor;
-  final PopoverHandle? modeAnchor;
 
   @override
   Widget build(BuildContext context) {
@@ -265,21 +251,49 @@ class Composer extends StatelessWidget {
             ),
           ],
           const Spacer(),
-          if (model != null)
-            PopoverAnchor(
-              handle: modelAnchor,
-              child: ComposerDropdown(label: model!, onTap: onModel, maxWidth: t.Geometry.composerModelMaxWidth),
-            ),
-          if (thoughtLevel != null)
-            PopoverAnchor(handle: thoughtAnchor, child: ComposerDropdown(label: thoughtLevel!, onTap: onThoughtLevel)),
-          if (mode != null) PopoverAnchor(handle: modeAnchor, child: ComposerDropdown(label: mode!, onTap: onMode)),
+          for (final o in options)
+            if (o.on == null)
+              PopoverAnchor(
+                handle: o.anchor,
+                child: ComposerDropdown(label: o.label, onTap: o.onTap, maxWidth: o.maxWidth),
+              )
+            else
+              ComposerToggle(label: o.label, on: o.on!, onTap: o.onToggle),
           const SizedBox(width: t.Spacing.s4),
           if (running) _StopButton(onTap: onStop) else _SendButton(enabled: enabled, onTap: onSend),
         ],
       );
 }
 
-/// 输入框右下的下拉芯片（模型 / 思考强度 / 模式）。
+/// 输入框右下的一格会话配置（画板 40）：`on == null` 是 select 下拉芯片，否则是 boolean 就地开关。
+/// 一条 `configOption` 一格、不按 category 合并，未识别的 category 也照样有格（ACP v1 session-config-options：
+/// 「Clients MUST handle missing or unknown categories gracefully」）。
+class ComposerOption {
+  const ComposerOption({
+    required this.label,
+    this.anchor,
+    this.onTap,
+    this.on,
+    this.onToggle,
+    this.maxWidth,
+  });
+
+  /// select 型是当前值的展示名，boolean 型是这条选项自己的名字（开关本身表达值）。
+  final String label;
+
+  /// select 型的弹层锚点（gallery 里为 null）。
+  final PopoverHandle? anchor;
+  final VoidCallback? onTap;
+
+  /// boolean 型的当前值；`null` 表示这是 select 型。
+  final bool? on;
+  final VoidCallback? onToggle;
+
+  /// 太长的当前值要截断的那格（模型名），其余不限宽。
+  final double? maxWidth;
+}
+
+/// 输入框右下的下拉芯片（会话配置里的 select 型）。
 class ComposerDropdown extends StatelessWidget {
   const ComposerDropdown({super.key, required this.label, this.onTap, this.maxWidth});
 
@@ -306,6 +320,39 @@ class ComposerDropdown extends StatelessWidget {
               ),
               const SizedBox(width: t.Spacing.s4),
               const Chevron(expanded: false),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 输入框右下的开关格（会话配置里的 boolean 型）：标签在左、开关在右，与下拉芯片同排同高
+/// （照 Zed 的做法，不再单开一个面板）。
+class ComposerToggle extends StatelessWidget {
+  const ComposerToggle({super.key, required this.label, required this.on, this.onTap});
+
+  final String label;
+  final bool on;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: t.Spacing.s4),
+      child: Hoverable(
+        onTap: onTap,
+        builder: (context, hovered) => Container(
+          height: t.Controls.compact,
+          padding: t.Controls.padCompact,
+          decoration: BoxDecoration(color: hovered ? t.Overlays.hover : null, borderRadius: t.Radii.control),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(label, style: CardText.secondary.copyWith(color: t.Neutral.text), maxLines: 1, overflow: TextOverflow.ellipsis),
+              const SizedBox(width: t.Spacing.s4),
+              MenuToggle(on: on, onTap: onTap),
             ],
           ),
         ),

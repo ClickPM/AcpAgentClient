@@ -28,7 +28,6 @@ import '../ui/shell/agent_state_bar.dart';
 import '../ui/shell/app_shell.dart';
 import '../ui/shell/composer.dart';
 import '../ui/shell/motion.dart';
-import '../ui/shell/popover_anchor.dart';
 import '../ui/shell/right_panel.dart';
 import '../ui/shell/shell_common.dart';
 import '../ui/shell/sidebar.dart';
@@ -462,9 +461,23 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       enabled: c.canCompose,
       running: c.isRunning,
       usage: store?.usage,
-      model: _currentName('model'),
-      thoughtLevel: _currentName('thought_level'),
-      mode: _currentName('mode'),
+      // 会话配置格（画板 40）：一条 configOption 一格，顺序 = 控制器的固定档序；boolean 就地开关。
+      options: <ComposerOption>[
+        for (final o in c.composerOptions)
+          if (o.type == 'boolean')
+            ComposerOption(
+              label: o.name ?? o.id ?? '',
+              on: o.currentValue == true,
+              onToggle: () => c.toggleConfigBoolean(o.id ?? '', o.currentValue != true),
+            )
+          else
+            ComposerOption(
+              label: configCurrentName(o),
+              anchor: c.configAnchor(o.id ?? ''),
+              onTap: () => _openSelectPopover(o.id ?? ''),
+              maxWidth: o.category == 'model' ? t.Geometry.composerModelMaxWidth : null,
+            ),
+      ],
       attachments: c.pendingImages,
       onRemoveAttachment: c.removePendingBlock,
       onPaste: c.pasteImageFromClipboard,
@@ -489,15 +502,9 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       onFollow: _toggleFollow,
       followOn: c.follow,
       onUsage: _openUsagePopover,
-      onModel: () => _openSelectPopover('model', c.modelAnchor, searchable: true),
-      onThoughtLevel: () => _openSelectPopover('thought_level', c.thoughtAnchor),
-      onMode: () => _openSelectPopover('mode', c.modeAnchor),
       plusAnchor: c.plusAnchor,
       followAnchor: c.followAnchor,
       usageAnchor: c.usageAnchor,
-      modelAnchor: c.modelAnchor,
-      thoughtAnchor: c.thoughtAnchor,
-      modeAnchor: c.modeAnchor,
     );
   }
 
@@ -512,26 +519,22 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     return latest;
   }
 
-  String? _currentName(String category) {
-    final option = c.optionOf(category);
-    return option == null ? null : configCurrentName(option);
-  }
-
   void _scrollToBottom() {
     if (!_transcript.hasClients) return;
     _transcript.animateTo(_transcript.position.maxScrollExtent, duration: t.Motion.base, curve: t.Motion.curve);
   }
 
-  void _openSelectPopover(String category, PopoverHandle anchor, {bool searchable = false}) {
-    final option = c.optionOf(category);
+  /// 按 configOption 的 id 开那一格的 select 弹层（画板 40）：模型那格带搜索框与行首图标占位，其余都是窄弹层。
+  void _openSelectPopover(String id) {
+    final option = c.optionById(id);
     if (option == null) return;
-    c.modelAnchor.hide();
-    c.thoughtAnchor.hide();
-    c.modeAnchor.hide();
-    anchor.showAbove((_) => ListenableBuilder(
+    final searchable = option.category == 'model';
+    c.hideConfigPopovers();
+    c.configAnchor(id).showAbove((_) => ListenableBuilder(
           listenable: c,
           builder: (context, _) {
-            final current = c.optionOf(category);
+            // `set_config_option` 的响应是全量替换，所以每次 rebuild 都按 id 重新取当前那一份。
+            final current = c.optionById(id);
             if (current == null) return const SizedBox.shrink();
             return ConfigSelectPopover(
               option: current,
@@ -539,7 +542,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
               searchController: searchable ? c.modelSearch : null,
               searchFocusNode: searchable ? c.modelSearchFocus : null,
               query: searchable ? c.modelSearch.text : '',
-              showLeadingMark: category == 'model',
+              showLeadingMark: searchable,
               width: searchable ? t.Geometry.menuWidthWide : t.Geometry.menuWidthNarrow,
               onQueryChanged: (_) => c.refresh(),
               onSelect: (value) => c.selectConfigValue(current.id ?? '', value),

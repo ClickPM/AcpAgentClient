@@ -231,9 +231,10 @@ class WorkbenchController extends ChangeNotifier {
   final PopoverHandle plusAnchor = PopoverHandle();
   final PopoverHandle followAnchor = PopoverHandle();
   final PopoverHandle usageAnchor = PopoverHandle();
-  final PopoverHandle modelAnchor = PopoverHandle();
-  final PopoverHandle thoughtAnchor = PopoverHandle();
-  final PopoverHandle modeAnchor = PopoverHandle();
+
+  /// 输入框右下每一格配置的弹层锚点：按 configOption 的 id 取（modes 回退那条用它的哨兵 id）。
+  /// 惰性建、按 id 复用；换 agent 后旧 id 的锚点留着不回收（一个 agent 的条目是个位数），统一在 [dispose] 里收。
+  final Map<String, PopoverHandle> _configAnchors = <String, PopoverHandle>{};
 
   final List<StreamSubscription<CoreEventRecord>> _subs = <StreamSubscription<CoreEventRecord>>[];
   bool _disposed = false;
@@ -294,18 +295,49 @@ class WorkbenchController extends ChangeNotifier {
     return null;
   }
 
-  List<ConfigOptionWire> get booleanOptions => <ConfigOptionWire>[
-        for (final o in store?.configOptions ?? const <ConfigOptionWire>[])
-          if (o.type == 'boolean') o,
-      ];
+  /// 输入框右下的固定档序（所有者裁定 2026-09-18）：`mode → model → model_config → thought_level → 其余`，
+  /// 档内保持 agent 给的数组顺序、同一档可以有多条。ACP 的 category 是开放集合（schema：
+  /// `Mode | Model | ModelConfig | ThoughtLevel | Other(String)`，字段本身还可缺省，`_` 开头的是 agent 自定义），
+  /// 所以匹配不上的一律排进最后一档、一条一格，不丢条目（spec v1 session-config-options：
+  /// 「Clients MUST handle missing or unknown categories gracefully」）。boolean 型也在这条列表里，就地渲染成开关。
+  /// 与 Zed 的差别只在顺序：Zed 照 agent 给的数组顺序排，我们按档序排（换 agent 时输入框的位置稳定）。
+  static const List<String> _categoryOrder = <String>['mode', 'model', 'model_config', 'thought_level'];
 
-  /// 未识别 category（不在 mode / model / model_config / thought_level）的 select 条目：扁平兜底（画板 40）。
-  List<ConfigOptionWire> get unknownCategoryOptions => <ConfigOptionWire>[
-        for (final o in store?.configOptions ?? const <ConfigOptionWire>[])
-          if (o.type == 'select' && !_knownCategories.contains(o.category)) o,
-      ];
+  List<ConfigOptionWire> get composerOptions {
+    final all = store?.configOptions ?? const <ConfigOptionWire>[];
+    final ordered = <ConfigOptionWire>[];
+    for (final category in _categoryOrder) {
+      // modes 回退（R6）：没有 `category == 'mode'` 的 configOption 时才合成，排在 mode 档的头一格。
+      if (category == 'mode') {
+        final fallback = store?.modeFallbackOption;
+        if (fallback != null) ordered.add(fallback);
+      }
+      for (final o in all) {
+        if (o.category == category) ordered.add(o);
+      }
+    }
+    for (final o in all) {
+      if (!_categoryOrder.contains(o.category)) ordered.add(o);
+    }
+    return ordered;
+  }
 
-  static const Set<String?> _knownCategories = <String?>{'mode', 'model', 'model_config', 'thought_level'};
+  /// 按 id 取当前那一份（弹层要在每次 rebuild 时重新读，`set_config_option` 的响应是全量替换）。
+  ConfigOptionWire? optionById(String id) {
+    for (final o in composerOptions) {
+      if (o.id == id) return o;
+    }
+    return null;
+  }
+
+  /// 配置格的弹层锚点：id 一个，见 [_configAnchors]。
+  PopoverHandle configAnchor(String id) => _configAnchors.putIfAbsent(id, PopoverHandle.new);
+
+  void hideConfigPopovers() {
+    for (final h in _configAnchors.values) {
+      _hide(h);
+    }
+  }
 
   /// 挂起队列的首项（画板 26 的停靠条）。
   TranscriptEntry? get firstPending {
@@ -538,7 +570,7 @@ class WorkbenchController extends ChangeNotifier {
     }
     for (final h in <PopoverHandle>[
       projectAnchor, branchAnchor, newSessionAnchor, threadMenuAnchor, deleteAnchor, plusAnchor,
-      followAnchor, usageAnchor, modelAnchor, thoughtAnchor, modeAnchor,
+      followAnchor, usageAnchor, ..._configAnchors.values,
     ]) {
       h.dispose();
     }
@@ -1511,9 +1543,7 @@ class WorkbenchController extends ChangeNotifier {
   // ---------------------------------------------------------------- 会话配置
 
   Future<void> setConfigOption(String configId, JsonMap value) async {
-    _hide(modelAnchor);
-    _hide(thoughtAnchor);
-    _hide(modeAnchor);
+    hideConfigPopovers();
     final s = store;
     final b = bridge;
     final id = agentId;
@@ -1535,7 +1565,7 @@ class WorkbenchController extends ChangeNotifier {
   /// `session/set_mode`（modes 回退路径）。响应是空的；按规范客户端发起的切换成功即生效，
   /// 所以本地同步 `currentModeId`（agent 自己改模式时会另发 `current_mode_update`）。
   Future<void> setMode(String modeId) async {
-    _hide(modeAnchor);
+    hideConfigPopovers();
     final s = store;
     final b = bridge;
     final id = agentId;

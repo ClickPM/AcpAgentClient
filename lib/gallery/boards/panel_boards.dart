@@ -127,6 +127,20 @@ String? _currentName(FixtureReplay r, String category) {
   return null;
 }
 
+/// 输入框里的三个下拉：与 shell_boards 同一口径，保持 PNG 的顺序与条目（见那边的注）。
+List<ComposerOption> _composerOptions(FixtureReplay r) {
+  final options = <ComposerOption>[];
+  for (final category in const <String>['model', 'thought_level', 'mode']) {
+    final label = _currentName(r, category);
+    if (label == null) continue;
+    options.add(ComposerOption(
+      label: label,
+      maxWidth: category == 'model' ? t.Geometry.composerModelMaxWidth : null,
+    ));
+  }
+  return options;
+}
+
 /// 整窗画板：`SelectableRegion` / `EditableText` / xterm 需要 Overlay 祖先（真实应用由 `MaterialApp` 提供）。
 GalleryBoard _window(String id, String title, WidgetBuilder build) => GalleryBoard(
       id: id,
@@ -167,9 +181,7 @@ Widget _mainColumn(FixtureReplay r, {bool menuSelected = true}) {
       focusNode: FocusNode(),
       placeholder: 'Message to ${_agentTitle(r)} , @ to include context , / for commands',
       usage: s.usage,
-      model: _currentName(r, 'model'),
-      thoughtLevel: _currentName(r, 'thought_level'),
-      mode: _currentName(r, 'mode'),
+      options: _composerOptions(r),
     ),
   );
 }

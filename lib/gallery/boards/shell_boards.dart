@@ -120,6 +120,24 @@ String? _currentName(SessionStore s, String category) {
   return o == null ? null : configCurrentName(o);
 }
 
+/// 画板 01 / 03 输入框里的三个下拉：PNG 是按「模型 · 思考强度 · 模式」排的，画板未按固定档序重出之前，
+/// 对照板保持 PNG 的顺序与条目（真输入框已改成按档序把每条 configOption 都平铺出来，见 rounds/BACKLOG.md）。
+List<ComposerOption> _composerOptions(
+  SessionStore s, {
+  List<String> categories = const <String>['model', 'thought_level', 'mode'],
+}) {
+  final options = <ComposerOption>[];
+  for (final category in categories) {
+    final label = _currentName(s, category);
+    if (label == null) continue;
+    options.add(ComposerOption(
+      label: label,
+      maxWidth: category == 'model' ? t.Geometry.composerModelMaxWidth : null,
+    ));
+  }
+  return options;
+}
+
 /// 把 fixtures 的线上行按 `acp/traffic` 的 payload 形状喂进 TrafficStore（核心侧做的就是这件事）。
 TrafficStore _traffic(List<String> files, {required String agentId}) {
   final store = TrafficStore();
@@ -184,9 +202,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
           focusNode: FocusNode(),
           placeholder: _composerPlaceholder(r),
           usage: s.usage,
-          model: _currentName(s, 'model'),
-          thoughtLevel: _currentName(s, 'thought_level'),
-          mode: _currentName(s, 'mode'),
+          options: _composerOptions(s),
         ),
       ),
     );
@@ -240,9 +256,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
           placeholder: _composerPlaceholder(r),
           running: s.isRunning,
           usage: s.usage,
-          model: _currentName(s, 'model'),
-          thoughtLevel: _currentName(s, 'thought_level'),
-          mode: _currentName(s, 'mode'),
+          options: _composerOptions(s),
           docks: <Widget>[
             ?AwaitingDock.forPending(
               first,
@@ -277,9 +291,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
           focusNode: FocusNode(),
           placeholder: _composerPlaceholder(r),
           usage: s.usage,
-          model: _currentName(s, 'model'),
-          thoughtLevel: _currentName(s, 'thought_level'),
-          mode: _currentName(s, 'mode'),
+          options: _composerOptions(s),
           docks: <Widget>[if (plan != null) PlanCard(plan, initiallyCollapsed: true, cwd: s.cwd)],
         ),
       ),
@@ -453,7 +465,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
               controller: _c('给 @val'),
               focusNode: FocusNode(),
               placeholder: '',
-              mode: _currentName(r.session, 'mode'),
+              options: _composerOptions(r.session, categories: const <String>['mode']),
               inlineMenu: const MentionMenu(files: _mentionFiles, directories: _mentionDirs, recent: _mentionRecent),
             )),
         BoardSection('/ 命令菜单（命令名 + 描述 + 参数提示）', child: _left(SlashCommandMenu(commands: commands))),
@@ -462,7 +474,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
               controller: _c('/co'),
               focusNode: FocusNode(),
               placeholder: '',
-              mode: _currentName(r.session, 'mode'),
+              options: _composerOptions(r.session, categories: const <String>['mode']),
               inlineMenu: SlashCommandMenu(commands: commands),
             )),
       ],
