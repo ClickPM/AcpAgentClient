@@ -106,7 +106,9 @@ void main() {
     expect(file.existsSync(), isTrue, reason: 'include_str! 进 builtin.rs 的就是这个文件');
     final svg = file.readAsStringSync();
     expect(svg, contains('deepseek-ai/deepseek-harness'), reason: '复用要标来源（CLAUDE.md 规则 5）');
-    expect(svg, contains('currentColor'), reason: '取色方式与 registry 的 icon.svg 一致');
+    // 匹配串带上 `fill=`：光找 `currentColor` 的话文件头那句来源注释就够让断言恒真，
+    // 而根元素带着 `fill="none"`，path 上的取色一旦写错整张图一个像素都不画（审查 finding P2）。
+    expect(svg, contains('fill="currentColor"'), reason: '取色方式与 registry 的 icon.svg 一致');
     await SvgStringLoader(svg).loadBytes(null);
   });
 

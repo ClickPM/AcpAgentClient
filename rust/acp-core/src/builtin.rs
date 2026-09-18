@@ -255,7 +255,8 @@ mod tests {
         assert_eq!(value["type"], "custom");
         assert_eq!(value["builtin"], true);
         assert_eq!(value["name"], ZED_AGENT_NAME);
-        assert!(value["iconSvg"].as_str().is_some_and(|s| s.contains("<svg") && s.contains("currentColor")));
+        // 匹配串带上 `fill=`：光找 `currentColor` 的话文件头那句来源注释就够让断言恒真（审查 finding P2）。
+        assert!(value["iconSvg"].as_str().is_some_and(|s| s.contains("<svg") && s.contains(r#"fill="currentColor""#)));
     }
 
     #[test]
@@ -332,7 +333,8 @@ mod tests {
                     extra
                         .get("iconSvg")
                         .and_then(serde_json::Value::as_str)
-                        .is_some_and(|s| s.contains("<svg") && s.contains("currentColor"))
+                        // 同上：匹配串带 `fill=`，否则文件头的来源注释就让断言恒真（审查 finding P2）。
+                        .is_some_and(|s| s.contains("<svg") && s.contains(r#"fill="currentColor""#))
                 );
             }
             other => panic!("unexpected: {other:?}"),
