@@ -44,7 +44,7 @@ class _Core extends FakeCore {
 }
 
 void main() {
-  Future<void> pumpMenu(WidgetTester tester, {required int rows, int selected = -1}) {
+  Future<void> pumpMenu(WidgetTester tester, {required int rows, int selected = -1, MenuSearchField? search}) {
     return tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
@@ -52,6 +52,7 @@ void main() {
           alignment: Alignment.topLeft,
           child: MenuPopover(
             children: <Widget>[
+              if (search != null) search,
               for (var i = 0; i < rows; i++) MenuRow(label: 'row $i', selected: i == selected, onTap: () {}),
             ],
           ),
@@ -93,6 +94,30 @@ void main() {
     expect(menu.contains(row.topLeft) && menu.contains(row.bottomRight), isTrue, reason: '高亮项得落在可见区里');
   });
 
+  testWidgets('搜索框钉在滚动区之外：滚动不挪它（敲字过滤时不会被推出视口）', (tester) async {
+    final searchController = TextEditingController();
+    final searchFocus = FocusNode();
+    addTearDown(searchController.dispose);
+    addTearDown(searchFocus.dispose);
+
+    await pumpMenu(
+      tester,
+      rows: 40,
+      search: MenuSearchField(controller: searchController, focusNode: searchFocus, placeholder: '搜索'),
+    );
+    // 搜索框自己带一个 Scrollable（EditableText），所以这里按 SingleChildScrollView 定位弹层那个。
+    final body = tester.state<ScrollableState>(
+      find.descendant(of: find.byType(SingleChildScrollView), matching: find.byType(Scrollable)),
+    );
+    final before = tester.getRect(find.byType(MenuSearchField));
+
+    expect(body.position.maxScrollExtent, greaterThan(0), reason: '条目还是得能滚');
+    body.position.jumpTo(body.position.maxScrollExtent);
+    await tester.pump();
+
+    expect(tester.getRect(find.byType(MenuSearchField)), before, reason: '搜索框不在滚动区里，滚到底也不该动');
+  });
+
   testWidgets('点输入框之外关掉 `@` 菜单，鼠标点过之后 Esc 仍然管用', (tester) async {
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1;
@@ -116,6 +141,7 @@ void main() {
     //（不然这桩用旧的「Esc 走输入框焦点链」实现也照样通过，锁不住那个回归）。
     c.composerFocus.unfocus();
     await tester.pump();
+    expect(find.byType(MentionMenu), findsOneWidget, reason: '挪焦点本身不该关菜单，下面那一下必须是 Esc 关的');
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pump();
     expect(find.byType(MentionMenu), findsNothing, reason: '焦点已不在输入框，Esc 也得关掉菜单');
