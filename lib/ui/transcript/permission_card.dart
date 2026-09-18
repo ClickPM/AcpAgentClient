@@ -1,6 +1,9 @@
 // 画板 25 · 权限授权卡：session/request_permission · options[].kind = allow_once / allow_always / reject_once / reject_always。
 // 头行 = kind 图标 + 标题 + 路径（accent 链接）；「View Raw Input」折叠 / 展开（请求里的 ToolCallUpdate 原样 JSON）；
-// 底部 = Allow（主按钮 + Alt-Shift-A）· Deny（Alt-Shift-X）· 范围下拉（Ctrl-Alt-A，列出全部选项与 kind）。
+// 底部 = Allow（主按钮）· Deny · 范围下拉（列出全部选项与 kind）。
+// 画板上三个按钮各标了一个快捷键（Alt-Shift-A / Alt-Shift-X / Ctrl-Alt-A），但快捷键从没接过按键处理；
+// 2026-09-18 所有者裁定去掉这三个装饰标签（设计稿补注记见 rounds/BACKLOG.md）。
+// 范围下拉走 [PopoverAnchor] 浮在 Overlay 上：之前画在卡片自己的 Stack 里，转录列表里下一张卡绘制顺序更晚，会把菜单压住。
 // 请求里可能只有 toolCallId，标题与 kind 从已累积的 tool call 取；回应只有 selected / cancelled。
 
 import 'package:flutter/widgets.dart';
@@ -8,6 +11,7 @@ import 'package:flutter/widgets.dart';
 import '../../projection/entries.dart';
 import '../../projection/wire.dart';
 import '../../theme/tokens.dart' as t;
+import '../shell/popover_anchor.dart';
 import 'card_chrome.dart';
 import 'icons.dart';
 import 'tool_call_card.dart';
@@ -30,6 +34,8 @@ class PermissionCard extends StatefulWidget {
   final ToolCallEntry? toolCall;
   final String? cwd;
   final bool rawExpandedInitially;
+
+  /// 一挂上就把范围下拉打开（画板对照的静态样张用；需要 Overlay 祖先）。
   final bool scopeOpenInitially;
   final void Function(String optionId)? onAnswer;
   final void Function(String path)? onOpenPath;
@@ -40,10 +46,31 @@ class PermissionCard extends StatefulWidget {
 
 class _PermissionCardState extends State<PermissionCard> {
   late bool _raw = widget.rawExpandedInitially;
-  late bool _scopeOpen = widget.scopeOpenInitially;
+
+  /// 范围下拉的锚点句柄（放 State 里，别每帧新建）；`_scopeOpen` 只管 chevron 的朝向，
+  /// 点外 / Esc 关掉时由 `onDismiss` 同步回来。
+  final PopoverHandle _scopeMenu = PopoverHandle();
+  bool _scopeOpen = false;
   String? _scopeId;
 
   List<PermissionOptionWire> get _options => widget.entry.options;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.scopeOpenInitially) {
+      // 锚点的 OverlayPortal 要先挂上才能显示，推到首帧之后。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _openScope();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _scopeMenu.dispose();
+    super.dispose();
+  }
 
   PermissionOptionWire? _byKind(String kind) {
     for (final o in _options) {
@@ -64,6 +91,36 @@ class _PermissionCardState extends State<PermissionCard> {
 
   PermissionOptionWire? get _deny => _byKind('reject_once') ?? _byKind('reject_always');
 
+  void _openScope() {
+    _scopeMenu.show(
+      // OverlayPortal 每帧重建 overlay child，builder 直接读当前状态。
+      (_) => PermissionScopeMenu(options: _options, selectedId: _scope?.optionId, onPick: _pickScope),
+      targetAnchor: Alignment.bottomRight,
+      followerAnchor: Alignment.topRight,
+      onDismiss: () {
+        if (mounted) setState(() => _scopeOpen = false);
+      },
+    );
+    setState(() => _scopeOpen = true);
+  }
+
+  void _toggleScope() {
+    if (_scopeOpen) {
+      _scopeMenu.hide();
+      setState(() => _scopeOpen = false);
+    } else {
+      _openScope();
+    }
+  }
+
+  void _pickScope(PermissionOptionWire o) {
+    _scopeMenu.hide();
+    setState(() {
+      _scopeId = o.optionId;
+      _scopeOpen = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final e = widget.entry;
@@ -77,8 +134,6 @@ class _PermissionCardState extends State<PermissionCard> {
     final deny = _deny;
     final answered = e.status != PendingStatus.pending;
     return TranscriptCard(
-      // 范围下拉画在卡片之外，展开时不裁剪。
-      clip: _scopeOpen ? Clip.none : Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
@@ -126,7 +181,6 @@ class _PermissionCardState extends State<PermissionCard> {
                   label: 'Allow',
                   kind: ButtonKind.primary,
                   icon: AcpIcons.check,
-                  kbd: 'Alt-Shift-A',
                   enabled: !answered && scope?.optionId != null,
                   onTap: scope?.optionId == null ? null : () => widget.onAnswer?.call(scope!.optionId!),
                 ),
@@ -136,7 +190,6 @@ class _PermissionCardState extends State<PermissionCard> {
                   icon: AcpIcons.x,
                   iconColor: t.Semantic.error,
                   labelColor: t.Semantic.error,
-                  kbd: 'Alt-Shift-X',
                   enabled: !answered && deny?.optionId != null,
                   onTap: deny?.optionId == null ? null : () => widget.onAnswer?.call(deny!.optionId!),
                 ),
@@ -144,29 +197,13 @@ class _PermissionCardState extends State<PermissionCard> {
                 if (answered)
                   Text(_answeredLabel(e), style: CardText.secondary)
                 else
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: <Widget>[
-                      AcpButton(
-                        label: scope?.name ?? '—',
-                        kbd: 'Ctrl-Alt-A',
-                        trailing: Chevron(expanded: _scopeOpen),
-                        onTap: () => setState(() => _scopeOpen = !_scopeOpen),
-                      ),
-                      if (_scopeOpen)
-                        Positioned(
-                          top: t.Controls.standard + t.Spacing.s4,
-                          right: 0,
-                          child: _ScopeMenu(
-                            options: _options,
-                            selectedId: scope?.optionId,
-                            onPick: (o) => setState(() {
-                              _scopeId = o.optionId;
-                              _scopeOpen = false;
-                            }),
-                          ),
-                        ),
-                    ],
+                  PopoverAnchor(
+                    handle: _scopeMenu,
+                    child: AcpButton(
+                      label: scope?.name ?? '—',
+                      trailing: Chevron(expanded: _scopeOpen),
+                      onTap: _toggleScope,
+                    ),
                   ),
               ],
             ),
@@ -199,8 +236,9 @@ class _PermissionCardState extends State<PermissionCard> {
 }
 
 /// 范围下拉：每项 = 名称 + kind（mono meta）；选中项 surface 底 + accent 对勾。
-class _ScopeMenu extends StatelessWidget {
-  const _ScopeMenu({required this.options, required this.selectedId, required this.onPick});
+/// 由 [PermissionCard] 挂到 Overlay 上；公开只为画板对照页能单独摆一份静态样张。
+class PermissionScopeMenu extends StatelessWidget {
+  const PermissionScopeMenu({super.key, required this.options, required this.selectedId, required this.onPick});
 
   final List<PermissionOptionWire> options;
   final String? selectedId;

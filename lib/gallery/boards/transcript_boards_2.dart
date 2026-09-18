@@ -151,7 +151,9 @@ final List<GalleryBoard> transcriptBoards2 = <GalleryBoard>[
     final p = r.first<PermissionEntry>();
     final tc = r.tool('toolu_014Qx9');
     final cwd = r.session.cwd;
-    // 下拉菜单画在卡片之外：给最后一节留出菜单高度。
+    // 下拉菜单浮在 Overlay 上、画在卡片之外：最后一节自带一个 Overlay（真实应用由 MaterialApp 提供），
+    // 高度 = 卡片本身（头行 + View Raw Input 行 + 底部按钮行 + 上下边框）+ 菜单高度；不裁剪，算少了也只是少留白。
+    final cardHeight = t.Controls.input + t.Controls.standard + t.Spacing.s8 * 2 + t.Controls.standard + t.Borders.width * 2;
     final menuRoom = t.Controls.standard * p.options.length + t.Spacing.s16;
     return BoardPage(
       number: '25',
@@ -162,9 +164,20 @@ final List<GalleryBoard> transcriptBoards2 = <GalleryBoard>[
         BoardSection('View Raw Input 展开', child: PermissionCard(p, toolCall: tc, cwd: cwd, rawExpandedInitially: true)),
         BoardSection(
           '范围下拉展开（四种 kind 的文案；记忆语义由 agent 负责）',
-          child: Padding(
-            padding: EdgeInsets.only(bottom: menuRoom),
-            child: PermissionCard(p, toolCall: tc, cwd: cwd, scopeOpenInitially: true),
+          child: SizedBox(
+            height: cardHeight + menuRoom,
+            child: Overlay(
+              clipBehavior: Clip.none,
+              initialEntries: <OverlayEntry>[
+                // Overlay 给非定位子节点的是紧约束，Align 松开后卡片才按内容高度画。
+                OverlayEntry(
+                  builder: (_) => Align(
+                    alignment: Alignment.topCenter,
+                    child: PermissionCard(p, toolCall: tc, cwd: cwd, scopeOpenInitially: true),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],

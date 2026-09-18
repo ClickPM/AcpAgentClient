@@ -1282,18 +1282,52 @@ class WorkbenchController extends ChangeNotifier {
   /// 删除 / 改名用的 agentId：优先本地索引里记的那个，退到当前连接。
   String _ownerOf(String sessionId) => _sessionAgent[sessionId] ?? agentId ?? '';
 
-  Future<void> _saveIndex() async {
+  /// 侧栏按索引的 `updatedAt` 倒序（核心 `IndexStore::sessions`），而 `updatedAt` 的口径是**用户最后一次发消息的时间**
+  /// （所有者裁定 2026-09-18）：只在 `session/prompt` 发出时打新时间（[promptSent]），收轮、改名、补标题都沿用
+  /// 索引里已有的值——按收轮时间打的话，一条早发出去、晚跑完的会话会在收轮时跳到刚发过消息的那条前面。
+  /// 索引里还没有这条（刚 `session/new`）时不传，核心打当前时间：新会话按创建时间排最上面。
+  Future<void> _saveIndex({bool promptSent = false}) async {
     final b = bridge;
     final s = store;
     if (b == null || s == null) return;
+    final updatedAt = promptSent ? DateTime.now().millisecondsSinceEpoch : _indexUpdatedAtOf(s.sessionId);
     final result = await b.sessionIndexUpsert(<String, dynamic>{
       'agentId': s.agentId ?? agentId ?? '',
       'sessionId': s.sessionId,
       'title': s.title ?? threadTitle,
       'cwd': s.cwd,
       'messageCount': s.entries.whereType<MessageEntry>().length,
+      'updatedAt': ?updatedAt,
     });
     _applyIndex(result['sessions']);
+  }
+
+  /// 用户发出一条消息（发送 / Restore / Regenerate）：把索引的 `updatedAt` 打成现在，侧栏这条立刻升到最上面。
+  /// **不 await**：`startTurn` 与 `_runTurn` 之间不能有异步间隙，否则这段里 `isRunning` 已是 true 而
+  /// `_turnInFlight` 还是 null，Restore / cancel 等不到在途那一轮就会重叠两个 `session/prompt`
+  /// （审查 finding high，2026-09-15）。先后不用担心：索引写与 `session/prompt` 都是核心命令、按发出顺序处理，
+  /// 收轮那次 [_saveIndex] 读到的 [_indexEntries] 早就是打过时间的。写不动只记日志不挡发送——索引是可再生缓存
+  /// （`rust/settings/src/index.rs`），发送才是正事。
+  Future<void> _stampPromptSent() async {
+    try {
+      await _saveIndex(promptSent: true);
+    } catch (e) {
+      debugPrint('[workbench] session index: ${describeError(e)}');
+    }
+  }
+
+  /// 本地索引（`sessions.json`）里这条会话的原始条目；没有为 null。
+  JsonMap? _indexEntryOf(String sessionId) {
+    for (final e in _indexEntries) {
+      if (e['sessionId'] == sessionId) return e;
+    }
+    return null;
+  }
+
+  /// 索引里这条会话的 `updatedAt`；没有这条或还没打过时间时为 null。
+  int? _indexUpdatedAtOf(String sessionId) {
+    final at = (_indexEntryOf(sessionId)?['updatedAt'] as num?)?.toInt();
+    return at == null || at <= 0 ? null : at;
   }
 
   void startRename(String id, {bool inHeader = false}) {
@@ -1332,6 +1366,8 @@ class WorkbenchController extends ChangeNotifier {
         'title': title.trim(),
         'cwd': sessions.maybe(id)?.cwd ?? project?.path,
         'messageCount': existing?.messageCount ?? 0,
+        // 改名不是发消息：沿用原时间，侧栏不因此重排（见 [_saveIndex]）。
+        'updatedAt': ?_indexUpdatedAtOf(id),
       });
       _applyIndex(result['sessions']);
     });
@@ -1456,6 +1492,7 @@ class WorkbenchController extends ChangeNotifier {
     // 又开了一轮：上一轮留下的绿点立即撤（画板 06 D「运行中 · 绿点：无（有则立即撤）」）。
     _clearUnread(s.sessionId);
     s.startTurn(<ContentBlockWire>[for (final b in blocks) ContentBlockWire(b)]);
+    unawaited(_stampPromptSent());
     await _runTurn(b, id, s, blocks);
   }
 
@@ -1474,7 +1511,7 @@ class WorkbenchController extends ChangeNotifier {
           usage: result['usage'] is Map ? (result['usage'] as Map).cast<String, dynamic>() : null,
         );
         _markDone(s.sessionId, stopReason);
-        await _saveIndex();
+        await _saveIndex(); // 只刷消息计数：`updatedAt` 沿用发消息时打的那个（见 [_saveIndex]）
       } catch (e) {
         // 失败也必须收轮：不收的话 `currentTurn` 一直挂着，线程头永远转 spinner、发送位永远是停止键，
         // 之后的 Restore 还会拿新连接去操作一个 agent 侧已不存在的 sessionId（审查第 2 轮 finding P2，2026-09-15）。
@@ -1578,6 +1615,7 @@ class WorkbenchController extends ChangeNotifier {
     }
     _clearUnread(s.sessionId);
     s.startTurn(<ContentBlockWire>[for (final x in blocks) ContentBlockWire(x)]);
+    unawaited(_stampPromptSent());
     await _runTurn(b, id, s, blocks);
   }
 
