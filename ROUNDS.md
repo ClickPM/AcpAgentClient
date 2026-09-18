@@ -212,7 +212,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 
 1. 画板阶段：gallery 01（两状态）/ 02 / 03（右栏用占位）/ 04 / 40 / 41 / 42 / 34 / 80 与 PNG 逐张对照。
 2. 接线阶段：`git diff <画板阶段收口提交>..HEAD -- lib/theme lib/ui` 为空（含 R2 的 `lib/ui/transcript/`）。
-3. dsh 真跑：新会话 → 一轮含权限（Alt-Shift-A 允许、Alt-Shift-X 拒绝、Ctrl-Alt-A 范围下拉）→ elicitation form 提交 → 计划卡折叠 / 展开 → 回合结束行 → 第二轮中途停止 → 重载 agent；改一个 config option 后弹层与线程头同步刷新。
+3. dsh 真跑：新会话 → 一轮含权限（允许 / 拒绝 / 范围下拉；画板 25 上的 Alt-Shift-A / Alt-Shift-X / Ctrl-Alt-A 标签从未接过按键，2026-09-18 已裁定去掉、不做快捷键）→ elicitation form 提交 → 计划卡折叠 / 展开 → 回合结束行 → 第二轮中途停止 → 重载 agent；改一个 config option 后弹层与线程头同步刷新。
 4. 流量面板对同一轮的行数与 `acp-smoke` 一致，密钥打码；注入 `notice` 后 34 与 80 的告警同时出现。
 5. 项目切换后新会话的 cwd 正确；分支列表与 `git branch` 一致，新建分支后顶栏立即更新；非 git 目录分支区隐藏。
 6. 杀掉 agent → 34 的 exited 条 + 重启可用；应用整体不崩。
