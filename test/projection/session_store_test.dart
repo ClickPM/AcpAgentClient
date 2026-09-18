@@ -314,7 +314,7 @@ void main() {
       expect(s.isRunning, isTrue);
 
       final restored = s.restoreTo(t2.id)!;
-      expect(restored.turn, same(t2));
+      expect(restored.prompt, isEmpty, reason: '这一轮没带 prompt 块');
       expect(restored.cancelledRequestIds, isEmpty);
       expect(restored.cancelledElicitationIds, isEmpty);
       expect(s.entries.whereType<TurnEntry>(), hasLength(1));
@@ -472,10 +472,29 @@ void main() {
       final t1 = s.startTurn(<ContentBlockWire>[text('hi')]);
       s.applyUpdateJson(chunk('agent_message_chunk', 'ok'));
       s.endTurn(stopReason: 'end_turn');
-      expect(s.restoreTo(t1.id)!.turn, same(t1));
+      expect(s.restoreTo(t1.id)!.prompt.single.text, 'hi');
       expect(s.entries, isEmpty);
       s.startTurn(<ContentBlockWire>[text('hi2')]);
       expect(s.entries.whereType<MessageEntry>().single.text, 'hi2');
+    });
+
+    test('截断点是用户气泡：session/load 重放回来的历史没有轮边界，照样能截断重发（所有者报障 2026-09-18）', () {
+      final s = newStore();
+      // 重放的形状：只有 update 拼出来的消息，一条 TurnEntry 都没有。
+      s.applyUpdateJson(chunk('user_message_chunk', '第一句'));
+      s.applyUpdateJson(chunk('agent_message_chunk', '答第一句'));
+      s.applyUpdateJson(chunk('user_message_chunk', '第二句'));
+      s.applyUpdateJson(chunk('agent_message_chunk', '答第二句'));
+      expect(s.entries.whereType<TurnEntry>(), isEmpty);
+      final bubbles = s.entries.whereType<MessageEntry>().where((m) => m.role == MessageRole.user).toList();
+
+      final r = s.restoreTo(bubbles.last.id)!;
+      expect(r.prompt.single.text, '第二句', reason: '重发用这条气泡自己的块');
+      expect(s.entries, hasLength(2), reason: '这条气泡及其后的全截掉，前一轮留着');
+      expect(s.entries.whereType<MessageEntry>().last.text, '答第一句');
+      // 助手气泡不是截断点。
+      expect(s.restoreTo(s.entries.last.id), isNull);
+      expect(s.entries, hasLength(2));
     });
   });
 

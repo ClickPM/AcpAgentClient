@@ -402,8 +402,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
               onLink: _openLink,
               // 画板 18 的 Go to File 与 21 的行点击：落右栏文件面板并定位到行。
               onGoToFile: (path, line) => c.goToFile(path, line: line),
-              onRestore: (turn) => c.restore(turn),
-              onRegenerate: (turn, text) => c.restore(turn, newText: text),
+              onRestore: (message) => c.restore(message),
+              onRegenerate: (message, text) => c.restore(message, newText: text),
               onAnswerPermission: c.answerPermission,
               onAnswerElicitation: c.answerElicitation,
               // 画板 23 的停止方块：terminal_kill。

@@ -20,10 +20,11 @@ import 'wire.dart';
 typedef Clock = DateTime Function();
 
 class RestoreResult {
-  const RestoreResult({required this.turn, required this.cancelledRequestIds, required this.cancelledElicitationIds});
+  const RestoreResult({required this.prompt, required this.cancelledRequestIds, required this.cancelledElicitationIds});
 
-  /// 被截断的轮（其 prompt 用于同会话重发）。
-  final TurnEntry turn;
+  /// 被截断那一轮发出去的 prompt 块（用于同会话重发）。轮边界在的时候用它记下的那批，
+  /// `session/load` 重放回来的历史没有轮边界，用那条用户消息自己的块。
+  final List<ContentBlockWire> prompt;
 
   /// 要以 `PendingQueue.cancelledOutcome` 回应的权限请求。
   final List<String> cancelledRequestIds;
@@ -433,15 +434,40 @@ class SessionStore extends ChangeNotifier {
     return CancelResult(toolCallIds: tools, cancelledRequestIds: requests, cancelledElicitationIds: elicitations);
   }
 
-  /// Restore（画板 11 用户气泡上的 ↺）：本地截断该轮及其后全部投影块，返回被截断的轮（其 prompt 用于同会话重发）与
+  /// Restore（画板 11 用户气泡上的 ↺）与编辑态的 Regenerate：截断点是**那条用户消息**（[entryId] 是它的 id，
+  /// 紧挨在它前面的轮边界一起截掉），本地截断它及其后全部投影块，返回重发用的 prompt 块与
   /// 截断范围内仍挂起的请求：permission 标 cancelled（回 `PendingQueue.cancelledOutcome`）、elicitation 标 cancelled
   /// （回 `PendingQueue.cancelledAction`）——接线侧必须拿这些 id 去 `acp_respond`，否则 agent 挂起（审查 high）。
   /// 协议没有回滚，agent 侧上下文不回退（所有者裁定 2026-09-15，已知限制）。
-  RestoreResult? restoreTo(String turnEntryId) {
-    final idx = entries.indexWhere((e) => e.id == turnEntryId && e is TurnEntry);
+  ///
+  /// **不能只认轮边界**（`TurnEntry`）：轮边界只有我们自己 `startTurn` 时才放，`session/load`
+  /// 重放回来的历史一条都没有（[resetForReplay] 之后全是 update 拼出来的消息），按轮定位的话
+  /// 重开应用 / 切回旧会话之后每条气泡的 ↺ 与 Regenerate 都是点了毫无反应的死键（所有者报障 2026-09-18）。
+  /// 为了兼容也接轮边界自己的 id。
+  RestoreResult? restoreTo(String entryId) {
+    var idx = entries.indexWhere((e) => e.id == entryId);
     if (idx < 0) return null;
+    final anchor = entries[idx];
+    List<ContentBlockWire> prompt;
+    int? turnN;
+    switch (anchor) {
+      case final TurnEntry t:
+        prompt = t.prompt;
+        turnN = t.n;
+      case final MessageEntry m when m.role == MessageRole.user:
+        prompt = List<ContentBlockWire>.unmodifiable(m.blocks);
+        // 本地回显那条前面紧挨着的就是本轮的轮边界，它也要截掉：留着的话 `startTurn` 会在它后面
+        // 再放一条，同一轮出现两个边界（`_openEcho` 的去重靠边界定位，会跟着错）。
+        final prev = idx > 0 ? entries[idx - 1] : null;
+        if (prev is TurnEntry) {
+          if (prev.prompt.isNotEmpty) prompt = prev.prompt; // 带附件的那批以轮记下的为准
+          turnN = prev.n;
+          idx -= 1;
+        }
+      default:
+        return null; // 其它条目不是截断点（嵌套在工具卡里的用户消息也不是）
+    }
     final now = this.now;
-    final turn = entries[idx] as TurnEntry;
     final removed = entries.sublist(idx);
     entries.removeRange(idx, entries.length);
     final permissions = <String>[];
@@ -453,10 +479,10 @@ class SessionStore extends ChangeNotifier {
     for (final id in <String>[...permissions, ...elicitations]) {
       pending.cancelRequest(id, now: now);
     }
-    turnCount = turn.n - 1;
+    if (turnN != null) turnCount = turnN - 1;
     currentTurn = null;
     _changed();
-    return RestoreResult(turn: turn, cancelledRequestIds: permissions, cancelledElicitationIds: elicitations);
+    return RestoreResult(prompt: prompt, cancelledRequestIds: permissions, cancelledElicitationIds: elicitations);
   }
 
   void _collectPending(TranscriptEntry e, List<String> permissions, List<String> elicitations) {

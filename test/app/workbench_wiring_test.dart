@@ -85,15 +85,17 @@ const String _session = 'sess_1';
 
 /// 建一个「一轮里既有挂起的 permission 又有挂起的 elicitation」的控制器。
 /// `running: false` = 这一轮已经结束、但两条请求还挂着（Restore 的 `_respondCancelled` 走这条路）。
-(WorkbenchController, FakeCore, TurnEntry) _scenario({bool running = true}) {
+/// 第三个返回值是那条用户气泡（Restore / Regenerate 的截断点就是它，见 `SessionStore.restoreTo`）。
+(WorkbenchController, FakeCore, MessageEntry) _scenario({bool running = true}) {
   final core = FakeCore();
   final c = WorkbenchController(source: DataSource.bridge, bridge: core)
     ..agentId = _agent
     ..sessionId = _session;
   final store = c.sessions.session(_session, agentId: _agent);
-  final turn = store.startTurn(<ContentBlockWire>[
+  store.startTurn(<ContentBlockWire>[
     const ContentBlockWire(<String, dynamic>{'type': 'text', 'text': '原始提示'}),
   ]);
+  final bubble = store.entries.whereType<MessageEntry>().first;
   c.sessions.applyClientRequestEnvelope(<String, dynamic>{
     'agentId': _agent,
     'requestId': 'req_perm',
@@ -118,16 +120,16 @@ const String _session = 'sess_1';
     },
   });
   if (!running) store.endTurn(stopReason: 'end_turn');
-  return (c, core, turn);
+  return (c, core, bubble);
 }
 
 void main() {
   test('轮已结束但请求还挂着时 Restore：两组 id 都要 acp_respond（permission cancelled / elicitation cancel）', () async {
-    final (c, core, turn) = _scenario(running: false);
+    final (c, core, bubble) = _scenario(running: false);
     final store = c.sessions.session(_session);
     expect(store.pending.forSession(_session).length, 2, reason: '两条都还挂着');
 
-    await c.restore(turn);
+    await c.restore(bubble);
 
     final byId = <String, JsonMap>{for (final r in core.responded) r.$1: r.$2};
     expect(byId.keys.toSet(), <String>{'req_perm', 'req_elic'}, reason: '一条都不能漏，否则 agent 挂起');
@@ -142,8 +144,8 @@ void main() {
   });
 
   test('Regenerate 用新文本重发，同样先回应被截断的挂起请求', () async {
-    final (c, core, turn) = _scenario(running: false);
-    await c.restore(turn, newText: '改过的提示');
+    final (c, core, bubble) = _scenario(running: false);
+    await c.restore(bubble, newText: '改过的提示');
 
     expect(core.responded.length, 2);
     expect(core.prompts.single.length, 1);
@@ -151,12 +153,57 @@ void main() {
     c.dispose();
   });
 
+  test('session/load 重放回来的历史（一条轮边界都没有）也能 Restore / Regenerate（所有者报障 2026-09-18）', () async {
+    final core = FakeCore();
+    final c = WorkbenchController(source: DataSource.bridge, bridge: core)
+      ..agentId = _agent
+      ..sessionId = _session;
+    final store = c.sessions.session(_session, agentId: _agent);
+    // 重放的形状：只有 agent 发来的 update，客户端一次 startTurn 都没做过。
+    for (final u in <JsonMap>[
+      <String, dynamic>{'sessionUpdate': 'user_message_chunk', 'content': <String, dynamic>{'type': 'text', 'text': '第一句'}},
+      <String, dynamic>{'sessionUpdate': 'agent_message_chunk', 'content': <String, dynamic>{'type': 'text', 'text': '答第一句'}},
+      <String, dynamic>{'sessionUpdate': 'user_message_chunk', 'content': <String, dynamic>{'type': 'text', 'text': '第二句'}},
+      <String, dynamic>{'sessionUpdate': 'agent_message_chunk', 'content': <String, dynamic>{'type': 'text', 'text': '答第二句'}},
+    ]) {
+      store.applyUpdateJson(u);
+    }
+    expect(store.entries.whereType<TurnEntry>(), isEmpty, reason: '轮边界回不来（docs/design.md § 3）');
+    final bubbles = store.entries.whereType<MessageEntry>().where((m) => m.role == MessageRole.user).toList();
+
+    await c.restore(bubbles.last, newText: '改过的第二句');
+
+    expect(core.prompts.single.length, 1, reason: '点了要真发出去，不能是死键');
+    expect((core.prompts.single.single as JsonMap)['text'], '改过的第二句');
+    // 被截断的那条气泡与它后面的回答都没了，重发的那一轮接在第一轮后面。
+    final texts = store.entries.whereType<MessageEntry>().map((m) => m.text).toList();
+    expect(texts, <String>['第一句', '答第一句', '改过的第二句']);
+    c.dispose();
+  });
+
+  test('重放回来的历史按 ↺ 原样重发：用那条气泡自己的块', () async {
+    final core = FakeCore();
+    final c = WorkbenchController(source: DataSource.bridge, bridge: core)
+      ..agentId = _agent
+      ..sessionId = _session;
+    final store = c.sessions.session(_session, agentId: _agent);
+    store.applyUpdateJson(<String, dynamic>{
+      'sessionUpdate': 'user_message_chunk',
+      'content': <String, dynamic>{'type': 'text', 'text': '原样这句'},
+    });
+
+    await c.restore(store.entries.whereType<MessageEntry>().single);
+
+    expect((core.prompts.single.single as JsonMap)['text'], '原样这句');
+    c.dispose();
+  });
+
   test('轮还在进行时 Restore：权限交给核心的 cancel、elicitation 前端回 cancel，队列清空', () async {
-    final (c, core, turn) = _scenario();
+    final (c, core, bubble) = _scenario();
     final store = c.sessions.session(_session);
     expect(store.isRunning, isTrue);
 
-    await c.restore(turn);
+    await c.restore(bubble);
 
     final byId = <String, JsonMap>{for (final r in core.responded) r.$1: r.$2};
     expect(core.cancels, 1, reason: '先把在途那一轮收掉');
@@ -189,10 +236,10 @@ void main() {
     c.composer.text = '第一轮';
     final sending = c.send();
     expect(store.isRunning, isTrue);
-    final turn = store.entries.whereType<TurnEntry>().first;
+    final bubble = store.entries.whereType<MessageEntry>().first;
 
     // 第一轮还没返回就点 Restore。
-    final restoring = c.restore(turn, newText: '改过的提示');
+    final restoring = c.restore(bubble, newText: '改过的提示');
     core.release();
     await Future.wait(<Future<void>>[sending, restoring]);
 

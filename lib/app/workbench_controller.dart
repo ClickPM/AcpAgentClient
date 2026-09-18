@@ -1582,11 +1582,12 @@ class WorkbenchController extends ChangeNotifier {
     await _guard(() => b.acpRespond(id, requestId, payload));
   }
 
-  /// 用户气泡上的 Restore 与 Regenerate（画板 11）：本地截断 + 同会话重发。
+  /// 用户气泡上的 Restore 与 Regenerate（画板 11）：从这条用户消息本地截断 + 同会话重发
+  /// （截断点是消息本身而不是轮边界：`session/load` 重放回来的历史没有轮边界，见 `restoreTo` 的注释）。
   /// （画板 10 的 Restore Checkpoint 分隔线已废弃，所有者裁定 2026-09-17：与这里是同一个动作。）
   /// **截断范围内仍挂起的请求必须回应**，否则 agent 一直等着：permission 回 cancelled outcome、
   /// elicitation 回 cancelled action（`RestoreResult` 的两组 id）。
-  Future<void> restore(TurnEntry turn, {String? newText}) async {
+  Future<void> restore(MessageEntry message, {String? newText}) async {
     final s = store;
     if (s == null) return;
     // 关掉的会话不能 Restore / Regenerate：`restoreTo` 会先把本地转录截断，随后的 `session/prompt`
@@ -1597,14 +1598,14 @@ class WorkbenchController extends ChangeNotifier {
       await cancel();
       await _turnInFlight;
     }
-    final result = s.restoreTo(turn.id);
+    final result = s.restoreTo(message.id);
     if (result == null) return;
     await _respondCancelled(result);
     final blocks = <JsonMap>[
       if (newText != null && newText.trim().isNotEmpty)
         <String, dynamic>{'type': 'text', 'text': newText}
       else
-        for (final b in result.turn.prompt) b.json,
+        for (final b in result.prompt) b.json,
     ];
     if (blocks.isEmpty) return;
     final b = bridge;

@@ -83,7 +83,7 @@ Flutter 宿主进程（Dart）
 - 待处理队列按 `sessionId` 索引，另有一个无会话的 requestScope 队列（认证阶段的 elicitation）。
 - 工具调用「已取消」是前端本地态（`ToolCallStatus` 没有 cancelled）：发出 `session/cancel` 后把本轮未完成的工具卡标 cancelled，核心不伪造状态。
 - 用户消息上的 Restore 与 Regenerate（画板 11）= 本地截断其后的投影块并在同一会话重发 prompt；协议没有回滚，agent 侧上下文不回退，这是已知限制（所有者裁定 2026-09-15）。**画板 10 的 Restore Checkpoint 分隔线已废弃**（所有者裁定 2026-09-17）：我们没有 git checkpoint（Zed 那条线恢复的是项目文件），它点下去与画板 11 的 Restore 完全同一个动作，轮开始因此不再画任何东西。
-- `session/load` 的重放只带回 agent 侧的 `session/update`：轮边界（`TurnEntry` / `stopReason` / 回合级 usage）、权限卡与 elicitation 卡是客户端按自己发出的请求造的，**回不来**。所以载回来的历史上 Restore / Regenerate 不可用（它们按 `TurnEntry` 截断），也不在本地补一份轮边界——不造协议之外的状态（所有者裁定 2026-09-16，R6）。
+- `session/load` 的重放只带回 agent 侧的 `session/update`：轮边界（`TurnEntry` / `stopReason` / 回合级 usage）、权限卡与 elicitation 卡是客户端按自己发出的请求造的，**回不来**；也不在本地补一份轮边界——不造协议之外的状态（所有者裁定 2026-09-16，R6）。Restore / Regenerate 因此**不按轮边界定位**：截断点是那条用户气泡自己（气泡前面紧挨着轮边界时一起截掉，重发用轮记下的那批块），载回来的历史照样能重发（所有者报障 2026-09-18：按轮定位时重开应用后每条气泡的 ↺ 与 Regenerate 都是点了毫无反应的死键）。
 - `session/close` 之后会话是**只读**的：转录留着，但 prompt / Restore / Regenerate / 三个下拉 / 停止方块都不再发命令，直到 `session/resume` 把它挂回来（R6；`session/resume` 只对没在本连接上活着的会话有效，实测 dsh 1.3.0 对活着的回 `-32602`）。
 - `/` 命令菜单单组渲染：`AvailableCommand` 没有分组与来源字段，不按名字猜分组（所有者裁定 2026-09-15）。
 - 侧栏会话列表以本地索引为准；`session/list` 只用来校对存在性与补标题，agent 有、本地没有的会话不自动出现（所有者裁定 2026-09-15，R6）。

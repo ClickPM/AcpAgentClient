@@ -37,21 +37,6 @@ Widget host(Widget child) => Directionality(
     );
 
 void main() {
-  test('turnOf：用户消息归它前面最近的检查点；嵌套或无轮的条目为 null', () {
-    final s = newStore();
-    final t1 = s.startTurn(const <ContentBlockWire>[]);
-    s.applyUpdateJson(userChunk('a'));
-    s.endTurn(stopReason: 'end_turn');
-    final t2 = s.startTurn(const <ContentBlockWire>[]);
-    s.applyUpdateJson(userChunk('b'));
-    final msgs = s.entries.whereType<MessageEntry>().toList();
-    expect(turnOf(s.entries, msgs[0]), same(t1));
-    expect(turnOf(s.entries, msgs[1]), same(t2));
-    final other = newStore();
-    other.applyUpdateJson(userChunk('c'));
-    expect(turnOf(other.entries, other.entries.single), isNull);
-  });
-
   testWidgets('URL elicitation：Open 打开链接、记已打开并回 accept；Cancel 在已 accept 后只本地标 cancelled', (tester) async {
     final s = newStore();
     s.applyClientRequest(const ClientRequestEnvelope(urlElicitation));
@@ -88,22 +73,27 @@ void main() {
     expect(find.text('Cancel'), findsNothing);
   });
 
-  testWidgets('用户气泡的 Restore / Regenerate 带上所属的轮', (tester) async {
-    final s = newStore();
-    final t1 = s.startTurn(const <ContentBlockWire>[]);
-    s.applyUpdateJson(userChunk('hello'));
-    TurnEntry? restored;
-    (TurnEntry, String)? regenerated;
-    await tester.pumpWidget(host(TranscriptList(
-      s,
-      onRestore: (turn) => restored = turn,
-      onRegenerate: (turn, text) => regenerated = (turn, text),
-    )));
-    // 悬浮条 / 编辑态的控件要鼠标悬停才出现，这里直接取气泡拿到的回调（它们经 turnOf 绑到 t1）。
-    final bubble = tester.widget<UserMessage>(find.byType(UserMessage));
-    bubble.onRestore!();
-    bubble.onRegenerate!('again');
-    expect(restored, same(t1));
-    expect(regenerated, (t1, 'again'));
-  });
+  // 截断点是气泡自己（不是轮边界）：`session/load` 重放回来的历史一条轮边界都没有，
+  // 按轮定位的话重开应用后每条气泡的 ↺ / Regenerate 都是死键（所有者报障 2026-09-18）。
+  for (final withTurn in <bool>[true, false]) {
+    testWidgets('用户气泡的 Restore / Regenerate 带上那条消息${withTurn ? '' : '（重放回来的历史没有轮边界）'}', (tester) async {
+      final s = newStore();
+      if (withTurn) s.startTurn(const <ContentBlockWire>[]);
+      s.applyUpdateJson(userChunk('hello'));
+      MessageEntry? restored;
+      (MessageEntry, String)? regenerated;
+      await tester.pumpWidget(host(TranscriptList(
+        s,
+        onRestore: (m) => restored = m,
+        onRegenerate: (m, text) => regenerated = (m, text),
+      )));
+      // 悬浮条 / 编辑态的控件要鼠标悬停才出现，这里直接取气泡拿到的回调。
+      final bubble = tester.widget<UserMessage>(find.byType(UserMessage));
+      final message = s.entries.whereType<MessageEntry>().single;
+      bubble.onRestore!();
+      bubble.onRegenerate!('again');
+      expect(restored, same(message));
+      expect(regenerated, (message, 'again'));
+    });
+  }
 }

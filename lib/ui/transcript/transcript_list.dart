@@ -43,15 +43,6 @@ class TurnEndRow extends TranscriptRow {
   final TurnEntry turn;
 }
 
-/// 用户消息所属的轮：它前面最近的一条 `TurnEntry`。画板 11 的 Restore / Regenerate 按这轮截断。
-TurnEntry? turnOf(List<TranscriptEntry> entries, TranscriptEntry e) {
-  for (var i = entries.indexOf(e); i >= 0; i--) {
-    final c = entries[i];
-    if (c is TurnEntry) return c;
-  }
-  return null;
-}
-
 /// 把条目列表展开成行：每个已结束的轮在其最后一个条目之后加一行结束行。
 /// `TurnEntry` 本身不出行——轮开始不画任何东西（画板 10 的分隔线已废弃，见文件头），它只用来切轮与定位 Restore。
 List<TranscriptRow> buildRows(List<TranscriptEntry> entries) {
@@ -96,10 +87,11 @@ class TranscriptList extends StatelessWidget {
   final String? agentName;
   final void Function(String href)? onLink;
   final void Function(String path, int? line)? onGoToFile;
-  final void Function(TurnEntry turn)? onRestore;
+  /// 画板 11 气泡上的 ↺：从这条用户消息截断后原样重发。
+  final void Function(MessageEntry message)? onRestore;
 
-  /// 画板 11 编辑态的 Regenerate：截断该轮后用新文本同会话重发。
-  final void Function(TurnEntry turn, String text)? onRegenerate;
+  /// 画板 11 编辑态的 Regenerate：从这条用户消息截断后用新文本同会话重发。
+  final void Function(MessageEntry message, String text)? onRegenerate;
   final void Function(String requestId, String optionId)? onAnswerPermission;
   final void Function(String requestId, String action, Map<String, dynamic>? content)? onAnswerElicitation;
 
@@ -144,12 +136,11 @@ class TranscriptList extends StatelessWidget {
     switch (e) {
       case final MessageEntry m:
         if (m.role != MessageRole.user) return AssistantText(m, onLink: onLink);
-        final turn = turnOf(store.entries, m);
         return UserMessage(
           m,
           onOpenMention: onLink,
-          onRestore: onRestore == null || turn == null ? null : () => onRestore!(turn),
-          onRegenerate: onRegenerate == null || turn == null ? null : (text) => onRegenerate!(turn, text),
+          onRestore: onRestore == null ? null : () => onRestore!(m),
+          onRegenerate: onRegenerate == null ? null : (text) => onRegenerate!(m, text),
         );
       case final ThoughtEntry th:
         return ThinkingBlock(th);

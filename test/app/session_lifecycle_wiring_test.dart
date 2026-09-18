@@ -268,17 +268,18 @@ void main() {
     final (c, core) = await _connected();
     c.sessionId = _session;
     final store = c.sessions.session(_session, agentId: _agent)..cwd = _cwd;
-    final turn = store.startTurn(<ContentBlockWire>[
+    store.startTurn(<ContentBlockWire>[
       const ContentBlockWire(<String, dynamic>{'type': 'text', 'text': '关闭前的那一轮'}),
     ]);
+    final bubble = store.entries.whereType<MessageEntry>().first;
     store.endTurn(stopReason: 'end_turn');
     final entriesBefore = store.entries.length;
     await c.closeSession();
 
     c.composer.text = '还想说点什么';
     await c.send();
-    await c.restore(turn);
-    await c.restore(turn, newText: '换个说法');
+    await c.restore(bubble);
+    await c.restore(bubble, newText: '换个说法');
     await c.selectConfigValue('model', 'gpt');
     await c.toggleConfigBoolean('auto_approve', true);
     await c.setMode('code');
