@@ -1257,7 +1257,7 @@ class WorkbenchController extends ChangeNotifier {
   }
 
   /// 删除这条会话时会不会连 agent 侧一起删：它的 agent 连着（能力已知）且声明了 `sessionCapabilities.delete`。
-  /// 与 [_canDeleteSessionOf]（侧栏图标给不给）不同——能力未知时图标照给，但不会发 `session/delete`。
+  /// 与侧栏的删除图标（一律给）不同——能力未知时图标照给，但不会发 `session/delete`。
   bool deletesOnAgent(String sessionId) {
     if (_deletedOnAgent.contains(sessionId)) return false;
     final owner = _ownerOf(sessionId);
@@ -1713,19 +1713,23 @@ class WorkbenchController extends ChangeNotifier {
   /// 那一下已经由 `EditableText` 自己贴进去了；是截图 / 图片文件才加成 `image` 块。
   Future<void> pasteImageFromClipboard() async {
     if (!canCompose) return;
-    final text = await Clipboard.getData(Clipboard.kTextPlain);
-    if ((text?.text ?? '').isNotEmpty) return;
-    if (!canPromptImage) return; // 不支持图片的 agent：连剪贴板都不用读
-    final result = await readClipboardImages();
-    if (result.skippedTooLarge) {
-      lastError = '图片超过 ${clipboardImageSizeLimit ~/ (1024 * 1024)} MB，没有加进输入框';
-      _touch();
-    }
-    if (result.images.isEmpty) return;
-    for (final image in result.images) {
-      addImage(base64Encode(image.bytes), image.mimeType, path: image.path);
-    }
-    composerFocus.requestFocus();
+    // 按键回调是 fire-and-forget（`onPaste?.call()` 没人 await），所以这里自己兜住：
+    // `Clipboard.getData` 在剪贴板被别的进程占着时会抛 `PlatformException`，不兜就成了未捕获的异步错误。
+    await _guard(() async {
+      final text = await Clipboard.getData(Clipboard.kTextPlain);
+      if ((text?.text ?? '').isNotEmpty) return;
+      if (!canPromptImage) return; // 不支持图片的 agent：连剪贴板都不用读
+      final result = await readClipboardImages();
+      if (result.skippedTooLarge) {
+        lastError = '图片超过 ${clipboardImageSizeLimit ~/ (1024 * 1024)} MB，没有加进输入框';
+        _touch();
+      }
+      if (result.images.isEmpty) return;
+      for (final image in result.images) {
+        addImage(base64Encode(image.bytes), image.mimeType, path: image.path);
+      }
+      composerFocus.requestFocus();
+    });
   }
 
   void addEmbeddedResource(String uri, String text, {String mimeType = 'text/plain'}) {
