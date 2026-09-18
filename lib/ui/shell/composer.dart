@@ -1,16 +1,19 @@
 // 画板 01 / 02 / 03 / 42 · 输入框：占位文案、`+`（画板 40 的上下文加入弹层）、Follow、用量圆环（画板 30）、
 // 模型 / 思考强度 / 模式三个下拉（`config_option_update` 按 category 分配，画板 40）、发送 / 停止（`session/cancel`）。
 // 上方可叠 Awaiting 停靠条（画板 26）与 `@` / `/` 内联菜单（画板 42）。
+// 输入行之上还有待发图片的芯片条（composer_attachments.dart，所有者 2026-09-18 直接要求，设计稿外的增补）。
 // 无已安装 agent 时（画板 01 状态 2 注）：三个下拉与用量圆环都不渲染，发送为禁用态。
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../projection/usage.dart';
+import '../../projection/wire.dart';
 import '../../theme/tokens.dart' as t;
 import '../transcript/card_chrome.dart';
 import '../transcript/context_window.dart';
 import '../transcript/icons.dart';
+import 'composer_attachments.dart';
 import 'popover_anchor.dart';
 import 'shell_common.dart';
 
@@ -27,6 +30,9 @@ class Composer extends StatelessWidget {
     this.thoughtLevel,
     this.mode,
     this.docks = const <Widget>[],
+    this.attachments = const <ContentBlockWire>[],
+    this.onRemoveAttachment,
+    this.onPaste,
     this.inlineMenu,
     this.onInlineMenuMove,
     this.onInlineMenuPick,
@@ -67,6 +73,13 @@ class Composer extends StatelessWidget {
 
   /// 输入框上方的停靠条，自上而下依次排：画板 29 的折叠计划条、画板 26 的 Awaiting 条。
   final List<Widget> docks;
+
+  /// 待随下一条 prompt 发出的图片块（`+` 的 Image 与 Ctrl+V 粘贴）：输入框顶部的芯片条，悬浮出预览。
+  final List<ContentBlockWire> attachments;
+  final ValueChanged<ContentBlockWire>? onRemoveAttachment;
+
+  /// Ctrl/Cmd+V：剪贴板里是图片时加成附件块。文本粘贴仍归 `EditableText` 自己（见 [_onKeyEvent]）。
+  final VoidCallback? onPaste;
 
   /// 画板 42 的 `@` / `/` 菜单。
   final Widget? inlineMenu;
@@ -146,6 +159,14 @@ class Composer extends StatelessWidget {
       }
     }
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    // Ctrl/Cmd+V：顺带看一眼剪贴板里有没有图（截图 / 图片文件），有就加成附件块。
+    // 一律 `ignored`：这一下是不是文本粘贴要读完剪贴板才知道，而按键回调必须同步返回，
+    // 所以文本粘贴照旧交给 `EditableText`，`onPaste` 那边先看剪贴板里是不是文本、是就什么都不做。
+    if (key == LogicalKeyboardKey.keyV &&
+        (HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed)) {
+      if (enabled) onPaste?.call();
+      return KeyEventResult.ignored;
+    }
     if (key != LogicalKeyboardKey.enter && key != LogicalKeyboardKey.numpadEnter) {
       return KeyEventResult.ignored;
     }
@@ -170,6 +191,10 @@ class Composer extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
+            if (attachments.isNotEmpty) ...<Widget>[
+              ComposerAttachments(blocks: attachments, onRemove: onRemoveAttachment),
+              const SizedBox(height: t.Spacing.s8),
+            ],
             ConstrainedBox(
               constraints: const BoxConstraints(minHeight: t.Controls.input + t.Spacing.s8),
               child: Focus(

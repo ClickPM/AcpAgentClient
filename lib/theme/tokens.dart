@@ -381,6 +381,10 @@ abstract final class Geometry {
   /// 03：输入框里模型下拉的最大宽度（名字长时截断）。
   static const double composerModelMaxWidth = 170;
 
+  /// 03：输入框顶部附件芯片悬浮出的预览上限（芯片本身走 [Controls.compact] 高、[Radii.chip] 圆角）。
+  static const double attachmentPreviewMaxWidth = 320;
+  static const double attachmentPreviewMaxHeight = 240;
+
   /// 弹层与触发控件的间隙（向下 / 向上展开）。
   static const Offset popoverBelow = Offset(0, Spacing.s4);
   static const Offset popoverAbove = Offset(0, -Spacing.s4);

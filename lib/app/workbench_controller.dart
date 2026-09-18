@@ -13,6 +13,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../projection/agent_state.dart';
@@ -35,6 +36,7 @@ import '../ui/shell/popover_anchor.dart';
 import '../ui/shell/right_panel.dart';
 import '../ui/shell/shell_common.dart';
 import '../ui/shell/sidebar.dart';
+import 'clipboard_image.dart';
 import 'core_bridge.dart';
 import 'files_state.dart';
 import 'local_terminals.dart';
@@ -701,6 +703,17 @@ class WorkbenchController extends ChangeNotifier {
 
   bool get canLoadSession => canLoadSessionOf(agentId);
   bool get canListSessions => _sessionCaps.containsKey('list');
+
+  /// `promptCapabilities.image`：prompt 里能不能带 `image` 块。管住 `+` 的 Image 一项（画板 40）与 Ctrl+V 粘贴。
+  /// **能力未知**（这个 agent 本次运行还没连过——选了一条老会话、第一条消息还没发出去就是这个状态）时
+  /// 照给，与侧栏删除图标同口径：严判的话那会儿粘贴会静默失灵，而多带一个 `image` 块最坏是被 agent
+  /// 拒掉一条 prompt。连上之后按它自己声明的来。
+  bool get canPromptImage {
+    final caps = _capsOf(agentId);
+    if (caps == null) return true;
+    final prompt = caps['promptCapabilities'];
+    return prompt is Map && prompt['image'] == true;
+  }
 
   /// ≡ 菜单的三个动作（画板 41）：无能力整行不渲染。
   /// Resume 与 Close 还要看会话是不是还「活着」——实测 dsh-acp-interactive 1.3.0 对活着的会话回
@@ -1653,9 +1666,47 @@ class WorkbenchController extends ChangeNotifier {
     _appendToComposer('@$name');
   }
 
-  void addImage(String base64Data, String mimeType) {
-    pendingBlocks.add(<String, dynamic>{'type': 'image', 'data': base64Data, 'mimeType': mimeType});
-    _appendToComposer('[image]');
+  /// 输入框顶部芯片条的数据：待发的 `image` 块本身（规则 2，不另存一份视图状态）。
+  List<ContentBlockWire> get pendingImages => <ContentBlockWire>[
+        for (final b in pendingBlocks)
+          if (b['type'] == 'image') ContentBlockWire(b),
+      ];
+
+  /// 芯片上的 ×。按**同一个 map 对象**删，不按内容比——两张一模一样的图也要能分别删掉。
+  void removePendingBlock(ContentBlockWire block) {
+    pendingBlocks.removeWhere((b) => identical(b, block.json));
+    _touch();
+  }
+
+  /// 图片不再往输入框塞 `[image]` 占位文本：它以芯片的形式显示在输入框顶部（[pendingImages]）。
+  /// `path` 只在图来自磁盘上的文件时有，转成 `image` 块的可选 `uri`，芯片按它显示文件名。
+  void addImage(String base64Data, String mimeType, {String? path}) {
+    pendingBlocks.add(<String, dynamic>{
+      'type': 'image',
+      'data': base64Data,
+      'mimeType': mimeType,
+      if (path != null) 'uri': _fileUri(path),
+    });
+    _touch();
+  }
+
+  /// Ctrl/Cmd+V（输入框的按键回调只管调这里，判断全在这）：剪贴板里是文本就什么都不做——
+  /// 那一下已经由 `EditableText` 自己贴进去了；是截图 / 图片文件才加成 `image` 块。
+  Future<void> pasteImageFromClipboard() async {
+    if (!canCompose) return;
+    final text = await Clipboard.getData(Clipboard.kTextPlain);
+    if ((text?.text ?? '').isNotEmpty) return;
+    if (!canPromptImage) return; // 不支持图片的 agent：连剪贴板都不用读
+    final result = await readClipboardImages();
+    if (result.skippedTooLarge) {
+      lastError = '图片超过 ${clipboardImageSizeLimit ~/ (1024 * 1024)} MB，没有加进输入框';
+      _touch();
+    }
+    if (result.images.isEmpty) return;
+    for (final image in result.images) {
+      addImage(base64Encode(image.bytes), image.mimeType, path: image.path);
+    }
+    composerFocus.requestFocus();
   }
 
   void addEmbeddedResource(String uri, String text, {String mimeType = 'text/plain'}) {

@@ -40,6 +40,7 @@ import '../ui/traffic/traffic_page.dart';
 import '../ui/transcript/awaiting_bar.dart';
 import '../ui/transcript/plan_card.dart';
 import '../ui/transcript/transcript_list.dart';
+import 'clipboard_image.dart';
 import 'window_controls.dart';
 import 'workbench_controller.dart';
 
@@ -447,6 +448,9 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       model: _currentName('model'),
       thoughtLevel: _currentName('thought_level'),
       mode: _currentName('mode'),
+      attachments: c.pendingImages,
+      onRemoveAttachment: c.removePendingBlock,
+      onPaste: c.pasteImageFromClipboard,
       inlineMenu: c.inlineMenu,
       onInlineMenuMove: c.moveInlineMenuSelection,
       onInlineMenuPick: c.pickInlineMenuSelection,
@@ -552,10 +556,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   }
 
   void _openPlusPopover() {
-    final image = c.connection?.agentCapabilities?['promptCapabilities'];
-    final imageEnabled = image is Map ? image['image'] == true : false;
     c.plusAnchor.showAbove((_) => PlusPopover(
-          imageEnabled: imageEnabled,
+          imageEnabled: c.canPromptImage,
           onFiles: _addFiles,
           onThreads: _addThread,
           onImage: _addImage,
@@ -577,7 +579,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     final file = await openFile(acceptedTypeGroups: <XTypeGroup>[group]);
     if (file == null) return;
     final bytes = await file.readAsBytes();
-    c.addImage(base64Encode(bytes), file.mimeType ?? 'image/png');
+    c.addImage(base64Encode(bytes), file.mimeType ?? imageMimeOf(file.path), path: file.path);
   }
 
   void _addThread() {

@@ -134,7 +134,9 @@ class _UserMessageState extends State<UserMessage> {
           final uri = b.resource?.uri;
           children.add(_chip(_display(uri), uri));
         case ContentBlockType.image:
-          children.add(_chip('image', b.uri));
+          // 从文件来的图带 `uri`（`+` 选的 / 剪贴板里复制的文件），芯片就显示文件名；截图没有来源，显示 image。
+          final name = _display(b.uri);
+          children.add(_chip(name.isEmpty ? 'image' : name, b.uri));
         case ContentBlockType.audio:
           children.add(_chip('audio', null));
         case ContentBlockType.unknown:

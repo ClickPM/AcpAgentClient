@@ -161,6 +161,7 @@ Flutter 宿主进程（Dart）
   - **`Rules` 行**（画板 30 / 40 的用量弹层）：当前项目根目录下规则文件的计数（AGENTS.md、CLAUDE.md、`.rules`；清单在 R3 任务卡定），点击在文件面板打开。
   - **文件树 git 状态徽章**（画板 60）：保留，由 `git status --porcelain` 得出。
   - **`+` 弹层**只有 Files & Directories / Threads / Image / Branch Diff 四项；原稿的 Symbols 与 Selection 需要 LSP 与编辑器选区，与 `requirements.md`「不做」冲突，已从画板 40 删除。
+  - **图片粘贴与附件芯片条**（所有者 2026-09-18 直接要求，对齐 Zed）：输入框里 Ctrl/Cmd+V，剪贴板里是截图或图片文件就加成 ACP `image` 块（同样受 `promptCapabilities.image` 门，与 `+` 的 Image 一项共用），待发的 `image` 块以芯片显示在输入行之上、悬浮浮出原图预览、芯片上的 × 去掉它。Flutter 的 `Clipboard` 只给 text/plain，位图与文件列表读不到，第三方剪贴板包又在规则 1 的清单之外，所以 Windows（规则 9 首发）借 `powershell.exe` 读一次 `System.Windows.Forms.Clipboard`（位图存临时 PNG 再读回字节）；其他平台暂时读不到图，Ctrl+V 照旧只贴文本。**设计稿还没有这一条**，补稿记在 `rounds/BACKLOG.md`。
   - **终端面板**（画板 61）含本地交互 shell、多标签；复用 `rust/pty` 与 `acp/terminal_output`，命令见 § 3。
   - **分栏宽度**（画板 01–03 的两条分栏线，所有者裁定 2026-09-16）：拖拽命中区 4px 叠在 1px 分栏线上、**不占布局**；侧栏 220–480、右栏 360–900、中栏至少留 360（窗口变窄时先压右栏、再压侧栏）；双击复位到 280 / 580；宽度记在 `ui-state.json`。把手的默认与悬停态见画板 04。文件面板（画板 60）里树列与查看器之间用同一个把手：树列 160–480、查看器至少留 240，双击复位到 240；树列头行那个「缩小」按钮把整列收起（收起后由查看器头行左侧的按钮放回来），宽度与收起态同样记在 `ui-state.json`（所有者裁定 2026-09-17）。
 - 接后端只换数据源，不改样式：接线轮里 `lib/theme/tokens.dart` 与画板 widget 文件应零 diff。
