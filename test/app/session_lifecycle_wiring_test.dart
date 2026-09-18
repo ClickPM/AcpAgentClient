@@ -2,8 +2,8 @@
 // 覆盖 ROUNDS § 3 R6 的交付物与验收 4：
 // - 侧栏点一条内存里没有的会话 → 连 agent → `session/load`，整段重放只刷一次 UI；agent 没声明 loadSession 就不发；
 // - ≡ 菜单的 Resume / Close / Delete 按 `sessionCapabilities` 裁剪，动作各自打到对的命令上；
-// - 删除：声明了 delete 的 agent 先删 agent 侧再删本地索引；agent 侧失败时本地不动；没声明 / 没连只删本地；
-// - 侧栏删除图标：声明里没有 delete 的 agent 不给，能力未知（没连过）时给；
+// - 删除：声明了 delete 的 agent 先删 agent 侧再删本地索引；agent 侧失败也照删本地并报一句；没声明 / 没连只删本地；
+// - 侧栏删除图标：一律给（本地记录不被 agent 的能力声明锁住）；
 // - `session/list` 校对：分页取完、只补标题不覆盖本地改名、agent 有本地没有的不进侧栏；
 // - modes 回退：没有 `category == mode` 的 configOptions 时模式下拉走 `session/set_mode`；
 // - 重载 agent：声明 loadSession 的重连后自动 load 回原会话，没声明的退回新会话。
@@ -392,22 +392,23 @@ void main() {
       c.dispose();
     });
 
-    test('agent 侧删除失败：本地索引不动（可以重试）', () async {
+    test('agent 侧删除失败：本地索引照删，报一句', () async {
       final (c, core) = await _connected();
       core.deleteFails = true;
 
       await c.deleteSession(_session);
 
-      expect(core.sessionIndex, hasLength(1), reason: 'agent 侧没删掉就不能只删本地，两边会岔开');
-      expect(c.sidebarSessions, hasLength(1));
+      expect(core.deletedSessions, isEmpty, reason: 'agent 侧那一下没成');
+      expect(core.sessionIndex, isEmpty, reason: 'agent 侧没有这条会话时也要能把本地这条清掉');
+      expect(c.sidebarSessions, isEmpty);
       expect(c.lastError, contains('no such session'));
       c.dispose();
     });
 
-    test('没声明 delete 的 agent：不发 session/delete，只删本地索引；侧栏也不出删除图标', () async {
+    test('没声明 delete 的 agent：不发 session/delete，只删本地索引；侧栏照给删除图标', () async {
       final (c, core) = await _connected(initialize: _initialize(caps: <String>['list', 'close']));
       await c.refreshSessionIndex();
-      expect(c.sidebarSessions.single.canDelete, isFalse);
+      expect(c.sidebarSessions.single.canDelete, isTrue, reason: '本地记录不被 agent 的能力声明锁住');
       expect(c.canDeleteSession, isFalse);
 
       await c.deleteSession(_session);

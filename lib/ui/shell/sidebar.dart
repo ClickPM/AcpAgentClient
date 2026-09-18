@@ -1,7 +1,8 @@
 // 画板 01 / 04 · 侧栏：应用标题条、会话搜索、会话项（默认 / 悬浮出重命名与删除 / 选中 / 行内重命名）、
 // 空态与无结果态、底部四个导航入口。
 // 会话列表以本地索引为准（docs/design.md § 3 末条）：时间戳是客户端本地态，「N 条消息」由投影层分组计数得出（画板 04 注）。
-// 删除图标需 `sessionCapabilities.delete`，无能力时不渲染（画板 04 注；确认弹层在画板 41）。
+// 删除图标一律渲染（确认弹层在画板 41）：它删的首先是本地索引这条记录，agent 侧删不删由组合根判——
+// 按 `sessionCapabilities.delete` 裁剪过一版，结果是没声明 delete 的 agent 的会话在侧栏里永远清不掉。
 
 import 'package:flutter/widgets.dart';
 
@@ -28,7 +29,7 @@ class SidebarSession {
   final DateTime updatedAt;
   final int messageCount;
 
-  /// `sessionCapabilities.delete`。
+  /// 给不给删除图标（组合根一律给 true；留着这个开关是为了画板对照能演示两种态）。
   final bool canDelete;
 
   /// 这条会话所属 agent 的 `icon.svg`（registry 缓存；组合根按 `agentId` 查出来给）。没有时是画板的单色占位。

@@ -670,7 +670,7 @@ class WorkbenchController extends ChangeNotifier {
         title: item['title'] as String? ?? sessionId,
         updatedAt: DateTime.fromMillisecondsSinceEpoch((item['updatedAt'] as num?)?.toInt() ?? 0),
         messageCount: (item['messageCount'] as num?)?.toInt() ?? 0,
-        canDelete: _canDeleteSessionOf(owner ?? agentId),
+        canDelete: true,
         iconSvg: agentIconSvgOf(owner ?? agentId),
       ));
     }
@@ -724,15 +724,10 @@ class WorkbenchController extends ChangeNotifier {
   bool get canCloseSession => hasSession && !sessionClosed && _sessionCaps.containsKey('close');
   bool get canDeleteSession => hasSession && _sessionCaps.containsKey('delete');
 
-  /// 侧栏删除图标（画板 04 注）：agent 声明了 `sessionCapabilities.delete` 才给。
-  /// **能力未知**（这个 agent 本次运行还没连过）时照给——那一下只删本地索引，不发 `session/delete`；
-  /// 否则重启后一条本地记录都清不掉。
-  bool _canDeleteSessionOf(String? agent) {
-    final caps = _capsOf(agent);
-    if (caps == null) return true;
-    final s = caps['sessionCapabilities'];
-    return s is Map && s.containsKey('delete');
-  }
+  // 侧栏删除图标（画板 04 注）**一律给**：它删的首先是本地索引这条记录，agent 侧删不删由
+  // [deletesOnAgent] 单独判。按 `sessionCapabilities.delete` 裁剪过一版，结果是没声明 delete 的 agent
+  // （实测 dsh-acp-interactive 1.3.0）的会话在侧栏里永远清不掉——本地记录是我们自己的，不该被 agent
+  // 的能力声明锁住（所有者报障 2026-09-18）。见 [_toSidebar] 的 `canDelete: true`。
 
   /// 启动时恢复最近一次打开的项目（没有就留空，顶栏显示 `—`，新建会话前要先选项目）。
   Future<void> _restoreLastProject() async {
@@ -1014,6 +1009,17 @@ class WorkbenchController extends ChangeNotifier {
     _touch();
   }
 
+  /// 本地索引里这条记录登记的 agentId（删 / 改索引都按 (agentId, sessionId) 匹配，见 [deleteSession]）。
+  String? _indexAgentOf(String sessionId) {
+    for (final s in _indexEntries) {
+      if (s['sessionId'] == sessionId) {
+        final agent = s['agentId'];
+        if (agent is String) return agent;
+      }
+    }
+    return null;
+  }
+
   String? _indexCwdOf(String sessionId) {
     for (final s in _indexEntries) {
       if (s['sessionId'] == sessionId) {
@@ -1258,11 +1264,12 @@ class WorkbenchController extends ChangeNotifier {
     return owner.isNotEmpty && _sessionCapsOf(owner).containsKey('delete');
   }
 
-  /// agent 侧已经删成功、但本地索引那步还没走完的会话：重试时不再发第二次 `session/delete`。
+  /// agent 侧那一步已经走过的会话（删成功，或删失败已经放行）：本地索引那步失败后重试时不再发第二次
+  /// `session/delete`。
   final Set<String> _deletedOnAgent = <String>{};
 
   /// 删除会话（画板 41 的确认弹层）：agent 连着且声明了 `sessionCapabilities.delete` 就先删 agent 侧，
-  /// **成功了**才动本地索引（失败停在这里，本地还留着可以重试）；agent 没连或没声明就只删本地索引。
+  /// 然后删本地索引；agent 没连或没声明就只删本地索引。
   /// 没连的 agent 不为了删一条记录去拉进程（已知限制，记 rounds/round-06 任务卡）。
   Future<void> deleteSession(String id) async {
     confirmingDeleteId = null;
@@ -1274,13 +1281,25 @@ class WorkbenchController extends ChangeNotifier {
     await _guard(() async {
       if (onAgent) {
         await _releaseSessionRequests(b, owner, id);
-        await b.sessionDelete(owner, id);
-        // agent 侧已经删掉了：本地那步万一失败，重试不能再往 agent 发一次（它会以「没有这条」拒绝，
-        // 于是本地索引永远删不掉、两边永远岔开，审查 finding P2）。
+        try {
+          await b.sessionDelete(owner, id);
+        } catch (e) {
+          // **agent 侧删不掉也要放行本地这条**：agent 根本没有这条会话时（0 条消息的会话多半没落盘，
+          // 重启换了进程后 `session/delete` 一直回「没有这条」）原先停在这儿，于是这条本地记录再也删不掉
+          // （所有者报障 2026-09-18）。报一句，继续删本地索引——侧栏以本地索引为准，留着它用户没有别的办法清。
+          lastError = 'agent 侧删除失败（${describeError(e)}），本地这条记录已经移除';
+        }
+        // agent 侧那一步走过了：本地那步万一失败，重试不能再往 agent 发一次（成功的那条它会以「没有这条」
+        // 拒绝，于是本地索引永远删不掉、两边永远岔开，审查 finding P2）。
         _deletedOnAgent.add(id);
       }
-      final result = await b.sessionIndexRemove(owner, id);
+      // 索引这条记录按 (agentId, sessionId) 精确匹配删除，agentId 要用**索引里登记的那个**：
+      // 拿当前连接的 agentId 去删会一条都对不上，核心照样返回成功，于是那一行纹丝不动、也没有任何提示。
+      final result = await b.sessionIndexRemove(_indexAgentOf(id) ?? owner, id);
       _applyIndex(result['sessions']);
+      if (sidebarSessions.any((s) => s.id == id)) {
+        lastError = '这条会话的本地记录没能删掉（索引里找不到匹配的记录）';
+      }
       missingOnAgent.remove(id);
       _closedSessions.remove(id);
       _closeEpoch.remove(id);
