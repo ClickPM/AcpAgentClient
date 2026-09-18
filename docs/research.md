@@ -68,7 +68,7 @@ macOS 的 headless `run()` 仍然调用 `CFRunLoopRun()` 并把前台任务投�
 - Cursor：registry 条目 `cursor/agent.json`（版本 2026.09.02），Windows 的 cmd 是 `./dist-package\cursor-agent.cmd`，args `["acp"]`；ACP 里宣告 `cursor_login` 方法，但实际期望 CLI 层预先登录。
 - pi-acp：自己拉 `pi --mode rpc`；会话映射存 `~/.pi/pi-acp/session-map.json`；MIT。
 - dsh-acp-interactive：初始化时读 `clientCapabilities._meta.terminal_output`、`elicitation.form`、`session.configOptions.boolean` 决定公布哪些能力；子代理身份放 `_meta.dsh_subagent`；以 ACP SDK 1.4.0 的稳定 v1 schema 为基线。它是独立的社区项目，composes 上游 `deepseek-ai/deepseek-harness` 发布的 `@deepseek-ai/dsh-*` 包，**不隶属于也未获 DeepSeek 背书**（上游 README 自述）。
-- deepseek-harness：`dsh-acp-interactive` 所 composes 的上游，**只作资产来源钉版本，没有代码依赖**——`apps/web/public/favicon.svg` 复制成 `rust/acp-core/assets/dsh-icon.svg`（内置条目的 `iconSvg`，官方 registry 里没有这个 agent 所以图标随包带）。复制时两处改动：去掉靠 `prefers-color-scheme` 切黑白的 `<style>`、固定填充色换 `currentColor`；画布改 16 见方、`viewBox` 不动。用 DeepSeek 企业标志作这条 agent 的标记是所有者裁定（2026-09-18，知情于上一条的「未获背书」与「MIT 是版权许可、通常不含商标授权」）。
+  - deepseek-harness（**不是第六个 agent**，本节标题仍指上面五个）：`dsh-acp-interactive` 所 composes 的上游，**只作资产来源钉版本，没有代码依赖**——`apps/web/public/favicon.svg` 复制成 `rust/acp-core/assets/dsh-icon.svg`（内置条目的 `iconSvg`，官方 registry 里没有这个 agent 所以图标随包带）。复制时两处改动：去掉靠 `prefers-color-scheme` 切黑白的 `<style>`、固定填充色换 `currentColor`；画布改 16 见方、`viewBox` 不动。用 DeepSeek 企业标志作这条 agent 的标记是所有者裁定（2026-09-18，知情于上一条的「未获背书」与「MIT 是版权许可、通常不含商标授权」）。
 
 ## 6. Zed 内置 agent 的接入点（sidecar 依据）
 
