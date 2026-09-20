@@ -452,32 +452,32 @@ Future<void> runR5({required String reportPath}) async {
       await c.newSession(AgentRef(id: agentId, name: agentId)).timeout(timeout);
       steps['newSession'] = <String, dynamic>{
         'sessionId': c.sessionId,
-        'authRequired': c.authAgentId == agentId,
-        'authMethods': <String?>[for (final m in c.authMethods) '${m['id']}/${AuthPage.methodType(m)}'],
+        'authRequired': c.auth.agentId == agentId,
+        'authMethods': <String?>[for (final m in c.auth.methods) '${m['id']}/${AuthPage.methodType(m)}'],
         'rightTab': c.shell.rightTab?.name,
         'error': c.lastError,
       };
-      if (c.authAgentId == agentId) {
-        final methodId = _env('ACP_R5_AUTH_METHOD') ?? c.authMethodId;
-        if (methodId != null) c.selectAuthMethod(methodId);
+      if (c.auth.agentId == agentId) {
+        final methodId = _env('ACP_R5_AUTH_METHOD') ?? c.auth.methodId;
+        if (methodId != null) c.auth.selectMethod(methodId);
         final input = _env('ACP_R5_AUTH_INPUT');
         final urls = <String>[];
         final elicitation = _ElicitationWatch(c, urls)..attach();
         if (input != null) {
-          Timer(Duration(seconds: _envInt('ACP_R5_AUTH_INPUT_DELAY', 5)), () => c.authTerminalInput('$input\r'));
+          Timer(Duration(seconds: _envInt('ACP_R5_AUTH_INPUT_DELAY', 5)), () => c.auth.terminalInput('$input\r'));
         }
         final authStarted = DateTime.now();
-        await c.startAuth().timeout(Duration(seconds: _envInt('ACP_R5_AUTH_TIMEOUT', 300)));
+        await c.auth.start().timeout(Duration(seconds: _envInt('ACP_R5_AUTH_TIMEOUT', 300)));
         elicitation.detach();
         steps['auth'] = <String, dynamic>{
           'methodId': methodId,
-          'phase': c.authPhase.name,
-          'error': c.authError,
+          'phase': c.auth.phase.name,
+          'error': c.auth.error,
           'elapsedMs': DateTime.now().difference(authStarted).inMilliseconds,
           'requestScopeUrls': urls,
-          'terminalId': c.authTerminalId,
+          'terminalId': c.auth.terminalId,
           'sessionId': c.sessionId,
-          'authPageClosed': c.authAgentId == null,
+          'authPageClosed': c.auth.agentId == null,
           'authStatus': c.agents.registry.byId(agentId)?.authStatus.wire,
         };
       }
@@ -608,9 +608,9 @@ class _ElicitationWatch {
   void detach() => c.removeListener(_tick);
 
   void _tick() {
-    for (final e in c.authElicitations) {
+    for (final e in c.auth.elicitations) {
       if (e.status != PendingStatus.pending || !_done.add(e.requestId)) continue;
-      unawaited(c.acceptElicitationUrl(e).then((url) {
+      unawaited(c.auth.acceptUrl(e).then((url) {
         if (url != null) {
           urls.add(url);
           stderr.writeln('[r5] open in browser: $url');

@@ -450,7 +450,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
           padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s24, vertical: t.Spacing.s4),
           child: AgentStateBar(
             connection,
-            onAuthenticate: c.authenticate,
+            onAuthenticate: c.auth.authenticate,
             onRestart: c.reloadAgent,
             onOpenTraffic: c.shell.openTraffic,
           ),
@@ -782,7 +782,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
           onRetry: () => c.agents.install(entry.id),
           onCancel: () => c.agents.cancelInstall(entry.id),
           onRemove: () => c.agents.remove(entry.id),
-          onLogin: () => c.openAuth(entry.id),
+          onLogin: () => c.auth.open(entry.id),
           onViewLog: () => c.agents.toggleInstallLog(entry.id),
           onOpenRepository: () {
             final url = entry.repository ?? entry.website;
@@ -792,27 +792,27 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       );
 
   Widget _authPage() => AuthPage(
-        agentName: c.authAgentName,
-        authMethods: c.authMethods,
-        message: c.authConnection?.authMessage,
-        selectedMethodId: c.authMethodId,
-        phase: c.authPhase,
-        terminalLabel: c.authTerminalLabel,
-        terminalBuffer: c.authTerminalBuffer,
-        error: c.authError,
-        requestScope: c.authElicitations,
-        onSelectMethod: c.selectAuthMethod,
-        onStart: c.startAuth,
-        onCancel: c.cancelAuth,
-        onRetry: c.retryAuth,
-        onChangeMethod: c.changeAuthMethod,
-        onStopTerminal: c.stopAuthTerminal,
-        onTerminalInput: c.authTerminalInput,
+        agentName: c.auth.agentName,
+        authMethods: c.auth.methods,
+        message: c.auth.connection?.authMessage,
+        selectedMethodId: c.auth.methodId,
+        phase: c.auth.phase,
+        terminalLabel: c.auth.terminalLabel,
+        terminalBuffer: c.auth.terminalBuffer,
+        error: c.auth.error,
+        requestScope: c.auth.elicitations,
+        onSelectMethod: c.auth.selectMethod,
+        onStart: c.auth.start,
+        onCancel: c.auth.cancel,
+        onRetry: c.auth.retry,
+        onChangeMethod: c.auth.changeMethod,
+        onStopTerminal: c.auth.stopTerminal,
+        onTerminalInput: c.auth.terminalInput,
         onOpenUrl: (e) async {
-          final url = await c.acceptElicitationUrl(e);
+          final url = await c.auth.acceptUrl(e);
           if (url != null) await _openExternal(url);
         },
-        onCancelElicitation: c.cancelElicitation,
+        onCancelElicitation: c.auth.cancelElicitation,
       );
 
   Future<void> _openExternal(String href) async {
@@ -881,7 +881,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   /// 右栏正文：设置（70）、Agents 面板 / 认证页（50 / 52）、文件面板（60）、终端面板（61）。
   Widget? _panelBody(PanelTab active) {
     if (active.shell == ShellTab.settings) return _settingsPanel();
-    if (active.shell == ShellTab.agents) return c.authAgentId == null ? _registryPanel() : _authPage();
+    if (active.shell == ShellTab.agents) return c.auth.agentId == null ? _registryPanel() : _authPage();
     if (active.isTerminal) {
       final term = c.terminals.byId(active.terminalId!);
       if (term == null) return null;

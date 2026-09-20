@@ -23,12 +23,10 @@ import '../projection/fixture_line.dart';
 import '../projection/fixture_replay.dart';
 import '../projection/pending.dart';
 import '../projection/session_store.dart';
-import '../projection/tool_calls.dart';
 import '../projection/traffic.dart';
 import '../projection/wire.dart';
 import '../ui/popovers/inline_menus.dart';
 import '../ui/popovers/topbar_popovers.dart';
-import '../ui/registry/auth_page.dart';
 import '../ui/shell/popover_anchor.dart';
 import '../ui/shell/shell_common.dart';
 import '../ui/shell/sidebar.dart';
@@ -38,6 +36,7 @@ import 'files_state.dart';
 import 'guarded.dart';
 import 'local_terminals.dart';
 import 'agents_state.dart';
+import 'auth_state.dart';
 import 'paths.dart';
 import 'session_index.dart';
 import 'shell_state.dart';
@@ -58,6 +57,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     shell.addListener(notifyListeners);
     workspace.addListener(notifyListeners);
     agents.addListener(notifyListeners);
+    auth.addListener(notifyListeners);
   }
 
   final DataSource source;
@@ -166,7 +166,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
         agentId = null;
         sessionId = null;
       }
-      if (authAgentId == id) closeAuth();
+      auth.closeIfAgent(id);
     },
     onInstalledChanged: _selectDefaultAgent,
     onRegistryChanged: _refreshSidebar,
@@ -178,19 +178,28 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   String? logPath;
   String? zedSettingsPath;
 
-  // ---- 认证页（画板 52，R5）：右栏 Agents 标签里、对应 agent 的一页
-  String? authAgentId;
-  AuthPhase authPhase = AuthPhase.choose;
-  String? authMethodId;
-  String? authError;
-  String? authTerminalLabel;
-  String? _authRetryCwd;
-  /// 认证页的「代际」：`openAuth` / `closeAuth` 各加一；在途的 `startAuth` 每个 await 之后核对，页已收起或重开就不再改状态
-  /// （审查第 2 轮 P2：否则旧的失败会画到新页上、旧的成功会把新页清掉并切走工作台）。
-  int _authGeneration = 0;
-
-  /// 无会话阶段的 URL elicitation（挂起 / 已打开 / 已完成都留在页上，直到离开认证页）。
-  final List<ElicitationEntry> authElicitations = <ElicitationEntry>[];
+  // ---- 认证页（画板 52，R5）的状态机（R7.5 拆出）：右栏标签、当前项目、registry 展示名、当前 agent 经回调向这里要，
+  // 认证成功后的自动重试新会话交回会话那一段。
+  late final AuthState auth = AuthState(
+    bridge: bridge,
+    sessions: sessions,
+    cwd: () => workspace.project?.path,
+    registryName: (id) => agents.registry.byId(id)?.name,
+    currentAgentId: () => agentId ?? connection?.agentId,
+    openAgentsTab: () => shell.openTab(ShellTab.agents),
+    ensureAgentsTab: () {
+      if (shell.rightTab != ShellTab.agents) shell.openTab(ShellTab.agents);
+    },
+    showWorkbench: () => shell.page = MainPage.workbench,
+    onAuthenticated: (agent, cwd, session) async {
+      if (session == null) {
+        await _createSession(agent, cwd);
+      } else {
+        _adoptSession(agent, cwd, session);
+        await _saveIndex();
+      }
+    },
+  );
 
   // ---- 输入控件
   final TextEditingController composer = TextEditingController();
@@ -394,7 +403,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       b.on(CoreEvent.registryProgress).listen(agents.onRegistryProgress),
     ]);
     sessions.addListener(notifyListeners);
-    sessions.pending.addListener(_onPendingChanged);
+    sessions.pending.addListener(auth.onPendingChanged);
     files.addListener(notifyListeners);
     terminals.addListener(notifyListeners);
     await guard(() async {
@@ -478,7 +487,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       s.cancel();
     }
     sessions.removeListener(notifyListeners);
-    sessions.pending.removeListener(_onPendingChanged);
+    sessions.pending.removeListener(auth.onPendingChanged);
     files.removeListener(notifyListeners);
     terminals.removeListener(notifyListeners);
     files.dispose();
@@ -505,6 +514,8 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     workspace.dispose();
     agents.removeListener(notifyListeners);
     agents.dispose();
+    auth.removeListener(notifyListeners);
+    auth.dispose();
     super.dispose();
   }
 
@@ -663,7 +674,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       switch (e.code) {
         // `session/new` 回 -32000：认证页（画板 52），成功后自动重试这个 cwd 的新会话（docs/design.md § 5 第 5 条）。
         case 'auth_required':
-          await openAuth(agent.id, retryCwd: cwd);
+          await auth.open(agent.id, retryCwd: cwd);
         // npx 型 agent 缺 Node：Agents 面板顶上的受管 Node 提示卡（画板 51）。
         case 'node_missing':
           shell.openTab(ShellTab.agents);
@@ -1637,13 +1648,6 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     }
   }
 
-  /// 画板 34 状态条的登录键：进认证页（画板 52），方法预选。
-  Future<void> authenticate(String methodId) async {
-    final id = agentId ?? connection?.agentId;
-    if (id == null) return;
-    await openAuth(id, retryCwd: workspace.project?.path, methodId: methodId);
-  }
-
   // ---------------------------------------------------------------- 核心给的路径（画板 70）
 
   /// `registry_list` 回的 `paths`：`AgentsState.refreshRegistry` 每次刷新都经回调交到这里。
@@ -1651,212 +1655,6 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     dataDir = paths['dataDir'] as String? ?? dataDir;
     logPath = paths['logPath'] as String? ?? logPath;
     zedSettingsPath = paths['zedSettingsPath'] as String?;
-  }
-
-  // ---------------------------------------------------------------- 认证页（画板 52，R5）
-
-  AgentConnection? get authConnection => authAgentId == null ? null : sessions.agents[authAgentId!];
-
-  List<JsonMap> get authMethods => authConnection?.authMethods ?? const <JsonMap>[];
-
-  String get authAgentName {
-    final c = authConnection;
-    final id = authAgentId ?? '';
-    return c?.agentTitle ?? c?.agentName ?? agents.registry.byId(id)?.name ?? id;
-  }
-
-  /// terminal 型认证的可见终端：核心的 `authenticating` 事件带 terminalId。
-  String? get authTerminalId => authConnection?.authenticatingTerminalId;
-
-  TerminalBuffer? get authTerminalBuffer {
-    final id = authTerminalId;
-    return id == null || authTerminalLabel == null ? null : sessions.terminals.ensure(id);
-  }
-
-  /// 进认证页：三个入口（`-32000`、画板 51 的登录键、画板 34 的登录键）都到这里。没连上的先 `initialize`（authMethods 从它来）。
-  Future<void> openAuth(String agent, {String? retryCwd, String? methodId}) async {
-    authAgentId = agent;
-    authPhase = AuthPhase.choose;
-    authError = null;
-    authTerminalLabel = null;
-    _authRetryCwd = retryCwd ?? workspace.project?.path;
-    _authGeneration++;
-    _cancelAuthElicitations();
-    shell.openTab(ShellTab.agents);
-    final b = bridge;
-    // 「没连上的」这句判据原先只看 `authMethods.isEmpty`：已经连上、且 `initialize` 里本来就没有 authMethods 的
-    // agent 从画板 51 / 34 的登录键进来会白白重连一次，把它上面正在跑的会话全杀掉（与 [newSession] 同一个坑）。
-    // 重连也换不出新的 authMethods（它就是从 `initialize` 来的），所以连上了就不重连。
-    if (b != null && authMethods.isEmpty && sessions.agents[agent]?.state != AgentLifecycle.initialized) {
-      await guard(() async {
-        final result = await b.agentConnect(agent, cwd: _authRetryCwd);
-        final init = result['initialize'];
-        if (init is Map) sessions.agents.applyInitializeResult(agent, init.cast<String, dynamic>());
-      });
-    }
-    authMethodId = methodId ?? authMethods.firstOrNull?['id'] as String?;
-    touch();
-  }
-
-  void selectAuthMethod(String id) {
-    authMethodId = id;
-    touch();
-  }
-
-  /// 开始认证：agent 型调 `authenticate`（URL elicitation 会经 requestScope 落到本页）；terminal 型在 pty 里重拉同一个 agent，
-  /// 核心等它退出后自动重试 `session/new`。成功后回到刚才的新会话，失败留在失败态（可重试、可换方式）。
-  Future<void> startAuth() async {
-    final b = bridge;
-    final agent = authAgentId;
-    final methodId = authMethodId ?? authMethods.firstOrNull?['id'] as String?;
-    if (b == null || agent == null || methodId == null) return;
-    final method = authMethods.where((m) => m['id'] == methodId).firstOrNull ?? const <String, dynamic>{};
-    final cwd = _authRetryCwd ?? workspace.project?.path;
-    final generation = _authGeneration;
-    bool stale() => generation != _authGeneration;
-    authPhase = AuthPhase.running;
-    authError = null;
-    touch();
-    try {
-      if (AuthPage.methodType(method) == 'terminal') {
-        if (cwd == null) throw StateError('先选一个项目目录，terminal auth 在它里面跑');
-        authTerminalLabel = method['name'] as String? ?? methodId;
-        touch();
-        final result = await b.terminalAuthRun(agent, methodId, cwd);
-        if (stale()) return;
-        authPhase = AuthPhase.succeeded;
-        touch();
-        final session = result['session'];
-        if (session is Map) {
-          _adoptSession(agent, cwd, session.cast<String, dynamic>());
-          await _saveIndex();
-        } else {
-          await _createSession(agent, cwd);
-        }
-      } else {
-        await b.authenticate(agent, methodId);
-        if (stale()) return;
-        authPhase = AuthPhase.succeeded;
-        touch();
-        if (cwd != null) await _createSession(agent, cwd);
-      }
-      if (stale()) return;
-      closeAuth();
-      shell.page = MainPage.workbench;
-    } on CoreCommandError catch (e) {
-      if (stale()) return;
-      authPhase = AuthPhase.failed;
-      authError = '${e.message} (${e.code})';
-    } catch (e) {
-      if (stale()) return;
-      authPhase = AuthPhase.failed;
-      authError = e.toString();
-    }
-    touch();
-  }
-
-  /// 失败态的「重试」：同一方法再来一次。
-  Future<void> retryAuth() => startAuth();
-
-  /// 失败态的「换一种方式」：回到选方法。
-  void changeAuthMethod() {
-    authPhase = AuthPhase.choose;
-    authError = null;
-    authTerminalLabel = null;
-    touch();
-  }
-
-  /// 取消：terminal 在跑的先关掉（核心等到退出后照常重试 `session/new`，失败会以 failed 收尾）；回 registry 列表。
-  Future<void> cancelAuth() async {
-    final b = bridge;
-    final terminal = authTerminalId;
-    if (b != null && terminal != null && authPhase == AuthPhase.running) {
-      await guard(() => b.terminalClose(terminal));
-    }
-    closeAuth();
-  }
-
-  void closeAuth() {
-    _authGeneration++;
-    authAgentId = null;
-    authPhase = AuthPhase.choose;
-    authMethodId = null;
-    authError = null;
-    authTerminalLabel = null;
-    _authRetryCwd = null;
-    _cancelAuthElicitations();
-    touch();
-  }
-
-  /// 认证页收起 / 重开前：还挂着的 requestScope elicitation 逐条回 `cancel`。不回响应，agent 那边在途的 `authenticate`
-  /// 会永远等这条 JSON-RPC 回应（审查 finding high，2026-09-16）；已 accept 的（浏览器已打开）没有第二个响应可发，只从页上拿掉。
-  void _cancelAuthElicitations() {
-    for (final e in List<ElicitationEntry>.of(authElicitations)) {
-      if (e.status == PendingStatus.pending) unawaited(cancelElicitation(e));
-    }
-    authElicitations.clear();
-  }
-
-  Future<void> stopAuthTerminal() async {
-    final b = bridge;
-    final terminal = authTerminalId;
-    if (b == null || terminal == null) return;
-    await guard(() => b.terminalClose(terminal));
-  }
-
-  Future<void> authTerminalInput(String data) async {
-    final b = bridge;
-    final terminal = authTerminalId;
-    if (b == null || terminal == null) return;
-    await guard(() => b.terminalWrite(terminal, data));
-  }
-
-  /// requestScope 的 elicitation 到达：落认证页（没开的话打开对应 agent 的一页），不落转录（docs/design.md § 5 第 5 条）。
-  void _onPendingChanged() {
-    final pending = sessions.pending.requestScope;
-    if (pending.isEmpty) return;
-    var added = false;
-    for (final e in pending) {
-      if (authElicitations.any((x) => x.requestId == e.requestId)) continue;
-      authElicitations.add(e);
-      added = true;
-    }
-    if (!added) return;
-    final agent = pending.first.agentId;
-    if (authAgentId == null && agent != null) {
-      authAgentId = agent;
-      authPhase = AuthPhase.running;
-      authMethodId ??= authMethods.firstOrNull?['id'] as String?;
-      _authRetryCwd ??= workspace.project?.path;
-    }
-    if (shell.rightTab != ShellTab.agents) shell.openTab(ShellTab.agents);
-    touch();
-  }
-
-  /// 「Open in browser」：回 `accept`（挂起的）并记已打开；返回要打开的 URL（打开本身由组合根的 `url_launcher` 做）。
-  Future<String?> acceptElicitationUrl(ElicitationEntry e) async {
-    final b = bridge;
-    final agent = e.agentId ?? authAgentId;
-    if (e.status == PendingStatus.pending && b != null && agent != null) {
-      final payload = sessions.pending.answerElicitation(e.requestId, 'accept', now: sessions.now);
-      if (payload != null) await guard(() => b.acpRespond(agent, e.requestId, payload));
-    }
-    sessions.pending.markOpened(e.requestId);
-    touch();
-    return e.wire.url;
-  }
-
-  /// 已打开后的 Cancel：挂起的回 `cancel`；已 accept 的只本地标 cancelled（没有第二个响应可发）。
-  Future<void> cancelElicitation(ElicitationEntry e) async {
-    final b = bridge;
-    final agent = e.agentId ?? authAgentId;
-    if (e.status == PendingStatus.pending && b != null && agent != null) {
-      final payload = sessions.pending.answerElicitation(e.requestId, 'cancel', now: sessions.now);
-      if (payload != null) await guard(() => b.acpRespond(agent, e.requestId, payload));
-    } else {
-      sessions.pending.cancelRequest(e.requestId, now: sessions.now);
-    }
-    touch();
   }
 }
 

@@ -165,18 +165,18 @@ void main() {
     final c = await _start(core);
     await c.newSession(const AgentRef(id: 'codex-acp', name: 'Codex'));
     expect(c.sessionId, isNull);
-    expect(c.authAgentId, 'codex-acp');
+    expect(c.auth.agentId, 'codex-acp');
     expect(c.shell.rightTab, ShellTab.agents);
-    expect(c.authPhase, AuthPhase.choose);
-    expect(c.authMethods.length, 2, reason: 'authMethods 来自 initialize');
-    expect(c.authMethodId, 'chat-gpt-device-code');
-    expect(c.authAgentName, 'Codex');
+    expect(c.auth.phase, AuthPhase.choose);
+    expect(c.auth.methods.length, 2, reason: 'authMethods 来自 initialize');
+    expect(c.auth.methodId, 'chat-gpt-device-code');
+    expect(c.auth.agentName, 'Codex');
 
-    await c.startAuth();
+    await c.auth.start();
     expect(core.calls, contains('authenticate:chat-gpt-device-code'));
     expect(core.calls.where((x) => x == 'session_new').length, 2, reason: '认证成功后自动重试 session/new');
     expect(c.sessionId, 'sess_after_auth');
-    expect(c.authAgentId, isNull, reason: '回到工作台，认证页关掉');
+    expect(c.auth.agentId, isNull, reason: '回到工作台，认证页关掉');
     expect(c.shell.page, MainPage.workbench);
     c.dispose();
   });
@@ -185,8 +185,8 @@ void main() {
     final core = AuthCore(terminal: true);
     final c = await _start(core);
     await c.newSession(const AgentRef(id: 'codex-acp', name: 'Codex'));
-    c.selectAuthMethod('cli-login');
-    await c.startAuth();
+    c.auth.selectMethod('cli-login');
+    await c.auth.start();
     expect(core.calls, contains('terminal_auth_run:cli-login'));
     expect(c.sessionId, 'sess_from_terminal');
     expect(core.calls.where((x) => x == 'session_new').length, 1, reason: '核心已经重试过，前端不再发第二次');
@@ -196,10 +196,10 @@ void main() {
     final c2 = await _start(failing);
     await c2.newSession(const AgentRef(id: 'codex-acp', name: 'Codex'));
     failing.authed = false;
-    c2.selectAuthMethod('chat-gpt-device-code');
+    c2.auth.selectMethod('chat-gpt-device-code');
     // 让 authenticate 通过但 session/new 仍回 -32000（agent 认证了却仍没权限）：
     failing.calls.clear();
-    await c2.startAuth();
+    await c2.auth.start();
     // authenticate 成功后 session/new 放行（authed = true），所以这里成功；改成模拟 authenticate 抛错：
     expect(c2.sessionId, 'sess_after_auth');
     c.dispose();
@@ -222,14 +222,14 @@ void main() {
       },
     });
     await Future<void>.delayed(Duration.zero);
-    expect(c.authAgentId, 'codex-acp', reason: '没开认证页也要为它打开');
+    expect(c.auth.agentId, 'codex-acp', reason: '没开认证页也要为它打开');
     expect(c.shell.rightTab, ShellTab.agents);
-    expect(c.authElicitations.length, 1);
-    final e = c.authElicitations.single;
+    expect(c.auth.elicitations.length, 1);
+    final e = c.auth.elicitations.single;
     expect(e.isRequestScope, isTrue);
     expect(e.status, PendingStatus.pending);
 
-    final url = await c.acceptElicitationUrl(e);
+    final url = await c.auth.acceptUrl(e);
     expect(url, 'https://auth.example/device');
     expect(core.responded.single.$1, '7');
     expect(core.responded.single.$2, <String, dynamic>{'action': 'accept', 'content': <String, dynamic>{}});
@@ -245,7 +245,7 @@ void main() {
     });
     await Future<void>.delayed(Duration.zero);
     expect(e.status, PendingStatus.completed);
-    expect(c.authElicitations.length, 1);
+    expect(c.auth.elicitations.length, 1);
     c.dispose();
   });
 
@@ -260,26 +260,26 @@ void main() {
         };
     core.emit(CoreEvent.clientRequest, request('7', 'login_1'));
     await Future<void>.delayed(Duration.zero);
-    expect(c.authElicitations.single.status, PendingStatus.pending);
+    expect(c.auth.elicitations.single.status, PendingStatus.pending);
 
     // 选择卡上的「取消」：回 registry 列表之前先回应挂起的那条。
-    await c.cancelAuth();
+    await c.auth.cancel();
     await Future<void>.delayed(Duration.zero);
-    expect(c.authAgentId, isNull);
-    expect(c.authElicitations, isEmpty);
+    expect(c.auth.agentId, isNull);
+    expect(c.auth.elicitations, isEmpty);
     expect(core.responded.single.$1, '7');
     expect(core.responded.single.$2, <String, dynamic>{'action': 'cancel'});
 
     // 从另一条入口重开认证页同样不丢：新的挂起项也回 cancel；已 accept 的（浏览器已开）没有第二个响应，只从页上拿掉。
     core.emit(CoreEvent.clientRequest, request('8', 'login_2'));
     await Future<void>.delayed(Duration.zero);
-    await c.acceptElicitationUrl(c.authElicitations.single);
+    await c.auth.acceptUrl(c.auth.elicitations.single);
     core.emit(CoreEvent.clientRequest, request('9', 'login_3'));
     await Future<void>.delayed(Duration.zero);
-    expect(c.authElicitations.length, 2);
-    await c.openAuth('codex-acp');
+    expect(c.auth.elicitations.length, 2);
+    await c.auth.open('codex-acp');
     await Future<void>.delayed(Duration.zero);
-    expect(c.authElicitations, isEmpty);
+    expect(c.auth.elicitations, isEmpty);
     expect(core.responded.map((r) => r.$1).toList(), <String>['7', '8', '9']);
     expect(core.responded.last.$2, <String, dynamic>{'action': 'cancel'});
     c.dispose();
@@ -289,30 +289,30 @@ void main() {
     // 失败路径：旧的 authenticate 在页收起后才失败，新页不该画出失败卡。
     final failing = GatedAuthCore(succeed: false);
     final c = await _start(failing);
-    await c.openAuth('codex-acp');
-    final first = c.startAuth();
-    expect(c.authPhase, AuthPhase.running);
-    await c.cancelAuth();
-    await c.openAuth('codex-acp');
-    expect(c.authPhase, AuthPhase.choose);
+    await c.auth.open('codex-acp');
+    final first = c.auth.start();
+    expect(c.auth.phase, AuthPhase.running);
+    await c.auth.cancel();
+    await c.auth.open('codex-acp');
+    expect(c.auth.phase, AuthPhase.choose);
     failing.gate.complete();
     await first;
-    expect(c.authAgentId, 'codex-acp');
-    expect(c.authPhase, AuthPhase.choose);
-    expect(c.authError, isNull);
+    expect(c.auth.agentId, 'codex-acp');
+    expect(c.auth.phase, AuthPhase.choose);
+    expect(c.auth.error, isNull);
     c.dispose();
 
     // 成功路径：旧的 authenticate 在页收起后才成功，不再 closeAuth、不建会话、不切工作台。
     final succeeding = GatedAuthCore(succeed: true);
     final c2 = await _start(succeeding);
-    await c2.openAuth('codex-acp');
-    final second = c2.startAuth();
-    await c2.cancelAuth();
-    await c2.openAuth('codex-acp');
+    await c2.auth.open('codex-acp');
+    final second = c2.auth.start();
+    await c2.auth.cancel();
+    await c2.auth.open('codex-acp');
     succeeding.gate.complete();
     await second;
-    expect(c2.authAgentId, 'codex-acp');
-    expect(c2.authPhase, AuthPhase.choose);
+    expect(c2.auth.agentId, 'codex-acp');
+    expect(c2.auth.phase, AuthPhase.choose);
     expect(succeeding.calls.where((x) => x == 'session_new'), isEmpty);
     expect(c2.shell.rightTab, ShellTab.agents);
     c2.dispose();
