@@ -332,7 +332,7 @@ main 直改期间控制器只被碰了 3 行，说明「前置」里那条「尽
 | `test/app` + `test/ui` 用例数 / `expect(` 行数 | 186 / 798（`grep -cE '^\s*(test|testWidgets)\('` 与 `grep -c 'expect('`） |
 | 三份无头报告 | `rounds/round-7.5/baseline/{r3,r5,r6}.json`（fake-agent，`ok: true`；r3 70 s、r5 2 s、r6 6 s） |
 
-无头报告的跑法（脚本随基线入库：`rounds/round-7.5/baseline/run-report.ps1`，工作目录 `D:\cargo-target\AcpAgentClient75`）：
+无头报告的跑法（脚本随基线入库：`rounds/round-7.5/baseline/run-report.ps1`，工作目录 `D:\cargo-target\AcpAgentClient\r75`）：
 每次跑都从模板复制一份**隔离的** `APPDATA`（只有 `settings.json` 的三条 fake 条目 + 一份 `registry-cache` 副本，不碰所有者的真实数据目录，规则 7）
 与一份 git 化的项目目录，所以三份报告逐次可比。参数：r3 = `fake-r3`（`--fs --terminal --terminal-bg --stderr-noise`）+ `ACP_R3_CONFIG=mode=code` +
 两轮（第二轮 2 s 后 cancel）+ 新建分支 + `ACP_R3_KILL=1` + R4 的四项（后台终端 2 s 后停止、本地 shell、文件面板、Follow）；

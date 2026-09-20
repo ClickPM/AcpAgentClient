@@ -39,6 +39,7 @@ import '../ui/shell/sidebar.dart';
 import 'clipboard_image.dart';
 import 'core_bridge.dart';
 import 'files_state.dart';
+import 'guarded.dart';
 import 'local_terminals.dart';
 import 'paths.dart';
 
@@ -58,7 +59,7 @@ enum MainPage { workbench, traffic }
 /// 项目根下算作「规则文件」的名字（docs/design.md § 9 的 Rules 行，清单在 R3 任务卡定）。
 const List<String> ruleFileNames = <String>['AGENTS.md', 'CLAUDE.md', '.rules'];
 
-class WorkbenchController extends ChangeNotifier {
+class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   WorkbenchController({required this.source, this.bridge, FlushScheduler? scheduler})
       : _scheduler = scheduler ?? _scheduleOnFrame;
 
@@ -136,7 +137,6 @@ class WorkbenchController extends ChangeNotifier {
   /// 两处共用 [rename] / [renameFocus]，靠这个标记分流，同一时刻只可能有一个输入框在树上。
   bool renamingInHeader = false;
   String? confirmingDeleteId;
-  String? lastError;
 
   /// 输入框里待随下一条 prompt 发出的附件块（`+` 与 `@` 加进来的）。
   final List<JsonMap> pendingBlocks = <JsonMap>[];
@@ -240,7 +240,6 @@ class WorkbenchController extends ChangeNotifier {
   final Map<String, PopoverHandle> _configAnchors = <String, PopoverHandle>{};
 
   final List<StreamSubscription<CoreEventRecord>> _subs = <StreamSubscription<CoreEventRecord>>[];
-  bool _disposed = false;
 
   // ---------------------------------------------------------------- 派生
 
@@ -369,7 +368,7 @@ class WorkbenchController extends ChangeNotifier {
 
   void hideConfigPopovers() {
     for (final h in _configAnchors.values) {
-      _hide(h);
+      hidePopover(h);
     }
   }
 
@@ -420,7 +419,7 @@ class WorkbenchController extends ChangeNotifier {
     sessions.pending.addListener(_onPendingChanged);
     files.addListener(notifyListeners);
     terminals.addListener(notifyListeners);
-    await _guard(() async {
+    await guard(() async {
       final info = await b.init(defaultDataDir());
       dataDir = info['dataDir'] as String? ?? defaultDataDir();
       logPath = info['logPath'] as String?;
@@ -513,7 +512,7 @@ class WorkbenchController extends ChangeNotifier {
   Future<void> saveUiState() async {
     final b = bridge;
     if (b == null) return;
-    await _guard(() => b.uiStateSet(<String, dynamic>{
+    await guard(() => b.uiStateSet(<String, dynamic>{
           'sidebarWidth': sidebarWidth,
           'rightPanelWidth': rightPanelWidth,
           'filesTreeWidth': filesTreeWidth,
@@ -580,7 +579,7 @@ class WorkbenchController extends ChangeNotifier {
 
   @override
   void dispose() {
-    _disposed = true;
+    markDisposed();
     for (final s in _subs) {
       s.cancel();
     }
@@ -612,30 +611,8 @@ class WorkbenchController extends ChangeNotifier {
     super.dispose();
   }
 
-  /// 命令统一的错误边界：桥抛出的 `BridgeError` 记到 [lastError]，不让它掀掉整棵树。
-  Future<T?> _guard<T>(Future<T> Function() body) async {
-    try {
-      return await body();
-    } catch (e) {
-      lastError = describeError(e);
-      debugPrint('[workbench] ${describeError(e)}');
-      if (!_disposed) notifyListeners();
-      return null;
-    }
-  }
-
-  void _touch() {
-    if (!_disposed) notifyListeners();
-  }
-
-  /// 关弹层：没在显示的不调 `hide()`——`OverlayPortalController.hide()` 在没挂到 widget 树、也没 show 过时会 assert
-  /// （无头实跑与单测里没有 Overlay；产品路径永远有锚点，`isShowing` 在未挂载时不会 assert）。
-  static void _hide(PopoverHandle handle) {
-    if (handle.isShowing) handle.hide();
-  }
-
   /// 组合根里的纯 UI 变化（弹层里的搜索框输入等）需要重建时调它。
-  void refresh() => _touch();
+  void refresh() => touch();
 
   // ---------------------------------------------------------------- 本地索引与项目
 
@@ -837,7 +814,7 @@ class WorkbenchController extends ChangeNotifier {
       ];
 
   Future<void> openProject(ProjectRef ref) async {
-    _hide(projectAnchor);
+    hidePopover(projectAnchor);
     // 等待期（`session/new` / 重载在途）里顶栏仍可点（`IgnorePointer` 只包住 `_body()`）：这时换项目，
     // 在途那条 `session/new` 回来后 `_adoptSession` 会把它挂成当前会话，而它的 cwd 是旧目录——线程区开着一条
     // 侧栏（只投影当前 workspace，见 [_toSidebar]）里找不到的会话。与 [newSession] / [reloadAgent] 同一道守卫：
@@ -846,10 +823,10 @@ class WorkbenchController extends ChangeNotifier {
     final b = bridge;
     if (b == null) {
       project = ref;
-      _touch();
+      touch();
       return;
     }
-    await _guard(() async {
+    await guard(() async {
       final result = await b.workspaceOpen(ref.path);
       final p = result['project'];
       project = p is Map ? ProjectRef(path: p['path'] as String? ?? ref.path, name: p['name'] as String? ?? ref.name) : ref;
@@ -859,7 +836,7 @@ class WorkbenchController extends ChangeNotifier {
       await refreshRules();
       await files.setProject(project?.path);
     });
-    _touch();
+    touch();
   }
 
   /// 换了项目：侧栏只留这个目录下的会话（[_toSidebar] 按 [project] 过滤）；正开着的会话若属于别的目录，
@@ -918,35 +895,35 @@ class WorkbenchController extends ChangeNotifier {
   }
 
   Future<void> switchBranch(String name) async {
-    _hide(branchAnchor);
+    hidePopover(branchAnchor);
     branchInput.clear();
     final b = bridge;
     final cwd = project?.path;
     if (b == null || cwd == null) return;
-    await _guard(() async {
+    await guard(() async {
       await b.gitSwitch(cwd, name);
       await refreshBranches();
     });
-    _touch();
+    touch();
   }
 
   Future<void> createBranch(String name) async {
-    _hide(branchAnchor);
+    hidePopover(branchAnchor);
     branchInput.clear();
     final b = bridge;
     final cwd = project?.path;
     if (b == null || cwd == null) return;
-    await _guard(() async {
+    await guard(() async {
       await b.gitCreateBranch(cwd, name);
       await refreshBranches();
     });
-    _touch();
+    touch();
   }
 
   // ---------------------------------------------------------------- 会话
 
   Future<void> newSession(AgentRef agent) async {
-    _hide(newSessionAnchor);
+    hidePopover(newSessionAnchor);
     // 重入守卫（发布前审查 P2，2026-09-18）：等待期里线程头的 `+` 仍可点（`IgnorePointer` 只包住 `_body()`），
     // 再选一次 agent 会让两条 newSession 交叠：第二条存下的 `wasWaiting` 是 true，它后返回时把等待态永久留在 true
     // （转录区一直变暗不可点、线程头 spinner 不停、[reloadAgent] 永远被挡）；而且两条都走 `_ensureConnected`，
@@ -961,7 +938,7 @@ class WorkbenchController extends ChangeNotifier {
     final cwd = project?.path;
     if (b == null || cwd == null) {
       lastError = cwd == null ? '先选一个项目目录，新会话的 cwd 从它来' : null;
-      _touch();
+      touch();
       return;
     }
     // 画板 05 B 组阶段 ①：先把等待态摆出来再发命令。拉起进程 + `initialize` + `session/new`
@@ -969,7 +946,7 @@ class WorkbenchController extends ChangeNotifier {
     // 先存旧值再恢复：[reloadAgent] 的「没有旧会话」分支会调到这里，直接写 false 会把它的等待态提前收掉。
     final wasWaiting = waitingForAgent;
     waitingForAgent = true;
-    _touch();
+    touch();
     try {
       // 已经连着就别重连：`agent_connect` 会先断开旧连接，把这个 agent 上**所有**会话连着正在跑的那一轮
       // 一起杀掉。所有者报障 2026-09-18（dsh-acp-interactive）：一条会话跑着任务时新建另一条，
@@ -994,7 +971,7 @@ class WorkbenchController extends ChangeNotifier {
       debugPrint('[workbench] newSession: $e');
     } finally {
       waitingForAgent = wasWaiting;
-      _touch();
+      touch();
     }
   }
 
@@ -1044,7 +1021,7 @@ class WorkbenchController extends ChangeNotifier {
   /// 重载 agent（画板 01 / 41）：断开 + 重拉。agent 声明 `loadSession` 时重连后自动 `session/load` 回原来那个会话
   /// （R6 交付物）；没声明的沿用 R3 的做法——开一个新会话，旧转录留在内存里只读。
   Future<void> reloadAgent() async {
-    _hide(threadMenuAnchor);
+    hidePopover(threadMenuAnchor);
     final id = agentId;
     final b = bridge;
     final cwd = project?.path;
@@ -1058,12 +1035,12 @@ class WorkbenchController extends ChangeNotifier {
     // 画板 05 B 组阶段 ①：先把等待态摆出来再发命令。断开 → 重连 → load 要几百毫秒到数秒，
     // 这期间界面一动不动会被当成卡死（所有者反馈 2026-09-17）。
     waitingForAgent = true;
-    _touch();
+    touch();
     // `session/load` 回的是同一条会话时 `sessionId` 不变、`_adoptSession` 也不走，
     // 但转录确实整块换过，得单独补一次入场触发（画板 05 阶段 ③）。
     var loaded = false;
     try {
-      await _guard(() async {
+      await guard(() async {
         await b.agentDisconnect(id);
         if (previous == null) {
           // 走不带重入守卫的那条：这里的等待态是本方法刚摆出来的，守卫会把它当成「另一条在途」。
@@ -1084,7 +1061,7 @@ class WorkbenchController extends ChangeNotifier {
       // 全都失败的路径不补 —— 画板 05 阶段 ③' 只把亮度恢复，不播入场。
       if (loaded) sessionEpoch++;
       waitingForAgent = false;
-      _touch();
+      touch();
     }
   }
 
@@ -1098,7 +1075,7 @@ class WorkbenchController extends ChangeNotifier {
     agentId = _sessionAgent[id] ?? agentId;
     // 切进来就算「被查看」：绿点淡出（画板 06 B ④）。
     _clearUnread(id);
-    _touch();
+    touch();
     await _ensureLoaded(id);
   }
 
@@ -1130,10 +1107,10 @@ class WorkbenchController extends ChangeNotifier {
     if (cwd == null) return;
     if (missingOnAgent.contains(id)) {
       lastError = '$id 在 agent 侧已经不存在了，载不回历史';
-      _touch();
+      touch();
       return;
     }
-    await _guard(() async {
+    await guard(() async {
       await _ensureConnected(b, owner, cwd);
       if (canLoadSessionOf(owner)) {
         await loadSession(owner, id, cwd);
@@ -1146,7 +1123,7 @@ class WorkbenchController extends ChangeNotifier {
         _closedSessions.remove(id);
       }
     });
-    _touch();
+    touch();
   }
 
   /// 本地索引里这条记录登记的 agentId（删 / 改索引都按 (agentId, sessionId) 匹配，见 [deleteSession]）。
@@ -1229,39 +1206,39 @@ class WorkbenchController extends ChangeNotifier {
 
   /// ≡ 菜单 Resume（画板 41）：`session/resume` 只恢复 agent 侧上下文，**不重放**——转录用内存里已有的那份。
   Future<void> resumeSession() async {
-    _hide(threadMenuAnchor);
+    hidePopover(threadMenuAnchor);
     final b = bridge;
     final id = sessionId;
     final agent = agentId;
     if (b == null || id == null || agent == null) return;
     final cwd = sessions.maybe(id)?.cwd ?? _indexCwdOf(id) ?? project?.path;
     if (cwd == null) return;
-    await _guard(() async {
+    await guard(() async {
       final result = await b.sessionResume(agent, id, cwd);
       sessions.session(id, agentId: agent)
         ..cwd = cwd
         ..applyLoadSession(result);
       _closedSessions.remove(id);
     });
-    _touch();
+    touch();
   }
 
   /// ≡ 菜单 Close（画板 41）：`session/close` = 先 cancel 再释放。本地转录留着**只读**，会话仍是当前会话——
   /// 这样 ≡ 菜单里紧接着就能 Resume（`session/resume` 只对没在本连接上活着的会话有效），
   /// 从侧栏再点开它则走 `session/load` 重放。
   Future<void> closeSession() async {
-    _hide(threadMenuAnchor);
+    hidePopover(threadMenuAnchor);
     final b = bridge;
     final id = sessionId;
     final agent = agentId;
     if (b == null || id == null || agent == null) return;
-    await _guard(() async {
+    await guard(() async {
       await _releaseSessionRequests(b, agent, id);
       await b.sessionClose(agent, id);
       _closeEpoch[id] = (_closeEpoch[id] ?? 0) + 1;
       _closedSessions.add(id);
     });
-    _touch();
+    touch();
   }
 
   /// close / delete 之前把这个会话挂起的 client 请求收干净——与 [cancel] **同一条规矩**
@@ -1276,7 +1253,7 @@ class WorkbenchController extends ChangeNotifier {
     if (s == null) return;
     final result = s.cancel();
     for (final requestId in result.cancelledElicitationIds) {
-      await _guard(() => b.acpRespond(agent, requestId, PendingQueue.cancelledAction));
+      await guard(() => b.acpRespond(agent, requestId, PendingQueue.cancelledAction));
     }
   }
 
@@ -1287,7 +1264,7 @@ class WorkbenchController extends ChangeNotifier {
     final b = bridge;
     final agent = agentId;
     if (b == null || agent == null || !canListSessions) return;
-    await _guard(() async {
+    await guard(() async {
       final remote = <String, JsonMap>{};
       String? cursor;
       for (var page = 0; page < maxPages; page++) {
@@ -1329,7 +1306,7 @@ class WorkbenchController extends ChangeNotifier {
           changed = true;
         }
       }
-      if (changed) _touch();
+      if (changed) touch();
     });
   }
 
@@ -1393,13 +1370,13 @@ class WorkbenchController extends ChangeNotifier {
     final current = sidebarSessions.where((s) => s.id == id).map((s) => s.title).firstOrNull ??
         (inHeader ? threadTitle : '');
     rename.text = current;
-    _touch();
+    touch();
   }
 
   void cancelRename() {
     renamingSessionId = null;
     renamingInHeader = false;
-    _touch();
+    touch();
   }
 
   Future<void> commitRename(String title) async {
@@ -1408,13 +1385,13 @@ class WorkbenchController extends ChangeNotifier {
     renamingInHeader = false;
     final b = bridge;
     if (id == null || b == null || title.trim().isEmpty) {
-      _touch();
+      touch();
       return;
     }
     // 线程头显示的是 store 的标题，改完要跟着变；不写回去的话 [_saveIndex] 收轮时还会拿旧标题把索引盖回去。
     // agent 之后再发 `session_info_update.title` 仍然照单全收（规则 2），改名只管到那时候。
     sessions.maybe(id)?.title = title.trim();
-    await _guard(() async {
+    await guard(() async {
       final owner = _ownerOf(id);
       // 计数与 cwd 都从索引本身取，不从侧栏：侧栏只投影当前 workspace 的条目（[_toSidebar]），
       // 核心的 upsert 是整行替换，这里少给一个字段就是把它抹成默认值。
@@ -1429,18 +1406,18 @@ class WorkbenchController extends ChangeNotifier {
       });
       _applyIndex(result['sessions']);
     });
-    _touch();
+    touch();
   }
 
   void askDelete(String id) {
     confirmingDeleteId = id;
-    _touch();
+    touch();
   }
 
   void cancelDelete() {
     confirmingDeleteId = null;
-    _hide(deleteAnchor);
-    _touch();
+    hidePopover(deleteAnchor);
+    touch();
   }
 
   /// 删除这条会话时会不会连 agent 侧一起删：它的 agent 连着（能力已知）且声明了 `sessionCapabilities.delete`。
@@ -1460,12 +1437,12 @@ class WorkbenchController extends ChangeNotifier {
   /// 没连的 agent 不为了删一条记录去拉进程（已知限制，记 rounds/round-06 任务卡）。
   Future<void> deleteSession(String id) async {
     confirmingDeleteId = null;
-    _hide(deleteAnchor);
+    hidePopover(deleteAnchor);
     final b = bridge;
     if (b == null) return;
     final owner = _ownerOf(id);
     final onAgent = deletesOnAgent(id);
-    await _guard(() async {
+    await guard(() async {
       if (onAgent) {
         await _releaseSessionRequests(b, owner, id);
         try {
@@ -1499,7 +1476,7 @@ class WorkbenchController extends ChangeNotifier {
       sessions.forget(id);
       if (sessionId == id) sessionId = null;
     });
-    _touch();
+    touch();
   }
 
   // ---------------------------------------------------------------- 一轮对话
@@ -1509,7 +1486,7 @@ class WorkbenchController extends ChangeNotifier {
   bool _blockedByClose() {
     if (!sessionClosed) return false;
     lastError = '这个会话已经关闭；用 ≡ 菜单的 Resume 挂回来，或新建一个会话';
-    _touch();
+    touch();
     return true;
   }
 
@@ -1590,7 +1567,7 @@ class WorkbenchController extends ChangeNotifier {
     } finally {
       if (identical(_turnInFlight, turn)) _turnInFlight = null;
     }
-    _touch();
+    touch();
   }
 
   /// 输入框正文 + 附件块。`/` 命令按 unstructured 口径原样作为一条 text 块发出（docs/design.md § 3）。
@@ -1610,16 +1587,16 @@ class WorkbenchController extends ChangeNotifier {
     // 停止方块也是往会话发命令的入口：`closeSession` 里的 `s.cancel()` 不收轮（`isRunning` 还是 true），
     // 作曲器禁用态下 Stop 仍会渲染，点下去就把 `session/cancel` 打到已经释放掉的会话上（审查第 3 轮 P2）。
     if (_blockedByClose()) return;
-    await _guard(() async {
+    await guard(() async {
       // 权限请求由核心自动回 cancelled（api.rs 的契约），前端再回会撞 unknown_request；
       // **elicitation 核心不管**，不回 agent 会一直等（审查 finding high，2026-09-15）。
       await b.sessionCancel(id, s.sessionId);
       final result = s.cancel();
       for (final requestId in result.cancelledElicitationIds) {
-        await _guard(() => b.acpRespond(id, requestId, PendingQueue.cancelledAction));
+        await guard(() => b.acpRespond(id, requestId, PendingQueue.cancelledAction));
       }
     });
-    _touch();
+    touch();
   }
 
   Future<void> answerPermission(String requestId, String optionId) async {
@@ -1629,7 +1606,7 @@ class WorkbenchController extends ChangeNotifier {
     if (s == null) return;
     final payload = s.answerPermission(requestId, optionId);
     if (payload == null || b == null || id == null) return;
-    await _guard(() => b.acpRespond(id, requestId, payload));
+    await guard(() => b.acpRespond(id, requestId, payload));
   }
 
   Future<void> answerElicitation(String requestId, String action, JsonMap? content) async {
@@ -1639,7 +1616,7 @@ class WorkbenchController extends ChangeNotifier {
     if (s == null) return;
     final payload = s.answerElicitation(requestId, action, content: content);
     if (payload == null || b == null || id == null) return;
-    await _guard(() => b.acpRespond(id, requestId, payload));
+    await guard(() => b.acpRespond(id, requestId, payload));
   }
 
   /// 用户气泡上的 Restore 与 Regenerate（画板 11）：从这条用户消息本地截断 + 同会话重发
@@ -1671,7 +1648,7 @@ class WorkbenchController extends ChangeNotifier {
     final b = bridge;
     final id = agentId;
     if (b == null || id == null) {
-      _touch();
+      touch();
       return;
     }
     _clearUnread(s.sessionId);
@@ -1686,10 +1663,10 @@ class WorkbenchController extends ChangeNotifier {
     final id = agentId;
     if (b == null || id == null) return;
     for (final requestId in result.cancelledRequestIds) {
-      await _guard(() => b.acpRespond(id, requestId, PendingQueue.cancelledOutcome));
+      await guard(() => b.acpRespond(id, requestId, PendingQueue.cancelledOutcome));
     }
     for (final requestId in result.cancelledElicitationIds) {
-      await _guard(() => b.acpRespond(id, requestId, PendingQueue.cancelledAction));
+      await guard(() => b.acpRespond(id, requestId, PendingQueue.cancelledAction));
     }
   }
 
@@ -1702,11 +1679,11 @@ class WorkbenchController extends ChangeNotifier {
     final id = agentId;
     if (s == null || b == null || id == null) return;
     if (_blockedByClose()) return;
-    await _guard(() async {
+    await guard(() async {
       final result = await b.sessionSetConfigOption(id, s.sessionId, configId, value);
       s.applyConfigOptionsResponse(result);
     });
-    _touch();
+    touch();
   }
 
   Future<void> selectConfigValue(String configId, String value) {
@@ -1724,11 +1701,11 @@ class WorkbenchController extends ChangeNotifier {
     final id = agentId;
     if (s == null || b == null || id == null) return;
     if (_blockedByClose()) return;
-    await _guard(() async {
+    await guard(() async {
       await b.sessionSetMode(id, s.sessionId, modeId);
       s.applyModeSelected(modeId);
     });
-    _touch();
+    touch();
   }
 
   Future<void> toggleConfigBoolean(String configId, bool value) =>
@@ -1751,7 +1728,7 @@ class WorkbenchController extends ChangeNotifier {
       ];
       _clearInlineMenu();
       _slashCommands = commands;
-      _touch();
+      touch();
       return;
     }
     await _updateMentionMenu(token.substring(1));
@@ -1775,7 +1752,7 @@ class WorkbenchController extends ChangeNotifier {
   void closeInlineMenu() {
     if (!inlineMenuOpen) return;
     _clearInlineMenu();
-    _touch();
+    touch();
   }
 
   /// 上下键移动高亮（`-1` / `+1`，首尾环绕）。
@@ -1784,7 +1761,7 @@ class WorkbenchController extends ChangeNotifier {
     if (n == 0) return;
     _inlineSelected = (_inlineSelected + delta) % n;
     if (_inlineSelected < 0) _inlineSelected += n;
-    _touch();
+    touch();
   }
 
   /// Enter：把高亮项填进输入框（与鼠标点那一行同一条路，不发送）。
@@ -1814,10 +1791,10 @@ class WorkbenchController extends ChangeNotifier {
     final cwd = store?.cwd ?? project?.path;
     if (b == null || cwd == null) {
       _clearInlineMenu();
-      _touch();
+      touch();
       return;
     }
-    await _guard(() async {
+    await guard(() async {
       final List<MentionItem> files;
       final List<MentionItem> dirs;
       if (query.isEmpty) {
@@ -1836,7 +1813,7 @@ class WorkbenchController extends ChangeNotifier {
       _mentionFiles = files;
       _mentionDirs = dirs;
     });
-    _touch();
+    touch();
   }
 
   List<MentionItem> _toMentions(Object? raw) => <MentionItem>[
@@ -1856,7 +1833,7 @@ class WorkbenchController extends ChangeNotifier {
     composer.selection = TextSelection.collapsed(offset: composer.text.length);
     _clearInlineMenu();
     composerFocus.requestFocus();
-    _touch();
+    touch();
   }
 
   void _pickMention(MentionItem item) {
@@ -1872,7 +1849,7 @@ class WorkbenchController extends ChangeNotifier {
     });
     _clearInlineMenu();
     composerFocus.requestFocus();
-    _touch();
+    touch();
   }
 
   static String _fileUri(String path) => Uri.file(path, windows: Platform.isWindows).toString();
@@ -1893,7 +1870,7 @@ class WorkbenchController extends ChangeNotifier {
   /// 芯片上的 ×。按**同一个 map 对象**删，不按内容比——两张一模一样的图也要能分别删掉。
   void removePendingBlock(ContentBlockWire block) {
     pendingBlocks.removeWhere((b) => identical(b, block.json));
-    _touch();
+    touch();
   }
 
   /// 图片不再往输入框塞 `[image]` 占位文本：它以芯片的形式显示在输入框顶部（[pendingImages]）。
@@ -1905,7 +1882,7 @@ class WorkbenchController extends ChangeNotifier {
       'mimeType': mimeType,
       if (path != null) 'uri': _fileUri(path),
     });
-    _touch();
+    touch();
   }
 
   /// Ctrl/Cmd+V（输入框的按键回调只管调这里，判断全在这）：剪贴板里是文本就什么都不做——
@@ -1914,14 +1891,14 @@ class WorkbenchController extends ChangeNotifier {
     if (!canCompose) return;
     // 按键回调是 fire-and-forget（`onPaste?.call()` 没人 await），所以这里自己兜住：
     // `Clipboard.getData` 在剪贴板被别的进程占着时会抛 `PlatformException`，不兜就成了未捕获的异步错误。
-    await _guard(() async {
+    await guard(() async {
       final text = await Clipboard.getData(Clipboard.kTextPlain);
       if ((text?.text ?? '').isNotEmpty) return;
       if (!canPromptImage) return; // 不支持图片的 agent：连剪贴板都不用读
       final result = await readClipboardImages();
       if (result.skippedTooLarge) {
         lastError = '图片超过 ${clipboardImageSizeLimit ~/ (1024 * 1024)} MB，没有加进输入框';
-        _touch();
+        touch();
       }
       if (result.images.isEmpty) return;
       for (final image in result.images) {
@@ -1943,7 +1920,7 @@ class WorkbenchController extends ChangeNotifier {
     final sep = composer.text.isEmpty || composer.text.endsWith(' ') ? '' : ' ';
     composer.text = '${composer.text}$sep$label ';
     composer.selection = TextSelection.collapsed(offset: composer.text.length);
-    _touch();
+    touch();
   }
 
   /// 本地转录文本（`+` 的 Threads）：把当前会话的消息拼成一份 embedded resource。
@@ -1962,18 +1939,18 @@ class WorkbenchController extends ChangeNotifier {
 
   void toggleSidebar() {
     sidebarCollapsed = !sidebarCollapsed;
-    _touch();
+    touch();
   }
 
   void setSearch(String value) {
     search = value;
-    _touch();
+    touch();
   }
 
   void clearSearch() {
     sidebarSearch.clear();
     search = '';
-    _touch();
+    touch();
   }
 
   // ---------------------------------------------------------------- 右栏（画板 03 / 50 / 60 / 61）
@@ -2005,7 +1982,7 @@ class WorkbenchController extends ChangeNotifier {
     if (!openTabs.contains(tab)) openTabs.add(tab);
     rightTab = tab;
     activeTerminalId = null;
-    _touch();
+    touch();
   }
 
   /// 侧栏底部导航点一下：没开这个面板就开；当前就是它，再点一下把右栏整个收起
@@ -2027,7 +2004,7 @@ class WorkbenchController extends ChangeNotifier {
   void closeTab(ShellTab tab) {
     openTabs.remove(tab);
     if (rightTab == tab) rightTab = openTabs.isEmpty ? null : openTabs.last;
-    _touch();
+    touch();
   }
 
   /// 点标签条上的标签。
@@ -2038,7 +2015,7 @@ class WorkbenchController extends ChangeNotifier {
       activeTerminalId = null;
       if (tab.shell != null) openTab(tab.shell!);
     }
-    _touch();
+    touch();
   }
 
   /// 标签条上的关闭键：终端标签 = 关掉那个 shell；面板标签 = 收起该面板。
@@ -2059,7 +2036,7 @@ class WorkbenchController extends ChangeNotifier {
     for (final id in ids) {
       await terminals.close(id);
     }
-    _touch();
+    touch();
   }
 
   void toggleRightPanel() {
@@ -2076,26 +2053,26 @@ class WorkbenchController extends ChangeNotifier {
   Future<void> openTerminalTab({bool forceNew = false}) async {
     if (!forceNew && terminals.tabs.isNotEmpty) {
       activeTerminalId = terminals.tabs.last.id;
-      _touch();
+      touch();
       return;
     }
     final cwd = project?.path;
     if (cwd == null) {
       lastError = '先选一个项目目录，终端在它里面打开';
-      _touch();
+      touch();
       return;
     }
     final id = await terminals.open(cwd);
     if (id != null) activeTerminalId = id;
     lastError = terminals.lastError ?? lastError;
-    _touch();
+    touch();
   }
 
   Future<void> closeTerminalTab(String id) async {
     final wasActive = activeTerminalId == id;
     await terminals.close(id);
     if (wasActive) activeTerminalId = terminals.tabs.isEmpty ? null : terminals.tabs.last.id;
-    _touch();
+    touch();
   }
 
   Future<void> stopTerminalTab(String id) => terminals.stop(id);
@@ -2106,7 +2083,7 @@ class WorkbenchController extends ChangeNotifier {
     final wasActive = activeTerminalId == id;
     final fresh = await terminals.restart(id);
     if (wasActive) activeTerminalId = fresh ?? (terminals.tabs.isEmpty ? null : terminals.tabs.last.id);
-    _touch();
+    touch();
   }
 
   /// 画板 23 的停止方块（agent 建的终端）：`terminal_kill` = `terminal/kill` 语义，退出状态随 `acp/terminal_output` 回来。
@@ -2121,7 +2098,7 @@ class WorkbenchController extends ChangeNotifier {
       final text = describeError(e);
       if (!text.contains('unknown terminal')) {
         lastError = text;
-        _touch();
+        touch();
       }
       return;
     }
@@ -2153,7 +2130,7 @@ class WorkbenchController extends ChangeNotifier {
   void toggleFollow() {
     follow = !follow;
     if (!follow) _lastFollowed = null;
-    _touch();
+    touch();
   }
 
   /// Follow 开着时，当前会话的 `tool_call` / `tool_call_update` 带 `locations[]` 就跟到第一条（同一位置不重复跳）。
@@ -2190,7 +2167,7 @@ class WorkbenchController extends ChangeNotifier {
 
   void openTraffic() {
     page = MainPage.traffic;
-    _touch();
+    touch();
   }
 
   void openWorkbench() {
@@ -2198,7 +2175,7 @@ class WorkbenchController extends ChangeNotifier {
     // 从流量页回到工作台，当前那条会话就又在眼前了：它的绿点一并撤掉（画板 06 的清除条件）。
     final id = sessionId;
     if (id != null) _clearUnread(id);
-    _touch();
+    touch();
   }
 
   /// 画板 34 状态条的登录键：进认证页（画板 52），方法预选。
@@ -2217,7 +2194,7 @@ class WorkbenchController extends ChangeNotifier {
   Future<void> refreshRegistry({bool network = false, bool force = false}) async {
     final b = bridge;
     if (b == null) return;
-    await _guard(() async {
+    await guard(() async {
       final list = network ? await b.registryRefresh(force: force) : await b.registryList();
       registry.applyList(list);
       // 侧栏的 agent logo 是从 registry 查出来**烘进** [SidebarSession] 的，所以 registry 一变就要重投影一次：
@@ -2232,7 +2209,7 @@ class WorkbenchController extends ChangeNotifier {
       // 展示名随 registry 来（画板 41 的新建会话弹层）。
       await refreshAgents();
     });
-    _touch();
+    touch();
   }
 
   void _onRegistryProgress(CoreEventRecord e) {
@@ -2245,17 +2222,17 @@ class WorkbenchController extends ChangeNotifier {
       unawaited(refreshRegistry());
       if (id != null && step == 'failed') registryShowLog.add(id);
     }
-    _touch();
+    touch();
   }
 
   void setRegistryFilter(RegistryFilter filter) {
     registryFilter = filter;
-    _touch();
+    touch();
   }
 
   void setRegistryQuery(String query) {
     registryQuery = query;
-    _touch();
+    touch();
   }
 
   /// Install / 重试（失败态）。
@@ -2263,27 +2240,27 @@ class WorkbenchController extends ChangeNotifier {
     final b = bridge;
     if (b == null) return;
     registryShowLog.remove(id);
-    await _guard(() => b.registryInstall(id));
-    _touch();
+    await guard(() => b.registryInstall(id));
+    touch();
   }
 
   Future<void> cancelInstall(String id) async {
     final b = bridge;
     if (b == null) return;
-    await _guard(() => b.registryCancelInstall(id));
-    _touch();
+    await guard(() => b.registryCancelInstall(id));
+    touch();
   }
 
   void toggleInstallLog(String id) {
     if (!registryShowLog.remove(id)) registryShowLog.add(id);
-    _touch();
+    touch();
   }
 
   /// Remove（画板 50 / 51 / 70）：registry 型走 `registry_remove`（settings 条目 + `agents/<id>/`），custom 型只删 settings 条目。
   Future<void> removeAgent(String id) async {
     final b = bridge;
     if (b == null) return;
-    await _guard(() async {
+    await guard(() async {
       final entry = registry.byId(id);
       if (entry?.isCustom ?? false) {
         await b.agentSettingsRemove(id);
@@ -2298,18 +2275,18 @@ class WorkbenchController extends ChangeNotifier {
       if (settingsEditingId == id || settingsExpandedId == id) collapseSettingsEdit();
       await refreshRegistry();
     });
-    _touch();
+    touch();
   }
 
   /// 受管 Node（画板 51 提示卡 / 画板 70 的 Node 运行时）。进度经 `registry/progress`（`agentId: null`）。
   Future<void> downloadNode() async {
     final b = bridge;
     if (b == null) return;
-    await _guard(() async {
+    await guard(() async {
       await b.nodeDownload();
       await refreshRegistry();
     });
-    _touch();
+    touch();
   }
 
   // ---------------------------------------------------------------- 认证页（画板 52，R5）
@@ -2347,19 +2324,19 @@ class WorkbenchController extends ChangeNotifier {
     // agent 从画板 51 / 34 的登录键进来会白白重连一次，把它上面正在跑的会话全杀掉（与 [newSession] 同一个坑）。
     // 重连也换不出新的 authMethods（它就是从 `initialize` 来的），所以连上了就不重连。
     if (b != null && authMethods.isEmpty && sessions.agents[agent]?.state != AgentLifecycle.initialized) {
-      await _guard(() async {
+      await guard(() async {
         final result = await b.agentConnect(agent, cwd: _authRetryCwd);
         final init = result['initialize'];
         if (init is Map) sessions.agents.applyInitializeResult(agent, init.cast<String, dynamic>());
       });
     }
     authMethodId = methodId ?? authMethods.firstOrNull?['id'] as String?;
-    _touch();
+    touch();
   }
 
   void selectAuthMethod(String id) {
     authMethodId = id;
-    _touch();
+    touch();
   }
 
   /// 开始认证：agent 型调 `authenticate`（URL elicitation 会经 requestScope 落到本页）；terminal 型在 pty 里重拉同一个 agent，
@@ -2375,16 +2352,16 @@ class WorkbenchController extends ChangeNotifier {
     bool stale() => generation != _authGeneration;
     authPhase = AuthPhase.running;
     authError = null;
-    _touch();
+    touch();
     try {
       if (AuthPage.methodType(method) == 'terminal') {
         if (cwd == null) throw StateError('先选一个项目目录，terminal auth 在它里面跑');
         authTerminalLabel = method['name'] as String? ?? methodId;
-        _touch();
+        touch();
         final result = await b.terminalAuthRun(agent, methodId, cwd);
         if (stale()) return;
         authPhase = AuthPhase.succeeded;
-        _touch();
+        touch();
         final session = result['session'];
         if (session is Map) {
           _adoptSession(agent, cwd, session.cast<String, dynamic>());
@@ -2396,7 +2373,7 @@ class WorkbenchController extends ChangeNotifier {
         await b.authenticate(agent, methodId);
         if (stale()) return;
         authPhase = AuthPhase.succeeded;
-        _touch();
+        touch();
         if (cwd != null) await _createSession(agent, cwd);
       }
       if (stale()) return;
@@ -2411,7 +2388,7 @@ class WorkbenchController extends ChangeNotifier {
       authPhase = AuthPhase.failed;
       authError = e.toString();
     }
-    _touch();
+    touch();
   }
 
   /// 失败态的「重试」：同一方法再来一次。
@@ -2422,7 +2399,7 @@ class WorkbenchController extends ChangeNotifier {
     authPhase = AuthPhase.choose;
     authError = null;
     authTerminalLabel = null;
-    _touch();
+    touch();
   }
 
   /// 取消：terminal 在跑的先关掉（核心等到退出后照常重试 `session/new`，失败会以 failed 收尾）；回 registry 列表。
@@ -2430,7 +2407,7 @@ class WorkbenchController extends ChangeNotifier {
     final b = bridge;
     final terminal = authTerminalId;
     if (b != null && terminal != null && authPhase == AuthPhase.running) {
-      await _guard(() => b.terminalClose(terminal));
+      await guard(() => b.terminalClose(terminal));
     }
     closeAuth();
   }
@@ -2444,7 +2421,7 @@ class WorkbenchController extends ChangeNotifier {
     authTerminalLabel = null;
     _authRetryCwd = null;
     _cancelAuthElicitations();
-    _touch();
+    touch();
   }
 
   /// 认证页收起 / 重开前：还挂着的 requestScope elicitation 逐条回 `cancel`。不回响应，agent 那边在途的 `authenticate`
@@ -2460,14 +2437,14 @@ class WorkbenchController extends ChangeNotifier {
     final b = bridge;
     final terminal = authTerminalId;
     if (b == null || terminal == null) return;
-    await _guard(() => b.terminalClose(terminal));
+    await guard(() => b.terminalClose(terminal));
   }
 
   Future<void> authTerminalInput(String data) async {
     final b = bridge;
     final terminal = authTerminalId;
     if (b == null || terminal == null) return;
-    await _guard(() => b.terminalWrite(terminal, data));
+    await guard(() => b.terminalWrite(terminal, data));
   }
 
   /// requestScope 的 elicitation 到达：落认证页（没开的话打开对应 agent 的一页），不落转录（docs/design.md § 5 第 5 条）。
@@ -2489,7 +2466,7 @@ class WorkbenchController extends ChangeNotifier {
       _authRetryCwd ??= project?.path;
     }
     if (rightTab != ShellTab.agents) openTab(ShellTab.agents);
-    _touch();
+    touch();
   }
 
   /// 「Open in browser」：回 `accept`（挂起的）并记已打开；返回要打开的 URL（打开本身由组合根的 `url_launcher` 做）。
@@ -2498,10 +2475,10 @@ class WorkbenchController extends ChangeNotifier {
     final agent = e.agentId ?? authAgentId;
     if (e.status == PendingStatus.pending && b != null && agent != null) {
       final payload = sessions.pending.answerElicitation(e.requestId, 'accept', now: sessions.now);
-      if (payload != null) await _guard(() => b.acpRespond(agent, e.requestId, payload));
+      if (payload != null) await guard(() => b.acpRespond(agent, e.requestId, payload));
     }
     sessions.pending.markOpened(e.requestId);
-    _touch();
+    touch();
     return e.wire.url;
   }
 
@@ -2511,11 +2488,11 @@ class WorkbenchController extends ChangeNotifier {
     final agent = e.agentId ?? authAgentId;
     if (e.status == PendingStatus.pending && b != null && agent != null) {
       final payload = sessions.pending.answerElicitation(e.requestId, 'cancel', now: sessions.now);
-      if (payload != null) await _guard(() => b.acpRespond(agent, e.requestId, payload));
+      if (payload != null) await guard(() => b.acpRespond(agent, e.requestId, payload));
     } else {
       sessions.pending.cancelRequest(e.requestId, now: sessions.now);
     }
-    _touch();
+    touch();
   }
 
   // ---------------------------------------------------------------- 设置面板（画板 70，R5；右栏标签）
@@ -2539,13 +2516,13 @@ class WorkbenchController extends ChangeNotifier {
       settingsExpandedId = settingsExpandedId == id ? null : id;
       settingsEditingId = null;
     }
-    _touch();
+    touch();
   }
 
   void collapseSettingsEdit() {
     settingsEditingId = null;
     settingsExpandedId = null;
-    _touch();
+    touch();
   }
 
   /// 「保存」：写回 `{type: custom, command, args, env}`（args 按空白分隔、双引号可包空格；env 是 `K=V` 空白分隔）。
@@ -2555,7 +2532,7 @@ class WorkbenchController extends ChangeNotifier {
     final command = settingsEdit.command.text.trim();
     if (command.isEmpty) {
       lastError = 'cmd 不能为空';
-      _touch();
+      touch();
       return;
     }
     final env = <String, String>{};
@@ -2564,7 +2541,7 @@ class WorkbenchController extends ChangeNotifier {
       if (i <= 0) continue;
       env[token.substring(0, i)] = token.substring(i + 1);
     }
-    await _guard(() async {
+    await guard(() async {
       await b.agentSettingsSet(id, <String, dynamic>{
         'type': 'custom',
         'command': command,
@@ -2574,7 +2551,7 @@ class WorkbenchController extends ChangeNotifier {
       settingsEditingId = null;
       await refreshRegistry();
     });
-    _touch();
+    touch();
   }
 
   /// 按空白切分，双引号里的空格保留（`"C:\a b\x.cmd" --flag`）。
@@ -2605,7 +2582,7 @@ class WorkbenchController extends ChangeNotifier {
   Future<void> importZed() async {
     final b = bridge;
     if (b == null) return;
-    await _guard(() async {
+    await guard(() async {
       final result = await b.agentSettingsImportZed();
       final report = result['report'];
       if (report is Map) {
@@ -2618,7 +2595,7 @@ class WorkbenchController extends ChangeNotifier {
       }
       await refreshRegistry();
     });
-    _touch();
+    touch();
   }
 }
 
