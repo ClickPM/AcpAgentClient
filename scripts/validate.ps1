@@ -169,13 +169,15 @@ try {
     Step "lib/app 行数门 (R7.5)" {
         # R7.5 组合根拆分（rounds/round-7.5/round-7.5.md 验收 5）：组合根 ≤ 450 行，lib/app 下任何文件 ≤ 900 行，
         # 防止组合根再长回上帝对象。改阈值先改任务卡再改这里。
-        # headless_run.dart 是 R3 / R5 / R6 三个无头实跑模式的驱动（基线 1186 行），不是产品代码、本轮只改了引用路径，
-        # 单独放宽；拆成三个文件的事记 rounds/BACKLOG.md 等裁定。
-        $limits = @{ "workbench_controller.dart" = 450; "headless_run.dart" = 1300 }
+        # 行数按原始行计（与 wc -l 同口径，空行也算）。两处显式放宽，都是本轮只改了引用路径的既有文件：
+        # headless_run.dart 是 R3 / R5 / R6 三个无头实跑模式的驱动（基线 1186 行），不是产品代码；
+        # workbench_screen.dart 在画板 43 之后就是 946 行（任务卡「2026-09-20 复核」记为观察项）。
+        # 拆它们的事记 rounds/BACKLOG.md 等裁定；再长就得回来动这两个数字。
+        $limits = @{ "workbench_controller.dart" = 450; "headless_run.dart" = 1300; "workbench_screen.dart" = 1000 }
         $default = 900
         $bad = @()
         foreach ($f in (Get-ChildItem (Join-Path $root "lib\app") -File -Filter *.dart)) {
-            $n = (Get-Content $f.FullName -Encoding UTF8 | Measure-Object -Line).Lines
+            $n = @(Get-Content $f.FullName -Encoding UTF8).Count
             $limit = if ($limits.ContainsKey($f.Name)) { $limits[$f.Name] } else { $default }
             if ($n -gt $limit) { $bad += "$($f.Name): $n > $limit" }
         }

@@ -2,7 +2,7 @@
 
 <!-- 保存为 rounds/round-7.5/round-7.5.md；该轮其他管理产出放同一目录。编号沿用 R1.5 的写法：夹在 R7 与 R8 之间的纯代码结构轮，无画板。 -->
 
-> 状态：进行中——**按推荐项开工，待确认**（2026-09-20 起；裁定门六项全部按推荐项执行：编号 R7.5、组合根 + 8 个对象、直接访问子对象不留转发门面、阶段 A 必做 + 阶段 B 先量后动、不修 BACKLOG 缺陷、validate 加行数门与依赖方向门）。2026-09-18 起草；2026-09-20 按 main 新合并的 16 个提交复核、基线改到 `5a001bf`（实际开工基线 `f62520f` = main = `round-7.5`，只多一个 v1.1.0 版本号提交），见 §「2026-09-20 复核」。本轮在独立 worktree 的分支 `claude/r7-5-composition-root-refactor-7600bf` 上逐步提交（`round-7.5` 在主工作副本已检出、无法在 worktree 再检出），收口时 `round-7.5` 一次 fast-forward 即可。
+> 状态：**代码与文档完成，等所有者三件事**——验收 8 的 Windows 真跑、验收 9 的手测、合并时机（main 在本轮开工后又进了「Thread → Session 收敛」，见「本轮实测」末段；按所有者 2026-09-20 指示不合并、由所有者定）。裁定门六项按推荐项执行，待确认（2026-09-20 起；裁定门六项全部按推荐项执行：编号 R7.5、组合根 + 8 个对象、直接访问子对象不留转发门面、阶段 A 必做 + 阶段 B 先量后动、不修 BACKLOG 缺陷、validate 加行数门与依赖方向门）。2026-09-18 起草；2026-09-20 按 main 新合并的 16 个提交复核、基线改到 `5a001bf`（实际开工基线 `f62520f` = main = `round-7.5`，只多一个 v1.1.0 版本号提交），见 §「2026-09-20 复核」。本轮在独立 worktree 的分支 `claude/r7-5-composition-root-refactor-7600bf` 上逐步提交（`round-7.5` 在主工作副本已检出、无法在 worktree 再检出），收口时 `round-7.5` 一次 fast-forward 即可。
 
 ## 目标
 
@@ -306,11 +306,14 @@ main 直改期间控制器只被碰了 3 行，说明「前置」里那条「尽
      本轮特殊：diff 以「移动」为主，给审查器的 -Note 固定写「纯移动重构，附录 A 是改名表，请核对行为等价与依赖方向」；
      人看 diff 用 git diff --color-moved=dimmed-zebra。 -->
 
-- 审查方式：<cursor-review.ps1（默认档）| cursor-review.ps1 -Kind adversarial | Claude Code 子代理（写明 cursor 失败原因）>
-- 审查器与模型：<cursor CLI cursor-grok-4.6-high-fast | Claude Code 子代理（写明模型）>
-- 审查范围与基准提交：<branch main...HEAD | since <sha>..HEAD>
-- findings 处理：<逐条：采纳整改 / 不采纳及理由；或链接同目录记录文件>
-- 结论：<PASS | 整改后 PASS>
+- 审查方式：`cursor-review.ps1`（默认档，两轮全量；`-Note`「纯移动重构，附录 A 是改名表，请核对行为等价与依赖方向，不要提出设计层面的重排」）
+- 审查器与模型：cursor CLI `cursor-grok-4.6-high-fast`（两轮都是；未回落）
+- 审查范围与基准提交：第 1 轮 `main...HEAD`（HEAD = `2c25099`，第 0–6 步，30 文件 +3796 / −1859）；第 2 轮 `main...HEAD`（HEAD = `fd5b7a9`，第 0–9 步 + 文档同步，35 files changed, 5419 insertions(+), 3309 deletions(-)）
+- 第 1 轮（2026-09-20 13:29，7 分钟，产物 `.claude/reviews/20260920-132929-review.out.md`）：**0 findings**。审查器逐段与 main 对照了 `start` / `openProject` / `_enterWorkspace` / `_saveIndex` / `_createSession` / `_adoptSession` / `send` / `_runTurn` / `refreshRegistry` / `removeAgent` / `startAuth` / `_onPendingChanged` / Follow / 右栏，确认契约面零 diff、测试只改接收者路径、`start()` 顺序与阶段 A 通知不变、子对象只走附录 B 的边。
+- 第 2 轮（2026-09-20 13:53，5 分钟，产物 `.claude/reviews/20260920-135353-review.out.md`）：**0 findings**。审查器对着基线 `f62520f` 核了组合根接线（`start()` 顺序、六路事件分发、`terminal_output` 分流、子对象 listener 汇总、dispose）、九个新文件、screen / headless / 12 个测试文件的改名、依赖方向（与附录 B 和 validate 门一致）、以及会话 / 认证 / 一轮对话几条关键路径（`openProject` / `_enterWorkspace`、`refreshRegistry` / `_selectDefaultAgent`、`startAuth` 的 `_adoptSession` + `_saveIndex` vs `adoptAuthSession`、`_createSession`、`_onTerminalOutput`、`_guard` / `_touch`、permission / elicitation 必回、`session/cancel` 后 elicitation 代答）；任务卡写明不修的 BACKLOG 项未报。审查器顺带指出 main 在本轮开工后又进了「Thread → Session 收敛」（不在范围内），见下方「main 的后续提交」。
+- findings 处理：两轮共 0 条，无整改。
+- 结论：PASS（两轮全量审查 0 findings）。第 9 步之后只动了两处非代码的东西（validate 行数门改按原始行计 + screen 放宽、BACKLOG 一条措辞），没有再发一轮（没有采纳整改的 findings）。
+- 与计划的偏离：第 2 步之后那一轮审查漏发（本会话的疏忽），改在第 6 步提交后发第 1 轮全量——范围仍是 `main...HEAD`，覆盖第 0–6 步；第 2 轮按计划在第 8 步之后发（含第 9 步与文档同步）。
 
 ## 失败处理
 
@@ -341,3 +344,116 @@ r6 = `fake-r6`（`--sessions`）+ 三轮（第三轮 2 s 后 cancel）+ `ACP_R6_
 基线连跑两遍做噪声校准：原始 diff 只有 `elapsedMs`、`taskkill` 块（pid 与文案）与 r6 随机的 `sess_<uuid>`，r5 零差异；
 比对脚本 `compare.py` 只忽略这三样（uuid 按首次出现顺序规范化），其余字段（含 `traffic.byMethod` 的逐方法计数、`seen` 的逐类 update 计数、
 每步的 `error` 文案）全部逐字比。
+
+### 第 1–8 步：逐步拆出（每步一个提交；每步 validate 13 项 PASS、`flutter test` 319、三份无头报告与基线等价）
+
+| 步 | 提交 | 拆出 | `workbench_controller.dart` 行数 | 新文件行数 | 引用改动数（screen / headless / test） |
+|---|---|---|---|---|---|
+| 1 | `a794323` | `guarded.dart`（`GuardedNotifier` mixin + `hidePopover`） | 2645 → 2622 | 50 | —（纯替换：`guard` 36 / `touch` 82 / `hidePopover` 10 处） |
+| 2 | `60c439b` | `shell_state.dart` | 2345 | 348 | 41 / 15 / 57 |
+| 3 | `c02d89d` | `workspace_state.dart` + `session_index.dart` | 2131 | 196 + 144 | 27 / 25 / 21 |
+| 4 | `1a3efc6` | `agents_state.dart` | 1883 | 317 | 34 / 31 / 29 |
+| 5 | `d8e5096` | `auth_state.dart` | 1681 | 288 | 21 / 13 / 40 |
+| 6 | `2c25099` | `composer_state.dart` | 1430 | 327 | 34 / 6 / 29 |
+| 7 | `67082bc` | `turn_controller.dart`（临时 `ThreadPort` 接口由根实现，第 8 步删） | 1134 | 358 | 14 / 19 / 32 |
+| 8 | `60235d4` | `thread_controller.dart`；根整体改写成组合根；`turn` 改指 `ThreadController` | **356** | thread 848 / turn 345 | 85 / 104 / 160（另 13 处级联赋值 `..agentId = ` 等，与 session_lifecycle 里 `full` / `pi` / `none` / `plain` 四个变量名上的 19 处） |
+
+验收 5 的行数门：`wc -l`：`workbench_controller.dart` **356**（≤ 450）；新文件 `thread_controller.dart` 848、`shell_state.dart` 348、`turn_controller.dart` 345、`composer_state.dart` 327、`agents_state.dart` 317、`auth_state.dart` 288、`workspace_state.dart` 196、`session_index.dart` 144、`guarded.dart` 50，都 ≤ 900；本轮只改引用路径的两个既有文件超过 900——`headless_run.dart` 1186（无头驱动，基线就是这个数）与 `workbench_screen.dart` 946（画板 43 之后就是这个数）——在门里显式放宽到 1300 / 1000 并写明理由，记 BACKLOG 等裁定。门一开始用 `Measure-Object -Line` 数非空行（screen 870 / headless 1112）与本表的 `wc -l` 口径不一致，第 2 轮审查后改成按原始行计（与 `wc -l` 同口径）
+
+验收 6 的依赖方向（`lib/app/*.dart` 同目录 import，2026-09-20 核对）：`guarded` → core_bridge；`shell_state` → core_bridge / files_state / guarded / local_terminals；`workspace_state` → core_bridge / files_state / guarded；`session_index` → core_bridge；`agents_state` → core_bridge / guarded；`auth_state` → core_bridge / guarded；`composer_state` → clipboard_image / core_bridge / guarded；`turn_controller` → composer_state / core_bridge / guarded / thread_controller；`thread_controller` → agents_state / core_bridge / guarded / session_index / workspace_state；组合根 → 以上全部 + files_state / local_terminals / paths。全部是附录 B 的边（`turn → thread`、`thread → index / agents / workspace`、`shell / workspace → files`），没有反向边
+`grep -l "workbench_controller.dart" lib/app/*.dart` = `app.dart` / `workbench_screen.dart` / `headless_run.dart` 三个。两道门已进 `scripts/validate.ps1`（提交 `fd5b7a9`），validate 从 13 项变 15 项。
+
+验收 3：`test/` 只改引用路径——`test/app` + `test/ui` 仍是 186 例 / `expect(` 798 行（`git diff main...HEAD -- test | grep -c '^[-+].*expect('` = `-` 191 行 / `+` 191 行，一一对应，全部是接收者路径改动，见 `git diff --color-moved=dimmed-zebra`）；`flutter test` 全量 319。
+
+验收 1：`git diff main...HEAD --stat -- lib/ui lib/theme lib/projection lib/bridge rust test/fixtures pubspec.yaml` 为空（`--stat` 输出 0 行，`pins/upstream.json` 一并核过）。
+
+验收 4：每步 `rounds/round-7.5/baseline/compare.py` 三份全部 `EQUIVALENT`。两次偶发（都是同一二进制重跑后等价，不是行为差异）：
+第 5 步 r3 的 `branches.afterSwitchBack` / `branches.error` 撞上 git 自己的 `index.lock`（分支切回 main 时文件面板的 `git status` 正在刷新索引）；
+第 7 步 r3 的 `newSession.commands` 取样早于 `available_commands_update` 到达（r6 基线里同一字段本就是空的，这是取样时序）。
+另一次不是偶发而是**比对抓到了报告读错对象**：第 4 步 r5 的 `importZed.error` 读的还是根上更早的认证错误——拆分后 `lastError`
+按对象分开了，headless 里各步的 `error` 改读对应对象（agents / workspace / turn / thread）之后等价；这也是附录 A「谁的命令谁记」在无头脚本上的落实。
+
+### 与计划的偏离（原因都在括号里，不改任务卡正文）
+
+1. 分支：本会话跑在独立 worktree，提交落在 `claude/r7-5-composition-root-refactor-7600bf`（`round-7.5` 在主工作副本已检出、worktree 里再检出会让主副本 HEAD 跟着走）；收口后 `git -C D:\variFlight_work\AcpAgentClient merge --ff-only claude/r7-5-composition-root-refactor-7600bf` 即可把 `round-7.5` 推到同一个提交。
+2. 回调比附录 B 多几条，都是原码里确实存在、附录 B 没画出来的反向读写：`shell.cwd`（开本地终端要项目目录）、`shell.onWorkbenchShown`（回工作台撤绿点）、`agents.onRegistryChanged`（与 `onInstalledChanged` 分开——原码里侧栏重投影在 `refreshAgents` **之前**，合成一条会改顺序）、`agents.onPaths`（`dataDir` / `logPath` / `zedSettingsPath` 留在根）、`auth.ensureAgentsTab`（`onPendingChanged` 那条「右栏不是 Agents 标签才切」的判断）、`auth.currentAgentId` / `auth.registryName` / `auth.showWorkbench`、`thread.showWorkbench` / `isWorkbenchPage` / `openAgentsTab` / `openAuth`、`composer.canCompose`。
+3. `_promptSentAt` 放在 `SessionIndex`（不是任务卡写的 `turn`）：`commitRename` 与 `saveIndex` 都要读它；`saveIndex` / `stampPromptSent` 留在 `thread`（`turn` 调它们），`SessionIndex.upsert` 收显式的 agent / 标题兜底参数。
+4. `thread.leaveWorkspace` 沿用原名 `enterWorkspace`；`_selectDefaultAgent` → `ensureAgentSelected`（任务卡的名字）。
+5. `hidePopover` 顶层函数放在 `guarded.dart`（三个对象共用，原 `static _hide`）。
+6. 第 7 步用临时接口 `ThreadPort`（九个成员）让 `turn` 先接根、第 8 步换本体后删掉，代替任务卡写的「先读组合根」；根上五个私有方法（`_clearUnread` / `_markDone` / `_saveIndex` / `_stampPromptSent` / `agentRefOf`）因此提前转公有。
+7. headless 的 `report['lastError']`（异常收尾时那一份）改读 `thread.lastError`，记 BACKLOG（做壳级聚合时一并改）。
+8. 行数门对 `headless_run.dart`（1186 行，本轮只改引用路径）单独放宽到 1300，记 BACKLOG。
+9. `flutter test` 全量是 319 不是任务卡写的 294（起草时的旧数字）。
+10. 私有具名初始化形参（`required this._cwd`，Dart 3.10+）：analyzer 对 `: _x = x` 的写法报 `prefer_initializing_formals`，为了不给基线的 14 条 info 添新条目改用了这种写法，仓库里首次出现。
+
+### 第 9 步：阶段 B 先量后动（探针 `debugOnRebuildDirtyWidget` 数 `AppShell` 的 build，临时测试不入库）
+
+探针（临时的 `test/app/phase_b_probe_test.dart`，用框架的 `debugOnRebuildDirtyWidget` 钩子数 `AppShell` 元素的 rebuild，不改 `lib/ui`；`flutter test` = flutter_tester **debug** 口径，绝对时间只能看量级）：
+
+| 场景 | 根通知次数 | 壳级 build 次数 | 耗时 |
+|---|---|---|---|
+| A：290 条 `agent_message_chunk` 挂在 batcher 里一次放行（`session/load` 重放的形状） | 1 | **1**（首帧 1，之后 5 帧 0） | 首帧 229 ms（含 290 条转录的首次构建），6 帧共 1137 ms |
+| B：40 条分块逐帧到达（fake-agent 流式输出的形状） | 40 | **40**（每帧 1） | 1491 ms，约 37 ms / 帧 |
+
+裁定门第 4 项的阈值：「一次 `session/update` batch 触发的壳级 build > 1 次且 290 行重放的总 build 耗时 > 一帧（16 ms）」。次数正好是 1（一帧一次，batcher 已经把 batch 内的通知合并成一次），第一个条件不成立，**不动区域订阅**；数字与建议记 `rounds/BACKLOG.md`（流式输出时每帧一次整壳重建的 37 ms 是 debug 测试机口径，release 真机要另量）。验收 10 不适用。
+
+### 验收 8：Windows 真跑（规则 9）——待所有者点跑
+
+`scripts/build.ps1 -Smoke`：过（第 8 步的 release 构建，`ACP_SMOKE_REPORT` + 隔离的 `APPDATA`，exit 0：init / ping / core_ready 三步 ok，coreVersion 1.1.0，droppedEvents 0）
+
+dsh-acp-interactive 与 claude-agent-acp 各一轮的命令（用真实数据目录、真实 agent；在 worktree 根跑，先 `scripts/build.ps1`）：
+
+```powershell
+# dsh：新建 → 发消息（带权限）→ 第二轮 2 s 后停止 → 新建分支再切回 → 杀进程后重载 → 文件面板 Follow → 本地终端
+$env:ACP_R3_REPORT="build\r75-dsh.json"; $env:ACP_R3_AGENT="dsh-acp-interactive"; $env:ACP_R3_CWD="<一个 git 项目目录>"
+$env:ACP_R3_PROMPT="读一下 README.md 的第一行，然后把它复述给我"; $env:ACP_R3_PROMPT2="把 README.md 每一行都解释一遍"
+$env:ACP_R3_CANCEL_AFTER="4"; $env:ACP_R3_NEW_BRANCH="r75-dsh"; $env:ACP_R3_KILL="1"; $env:ACP_R4_FILES="1"; $env:ACP_R4_FOLLOW="1"; $env:ACP_R4_LOCAL_SHELL="1"
+$p = Start-Process build\windows\x64\runner\Release\acp_agent_client.exe -PassThru -WindowStyle Hidden; $p.WaitForExit(); $p.ExitCode
+# claude-agent-acp：R6 的会话生命周期（新建 → 一轮 → list 校对 → 重载 → 重连 + load 重放 → 第二轮 → close → resume → delete）
+$env:ACP_R6_REPORT="build\r75-claude.json"; $env:ACP_R6_AGENT="claude-agent-acp"; $env:ACP_R6_CWD="<同一个目录>"
+$env:ACP_R6_PROMPT="用 Read 工具读 README.md 的第一行"; $env:ACP_R6_PROMPT2="2+2 等于几"; $env:ACP_R6_RELOAD="1"; $env:ACP_R6_CLOSE="1"; $env:ACP_R6_RESUME="1"; $env:ACP_R6_DELETE="1"
+$p = Start-Process build\windows\x64\runner\Release\acp_agent_client.exe -PassThru -WindowStyle Hidden; $p.WaitForExit(); $p.ExitCode
+```
+
+跑之前按记忆里的两条：`ls ~/.claude | grep oauth` 有过期锁先挪开；每次跑前后 `Get-Process acp_agent_client` 看有没有残留实例。
+认证页开合、registry 面板、设置面板三项无头口子覆盖不到（R5 的 `ACP_R5_REPORT` 只对 fake-agent 跑过），归验收 9 手测。
+
+### 验收 9：所有者手测清单（弹层锚点搬家后的画板 40 / 41 / 42 / 43 / 25 / 05 / 06）
+
+用 `D:\tools\AcpAgentClient` 那份 release 替换前先在 worktree 里 `scripts/build.ps1` 构建；逐项看：
+1. 画板 41：线程头 `+` 的「新建会话 · 选 agent」弹层位置（右对齐）、Esc / 点外面关；项目切换器（顶栏项目名）与分支切换器的位置、搜索框可输入、选中后关。
+2. 画板 41 / 04：侧栏删除图标 → 确认弹层位置；取消 / 点外面 / 删除三条路；线程头铅笔与侧栏那支笔的改名输入框各自出现、Esc 撤销、Enter 提交。
+3. 画板 40：输入框右下配置格的弹层（模型那格带搜索）、`+` 的四项、Follow 提示、用量弹层；每个弹层的 Esc、点外面关、封顶滚动。
+4. 画板 42：`@` 菜单（裸 `@` 列根目录、有词搜索）与 `/` 菜单：上下键、Enter 填入、Esc 关、点输入框外关。
+5. 画板 43：线程头 history 的时间线弹层开合、跳转到某条用户气泡的聚焦态、再点别处撤。
+6. 画板 25：权限卡的范围下拉（Overlay）与 Allow / Reject。
+7. 画板 05：重载 agent 与新建会话的等待期（转录区变暗不可点、线程头 spinner），完成后入场；切会话的入场。
+8. 画板 06：一条会话跑着时切到另一条，侧栏原来那条出扫掠亮点线；跑完出绿点；切回去绿点撤；从流量页回工作台绿点撤。
+9. 画板 52 / 50 / 70 / 60 / 61：认证页从三个入口进入与取消；registry 面板搜索 / 过滤 / 安装 / 卸载；设置面板编辑 custom 条目并保存、从 Zed 导入；文件面板 Go to File；本地终端开 / 停 / 重启 / 关。
+10. 关窗：agent 进程与本地 shell 全部回收（任务管理器里没有残留的 node / pwsh）。
+
+### 验收对照
+
+| # | 检查 | 结果 |
+|---|---|---|
+| 1 | 契约与画板零 diff | 过（`--stat` 输出 0 行，`pins/upstream.json` 一并核过） |
+| 2 | validate 全绿 | 过（每步 13 项；第 9 步起 15 项） |
+| 3 | 测试只改路径 | 过（186 例 / 798 处 `expect(` 不变） |
+| 4 | 无头实跑等价 | 过（每步三份 EQUIVALENT；两次偶发重跑等价） |
+| 5 | 行数门 | 过（组合根 356 ≤ 450；`headless_run.dart` 单独放宽，见偏离 8） |
+| 6 | 依赖方向门 | 过（见上表；validate 门守着） |
+| 7 | 通知等价（阶段 A） | 过（`test/ui` 全过；构造时转发七个 notifier，`sessions` / `files` / `terminals` 仍在 `start()` 里挂） |
+| 8 | Windows 真跑 | **待所有者点跑**（命令见上；smoke：过（第 8 步的 release 构建，`ACP_SMOKE_REPORT` + 隔离的 `APPDATA`，exit 0：init / ping / core_ready 三步 ok，coreVersion 1.1.0，droppedEvents 0）） |
+| 9 | 所有者手测 | **待所有者**（清单见上） |
+| 10 | 阶段 B | 不触发（一次 batch 的壳级 build = 1，未超过阈值）；数字记 BACKLOG，验收 10 不适用 |
+
+### main 的后续提交与合并（等所有者定时机）
+
+本轮开工基线 `f62520f` 之后 main 又进了 3 个提交（`48b9fd1` 字体扫描结果通知、`5feebbf` 合并、`44d256d`「UI 与前端代码语义统一：Thread 收敛为 Session」）。
+`44d256d` 碰了 `workbench_controller.dart` 62 行与 `workbench_screen.dart` 32 行——全是改名与文案（`threadTitle → sessionTitle`、`threadMenuAnchor → sessionMenuAnchor`、
+`ThreadHeader → SessionHeader`、默认标题 `New <agent> Thread → Session`、headless 的 JSON 键 `threadTitle → sessionTitle`、注释「线程头 / 线程区 → 会话头 / 会话区」），
+与本分支必然冲突（6 个文件：组合根、screen、headless、`workbench_wiring_test`、ROUNDS.md、BACKLOG.md）。
+2026-09-20 15:xx 在 worktree 里试合过一次：以本分支版本为底重放 main 的改名（脚本 `rounds/round-7.5/merge-main-44d256d.py`），analyze 干净、无冲突残留；
+随后所有者指示「先不要合并到 main，由我决定时机」，为稳妥起见这次反向合并也一并撤回（`git merge --abort`），分支停在第 9 步之上。
+要合的时候：`git merge --no-ff --no-commit main` → 跑那个脚本 → analyze → validate → **以 main@44d256d 重出三份无头基线**（标题文案与 JSON 键都变了，旧基线不能直接比）
+→ 比对 → 提交 → 第 3 轮审查只审 `fd5b7a9..HEAD`。`ThreadController` / `c.thread` 这个名字来自任务卡的粒度表，没有随 main 的 UI 收敛改成 Session，要不要改等裁定。
