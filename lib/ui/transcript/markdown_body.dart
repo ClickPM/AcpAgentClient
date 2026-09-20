@@ -3,6 +3,7 @@
 // - 链接的 recognizer 下推到每个叶子 span（RichText 命中测试只看最内层），由 MarkdownBody 的 State 持有：
 //   输入变化先 dispose 再重建、widget 卸载时全部释放（审查 P2：流式 chunk 每次 build 新建且从不 dispose 会泄漏）；
 // - `$…$` / `$$…$$` 在这里以 InlineSyntax 识别，交给 math_block.dart；
+// - 行内 HTML 只认 `<br>`（见 [HtmlLineBreakSyntax]），其余标签仍按 package:markdown 的规矩原样显示；
 // - 围栏交给 code_block.dart（语言 mermaid 交给 mermaid_block.dart）、表格交给 gfm_table.dart；
 // - 表头行启发式：只有一行 `| a | b |` 还没等到分隔行时先按表头渲染，避免分隔行到达那一帧跳变。
 // - 列表项里行内内容与嵌套块（子列表 / 围栏 / 表格）共存时，行内的先并成一段再渲染（见 [MarkdownBlock._mixedChildren]）。
@@ -35,6 +36,22 @@ class LatexSyntax extends md.InlineSyntax {
   }
 }
 
+/// 行内 HTML 的 `<br>`（含 `<br/>` / `<br />`，大小写不敏感）→ 与硬换行同款的 `br` 元素。
+/// package:markdown 的 `InlineHtmlSyntax` 只是「原样放行」（substitute 为空 → advanceBy 后 return false，不建节点），
+/// 于是 `<br>` 会留在 `md.Text` 的文本里被逐字画出来。GFM 的表格单元格装不下真换行，agent 普遍拿 `<br>` 换行
+/// （2026-09-20 实机：pi 的扩展清单表格整列显示成字面 `<br>`），所以这一个标签要认。
+/// 必须排在 `InlineHtmlSyntax` 之前：InlineParser 按 syntaxes 顺序取第一个匹配的。
+/// 其余行内 HTML（`<sub>` / `<kbd>` / `<span>` 等成对标签）照旧原样显示，见 rounds/BACKLOG.md。
+class HtmlLineBreakSyntax extends md.InlineSyntax {
+  HtmlLineBreakSyntax() : super(r'<br\s*/?>', caseSensitive: false);
+
+  @override
+  bool onMatch(md.InlineParser parser, Match match) {
+    parser.addNode(md.Element.empty('br'));
+    return true;
+  }
+}
+
 /// 链接 recognizer 的所有者：`MarkdownBody` 的 State 持有一份，块渲染时经 [create] 登记，State 负责释放。
 class LinkRecognizers {
   final List<GestureRecognizer> _owned = <GestureRecognizer>[];
@@ -63,7 +80,7 @@ class MarkdownBody extends StatefulWidget {
 
   static final md.ExtensionSet _extensions = md.ExtensionSet(
     md.ExtensionSet.gitHubFlavored.blockSyntaxes,
-    <md.InlineSyntax>[LatexSyntax(), ...md.ExtensionSet.gitHubFlavored.inlineSyntaxes],
+    <md.InlineSyntax>[LatexSyntax(), HtmlLineBreakSyntax(), ...md.ExtensionSet.gitHubFlavored.inlineSyntaxes],
   );
 
   static List<md.Node> parse(String data) => md.Document(extensionSet: _extensions, encodeHtml: false).parse(data);
