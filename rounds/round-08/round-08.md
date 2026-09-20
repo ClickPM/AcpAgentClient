@@ -61,13 +61,27 @@ Windows 免安装 zip 与 per-user 安装器随包 sidecar 一起交付，并且
 
 ## 代码审查
 
-<!-- 完成后回填 -->
+- 审查方式：`powershell -File .claude/cursor-review.ps1`（默认档，后台）
+- 审查器与模型：cursor CLI `cursor-grok-4.6-high-fast`
+- 审查范围与基准提交：第 1 轮全量 `main...HEAD`（本轮提交 `c1c3fbf`，22 文件 +659 / -33）；产物 `.claude/reviews/20260920-170310-review.out.md`
+- findings 处理：**3 条（high 0 / P2 2 / P3 1），全部采纳整改**
 
-- 审查方式：
-- 审查器与模型：
-- 审查范围与基准提交：
-- findings 处理：
-- 结论：
+  | # | 级别 | finding | 整改 |
+  |---|---|---|---|
+  | 1 | P2 | 安装器验收与正式安装共用固定 `AppId`：跑一遍会把本机已有安装的卸载注册顶掉；装上之后中途失败则连这次安装都卸不掉；脚本声称验「卸载不动用户数据」但那是假绿的（卸载时 `%APPDATA%` 已恢复成真路径，Inno 的 `{userappdata}` 也不读进程环境变量） | `verify-package.ps1`：AppId 改为从 iss 里读（不在两处各写一份 GUID）；HKCU 已有同 AppId 的卸载键时**跳过**这条并在末尾报 `SKIPPED`；装上之后用 `try/finally` 保证一定跑卸载，卸完再断言 exe 与卸载注册都没了；「不动用户数据」改成**静态**核对 iss 里没有 `[UninstallDelete]` / `[InstallDelete]` 段，脚本头注释同步写明这条是静态的 |
+  | 2 | P2 | `build.rs` 的 `pinned_commit` 只往后找第一个 `"commit"`：pins 里字段一旦重排成 `branch` / `commit` / `name`，拿到的会是**下一条上游**的 commit（`claude-agent-acp`），而且不会退回 `unknown`；版本门只比版本号，拦不住 | 搜索范围先收到**同一个 `{ … }` 对象**（name 前最近的 `{` 到 name 后最近的 `}`）再找 commit，找不到返回 `None`；`verify-package.ps1` 的 `--version` 断言从「commit 前 12 位」改成**完整 commit** |
+  | 3 | P3 | `Invoke-Smoke` 先建沙箱目录、成功返回后才登记到清理列表，自检失败时那个 `%TEMP%` 目录留着没人删 | 建完目录立刻 `$sandboxes.Add($sandbox)`，两处调用点去掉重复登记 |
+
+  审查同时逐条核过规则 1–11 与 NOTICE 双向门，未报其余问题。第 2 条的整改要动 `build.rs` → sidecar 全量重链一次（14 分钟），产物与 `verify-package.ps1` 因此重跑了一遍。
+
+  第 2 条的复核（把 `pinned_commit` 整改前后的算法各跑一遍，`build.rs` 是 build script、`cargo test` 碰不到它，所以拿同一套逻辑离线比对）：
+
+  | 输入 | 整改前拿到 | 整改后拿到 |
+  |---|---|---|
+  | `pins/upstream.json` 现状（`name` → `url` → `branch` → `commit`） | `d9e1c024…`（对） | `d9e1c024…`（对） |
+  | 字段重排成 `branch` → `commit` → `name` | `6b7473b1…`（**下一条 claude-agent-acp 的 commit**，正是 finding 说的） | `d9e1c024…`（对） |
+
+- 结论：<第 2 轮复审后回填>
 
 ## 偏离
 
@@ -123,6 +137,11 @@ zed-agent-acp 1.21.0 (zed @ d9e1c024f393832765a03f4de204d6c8cd9abcb2)
 | 安装器静默装 → 跑 → 静默卸 | PASS。`/VERYSILENT /NOICONS /DIR=<临时目录>` 装上、同样跑通无头往返（banner 里的 sidecar 指向安装目录那份）、`unins000.exe /VERYSILENT` 卸完目录清空；`%APPDATA%` 里的用户数据不在卸载范围内 |
 
 第一次跑挂在两条断言上，都是脚本自己的问题、不是产物的问题：① 断言写了 `data/flutter_assets/AssetManifest.json`，而 Flutter 这个版本产出的是 `AssetManifest.bin`；② 第一条失败后 `$script:zipAppDir` 为空，第三条的 `Join-Path` 报「参数为 null」而不是说清原因。两处都已改（断言改成 `data/icudtl.dat` + `data/app.so` + `AssetManifest.bin`，第三条先判空再说话）。
+
+**审查整改后重跑一遍（三件产物按新 sidecar 重出，体积不变）**：四条仍全 PASS，`--version` 与 banner 都与上面一致。这一跑把 sidecar 的 stderr 也打出来了，两条 ERROR 是 selftest 路径上的既有噪音、不影响退出码，**属于 R7 遗留、记 BACKLOG 不在本轮改**：
+
+- `prompt_store … environment already open in this program`（同一进程里 lmdb 环境被开了两次）；
+- `settings_store  Failed to write settings to file …\zed-agent-data\config\settings.json: 系统找不到指定的路径`（自带的 config 目录没建就写；模型与密钥本来就走 `--zed-settings` 只读那份，所以写不进去不影响功能）。
 
 ### 4. 跨轮次 / 环境
 

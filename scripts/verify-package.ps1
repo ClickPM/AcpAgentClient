@@ -9,7 +9,12 @@
 #   1. 解压即用：zip 里的 exe 在空数据目录上能起核心、往返 ping（ACP_SMOKE_REPORT 无头自检）；
 #   2. 随包的 sidecar 被应用目录旁的定位逻辑找到（日志 banner 里的 sidecar= 指向解压出来的那份）；
 #   3. 随包的 sidecar 自己能跑（--version 与 --selftest）；
-#   4. 安装器静默装 → 同样跑通 → 静默卸载后目录清干净、%APPDATA% 的用户数据不受影响。
+#   4. 安装器静默装 → 同样跑通 → 静默卸载后目录清干净。**「卸载不动用户数据」这条是静态核对**
+#      （iss 里没有 [UninstallDelete] / [InstallDelete] 段），不是跑出来的：卸载时 %APPDATA% 已经
+#      恢复成真路径，而 Inno 的 {userappdata} 也不读进程环境变量，真跑一遍反而会去碰真数据。
+#
+# 安装器那条会用**正式的 AppId** 装到临时目录再卸掉。Inno 按 AppId 覆盖 HKCU 的卸载注册，所以本机
+# 已经装着一份时这条会把你那份的卸载入口顶掉 —— 检测到就跳过，别硬跑。
 param(
     [switch]$ZipOnly
 )
@@ -23,6 +28,7 @@ $version = $Matches[1]
 $name = "AcpAgentClient-$version-windows-x64"
 
 $failures = New-Object System.Collections.Generic.List[string]
+$skipped = New-Object System.Collections.Generic.List[string]
 function Check($title, [scriptblock]$body) {
     Write-Host ("---- " + $title)
     try { & $body; Write-Host ("PASS  " + $title) }
@@ -33,6 +39,8 @@ function Check($title, [scriptblock]$body) {
 function Invoke-Smoke([string]$exe, [string]$label) {
     $sandbox = Join-Path ([System.IO.Path]::GetTempPath()) ("acp-verify-" + $label + "-" + [guid]::NewGuid().ToString("N").Substring(0, 8))
     New-Item -ItemType Directory -Force $sandbox | Out-Null
+    # 先登记再用：下面任何一步 throw 时，外层的 finally 照样清得掉这个 %TEMP% 目录。
+    $sandboxes.Add($sandbox)
     $report = Join-Path $sandbox "smoke.json"
     $savedAppData = $env:APPDATA
     $savedReport = $env:ACP_SMOKE_REPORT
@@ -88,7 +96,6 @@ try {
             if (-not (Test-Path (Join-Path $appDir $f))) { throw "zip 里缺 $f" }
         }
         $r = Invoke-Smoke $exe "zip"
-        $sandboxes.Add($r.Sandbox)
         Assert-Banner $r "zip" (Join-Path $appDir "zed-agent-acp.exe")
         $script:zipAppDir = $appDir
     }
@@ -113,7 +120,7 @@ try {
         $zedPin = $pins.upstream | Where-Object { $_.name -eq "zed" }
         if ($versionLine -notmatch [regex]::Escape($zedPin.version)) { throw "--version 里不是 zed 钉版本 $($zedPin.version)" }
         if ($versionLine -match [regex]::Escape(" $version ")) { throw "--version 里出现了应用版本 $version —— 版本解耦被改回去了？" }
-        if ($versionLine -notmatch [regex]::Escape($zedPin.commit.Substring(0, 12))) { throw "--version 里没有钉的 zed commit" }
+        if ($versionLine -notmatch [regex]::Escape($zedPin.commit)) { throw "--version 里的 zed commit 不是 pins 钉的那个（$($zedPin.commit)）" }
         # --selftest 会真的起一遍 headless gpui，不给 --user-data-dir 就落到**本机 Zed 自己的**
         # 数据目录里（CLAUDE.md 规则 7：不动用户数据），所以指到临时目录。
         & $sidecar --user-data-dir (Join-Path $work "zed-agent-data") --selftest
@@ -121,24 +128,44 @@ try {
     }
 
     if (-not $ZipOnly) {
-        Check "安装器：静默装 → 跑通 → 静默卸载" {
-            if (-not (Test-Path $setup)) { throw "没有 $setup（先跑 scripts/package.ps1）" }
-            $target = Join-Path $work "installed"
-            $p = Start-Process -FilePath $setup -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/NOICONS", "/DIR=$target") -Wait -PassThru
-            if ($p.ExitCode -ne 0) { throw "静默安装退出码 $($p.ExitCode)" }
-            $exe = Join-Path $target "acp_agent_client.exe"
-            if (-not (Test-Path $exe)) { throw "装完没有 $exe" }
-            $r = Invoke-Smoke $exe "installed"
-            $sandboxes.Add($r.Sandbox)
-            Assert-Banner $r "installed" (Join-Path $target "zed-agent-acp.exe")
-
-            $uninstaller = Get-ChildItem $target -Filter "unins*.exe" | Select-Object -First 1
-            if (-not $uninstaller) { throw "装完没有卸载程序" }
-            # 卸载程序会把自己复制到临时目录再退出，父进程等不到真正结束：轮询目录消失。
-            $u = Start-Process -FilePath $uninstaller.FullName -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART") -Wait -PassThru
-            $deadline = (Get-Date).AddSeconds(60)
-            while ((Test-Path $exe) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
-            if (Test-Path $exe) { throw "卸载后 $exe 还在（卸载程序退出码 $($u.ExitCode)）" }
+        # AppId 从 iss 里读，别在两处各写一份 GUID。
+        $issPath = Join-Path $root "packaging/windows/acp-agent-client.iss"
+        $iss = Get-Content $issPath -Raw -Encoding UTF8
+        if ($iss -notmatch '(?m)^AppId=\{\{([0-9A-Fa-f-]{36})\}') { throw "读不出 $issPath 里的 AppId（格式变了？）" }
+        $uninstallKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{$($Matches[1])}_is1"
+        if (Test-Path $uninstallKey) {
+            Write-Host "SKIP  安装器：本机已经装着一份同 AppId 的 AcpAgent Client"
+            Write-Host "      ($uninstallKey)"
+            Write-Host "      这条要用同一个 AppId 装到临时目录再卸掉，而 Inno 按 AppId 覆盖卸载注册——"
+            Write-Host "      跑下去会把你那份的卸载入口顶掉。先卸掉它再来，或者用 -ZipOnly。"
+            $skipped.Add("安装器：静默装 → 跑通 → 静默卸载（本机已有同 AppId 的安装）")
+        } else {
+            Check "安装器：静默装 → 跑通 → 静默卸载" {
+                if (-not (Test-Path $setup)) { throw "没有 $setup（先跑 scripts/package.ps1）" }
+                # 「卸载不动用户数据」是静态核对：装完再删一遍 %APPDATA% 去证明，等于拿真数据冒险（规则 7）。
+                if ($iss -match '(?m)^\[(UninstallDelete|InstallDelete)\]') { throw "iss 里有 [$($Matches[1])] 段，它会删安装目录之外的东西（规则 7）" }
+                $target = Join-Path $work "installed"
+                $exe = Join-Path $target "acp_agent_client.exe"
+                $p = Start-Process -FilePath $setup -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/NOICONS", "/DIR=$target") -Wait -PassThru
+                if ($p.ExitCode -ne 0) { throw "静默安装退出码 $($p.ExitCode)" }
+                if (-not (Test-Path $exe)) { throw "装完没有 $exe" }
+                try {
+                    $r = Invoke-Smoke $exe "installed"
+                    Assert-Banner $r "installed" (Join-Path $target "zed-agent-acp.exe")
+                } finally {
+                    # 只要装上了就一定卸干净：中间任何一步 throw 都不能把 HKCU 的卸载注册留在机器上。
+                    $uninstaller = Get-ChildItem $target -Filter "unins*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+                    if ($uninstaller) {
+                        # 卸载程序会把自己复制到临时目录再退出，父进程等不到真正结束：轮询目录消失。
+                        Start-Process -FilePath $uninstaller.FullName -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART") -Wait | Out-Null
+                        $deadline = (Get-Date).AddSeconds(60)
+                        while ((Test-Path $exe) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+                    }
+                }
+                if (-not $uninstaller) { throw "装完没有卸载程序" }
+                if (Test-Path $exe) { throw "卸载后 $exe 还在" }
+                if (Test-Path $uninstallKey) { throw "卸载后 HKCU 的卸载注册还在：$uninstallKey" }
+            }
         }
     }
 } finally {
@@ -149,6 +176,7 @@ try {
 }
 
 Write-Host ""
+if ($skipped.Count -gt 0) { Write-Host ("SKIPPED: " + ($skipped -join "; ")) }
 if ($failures.Count -gt 0) {
     Write-Host ("VERIFY FAILED: " + ($failures -join "; "))
     exit 1

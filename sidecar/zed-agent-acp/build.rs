@@ -30,14 +30,20 @@ fn main() {
     println!("cargo:rustc-env=ZED_PINNED_COMMIT={commit}");
 }
 
-/// `"name": "<name>"` 之后的第一个 `"commit": "<value>"`。
-/// 认的是 pins 文件当前的写法（`"name": "zed",` 带一个空格）；排版真变了就退回 "unknown"，
-/// 而 scripts/validate.ps1 的版本门照样会拦住版本对不上的情况。
+/// `"name": "<name>"` 所在的那个 `{ … }` 对象里的 `"commit": "<value>"`。
+///
+/// 先把搜索范围收到**同一个对象**（name 前最近的 `{` 到 name 后最近的 `}`），再找 commit：
+/// 只往后找的话，字段顺序一旦变成 `branch` / `commit` / `name`（比如按字母序重排过），
+/// 拿到的就是**下一条上游**的 commit，而且一声不响。认的是 pins 当前的写法
+/// （`"name": "zed"` 带一个空格）；排版真变了就退回 `None` → "unknown"。
 fn pinned_commit(pins: &str, name: &str) -> Option<String> {
     let needle = format!("\"name\": \"{name}\"");
-    let rest = &pins[pins.find(&needle)? + needle.len()..];
+    let at = pins.find(&needle)?;
+    let start = pins[..at].rfind('{')?;
+    let end = at + pins[at..].find('}')?;
+    let object = &pins[start..end];
     let key = "\"commit\": \"";
-    let value = &rest[rest.find(key)? + key.len()..];
-    let end = value.find('"')?;
-    Some(value[..end].to_owned())
+    let value = &object[object.find(key)? + key.len()..];
+    let stop = value.find('"')?;
+    Some(value[..stop].to_owned())
 }
