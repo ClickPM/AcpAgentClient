@@ -8,7 +8,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../theme/tokens.dart' as t;
 import '../transcript/icons.dart';
 
-/// agent 标记方块（画板 01–04 的会话项 / 线程头、41 的 agent 列表）：16 见方的框 + 6 见方的菱形。
+/// agent 标记方块（画板 01–04 的会话项 / 会话头、41 的 agent 列表）：16 见方的框 + 6 见方的菱形。
 /// 没有 agent 时（画板 01 状态 2 的 `No Agent`）是虚线空框。
 /// 设计稿注明框里的菱形是**单色占位**、「各 agent 自己的 logo 由 R5 registry 带来」：[svg] 非空时就画那张
 /// 已装 agent 的 `icon.svg`（registry 缓存的原样内容，与画板 50 / 51 / 70 的 [AgentIconBox] 同一份数据），
@@ -28,7 +28,7 @@ class AgentMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (empty) {
-      return const SizedBox(
+      return SizedBox(
         width: t.IconSizes.base,
         height: t.IconSizes.base,
         child: CustomPaint(painter: _DashedBoxPainter()),
@@ -70,9 +70,13 @@ class AgentMark extends StatelessWidget {
 
 /// 虚线方框（画板 01 状态 2 的 `No Agent` 与空态图标）。
 class _DashedBoxPainter extends CustomPainter {
-  const _DashedBoxPainter({this.radius = t.Radii.r3});
+  _DashedBoxPainter({this.radius = t.Radii.r3}) : _styleGeneration = t.Fonts.generation;
 
   final Radius radius;
+
+  /// 画笔的颜色是现取的，但 [shouldRepaint] 只比 [radius]，换主题 / 换字体后不会重绘。
+  /// 记下算它时的样式代数，代数变了就重绘（同 `files_panel.dart` 的高亮缓存）。
+  final int _styleGeneration;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -100,7 +104,7 @@ class _DashedBoxPainter extends CustomPainter {
   static const double _gap = t.Spacing.s4 / 2;
 
   @override
-  bool shouldRepaint(_DashedBoxPainter old) => old.radius != radius;
+  bool shouldRepaint(_DashedBoxPainter old) => old.radius != radius || old._styleGeneration != _styleGeneration;
 }
 
 /// 虚线圆角框（画板 01 状态 2 的 32 见方空态图标）。
@@ -115,7 +119,7 @@ class DashedBox extends StatelessWidget {
         width: size,
         height: size,
         child: CustomPaint(
-          painter: const _DashedBoxPainter(radius: t.Radii.r6),
+          painter: _DashedBoxPainter(radius: t.Radii.r6),
           child: Center(child: child),
         ),
       );
@@ -210,7 +214,7 @@ class AcpTextField extends StatelessWidget {
   }
 }
 
-/// 行内重命名输入（画板 04 / 41）：线程头的标题位与侧栏会话行共用一份，canvas 底 + 焦点环，Enter 保存、Esc 取消。
+/// 行内重命名输入（画板 04 / 41）：会话头的标题位与侧栏会话行共用一份，canvas 底 + 焦点环，Enter 保存、Esc 取消。
 class InlineRenameField extends StatelessWidget {
   const InlineRenameField({super.key, required this.controller, required this.focusNode, this.onSubmitted, this.onCancel});
 

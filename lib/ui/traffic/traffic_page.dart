@@ -83,7 +83,7 @@ class _TrafficPageState extends State<TrafficPage> {
 
   Widget _header() => Container(
         padding: const EdgeInsets.only(bottom: t.Spacing.s12),
-        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
         child: Row(
           children: <Widget>[
             Text('ACP 流量调试', style: t.TextStyles.title),
@@ -132,7 +132,7 @@ class _TrafficPageState extends State<TrafficPage> {
         padding: t.Controls.padCompact,
         child: Row(
           children: <Widget>[
-            const AcpIcon(AcpIcons.search, color: t.Neutral.placeholder, size: t.IconSizes.toolbar),
+            AcpIcon(AcpIcons.search, color: t.Neutral.placeholder, size: t.IconSizes.toolbar),
             const SizedBox(width: t.Spacing.s8),
             Expanded(
               child: AcpTextField(
@@ -162,7 +162,7 @@ class _TrafficPageState extends State<TrafficPage> {
       padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12, vertical: t.Spacing.s8),
       child: Row(
         children: <Widget>[
-          const AcpIcon(AcpIcons.alertTriangle, color: t.Semantic.warning, size: t.IconSizes.toolbar),
+          AcpIcon(AcpIcons.alertTriangle, color: t.Semantic.warning, size: t.IconSizes.toolbar),
           const SizedBox(width: t.Spacing.s8),
           Expanded(
             child: Text('${widget.store.droppedCount} 条未知会话更新已丢弃（sessionUpdate 反序列化失败）— 原文见下方高亮行',
@@ -233,7 +233,7 @@ class _TrafficPageState extends State<TrafficPage> {
           if (_stderrExpanded)
             Container(
               width: double.infinity,
-              decoration: const BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+              decoration: BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
               padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12, vertical: t.Spacing.s8),
               child: Text(tail.join('\n'), style: CardText.code.copyWith(color: t.Neutral.muted)),
             ),
@@ -263,7 +263,7 @@ class TrafficRow extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: line.dropped ? t.Semantic.warningSoft : null,
-        border: const Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width)),
+        border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

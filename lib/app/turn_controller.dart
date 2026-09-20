@@ -1,5 +1,5 @@
 // 一轮对话（R7.5 从 workbench_controller.dart 拆出）：发送 / 取消 / 权限与 elicitation 回应 / Restore 与 Regenerate（画板 11）、
-// 会话配置（画板 40 的下拉与开关、modes 回退）、agent 终端的停止方块（画板 23）、`+` 的 Threads 用的本地转录文本。
+// 会话配置（画板 40 的下拉与开关、modes 回退）、agent 终端的停止方块（画板 23）、`+` 的 Sessions 用的本地转录文本。
 // 读当前线程（store / agentId / 关闭态、现开会话、索引写回、画板 06 的绿点）走 [thread]，取输入框正文与附件走 [composer]；
 // 线程不知道有轮（任务卡附录 B 唯一保留的「协议对象之间」的依赖，方向固定：轮读线程）。
 
@@ -96,7 +96,7 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
         thread.markDone(s.sessionId, stopReason);
         await thread.saveIndex(); // 只刷消息计数：`updatedAt` 沿用发消息时打的那个（见 `SessionIndex.upsert`）
       } catch (e) {
-        // 失败也必须收轮：不收的话 `currentTurn` 一直挂着，线程头永远转 spinner、发送位永远是停止键，
+        // 失败也必须收轮：不收的话 `currentTurn` 一直挂着，会话头永远转 spinner、发送位永远是停止键，
         // 之后的 Restore 还会拿新连接去操作一个 agent 侧已不存在的 sessionId（审查第 2 轮 finding P2，2026-09-15）。
         // `stopReason` 留空：连接断了本来就没有协议给的结束值，不编一个（规则 2）；原因走 `TurnEntry.error`，
         // 由画板 31 的结束行显示——只记 `lastError` 的话整条错误在界面上无处可见，用户只看到一个 `?` 徽章
@@ -331,7 +331,7 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     thread.store?.markTerminalKilled(terminalId);
   }
 
-  /// 本地转录文本（`+` 的 Threads）：把当前会话的消息拼成一份 embedded resource。
+  /// 本地转录文本（`+` 的 Sessions）：把当前会话的消息拼成一份 embedded resource。
   String transcriptText() {
     final s = thread.store;
     if (s == null) return '';

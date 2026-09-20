@@ -1,4 +1,4 @@
-// 画板 01 / 02 / 03 · 三栏壳：侧栏（可折叠）+ 中栏（顶栏 / 线程头 / 转录 / 输入框）+ 右栏（可选）。
+// 画板 01 / 02 / 03 · 三栏壳：侧栏（可折叠）+ 中栏（顶栏 / 会话头 / 转录 / 输入框）+ 右栏（可选）。
 // 无边框窗口（docs/design.md § 9）：外框自绘 1px 边框，拖拽与三键走 Windows runner 的平台通道（接线阶段）。
 // 两栏宽度可拖（画板 04 的「分栏把手」，所有者裁定 2026-09-16）：宽度单点在这里，夹取与落盘在组合根。
 
@@ -116,12 +116,12 @@ class AppShell extends StatelessWidget {
   }
 }
 
-/// 中栏：顶栏 → 线程头 → 转录（可伸缩）→ 输入框。
+/// 中栏：顶栏 → 会话头 → 转录（可伸缩）→ 输入框。
 class WorkbenchColumn extends StatelessWidget {
-  const WorkbenchColumn({super.key, required this.topBar, required this.threadHeader, required this.body, required this.composer});
+  const WorkbenchColumn({super.key, required this.topBar, required this.sessionHeader, required this.body, required this.composer});
 
   final Widget topBar;
-  final Widget threadHeader;
+  final Widget sessionHeader;
   final Widget body;
   final Widget composer;
 
@@ -133,7 +133,7 @@ class WorkbenchColumn extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           topBar,
-          threadHeader,
+          sessionHeader,
           Expanded(child: body),
           composer,
         ],

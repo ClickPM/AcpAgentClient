@@ -1,5 +1,5 @@
 // 当前线程与会话生命周期（R7.5 从 workbench_controller.dart 拆出）：当前 agent / 会话与派生态（画板 01 的两个空态、
-// 线程头标题、输入框可用性、画板 34 的状态条）、agent 能力（R6）、侧栏列表与搜索（画板 04）、画板 06 的活动指示、
+// 会话头标题、输入框可用性、画板 34 的状态条）、agent 能力（R6）、侧栏列表与搜索（画板 04）、画板 06 的活动指示、
 // 新建 / 重载 / 点选 / `session/load` / resume / close / delete / `session/list` 校对（R6）、改名与删除确认（画板 41）、
 // 本地索引的写回。协议状态仍在 `lib/projection/`（规则 2），这里只是「唯一知道桥的人」里管会话的那一段。
 //
@@ -73,7 +73,7 @@ class ThreadController extends ChangeNotifier with GuardedNotifier {
   int sessionEpoch = 0;
 
   /// 正在等 agent 把会话换过来（画板 05 B 组的等待期）：转录区降到 `opacity.pending` 且不可交互，
-  /// 线程头借用 `isRunning` 那只 spinner。两个触发共用同一套 —— 重载 agent（[reloadAgent]：断开 → 重连
+  /// 会话头借用 `isRunning` 那只 spinner。两个触发共用同一套 —— 重载 agent（[reloadAgent]：断开 → 重连
   /// → `session/load`）与新建会话（[newSession]：拉进程 → `initialize` → `session/new`，含 `send()`
   /// 现开一条那条路）。画板 05 B 组只画了 reload 图标那个触发，但两者都是「时长不可预知的整块替换」，
   /// 等待期的规格一字不差地套用；新建会话那条是所有者手测报回来的（2026-09-18：选完 agent
@@ -85,7 +85,7 @@ class ThreadController extends ChangeNotifier with GuardedNotifier {
   String search = '';
   String? renamingSessionId;
 
-  /// 改名的输入框落在哪一处：线程头的铅笔就在线程头上改（画板 01 的标题位），侧栏那支笔改侧栏那一行。
+  /// 改名的输入框落在哪一处：会话头的铅笔就在会话头上改（画板 01 的标题位），侧栏那支笔改侧栏那一行。
   /// 两处共用 [rename] / [renameFocus]，靠这个标记分流，同一时刻只可能有一个输入框在树上。
   bool renamingInHeader = false;
   String? confirmingDeleteId;
@@ -98,9 +98,9 @@ class ThreadController extends ChangeNotifier with GuardedNotifier {
 
   // ---- 弹层锚点（画板 41 / 43）
   final PopoverHandle newSessionAnchor = PopoverHandle();
-  final PopoverHandle threadMenuAnchor = PopoverHandle();
+  final PopoverHandle sessionMenuAnchor = PopoverHandle();
 
-  /// 画板 43：线程头 history 的会话时间线弹层。
+  /// 画板 43：会话头 history 的会话时间线弹层。
   final PopoverHandle timelineAnchor = PopoverHandle();
   final PopoverHandle deleteAnchor = PopoverHandle();
 
@@ -112,7 +112,7 @@ class ThreadController extends ChangeNotifier with GuardedNotifier {
     for (final f in <FocusNode>[sidebarSearchFocus, renameFocus]) {
       f.dispose();
     }
-    for (final h in <PopoverHandle>[newSessionAnchor, threadMenuAnchor, timelineAnchor, deleteAnchor]) {
+    for (final h in <PopoverHandle>[newSessionAnchor, sessionMenuAnchor, timelineAnchor, deleteAnchor]) {
       h.dispose();
     }
     super.dispose();
@@ -128,20 +128,20 @@ class ThreadController extends ChangeNotifier with GuardedNotifier {
   /// 会话要到第一条消息才现开（一轮对话控制器的 `send`），免得每次开应用都去拉一个 agent 进程。
   bool get hasAgent => agentId != null;
 
-  /// 已经有一条会话在手：线程头的重命名 / 重载与 ≡ 菜单的三个动作要它。
+  /// 已经有一条会话在手：会话头的重命名 / 重载与 ≡ 菜单的三个动作要它。
   bool get hasSession => agentId != null && sessionId != null;
   bool get isRunning => store?.isRunning ?? false;
 
   String get agentDisplayName {
     final c = connection;
     // 还没连上时退回已安装列表里的展示名（settings 条目的 `name` 或 registry 的展示名），
-    // 不退回 id：启动后的新会话标题写 `New Codex Thread` 而不是 `New codex Thread`。
+    // 不退回 id：启动后的新会话标题写 `New Codex Session` 而不是 `New codex Session`。
     return c?.agentTitle ?? c?.agentName ?? agents.installedRef(agentId)?.name ?? agentId ?? 'Agent';
   }
 
-  String get threadTitle {
+  String get sessionTitle {
     if (!hasAgent) return 'No Agent';
-    return store?.title ?? 'New $agentDisplayName Thread';
+    return store?.title ?? 'New $agentDisplayName Session';
   }
 
   String get composerPlaceholder {
@@ -164,7 +164,7 @@ class ThreadController extends ChangeNotifier with GuardedNotifier {
     ];
   }
 
-  /// 线程头的 agent 标记。
+  /// 会话头的 agent 标记。
   String? get agentIconSvg => agents.iconSvgOf(agentId);
 
   /// 画板 34 要显示的连接状态条：initialized 与 none 不出条（那是常态，不是告警）。
@@ -215,7 +215,7 @@ class ThreadController extends ChangeNotifier with GuardedNotifier {
   void ensureAgentSelected() {
     // 会话开着的时候当前 agent 归那条会话，列表刷新一概不许动它：`session/new` 之后那一发
     // `registry_list` / `agent_settings_get` 只要慢一步或回了空，就会把正在用的 agent 抹掉
-    // （线程头回到 No Agent、发送打不出去）。卸载走 `AgentsState.remove`，它自己会先清干净再刷。
+    // （会话头回到 No Agent、发送打不出去）。卸载走 `AgentsState.remove`，它自己会先清干净再刷。
     if (sessionId != null) return;
     final installed = <String>{for (final a in agents.installed) a.id};
     final current = agentId;
@@ -244,7 +244,7 @@ class ThreadController extends ChangeNotifier with GuardedNotifier {
   /// 会让重启后的删除按空 agentId 去匹配、删不掉（审查 finding P2，2026-09-15）。
   /// **只留当前 workspace 的**：cwd 是当前项目目录的才进侧栏，换项目时 [enterWorkspace] 重投影一次，
   /// 别的目录下的会话就不再露出来（所有者报障 2026-09-18）。agentId 的登记在过滤之前，
-  /// 不在侧栏里的会话（比如刚从线程区放下的那条）之后要删 / 要载还得靠它。
+  /// 不在侧栏里的会话（比如刚从会话区放下的那条）之后要删 / 要载还得靠它。
   List<SidebarSession> _toSidebar(Object? raw) {
     final out = <SidebarSession>[];
     if (raw is! List) return out;
@@ -269,12 +269,12 @@ class ThreadController extends ChangeNotifier with GuardedNotifier {
   }
 
   /// 换了项目：侧栏只留这个目录下的会话（[_toSidebar] 按当前项目过滤）；正开着的会话若属于别的目录，
-  /// 就从线程区放下（回到画板 01 的空态，下一条消息在新目录里现开会话）——不然顶栏写着新项目、
+  /// 就从会话区放下（回到画板 01 的空态，下一条消息在新目录里现开会话）——不然顶栏写着新项目、
   /// 消息却发进旧目录的会话，侧栏里还找不到它。放下不等于关掉：它在 agent 侧照跑，切回那个目录再点回来。
   /// 同一个目录换种写法（分隔符 / 尾斜杠）不算换项目，会话不动。组合根接的 `WorkspaceState.onProjectChanged`。
   void enterWorkspace() {
     refreshSidebar();
-    // 正在改名的那条（侧栏行或线程头）若不属于这个 workspace，它的输入框随行一起没了，`renamingSessionId`
+    // 正在改名的那条（侧栏行或会话头）若不属于这个 workspace，它的输入框随行一起没了，`renamingSessionId`
     // 不能悬着：切回来时那行会直接以改名态出现、带着上次没提交的文本（合并复审 2026-09-18）。
     final renaming = renamingSessionId;
     if (renaming != null && !workspace.inCurrentWorkspace(_cwdOf(renaming))) cancelRename();
@@ -346,9 +346,9 @@ class ThreadController extends ChangeNotifier with GuardedNotifier {
 
   Future<void> newSession(AgentRef agent) async {
     hidePopover(newSessionAnchor);
-    // 重入守卫（发布前审查 P2，2026-09-18）：等待期里线程头的 `+` 仍可点（`IgnorePointer` 只包住 `_body()`），
+    // 重入守卫（发布前审查 P2，2026-09-18）：等待期里会话头的 `+` 仍可点（`IgnorePointer` 只包住 `_body()`），
     // 再选一次 agent 会让两条 newSession 交叠：第二条存下的 `wasWaiting` 是 true，它后返回时把等待态永久留在 true
-    // （转录区一直变暗不可点、线程头 spinner 不停、[reloadAgent] 永远被挡）；而且两条都走 `_ensureConnected`，
+    // （转录区一直变暗不可点、会话头 spinner 不停、[reloadAgent] 永远被挡）；而且两条都走 `_ensureConnected`，
     // 第二条的 `agent_connect` 会把第一条刚拉起的进程断掉——正是本轮要避免的那种误杀。`send()` 现开一条
     // 与 `+` 交错是同一回事。[reloadAgent] 的「没有旧会话」分支自己已经在等待期里，走不带守卫的 [_newSession]。
     if (waitingForAgent) return;
@@ -373,7 +373,7 @@ class ThreadController extends ChangeNotifier with GuardedNotifier {
       // 已经连着就别重连：`agent_connect` 会先断开旧连接，把这个 agent 上**所有**会话连着正在跑的那一轮
       // 一起杀掉。所有者报障 2026-09-18（dsh-acp-interactive）：一条会话跑着任务时新建另一条，
       // 跑着的那条当场中断，回头再给它发消息就撞 agent 的 `-32602 unknown session`——
-      // 进程已经换了一个，旧 sessionId 在新进程里不存在。要换进程走线程头的「重载 agent」。
+      // 进程已经换了一个，旧 sessionId 在新进程里不存在。要换进程走会话头的「重载 agent」。
       await _ensureConnected(b, agent.id, cwd);
       await createSession(agent.id, cwd);
     } on CoreCommandError catch (e) {
@@ -449,12 +449,12 @@ class ThreadController extends ChangeNotifier with GuardedNotifier {
   /// 重载 agent（画板 01 / 41）：断开 + 重拉。agent 声明 `loadSession` 时重连后自动 `session/load` 回原来那个会话
   /// （R6 交付物）；没声明的沿用 R3 的做法——开一个新会话，旧转录留在内存里只读。
   Future<void> reloadAgent() async {
-    hidePopover(threadMenuAnchor);
+    hidePopover(sessionMenuAnchor);
     final id = agentId;
     final b = bridge;
     final cwd = workspace.project?.path;
     if (id == null || b == null || cwd == null) return;
-    // 重入守卫：等待期里线程头的重载按钮仍可点（`canReload` 全程为真，`IgnorePointer` 只包住 `_body()`），
+    // 重入守卫：等待期里会话头的重载按钮仍可点（`canReload` 全程为真，`IgnorePointer` 只包住 `_body()`），
     // 连点两下会让两条 disconnect → reconnect → load 序列交叠，且先返回的那条提前把等待态收掉
     // （审查 finding P2，2026-09-18）。判据换成 [waitingForAgent] 之后，「新会话正在开」时点重载
     // 也一并挡住 —— 那同样是 disconnect 撞 `session/new` 的交叠。
@@ -496,7 +496,7 @@ class ThreadController extends ChangeNotifier with GuardedNotifier {
   /// 侧栏点选一条会话（画板 04）。内存里没有转录且 agent 声明 `loadSession` 时顺带 `session/load` 把历史重放回来。
   Future<void> selectSession(String id) async {
     _showWorkbench();
-    // 线程头正在改名时切走：那个输入框改的是原来那条会话，跟着切过去会把名字落到别人头上。
+    // 会话头正在改名时切走：那个输入框改的是原来那条会话，跟着切过去会把名字落到别人头上。
     if (renamingInHeader && renamingSessionId != id) cancelRename();
     if (sessionId != id) sessionEpoch++;
     sessionId = id;
@@ -605,7 +605,7 @@ class ThreadController extends ChangeNotifier with GuardedNotifier {
 
   /// ≡ 菜单 Resume（画板 41）：`session/resume` 只恢复 agent 侧上下文，**不重放**——转录用内存里已有的那份。
   Future<void> resumeSession() async {
-    hidePopover(threadMenuAnchor);
+    hidePopover(sessionMenuAnchor);
     final b = bridge;
     final id = sessionId;
     final agent = agentId;
@@ -626,7 +626,7 @@ class ThreadController extends ChangeNotifier with GuardedNotifier {
   /// 这样 ≡ 菜单里紧接着就能 Resume（`session/resume` 只对没在本连接上活着的会话有效），
   /// 从侧栏再点开它则走 `session/load` 重放。
   Future<void> closeSession() async {
-    hidePopover(threadMenuAnchor);
+    hidePopover(sessionMenuAnchor);
     final b = bridge;
     final id = sessionId;
     final agent = agentId;
@@ -716,7 +716,7 @@ class ThreadController extends ChangeNotifier with GuardedNotifier {
   Future<void> saveIndex({bool promptSent = false}) async {
     final s = store;
     if (s == null) return;
-    await index.upsert(s, agentFallback: agentId ?? '', titleFallback: threadTitle, promptSent: promptSent);
+    await index.upsert(s, agentFallback: agentId ?? '', titleFallback: sessionTitle, promptSent: promptSent);
   }
 
   /// 用户发出一条消息（发送 / Restore / Regenerate）：把索引的 `updatedAt` 打成现在，侧栏这条立刻升到最上面。
@@ -737,7 +737,7 @@ class ThreadController extends ChangeNotifier with GuardedNotifier {
     renamingSessionId = id;
     renamingInHeader = inHeader;
     final current = sidebarSessions.where((s) => s.id == id).map((s) => s.title).firstOrNull ??
-        (inHeader ? threadTitle : '');
+        (inHeader ? sessionTitle : '');
     rename.text = current;
     touch();
   }
@@ -757,7 +757,7 @@ class ThreadController extends ChangeNotifier with GuardedNotifier {
       touch();
       return;
     }
-    // 线程头显示的是 store 的标题，改完要跟着变；不写回去的话 [saveIndex] 收轮时还会拿旧标题把索引盖回去。
+    // 会话头显示的是 store 的标题，改完要跟着变；不写回去的话 [saveIndex] 收轮时还会拿旧标题把索引盖回去。
     // agent 之后再发 `session_info_update.title` 仍然照单全收（规则 2），改名只管到那时候。
     sessions.maybe(id)?.title = title.trim();
     await guard(() async {

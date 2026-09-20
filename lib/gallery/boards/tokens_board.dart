@@ -53,7 +53,7 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.only(bottom: t.Spacing.s8),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width)),
       ),
       child: Row(
@@ -157,17 +157,17 @@ class _LightNeutrals extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const h = _swatchLight;
-    return const _Grid(children: <Widget>[
-      _Swatch(color: t.Neutral.canvas, name: 'n.canvas', value: '#fbfbfc', height: h, border: t.Borders.subtle),
-      _Swatch(color: t.Neutral.panel, name: 'n.panel', value: '#f4f4f6', height: h, border: t.Borders.subtle),
-      _Swatch(color: t.Neutral.surface, name: 'n.surface', value: '#eeeef1', height: h, border: t.Borders.subtle),
-      _Swatch(color: t.Neutral.hoverSolid, name: 'n.hover.solid', value: '#e7e7eb', height: h, border: t.Borders.subtle),
-      _Swatch(color: t.Neutral.borderSubtle, name: 'n.border.subtle', value: '#e2e2e7', height: h, border: t.Borders.base),
-      _Swatch(color: t.Neutral.border, name: 'n.border', value: '#d3d3da', height: h),
-      _Swatch(color: t.Neutral.placeholder, name: 'n.placeholder', value: '#8b8b96', height: h),
-      _Swatch(color: t.Neutral.muted, name: 'n.muted', value: '#62626e', height: h),
-      _Swatch(color: t.Neutral.text, name: 'n.text', value: '#33333d', height: h),
-      _Swatch(color: t.Neutral.strong, name: 'n.strong', value: '#1e1e26', height: h),
+    return _Grid(children: <Widget>[
+      _Swatch(color: t.Theming.lightColors.canvas, name: 'n.canvas', value: '#fbfbfc', height: h, border: t.Borders.subtle),
+      _Swatch(color: t.Theming.lightColors.panel, name: 'n.panel', value: '#f4f4f6', height: h, border: t.Borders.subtle),
+      _Swatch(color: t.Theming.lightColors.surface, name: 'n.surface', value: '#eeeef1', height: h, border: t.Borders.subtle),
+      _Swatch(color: t.Theming.lightColors.hoverSolid, name: 'n.hover.solid', value: '#e7e7eb', height: h, border: t.Borders.subtle),
+      _Swatch(color: t.Theming.lightColors.borderSubtle, name: 'n.border.subtle', value: '#e2e2e7', height: h, border: t.Borders.base),
+      _Swatch(color: t.Theming.lightColors.border, name: 'n.border', value: '#d3d3da', height: h),
+      _Swatch(color: t.Theming.lightColors.placeholder, name: 'n.placeholder', value: '#8b8b96', height: h),
+      _Swatch(color: t.Theming.lightColors.muted, name: 'n.muted', value: '#62626e', height: h),
+      _Swatch(color: t.Theming.lightColors.text, name: 'n.text', value: '#33333d', height: h),
+      _Swatch(color: t.Theming.lightColors.strong, name: 'n.strong', value: '#1e1e26', height: h),
     ]);
   }
 }
@@ -178,17 +178,17 @@ class _DarkNeutrals extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const h = _swatchDark;
-    return const _Grid(children: <Widget>[
-      _Swatch(color: t.Dark.canvas, name: 'd.canvas', value: '#17171c', height: h),
-      _Swatch(color: t.Dark.panel, name: 'd.panel', value: '#1d1d23', height: h),
-      _Swatch(color: t.Dark.surface, name: 'd.surface', value: '#24242b', height: h),
-      _Swatch(color: t.Dark.hoverSolid, name: 'd.hover.solid', value: '#2c2c34', height: h),
-      _Swatch(color: t.Dark.borderSubtle, name: 'd.border.subtle', value: '#303039', height: h),
-      _Swatch(color: t.Dark.border, name: 'd.border', value: '#43434e', height: h),
-      _Swatch(color: t.Dark.placeholder, name: 'd.placeholder', value: '#7e7e8a', height: h),
-      _Swatch(color: t.Dark.muted, name: 'd.muted', value: '#9b9ba6', height: h),
-      _Swatch(color: t.Dark.text, name: 'd.text', value: '#d5d5dc', height: h),
-      _Swatch(color: t.Dark.accent, name: 'd.accent', value: '#8b96ec', height: h),
+    return _Grid(children: <Widget>[
+      _Swatch(color: t.Theming.darkColors.canvas, name: 'd.canvas', value: '#17171c', height: h),
+      _Swatch(color: t.Theming.darkColors.panel, name: 'd.panel', value: '#1d1d23', height: h),
+      _Swatch(color: t.Theming.darkColors.surface, name: 'd.surface', value: '#24242b', height: h),
+      _Swatch(color: t.Theming.darkColors.hoverSolid, name: 'd.hover.solid', value: '#2c2c34', height: h),
+      _Swatch(color: t.Theming.darkColors.borderSubtle, name: 'd.border.subtle', value: '#303039', height: h),
+      _Swatch(color: t.Theming.darkColors.border, name: 'd.border', value: '#43434e', height: h),
+      _Swatch(color: t.Theming.darkColors.placeholder, name: 'd.placeholder', value: '#7e7e8a', height: h),
+      _Swatch(color: t.Theming.darkColors.muted, name: 'd.muted', value: '#9b9ba6', height: h),
+      _Swatch(color: t.Theming.darkColors.text, name: 'd.text', value: '#d5d5dc', height: h),
+      _Swatch(color: t.Theming.darkColors.accentBase, name: 'd.accent', value: '#8b96ec', height: h),
     ]);
   }
 }
@@ -214,9 +214,9 @@ class _AccentSwatches extends StatelessWidget {
   Widget build(BuildContext context) {
     const h = _swatchAccent;
     return _Grid(children: <Widget>[
-      const _Swatch(color: t.Accent.base, name: 'accent', value: '#5566d8', height: h),
-      const _Swatch(color: t.Accent.active, name: '.active', value: '#3d4cb5', height: h),
-      const _Swatch(color: t.Accent.soft, name: '.soft', value: '#ecedfa', height: h, border: t.Borders.subtle),
+      _Swatch(color: t.Accent.base, name: 'accent', value: '#5566d8', height: h),
+      _Swatch(color: t.Accent.active, name: '.active', value: '#3d4cb5', height: h),
+      _Swatch(color: t.Accent.soft, name: '.soft', value: '#ecedfa', height: h, border: t.Borders.subtle),
       _Swatch(
         color: t.Neutral.canvas,
         name: '.text',
@@ -225,12 +225,12 @@ class _AccentSwatches extends StatelessWidget {
         border: t.Borders.subtle,
         child: Text('Aa', style: t.TextStyles.body.copyWith(color: t.Accent.text, height: t.LineHeights.control)),
       ),
-      const _Swatch(
+      _Swatch(
         color: t.Accent.base,
         name: 'border.on-accent',
         value: 'rgba(255,255,255,.45)',
         height: h,
-        child: _Kbd(label: 'Alt-A', onAccent: true),
+        child: const _Kbd(label: 'Alt-A', onAccent: true),
       ),
     ]);
   }
@@ -241,7 +241,7 @@ class _SemanticSwatches extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const _Grid(children: <Widget>[
+    return _Grid(children: <Widget>[
       _SemanticSwatch(color: t.Semantic.error, soft: t.Semantic.errorSoft, name: 'error', value: '#bc4e39', softValue: '.soft #fbeeea'),
       _SemanticSwatch(color: t.Semantic.warning, soft: t.Semantic.warningSoft, name: 'warning', value: '#8a6f12', softValue: '.soft #f7f2e2'),
       _SemanticSwatch(color: t.Semantic.success, soft: t.Semantic.successSoft, name: 'success', value: '#477f40', softValue: '.soft #ecf3ea'),
@@ -321,7 +321,7 @@ class _SurfaceDemo extends StatelessWidget {
                     color: t.Surface.popover,
                     borderRadius: t.Radii.card,
                     border: Border.all(color: t.Borders.subtle, width: t.Borders.width),
-                    boxShadow: const <BoxShadow>[t.Shadows.popover],
+                    boxShadow: <BoxShadow>[t.Shadows.popover],
                   ),
                   child: Text('surface.popover', style: t.TextStyles.monoMeta),
                 ),
@@ -359,7 +359,7 @@ class _BottomRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.only(top: t.Spacing.s12),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width)),
       ),
       child: const Row(
@@ -406,7 +406,7 @@ class _TypeScale extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        _TypeLine(sample: Text('New Thread', style: t.TextStyles.display), note: 'text.display 20 / 500 · 空态'),
+        _TypeLine(sample: Text('New Session', style: t.TextStyles.display), note: 'text.display 20 / 500 · 空态'),
         const SizedBox(height: t.Spacing.s8),
         _TypeLine(sample: Text('ACP Registry', style: t.TextStyles.title), note: 'text.title 15 / 500'),
         const SizedBox(height: t.Spacing.s8),
@@ -435,7 +435,7 @@ class _SpacingBar extends StatelessWidget {
         Container(
           width: width,
           height: _spacingBarHeight,
-          decoration: const BoxDecoration(color: t.Accent.base, borderRadius: t.Radii.chip),
+          decoration: BoxDecoration(color: t.Accent.base, borderRadius: t.Radii.chip),
         ),
         const SizedBox(height: t.Spacing.s4),
         Text('${width.toInt()}', style: t.TextStyles.monoMeta.copyWith(color: t.Neutral.muted)),
@@ -483,9 +483,9 @@ class _PillToggle extends StatelessWidget {
       padding: const EdgeInsets.all(_toggleKnobInset),
       alignment: Alignment.centerRight,
       decoration: BoxDecoration(color: t.Accent.base, borderRadius: t.Radii.pill(trackHeight)),
-      child: const DecoratedBox(
+      child: DecoratedBox(
         decoration: BoxDecoration(color: t.Accent.onAccent, shape: BoxShape.circle),
-        child: SizedBox.expand(),
+        child: const SizedBox.expand(),
       ),
     );
   }
@@ -548,14 +548,16 @@ class _ButtonSample extends StatelessWidget {
   const _ButtonSample({
     required this.label,
     this.background,
-    this.foreground = t.Neutral.text,
+    this.foreground,
     this.padding = t.Controls.padStandard,
     this.focusRing = false,
   });
 
   final String label;
   final Color? background;
-  final Color foreground;
+
+  /// 不给就是 [t.Neutral.text]（可空而不是默认值：颜色 token 是 getter，进不了 `const` 默认值）。
+  final Color? foreground;
   final EdgeInsets padding;
   final bool focusRing;
 
@@ -566,7 +568,7 @@ class _ButtonSample extends StatelessWidget {
       height: t.Controls.standard,
       padding: padding,
       decoration: BoxDecoration(color: background, borderRadius: t.Radii.control),
-      child: Center(widthFactor: 1, child: Text(label, style: t.TextStyles.body.copyWith(color: foreground, height: t.LineHeights.control))),
+      child: Center(widthFactor: 1, child: Text(label, style: t.TextStyles.body.copyWith(color: foreground ?? t.Neutral.text, height: t.LineHeights.control))),
     );
     if (!focusRing) return button;
     return Container(
@@ -598,18 +600,18 @@ class _ControlsAndButtons extends StatelessWidget {
           ],
         ),
         const SizedBox(height: t.Spacing.s8),
-        const Wrap(
+        Wrap(
           spacing: t.Spacing.s4,
           runSpacing: t.Spacing.s4,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: <Widget>[
-            _ButtonSample(label: '默认 ghost'),
+            const _ButtonSample(label: '默认 ghost'),
             _ButtonSample(label: 'hover 6%', background: t.Overlays.hover),
             _ButtonSample(label: 'active 10%', background: t.Overlays.active),
             _ButtonSample(label: 'selected', background: t.Overlays.selected, foreground: t.Accent.text),
             _ButtonSample(label: 'primary', background: t.Accent.base, foreground: t.Accent.onAccent, padding: t.Controls.padInput),
             _ButtonSample(label: 'danger ghost', foreground: t.Semantic.error),
-            _ButtonSample(label: 'focus ring 1.5 / +1', focusRing: true),
+            const _ButtonSample(label: 'focus ring 1.5 / +1', focusRing: true),
           ],
         ),
       ],
@@ -670,11 +672,11 @@ class _IconsKbdMotion extends StatelessWidget {
       children: <Widget>[
         Row(
           children: <Widget>[
-            const AcpIcon(AcpIcons.search, color: t.Neutral.text),
+            AcpIcon(AcpIcons.search, color: t.Neutral.text),
             const SizedBox(width: t.Spacing.s12),
-            const AcpIcon(AcpIcons.file, color: t.Neutral.text),
+            AcpIcon(AcpIcons.file, color: t.Neutral.text),
             const SizedBox(width: t.Spacing.s12),
-            const AcpIcon(AcpIcons.terminal, color: t.Neutral.text, size: t.IconSizes.toolbar),
+            AcpIcon(AcpIcons.terminal, color: t.Neutral.text, size: t.IconSizes.toolbar),
             const SizedBox(width: t.Spacing.s12),
             Flexible(child: Text('icon 16 / 工具栏 14 · stroke 1.5', style: t.TextStyles.monoMeta)),
           ],

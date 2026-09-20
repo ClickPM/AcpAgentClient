@@ -1,5 +1,5 @@
 // 画板 41 · 顶栏与侧栏弹层合集：项目切换（This Window / Recent Projects / Open Local Folders）、
-// 分支切换（搜索即创建）、新建会话选 agent、线程头 ≡ 菜单（动作由 sessionCapabilities 驱动）、会话删除确认。
+// 分支切换（搜索即创建）、新建会话选 agent、会话头 ≡ 菜单（动作由 sessionCapabilities 驱动）、会话删除确认。
 // 「项目 = 一个本地目录，作为 session/new 的 cwd」（docs/design.md § 9 裁定）；分支走 git CLI 子进程，
 // 非 git 目录时顶栏整块分支区隐藏，本弹层也不会被打开。
 // ≡ 菜单里 Resume / Close / Delete 依 `sessionCapabilities` 显示（画板 41 注，acp-projection.md § 5）；动作本身在 R6 接。
@@ -189,7 +189,7 @@ class _CreateBranchRow extends StatelessWidget {
         decoration: BoxDecoration(color: hovered ? t.Overlays.active : t.Overlays.hover, borderRadius: t.Radii.control),
         child: Row(
           children: <Widget>[
-            const AcpIcon(AcpIcons.plus, color: t.Neutral.muted, size: t.IconSizes.toolbar),
+            AcpIcon(AcpIcons.plus, color: t.Neutral.muted, size: t.IconSizes.toolbar),
             const SizedBox(width: t.Spacing.s4),
             Flexible(
               child: Text.rich(
@@ -248,10 +248,10 @@ class NewSessionAgentPopover extends StatelessWidget {
       );
 }
 
-/// 线程头 ≡ 菜单。Rename 依 `sessionCapabilities`（改标题），Reload 是客户端本地动作，
+/// 会话头 ≡ 菜单。Rename 依 `sessionCapabilities`（改标题），Reload 是客户端本地动作，
 /// Resume / Close / Delete 无能力时整行不渲染（画板 41 注）；动作本身在 R6 接。
-class ThreadMenuPopover extends StatelessWidget {
-  const ThreadMenuPopover({
+class SessionMenuPopover extends StatelessWidget {
+  const SessionMenuPopover({
     super.key,
     this.canRename = true,
     this.canResume = false,

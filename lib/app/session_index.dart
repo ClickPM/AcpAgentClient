@@ -46,7 +46,7 @@ class SessionIndex {
   /// （所有者裁定 2026-09-18）：只在 `session/prompt` 发出时打新时间（[promptSent]），收轮、改名、补标题都沿用
   /// 索引里已有的值——按收轮时间打的话，一条早发出去、晚跑完的会话会在收轮时跳到刚发过消息的那条前面。
   /// 索引里还没有这条（刚 `session/new`）时不传，核心打当前时间：新会话按创建时间排最上面。
-  /// [agentFallback] / [titleFallback]：store 上没有时用的 agentId 与标题（线程控制器给当前 agent 与线程头标题）。
+  /// [agentFallback] / [titleFallback]：store 上没有时用的 agentId 与标题（线程控制器给当前 agent 与会话头标题）。
   Future<void> upsert(
     SessionStore s, {
     required String agentFallback,

@@ -5,81 +5,258 @@
 
 import 'package:flutter/widgets.dart';
 
-/// 中性色阶 · 浅色（画板 00「中性色阶 · 浅色」，n.*）。
+/// 主题两档（画板 07「深色 Token 对位表」）。深色**只换颜色**：间距 / 圆角 / 字阶 / 控件高度 /
+/// 动效时长与浅色完全相同，所以只有颜色这一层分两套，其余 token 一份。
+enum AppTheme { light, dark }
+
+/// 一套完整的颜色取值。两个实例：[Theming.lightColors]（画板 00）与 [Theming.darkColors]（画板 07）。
+///
+/// 画板 07 的规矩是「一个浅色 token 名对应且只对应一个深色值，不新增、不合并、不拆分」，
+/// 所以两套的字段**完全一致**：深色没有专有字段，浅色也没有缺对位的字段。要加颜色先改画板。
+@immutable
+class ThemeColors {
+  const ThemeColors({
+    required this.canvas,
+    required this.panel,
+    required this.surface,
+    required this.hoverSolid,
+    required this.borderSubtle,
+    required this.border,
+    required this.placeholder,
+    required this.muted,
+    required this.text,
+    required this.strong,
+    required this.accentBase,
+    required this.accentActive,
+    required this.accentSoft,
+    required this.accentText,
+    required this.accentOnAccent,
+    required this.borderOnAccent,
+    required this.error,
+    required this.errorSoft,
+    required this.warning,
+    required this.warningSoft,
+    required this.success,
+    required this.successSoft,
+    required this.info,
+    required this.infoSoft,
+    required this.surfacePopover,
+    required this.shadowPopover,
+    required this.popoverTopHighlight,
+    required this.overlayHover,
+    required this.overlayActive,
+  });
+
+  // 中性色阶十档（n.canvas → n.strong ↔ d.canvas → d.strong，逐位一一对应）。
+  final Color canvas;
+  final Color panel;
+  final Color surface;
+  final Color hoverSolid;
+  final Color borderSubtle;
+  final Color border;
+  final Color placeholder;
+  final Color muted;
+  final Color text;
+  final Color strong;
+
+  // 强调色六项。
+  final Color accentBase;
+  final Color accentActive;
+  final Color accentSoft;
+  final Color accentText;
+  final Color accentOnAccent;
+  final Color borderOnAccent;
+
+  // 语义色 4 × 2。
+  final Color error;
+  final Color errorSoft;
+  final Color warning;
+  final Color warningSoft;
+  final Color success;
+  final Color successSoft;
+  final Color info;
+  final Color infoSoft;
+
+  /// 三级表面的第三级（前两级就是 [canvas] / [panel]）。
+  final Color surfacePopover;
+
+  /// 弹层阴影。
+  final BoxShadow shadowPopover;
+
+  /// 画板 07 § 2.5 路线 B 的「顶部 1px 提亮」（CSS 里是 `inset 0 1px 0`，Flutter 的 [BoxShadow]
+  /// 没有 inset，[Popover] 改画一条 1px 顶线）。浅色不需要它，取全透明，画法两边一致、不用分支。
+  final Color popoverTopHighlight;
+
+  // 叠色：浅色叠黑 6% / 10%，深色叠白 5% / 9%（画板 07 § 2.6：白叠深底感知更强，照抄会过亮）。
+  final Color overlayHover;
+  final Color overlayActive;
+}
+
+/// 当前主题与两套取值。切换只改这里，widget 与派生 token 全部经 [colors] 现取。
+///
+/// 与 [Fonts] 同一个模式：tokens 这一层不认识持久化，只持有当前值；落盘与「谁来触发重建」
+/// 在 `lib/app/appearance_prefs.dart`。
+abstract final class Theming {
+  /// 浅色取值（画板 00）。
+  static const ThemeColors lightColors = ThemeColors(
+    canvas: Color(0xFFFBFBFC),
+    panel: Color(0xFFF4F4F6),
+    surface: Color(0xFFEEEEF1),
+    hoverSolid: Color(0xFFE7E7EB),
+    borderSubtle: Color(0xFFE2E2E7),
+    border: Color(0xFFD3D3DA),
+    placeholder: Color(0xFF8B8B96),
+    muted: Color(0xFF62626E),
+    text: Color(0xFF33333D),
+    strong: Color(0xFF1E1E26),
+    accentBase: Color(0xFF5566D8),
+    accentActive: Color(0xFF3D4CB5),
+    accentSoft: Color(0xFFECEDFA),
+    accentText: Color(0xFF4A59C9),
+    accentOnAccent: Color(0xFFFFFFFF),
+    borderOnAccent: Color.fromRGBO(255, 255, 255, 0.45),
+    error: Color(0xFFBC4E39),
+    errorSoft: Color(0xFFFBEEEA),
+    warning: Color(0xFF8A6F12),
+    warningSoft: Color(0xFFF7F2E2),
+    success: Color(0xFF477F40),
+    successSoft: Color(0xFFECF3EA),
+    info: Color(0xFF5566D8),
+    infoSoft: Color(0xFFECEDFA),
+    surfacePopover: Color(0xFFFFFFFF),
+    shadowPopover: BoxShadow(offset: Offset(0, 4), blurRadius: 12, color: Color.fromRGBO(28, 28, 35, 0.10)),
+    popoverTopHighlight: Color(0x00FFFFFF),
+    overlayHover: Color.fromRGBO(30, 30, 38, 0.06),
+    overlayActive: Color.fromRGBO(30, 30, 38, 0.10),
+  );
+
+  /// 深色取值（画板 07「深色 Token 对位表」，d.*）。
+  static const ThemeColors darkColors = ThemeColors(
+    canvas: Color(0xFF17171C),
+    panel: Color(0xFF1D1D23),
+    surface: Color(0xFF24242B),
+    hoverSolid: Color(0xFF2C2C34),
+    borderSubtle: Color(0xFF303039),
+    border: Color(0xFF43434E),
+    placeholder: Color(0xFF7E7E8A),
+    muted: Color(0xFF9B9BA6),
+    text: Color(0xFFD5D5DC),
+    strong: Color(0xFFF0F0F4),
+    accentBase: Color(0xFF8B96EC),
+    accentActive: Color(0xFFA3ADF3),
+    accentSoft: Color(0xFF2A2F4D),
+    accentText: Color(0xFF9AA5F0),
+    // 白字在 #8b96ec 上只有 2.8:1，改深色字 6.4:1（画板 07 § 2.2）。
+    accentOnAccent: Color(0xFF17171C),
+    borderOnAccent: Color.fromRGBO(23, 23, 28, 0.45),
+    error: Color(0xFFE8836A),
+    errorSoft: Color(0xFF4A2620),
+    warning: Color(0xFFD8A83C),
+    warningSoft: Color(0xFF453718),
+    success: Color(0xFF6FBF63),
+    successSoft: Color(0xFF21361F),
+    info: Color(0xFF8B96EC),
+    infoSoft: Color(0xFF2A2F4D),
+    // 比 panel 亮两档才浮得起来。
+    surfacePopover: Color(0xFF2E2E37),
+    shadowPopover: BoxShadow(offset: Offset(0, 4), blurRadius: 12, color: Color.fromRGBO(0, 0, 0, 0.28)),
+    popoverTopHighlight: Color.fromRGBO(255, 255, 255, 0.08),
+    overlayHover: Color.fromRGBO(255, 255, 255, 0.05),
+    overlayActive: Color.fromRGBO(255, 255, 255, 0.09),
+  );
+
+  /// 缺省主题。**唯一一份缺省值**——Rust 侧 `Appearance.theme` 是 `Option`，没设过就是 null，
+  /// 由这里兜底（同 [Fonts.defaultSans] 与 `ui_state` 的口径）。浅色：没存过设置的人看到的还是原来那套。
+  static const AppTheme defaultMode = AppTheme.light;
+
+  static AppTheme _mode = defaultMode;
+  static ThemeColors _colors = lightColors;
+
+  /// 当前主题。
+  static AppTheme get mode => _mode;
+
+  static bool get isDark => _mode == AppTheme.dark;
+
+  /// 当前这套颜色。所有颜色 token 都从这里现取（**不要**缓存成 `static final`，会冻在首次访问那一套）。
+  static ThemeColors get colors => _colors;
+
+  /// 换主题。返回是否真的变了，没变就不必重建。
+  ///
+  /// 字阶把颜色烘进了 [TextStyle]（[FontStyles.build]），所以换主题也要重算它们并推进
+  /// [Fonts.generation]——下游那些「贵到不能每帧现算、只好缓存」的高亮 span 靠这个代数判过期。
+  static bool apply(AppTheme mode) {
+    if (mode == _mode) return false;
+    _mode = mode;
+    _colors = mode == AppTheme.dark ? darkColors : lightColors;
+    Fonts.rebuildStyles();
+    return true;
+  }
+
+  /// 回到缺省主题（测试与「恢复默认」用）。
+  static bool reset() => apply(defaultMode);
+}
+
+/// 中性色阶（画板 00「中性色阶 · 浅色」n.* / 画板 07 § 2.1 d.*）。
 abstract final class Neutral {
-  static const Color canvas = Color(0xFFFBFBFC);
-  static const Color panel = Color(0xFFF4F4F6);
-  static const Color surface = Color(0xFFEEEEF1);
-  static const Color hoverSolid = Color(0xFFE7E7EB);
-  static const Color borderSubtle = Color(0xFFE2E2E7);
-  static const Color border = Color(0xFFD3D3DA);
-  static const Color placeholder = Color(0xFF8B8B96);
-  static const Color muted = Color(0xFF62626E);
-  static const Color text = Color(0xFF33333D);
-  static const Color strong = Color(0xFF1E1E26);
+  static Color get canvas => Theming.colors.canvas;
+  static Color get panel => Theming.colors.panel;
+  static Color get surface => Theming.colors.surface;
+  static Color get hoverSolid => Theming.colors.hoverSolid;
+  static Color get borderSubtle => Theming.colors.borderSubtle;
+  static Color get border => Theming.colors.border;
+  static Color get placeholder => Theming.colors.placeholder;
+  static Color get muted => Theming.colors.muted;
+  static Color get text => Theming.colors.text;
+  static Color get strong => Theming.colors.strong;
 }
 
-/// 中性色阶 · 深色（画板 00「中性色阶 · 深色」，d.*）。只备常量，不接主题切换（BACKLOG）。
-abstract final class Dark {
-  static const Color canvas = Color(0xFF17171C);
-  static const Color panel = Color(0xFF1D1D23);
-  static const Color surface = Color(0xFF24242B);
-  static const Color hoverSolid = Color(0xFF2C2C34);
-  static const Color borderSubtle = Color(0xFF303039);
-  static const Color border = Color(0xFF43434E);
-  static const Color placeholder = Color(0xFF7E7E8A);
-  static const Color muted = Color(0xFF9B9BA6);
-  static const Color text = Color(0xFFD5D5DC);
-  static const Color accent = Color(0xFF8B96EC);
-}
-
-/// 强调色（画板 00「强调色（唯一）」）：主按钮 / 焦点环 / 链接 / 选中 / spinner；hover 统一用 [active]。
+/// 强调色（画板 00「强调色（唯一）」/ 画板 07 § 2.2）：主按钮 / 焦点环 / 链接 / 选中 / spinner；hover 统一用 [active]。
 abstract final class Accent {
-  static const Color base = Color(0xFF5566D8);
-  static const Color active = Color(0xFF3D4CB5);
-  static const Color soft = Color(0xFFECEDFA);
-  static const Color text = Color(0xFF4A59C9);
+  static Color get base => Theming.colors.accentBase;
+  static Color get active => Theming.colors.accentActive;
+  static Color get soft => Theming.colors.accentSoft;
+  static Color get text => Theming.colors.accentText;
 
-  /// 强调色底上的文字（primary 按钮）。
-  static const Color onAccent = Color(0xFFFFFFFF);
+  /// 强调色底上的文字（primary 按钮）。浅色是白，深色翻成 d.canvas。
+  static Color get onAccent => Theming.colors.accentOnAccent;
 
   /// border.on-accent：强调色底上的 kbd 边框。
-  static const Color borderOnAccent = Color.fromRGBO(255, 255, 255, 0.45);
+  static Color get borderOnAccent => Theming.colors.borderOnAccent;
 }
 
-/// 语义色 4 × 2（画板 00「语义色（4）」）：只用于状态图标 / 状态文字 / 细状态条。
+/// 语义色 4 × 2（画板 00「语义色（4）」/ 画板 07 § 2.3）：只用于状态图标 / 状态文字 / 细状态条。
 abstract final class Semantic {
-  static const Color error = Color(0xFFBC4E39);
-  static const Color errorSoft = Color(0xFFFBEEEA);
-  static const Color warning = Color(0xFF8A6F12);
-  static const Color warningSoft = Color(0xFFF7F2E2);
-  static const Color success = Color(0xFF477F40);
-  static const Color successSoft = Color(0xFFECF3EA);
-  static const Color info = Color(0xFF5566D8);
-  static const Color infoSoft = Color(0xFFECEDFA);
+  static Color get error => Theming.colors.error;
+  static Color get errorSoft => Theming.colors.errorSoft;
+  static Color get warning => Theming.colors.warning;
+  static Color get warningSoft => Theming.colors.warningSoft;
+  static Color get success => Theming.colors.success;
+  static Color get successSoft => Theming.colors.successSoft;
+  static Color get info => Theming.colors.info;
+  static Color get infoSoft => Theming.colors.infoSoft;
 }
 
-/// 三级表面（画板 00「三级表面 · 边框两级 · 阴影」）。
+/// 三级表面（画板 00「三级表面 · 边框两级 · 阴影」/ 画板 07 § 2.4）。
 abstract final class Surface {
-  static const Color canvas = Color(0xFFFBFBFC);
-  static const Color panel = Color(0xFFF4F4F6);
-  static const Color popover = Color(0xFFFFFFFF);
+  static Color get canvas => Theming.colors.canvas;
+  static Color get panel => Theming.colors.panel;
+  static Color get popover => Theming.colors.surfacePopover;
 }
 
-/// 边框两级，宽 1。
+/// 边框两级，宽 1（深色也是两级同名对位，宽度不变）。
 abstract final class Borders {
-  static const Color subtle = Color(0xFFE2E2E7);
-  static const Color base = Color(0xFFD3D3DA);
+  static Color get subtle => Theming.colors.borderSubtle;
+  static Color get base => Theming.colors.border;
   static const double width = 1.0;
 }
 
-/// 阴影：仅弹层。shadow.popover = 0 4 12 rgba(28,28,35,.10)。
+/// 阴影：仅弹层。浅色 shadow.popover = 0 4 12 rgba(28,28,35,.10)；
+/// 深色换成 0 4 12 rgba(0,0,0,.28) 再加 [topHighlight]（画板 07 § 2.5 路线 B）。
 abstract final class Shadows {
-  static const BoxShadow popover = BoxShadow(
-    offset: Offset(0, 4),
-    blurRadius: 12,
-    color: Color.fromRGBO(28, 28, 35, 0.10),
-  );
+  static BoxShadow get popover => Theming.colors.shadowPopover;
+
+  /// 弹层顶边的 1px 提亮。深色下给出「上边缘」，浅色是全透明（画法不分支，见 [ThemeColors.popoverTopHighlight]）。
+  static Color get topHighlight => Theming.colors.popoverTopHighlight;
 }
 
 /// 字体栈，四个轴：界面西文 [sans] / 界面中文 [cjk] / 代码西文 [mono] / 代码中文 [codeCjk]。
@@ -88,13 +265,13 @@ abstract final class Shadows {
 /// **为什么中西文能分轴**：Geist / Geist Mono 对 U+4E00–9FFF 的 cmap 覆盖是 0，中文一个字都不走
 /// [sans] / [mono]，整段由 [cjkFallback] / [codeCjkFallback] 的第一项渲染。反过来说，
 /// **西文轴上不能放含 CJK 字形的字体**（Noto Sans SC、MiSans 这类），否则它把中文也吃掉，中文轴就失效了——
-/// 设置页的两组下拉因此互不重叠，见 `lib/app/font_prefs.dart` 的候选表。
+/// 设置页的两组下拉因此互不重叠，见 `lib/app/appearance_prefs.dart` 的候选表。
 ///
 /// 回退链尾的两项兜中文字体没有的字（生僻字等），不随轴变。为什么 CJK 首项优先随包的 Noto Sans SC 而不是
 /// 系统的 Microsoft YaHei UI：YaHei 的字形是按 GDI full hinting 调的，而 Flutter 桌面只做灰度抗锯齿、
 /// 不吃那套 hinting，中文因此比拉丁文更虚。
 ///
-/// 四个轴是**运行时可变**的（画板 70「外观」小节）：值由 `lib/app/font_prefs.dart` 经 [apply] 灌进来，
+/// 四个轴是**运行时可变**的（画板 70「外观」小节）：值由 `lib/app/appearance_prefs.dart` 经 [apply] 灌进来，
 /// tokens 这一层不认识持久化，只持有当前值并派生 [styles]。
 abstract final class Fonts {
   /// 随包默认，也是各轴的缺省值。**唯一一份默认字体名**——Rust 侧 `Appearance` 四个字段一律 `Option`，
@@ -138,16 +315,24 @@ abstract final class Fonts {
   /// 当前这套字体下派生出的全部字阶。[TextStyles] 与 [Kbd] 都从这里取。
   static FontStyles get styles => _styles;
 
-  /// 换字体的代数，每次 [apply] 真的改了值就 +1。
+  /// 样式代数，每次字体或主题真的改了值就 +1。
   ///
-  /// 给**没法每帧重算**的下游用：把带 family 的东西（高亮 span、TextPainter 量出来的宽高）
+  /// 给**没法每帧重算**的下游用：把带 family 或颜色的东西（高亮 span、TextPainter 量出来的宽高）
   /// 长期存在 State 里的地方，记下算它时的代数，跟当前不一致就重算。
   /// 能每帧现取的（[TextStyles] / [CardText] 这些 getter）不需要它。
+  ///
+  /// 主题也算在内是因为 [FontStyles.build] 把颜色烘进了每一档（见 [Theming.apply]）。
   static int get generation => _generation;
+
+  /// 重算字阶并推进 [generation]。字体轴由 [apply] 调，主题由 [Theming.apply] 调。
+  static void rebuildStyles() {
+    _styles = FontStyles.build();
+    _generation++;
+  }
 
   /// 换字体：只覆盖给到的轴，`null` 表示这一轴不动。改完重算 [styles]。
   ///
-  /// 调用方负责触发重建（`lib/app/font_prefs.dart` 用 [ChangeNotifier]）——tokens 不持有 widget 树。
+  /// 调用方负责触发重建（`lib/app/appearance_prefs.dart` 用 [ChangeNotifier]）——tokens 不持有 widget 树。
   /// 返回是否真的变了，没变就不必重建。
   static bool apply({String? sans, String? mono, String? cjk, String? codeCjk}) {
     final String nextSans = sans ?? _sans;
@@ -159,8 +344,7 @@ abstract final class Fonts {
     _mono = nextMono;
     _cjk = nextCjk;
     _codeCjk = nextCodeCjk;
-    _styles = FontStyles.build();
-    _generation++;
+    rebuildStyles();
     return true;
   }
 
@@ -388,18 +572,19 @@ abstract final class Controls {
   static const EdgeInsets padInput = EdgeInsets.symmetric(horizontal: 10);
 }
 
-/// 按钮四态叠色：hover 6% / active 10%（rgba(30,30,38,·)），selected = active 叠色 + [Accent.text]。
+/// 按钮四态叠色：浅色叠黑 hover 6% / active 10%（rgba(30,30,38,·)），深色叠白 5% / 9%（画板 07 § 2.6）；
+/// 两边都是 selected = active 叠色 + [Accent.text]。
 abstract final class Overlays {
-  static const Color hover = Color.fromRGBO(30, 30, 38, 0.06);
-  static const Color active = Color.fromRGBO(30, 30, 38, 0.10);
-  static const Color selected = active;
+  static Color get hover => Theming.colors.overlayHover;
+  static Color get active => Theming.colors.overlayActive;
+  static Color get selected => active;
 }
 
 /// 焦点环 1.5 / +1（outline 1.5px accent，offset 1px）。
 abstract final class FocusRing {
   static const double width = 1.5;
   static const double offset = 1;
-  static const Color color = Accent.base;
+  static Color get color => Accent.base;
 }
 
 /// 图标 16 / 工具栏 14 · stroke 1.5。
@@ -415,7 +600,7 @@ abstract final class Kbd {
   static TextStyle get text => Fonts.styles.kbd;
   static const EdgeInsets padding = Spacing.kbd;
   static const BorderRadius radius = Radii.chip;
-  static const Color border = Borders.base;
+  static Color get border => Borders.base;
   /// 行框高 16px（绝对值）。
   static const double lineHeightPx = LineHeights.kbdPx;
 }
@@ -461,22 +646,27 @@ abstract final class Opacities {
 
 /// spinner：accent · 1.5px 弧。
 abstract final class Spinner {
-  static const Color color = Accent.base;
+  static Color get color => Accent.base;
   static const double strokeWidth = 1.5;
 }
 
 /// 画板 06 A 组「运行中 · 会话项底部的扫掠亮点线」的 token（画板自己列的「本画板新增 token」表）。
 abstract final class Sweep {
   /// `sweep.track` 1px · border.subtle：全宽常亮底线。
-  static const Color track = Borders.subtle;
+  static Color get track => Borders.subtle;
   static const double trackWidth = Borders.width;
 
   /// `sweep.focus` 96px · accent：亮点宽度与颜色。
-  static const Color focus = Accent.base;
+  static Color get focus => Accent.base;
   static const double focusWidth = 96;
 
-  /// 亮点的横向渐变：中心不透明度 1、两端 0（线性）。两端那两个色值是 [focus] 的全透明版。
-  static const List<Color> focusGradient = <Color>[Color(0x005566D8), focus, Color(0x005566D8)];
+  /// 亮点的横向渐变：中心不透明度 1、两端 0（线性）。两端那两个色值是 [focus] 的全透明版——
+  /// 按画板 07 § 2.7 由 [focus] 现算，不再硬编码某一套主题下的 alpha 0 值。
+  static List<Color> get focusGradient {
+    final Color clear = focus.withValues(alpha: 0);
+    return <Color>[clear, focus, clear];
+  }
+
   static const List<double> focusStops = <double>[0, 0.5, 1];
 
   /// `sweep.cycle` 1400ms · linear · infinite：亮点从线左端外走到线右端外的一个周期。
@@ -497,7 +687,7 @@ abstract final class Sweep {
 abstract final class UnreadDot {
   /// 6px 实心圆 · success，无描边无光晕。
   static const double size = 6;
-  static const Color color = Semantic.success;
+  static Color get color => Semantic.success;
 
   /// 与条数文字之间的间距。
   static const double gap = 6;
@@ -534,7 +724,7 @@ abstract final class Geometry {
   /// 01–04：侧栏宽。
   static const double sidebarWidth = 280;
 
-  /// 01–04：顶栏 / 线程头 / 侧栏头 / 侧栏底部导航的条高。
+  /// 01–04：顶栏 / 会话头 / 侧栏头 / 侧栏底部导航的条高。
   static const double barHeight = 36;
 
   /// 06：运行中的会话项行高 `row.running`（默认态是 48 = [Controls.input] + [Spacing.s16]）。
@@ -701,7 +891,7 @@ abstract final class Timeline {
   static const double width = Geometry.menuWidthInline;
 
   /// `timeline.rail` 1px · border.subtle：导轨竖线。
-  static const Color rail = Borders.subtle;
+  static Color get rail => Borders.subtle;
   static const double railWidth = Borders.width;
 
   /// `timeline.railColumn` 16px：导轨列宽，线居中于列（x = 8）。
@@ -709,7 +899,7 @@ abstract final class Timeline {
 
   /// `timeline.node` 6px · #8b8b96：节点直径与颜色（用户行实心、`A` 行空心，空心的描边宽同 [railWidth]）。
   static const double node = 6;
-  static const Color nodeColor = Neutral.placeholder;
+  static Color get nodeColor => Neutral.placeholder;
 
   /// `timeline.label` 24px：标签列宽（两位编号 `01` 与字母 `A` 共用）。
   static const double label = 24;

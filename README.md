@@ -12,6 +12,7 @@ Agent 一律经 [Agent Client Protocol（ACP）](https://agentclientprotocol.com
 - **2026-09-17 起在 `main` 上直接修所有者手测报障**（R7 合并后、R8 之前）：新增画板 05「转场规格」与 06「侧栏会话活动指示」，废弃画板 10；dsh-acp-interactive 改为核心内建条目、正式 logo 与应用图标、随包 CJK 字体、图片粘贴与附件芯片条、悬停提示、会话配置固定档序平铺等；2026-09-18 又合并了五个并行会话的一批（侧栏按用户最后发消息时间倒序、侧栏只列当前项目的会话、Restore / Regenerate 改按用户气泡定位、权限卡范围下拉浮到 Overlay 并去掉快捷键标签），主会话自审整改后构建并替换了本地安装版。清单见 `ROUNDS.md` § 7「main 直改」行，设计稿因此待补的注记在 `rounds/BACKLOG.md`。
 - **2026-09-20 发布 v1.0.0**：源码 release，同日补上 `LICENSE`（GPL-3.0-or-later 全文）与 `NOTICE`（Zed 派生文件清单、上游钉版本、随包字体与图标的许可证）。
 - **2026-09-20 发布 v1.1.0**：v1.0.0 之后的两项功能——画板 43「会话时间线」（线程头 history 开弹层，按轮列出 query 与回答首行，点一行跳到转录里对应那条）与**字体切换四轴**（界面 / 代码各分中西文；随包三款之外的候选不入库，放 `assets/fonts/optional/`（构建时随包）或 `%APPDATA%/AcpAgentClient/fonts/`（运行时）后自动点亮，见 `assets/fonts/optional/README.md`）。同样只发源码。
+- **2026-09-20 发布 v1.2.0**：v1.1.0 之后的一项功能与两项修订——画板 07「深色模式」（`lib/theme/tokens.dart` 拆浅 / 深两套取值，切换按钮在侧栏标题条右端，主题与字体切换同存在设置的 `appearance` 段）、UI 文案与前端 Dart 符号从 `Thread` 收敛为 `Session`（中文「会话」），以及字体扫描结果不通知 UI 的修复。同样只发源码。
 - **R8（打包与发布）未开始**：Windows zip / 安装器、macOS 构建、干净机验收。许可证文件已随 v1.0.0 落地，R8 只剩打包本身。
 
 ## 文档

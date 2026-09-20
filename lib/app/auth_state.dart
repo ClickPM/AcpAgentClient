@@ -37,7 +37,7 @@ class AuthState extends ChangeNotifier with GuardedNotifier {
   /// 当前项目目录（自动重试新会话的 cwd 缺省从它来）。
   final String? Function() _cwd;
 
-  /// registry.json 里的展示名（没连上时线程头 / 认证页的标题退到它）。
+  /// registry.json 里的展示名（没连上时会话头 / 认证页的标题退到它）。
   final String? Function(String id) _registryName;
 
   /// 当前线程的 agent（画板 34 状态条的登录键从它进）。

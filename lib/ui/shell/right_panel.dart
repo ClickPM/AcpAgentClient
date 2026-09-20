@@ -1,7 +1,7 @@
 // 画板 03 / 60 / 61 · 右栏：标签条（面板标签 + 每个本地终端一个标签，当前项选中态 + 各自的关闭键）、
 // 窗口控制（右栏展开时窗口控制在这条上，顶栏那组不渲染）。
 // 画板 03 的面板关闭键已废弃（所有者裁定 2026-09-17）：它紧挨窗口控制那组、按下去像在关窗口；右栏的开关
-// 统一到侧栏底部导航（再点当前面板就收起）与线程头 ≡。
+// 统一到侧栏底部导航（再点当前面板就收起）与会话头 ≡。
 // 面板正文由调用方给（`body`）：文件面板（60）与终端面板（61）在 R4，Agents 与设置在 R5。
 
 import 'package:flutter/widgets.dart';
@@ -82,7 +82,7 @@ class RightPanel extends StatelessWidget {
     return Container(
       // 独立渲染时的缺省宽；装进 [AppShell] 时由它的紧约束覆盖。
       width: t.Geometry.rightPanelWidth,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: t.Neutral.panel,
         border: Border(left: BorderSide(color: t.Borders.subtle, width: t.Borders.width)),
       ),
@@ -99,7 +99,7 @@ class RightPanel extends StatelessWidget {
   Widget _tabBar() => Container(
         // 条高而不是 [t.Controls.input]：标签条与顶栏共用第一条分割线，32 对 36 会错开 4px。
         height: t.Geometry.barHeight,
-        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
         child: Stack(
           // `StackFit.expand`：标签行要拿到与原来一样的紧约束（同 [TopBar]）。
           fit: StackFit.expand,

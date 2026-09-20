@@ -28,7 +28,7 @@ class ElicitationUrlCard extends StatelessWidget {
         ? Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              const AcpIcon(AcpIcons.check, color: t.Semantic.success, size: t.IconSizes.toolbar),
+              AcpIcon(AcpIcons.check, color: t.Semantic.success, size: t.IconSizes.toolbar),
               const SizedBox(width: t.Spacing.s4),
               Text('Completed', style: CardText.secondary.copyWith(color: t.Semantic.success)),
             ],
@@ -51,7 +51,7 @@ class ElicitationUrlCard extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           CardHeader(
-            leading: const AcpIcon(AcpIcons.info, color: t.Accent.base),
+            leading: AcpIcon(AcpIcons.info, color: t.Accent.base),
             title: 'Sign in requested by $who',
             titleStyle: CardText.cardTitle,
             trailing: <Widget>[status],

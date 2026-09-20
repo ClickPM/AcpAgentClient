@@ -130,7 +130,7 @@ class ConfigSelectPopover extends StatelessWidget {
       if (g.name != null) rows.add(MenuGroupLabel(g.name!));
       for (final c in visible) {
         rows.add(MenuRow(
-          leading: showLeadingMark ? const AcpIcon(AcpIcons.dashedCircle, color: t.Neutral.muted, size: t.IconSizes.toolbar) : null,
+          leading: showLeadingMark ? AcpIcon(AcpIcons.dashedCircle, color: t.Neutral.muted, size: t.IconSizes.toolbar) : null,
           label: c.name,
           selected: c.value == current,
           forceHover: c.value == hoveredValue,
@@ -223,7 +223,7 @@ class UnknownCategoryPopover extends StatelessWidget {
 }
 
 /// `+` 的上下文加入弹层（画板 40，裁定后只剩四项）：
-/// Files & Directories → `file_selector` → `resource_link`；Threads → 本地转录文本作 embedded resource；
+/// Files & Directories → `file_selector` → `resource_link`；Sessions → 本地转录文本作 embedded resource；
 /// Image → `image` 块（受 `promptCapabilities.image` 门）；Branch Diff → `git diff` 输出作 embedded resource。
 class PlusPopover extends StatelessWidget {
   const PlusPopover({
@@ -231,7 +231,7 @@ class PlusPopover extends StatelessWidget {
     this.imageEnabled = true,
     this.width = t.Geometry.menuWidthNarrow,
     this.onFiles,
-    this.onThreads,
+    this.onSessions,
     this.onImage,
     this.onBranchDiff,
   });
@@ -240,7 +240,7 @@ class PlusPopover extends StatelessWidget {
   final bool imageEnabled;
   final double width;
   final VoidCallback? onFiles;
-  final VoidCallback? onThreads;
+  final VoidCallback? onSessions;
   final VoidCallback? onImage;
   final VoidCallback? onBranchDiff;
 
@@ -250,7 +250,7 @@ class PlusPopover extends StatelessWidget {
       width: width,
       children: <Widget>[
         MenuRow(icon: AcpIcons.file, label: 'Files & Directories', onTap: onFiles),
-        MenuRow(icon: AcpIcons.messageSquare, label: 'Threads', onTap: onThreads),
+        MenuRow(icon: AcpIcons.messageSquare, label: 'Sessions', onTap: onSessions),
         if (imageEnabled) MenuRow(icon: AcpIcons.image, label: 'Image', onTap: onImage),
         MenuRow(icon: AcpIcons.gitBranch, label: 'Branch Diff', onTap: onBranchDiff),
       ],

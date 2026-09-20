@@ -22,9 +22,12 @@ class UsageRing extends StatelessWidget {
 }
 
 class _RingPainter extends CustomPainter {
-  const _RingPainter(this.fraction);
+  _RingPainter(this.fraction) : _styleGeneration = t.Fonts.generation;
 
   final double fraction;
+
+  /// 见 `shell_common.dart` 的 `_DashedBoxPainter`：颜色现取，重绘判定要带上样式代数。
+  final int _styleGeneration;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -45,7 +48,7 @@ class _RingPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_RingPainter old) => old.fraction != fraction;
+  bool shouldRepaint(_RingPainter old) => old.fraction != fraction || old._styleGeneration != _styleGeneration;
 }
 
 /// 圆环 + 百分比（画板 30 输入框左下）。
@@ -93,7 +96,7 @@ class ComposerUsageStrip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s16),
       child: Row(
         children: <Widget>[
-          const AcpIcon(AcpIcons.plus, color: t.Neutral.placeholder),
+          AcpIcon(AcpIcons.plus, color: t.Neutral.placeholder),
           const SizedBox(width: t.Spacing.s12),
           UsageIndicator(usage: usage),
         ],
@@ -141,7 +144,7 @@ class ContextPopover extends StatelessWidget {
                   children: <Widget>[
                     Text('$rulesCount global rule${rulesCount == 1 ? '' : 's'}', style: CardText.link),
                     const SizedBox(width: t.Spacing.s4),
-                    const AcpIcon(AcpIcons.arrowUpRight, color: t.Accent.text, size: t.IconSizes.toolbar),
+                    AcpIcon(AcpIcons.arrowUpRight, color: t.Accent.text, size: t.IconSizes.toolbar),
                   ],
                 ),
               ),

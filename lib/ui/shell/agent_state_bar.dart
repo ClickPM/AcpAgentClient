@@ -42,24 +42,24 @@ class _AgentStateBarState extends State<AgentStateBar> {
     final c = widget.connection;
     return switch (c.state) {
       AgentLifecycle.spawned => _row(
-          icon: const AcpIcon(AcpIcons.dot, color: t.Neutral.placeholder, size: t.IconSizes.toolbar),
+          icon: AcpIcon(AcpIcons.dot, color: t.Neutral.placeholder, size: t.IconSizes.toolbar),
           title: '$_name 进程已启动',
           meta: '${c.pid == null ? '' : 'pid ${c.pid} · '}spawned',
         ),
       AgentLifecycle.initialized => _row(
-          icon: const AcpIcon(AcpIcons.checkCircle, color: t.Semantic.success, size: t.IconSizes.toolbar),
+          icon: AcpIcon(AcpIcons.checkCircle, color: t.Semantic.success, size: t.IconSizes.toolbar),
           title: '$_name${c.agentVersion == null ? '' : ' v${c.agentVersion}'} 已初始化',
           meta: 'protocolVersion ${c.protocolVersion ?? '?'} · ${c.capabilityNames.join(' / ')}',
         ),
       AgentLifecycle.authRequired => _card(<Widget>[
           _row(
-            icon: const AcpIcon(AcpIcons.lock, color: t.Semantic.warning, size: t.IconSizes.toolbar),
+            icon: AcpIcon(AcpIcons.lock, color: t.Semantic.warning, size: t.IconSizes.toolbar),
             title: '需要认证才能新建会话',
             meta: 'JSON-RPC -32000 · session/new',
             bare: true,
           ),
           Container(
-            decoration: const BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+            decoration: BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
             padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12, vertical: t.Spacing.s8),
             child: Row(
               children: <Widget>[
@@ -84,7 +84,7 @@ class _AgentStateBarState extends State<AgentStateBar> {
         ]),
       AgentLifecycle.exited => _card(<Widget>[
           _row(
-            icon: const AcpIcon(AcpIcons.slashCircle, color: t.Semantic.error, size: t.IconSizes.toolbar),
+            icon: AcpIcon(AcpIcons.slashCircle, color: t.Semantic.error, size: t.IconSizes.toolbar),
             title: '$_name 已退出',
             meta: 'exitCode ${c.exitCode ?? '—'} · signal ${c.signal ?? 'none'}',
             trailing: Chevron(expanded: _expanded),
@@ -113,12 +113,12 @@ class _AgentStateBarState extends State<AgentStateBar> {
           meta: 'methodId ${c.authenticatingMethodId ?? '?'}${c.authenticatingTerminalId == null ? '' : ' · terminalId ${c.authenticatingTerminalId}'}',
         ),
       AgentLifecycle.coreReady => _row(
-          icon: const AcpIcon(AcpIcons.dot, color: t.Neutral.placeholder, size: t.IconSizes.toolbar),
+          icon: AcpIcon(AcpIcons.dot, color: t.Neutral.placeholder, size: t.IconSizes.toolbar),
           title: '核心已就绪',
           meta: 'core_ready',
         ),
       AgentLifecycle.none || AgentLifecycle.unknown => _row(
-          icon: const AcpIcon(AcpIcons.dashedCircle, color: t.Neutral.placeholder, size: t.IconSizes.toolbar),
+          icon: AcpIcon(AcpIcons.dashedCircle, color: t.Neutral.placeholder, size: t.IconSizes.toolbar),
           title: _name,
           meta: c.rawState ?? '',
         ),
@@ -180,7 +180,7 @@ class DroppedUpdatesBar extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12),
               child: Row(
                 children: <Widget>[
-                  const AcpIcon(AcpIcons.alertTriangle, color: t.Semantic.warning, size: t.IconSizes.toolbar),
+                  AcpIcon(AcpIcons.alertTriangle, color: t.Semantic.warning, size: t.IconSizes.toolbar),
                   const SizedBox(width: t.Spacing.s8),
                   Text('$count 条未知会话更新已丢弃', style: CardText.headerTitle),
                   const SizedBox(width: t.Spacing.s8),
@@ -190,7 +190,7 @@ class DroppedUpdatesBar extends StatelessWidget {
             ),
           ),
           Container(
-            decoration: const BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+            decoration: BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
             padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12, vertical: t.Spacing.s8),
             child: Row(children: <Widget>[AcpButton(label: '打开流量面板', onTap: onOpenTraffic)]),
           ),

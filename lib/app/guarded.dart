@@ -1,6 +1,6 @@
 // 组合根与它的八个子对象共用的通知与错误边界（R7.5 组合根拆分）：原 `WorkbenchController` 的
 // `_guard` / `_touch` / `_disposed` / `lastError` 原样搬到这里，一份代码九个对象混入。
-// `FilesState` / `LocalTerminals` / `FontPrefsController` 各自还有一份同样的挡板，本轮不收编（记 rounds/BACKLOG.md）。
+// `FilesState` / `LocalTerminals` / `AppearanceController` 各自还有一份同样的挡板，本轮不收编（记 rounds/BACKLOG.md）。
 
 import 'package:flutter/foundation.dart';
 

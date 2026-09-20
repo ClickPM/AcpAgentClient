@@ -1,7 +1,7 @@
-// 线程头「新建会话 · 选 agent」弹层（画板 01 的 + 与画板 41 的弹层）的 UI 接线回归测试。
+// 会话头「新建会话 · 选 agent」弹层（画板 01 的 + 与画板 41 的弹层）的 UI 接线回归测试。
 // 所有者手测 2026-09-17 报了两件事：① 有时候点 + 没反应；② 出得来的时候选择框被窗口右边缘截断。
 // ① 的成因是元素重建把 OverlayPortalController 解绑（见 PopoverHandle._visible 的注释）——
-//    连上 agent 后线程头多出铅笔与重载两个按钮，没写 key 的 PopoverAnchor 元素随之拆建，
+//    连上 agent 后会话头多出铅笔与重载两个按钮，没写 key 的 PopoverAnchor 元素随之拆建，
 //    此后 show() 没人渲染、isShowing 还在一开一关地翻，表现就是一次不出一次不出。
 // ② 是弹层左对齐在 + 上，而 + 贴着窗口右边缘。
 
@@ -46,7 +46,7 @@ void main() {
     await tester.pump();
     expect(_popover, findsOneWidget);
 
-    // 选一个 agent → 连上 → hasAgent 翻 true → 线程头多出铅笔与重载，+ 的锚点元素被拆掉重建。
+    // 选一个 agent → 连上 → hasAgent 翻 true → 会话头多出铅笔与重载，+ 的锚点元素被拆掉重建。
     await tester.tap(find.text('Zed Agent'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));

@@ -19,7 +19,7 @@ import '../../ui/shell/composer.dart';
 import '../../ui/shell/right_panel.dart';
 import '../../ui/shell/shell_common.dart';
 import '../../ui/shell/sidebar.dart';
-import '../../ui/shell/thread_header.dart';
+import '../../ui/shell/session_header.dart';
 import '../../ui/shell/topbar.dart';
 import '../../ui/shell/transcript_empty.dart';
 import '../board_page.dart';
@@ -162,14 +162,14 @@ final List<GalleryBoard> agentBoards = <GalleryBoard>[
     final r = FixtureReplay.replay(<String>['01-connect', '25-config-options', '19-usage'], upTo: 1);
     final s = r.session;
     final agent = r.sessions.agents[FixtureReplay.agentId];
-    final title = 'New ${agent?.agentTitle ?? agent?.agentName ?? 'Agent'} Thread';
+    final title = 'New ${agent?.agentTitle ?? agent?.agentName ?? 'Agent'} Session';
     final installed = _registry.where((e) => e.installed).length;
     return AppShell(
       sidebar: Sidebar(sessions: _sessions, now: _now, selectedId: 's1', activeTab: ShellTab.agents, searchController: _c(), searchFocusNode: FocusNode()),
       main: WorkbenchColumn(
         topBar: const TopBar(projectName: _project, branch: _branch, windowControls: false),
-        threadHeader: ThreadHeader(title: title, menuSelected: true),
-        body: NewThreadEmpty(title: title),
+        sessionHeader: SessionHeader(title: title, menuSelected: true),
+        body: NewSessionEmpty(title: title),
         composer: Composer(
           controller: _c(),
           focusNode: FocusNode(),

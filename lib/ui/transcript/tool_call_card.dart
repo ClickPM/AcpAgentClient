@@ -78,10 +78,10 @@ class ToolStatusIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => switch (status) {
-        ToolDisplayStatus.completed => const AcpIcon(AcpIcons.checkCircle, color: t.Semantic.success, size: t.IconSizes.toolbar),
-        ToolDisplayStatus.pending => const AcpIcon(AcpIcons.dashedCircle, color: t.Neutral.placeholder, size: t.IconSizes.toolbar),
+        ToolDisplayStatus.completed => AcpIcon(AcpIcons.checkCircle, color: t.Semantic.success, size: t.IconSizes.toolbar),
+        ToolDisplayStatus.pending => AcpIcon(AcpIcons.dashedCircle, color: t.Neutral.placeholder, size: t.IconSizes.toolbar),
         ToolDisplayStatus.inProgress => const Spinner(),
-        ToolDisplayStatus.failed => const AcpIcon(AcpIcons.x, color: t.Semantic.error, size: t.IconSizes.toolbar),
+        ToolDisplayStatus.failed => AcpIcon(AcpIcons.x, color: t.Semantic.error, size: t.IconSizes.toolbar),
         ToolDisplayStatus.cancelled => const ToneChip('Canceled', tone: ChipTone.neutral),
       };
 }

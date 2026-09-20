@@ -1,4 +1,4 @@
-// 画板 31 · 回合态与结束：运行中（线程头 spinner + 发送位替换为停止方块）与五种 stopReason 的结束行
+// 画板 31 · 回合态与结束：运行中（会话头 spinner + 发送位替换为停止方块）与五种 stopReason 的结束行
 // （end_turn success / max_tokens · max_turn_requests warning / refusal error / cancelled 中性；徽章文字即协议枚举原值）。
 // 轮的边界是客户端自己切的（TurnEntry）；回合级 usage 来自 PromptResponse，cost 来自会话级 usage_update。
 // 第六种是画板外的失败态（2026-09-18）：`session/prompt` 回 JSON-RPC error 时协议没有 stopReason，
@@ -26,9 +26,9 @@ String formatTokens(num? n) {
 
 String formatSeconds(Duration? d) => d == null ? '' : '${(d.inMilliseconds / 1000).toStringAsFixed(1)}s';
 
-/// 线程头（运行中）：菱形图标 + 标题 + spinner。
-class ThreadHeaderRunning extends StatelessWidget {
-  const ThreadHeaderRunning({super.key, required this.title, this.running = true, this.note});
+/// 会话头（运行中）：菱形图标 + 标题 + spinner。
+class SessionHeaderRunning extends StatelessWidget {
+  const SessionHeaderRunning({super.key, required this.title, this.running = true, this.note});
 
   final String title;
   final bool running;
@@ -48,7 +48,7 @@ class ThreadHeaderRunning extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12),
       child: Row(
         children: <Widget>[
-          const AcpIcon(AcpIcons.diamond, color: t.Accent.base),
+          AcpIcon(AcpIcons.diamond, color: t.Accent.base),
           const SizedBox(width: t.Spacing.s8),
           Text(title, style: CardText.headerTitle),
           if (running) ...<Widget>[const SizedBox(width: t.Spacing.s8), const Spinner()],
@@ -72,11 +72,11 @@ class ComposerRunning extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: t.Controls.input + t.Spacing.s16,
-      decoration: const BoxDecoration(color: t.Neutral.panel, borderRadius: t.Radii.card),
+      decoration: BoxDecoration(color: t.Neutral.panel, borderRadius: t.Radii.card),
       padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s16),
       child: Row(
         children: <Widget>[
-          const AcpIcon(AcpIcons.plus, color: t.Neutral.placeholder),
+          AcpIcon(AcpIcons.plus, color: t.Neutral.placeholder),
           const Spacer(),
           AcpButton(label: thoughtLevel, trailing: const Chevron(expanded: false)),
           const SizedBox(width: t.Spacing.s4),

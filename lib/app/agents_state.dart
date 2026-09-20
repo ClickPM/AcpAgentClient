@@ -83,11 +83,11 @@ class AgentsState extends ChangeNotifier with GuardedNotifier {
       if (servers is Map)
         for (final entry in servers.entries)
           // 名字：条目自带的 `name` 优先（R7 的内置 sidecar 用它显示 "Zed Agent"），其次 registry.json 的
-          // 展示名（R5），最后退回 settings 里的键；连上之后线程头再从 agentInfo 取（规则 2）。
+          // 展示名（R5），最后退回 settings 里的键；连上之后会话头再从 agentInfo 取（规则 2）。
           AgentRef(
             id: entry.key as String,
             name: _displayName(entry.key as String, entry.value),
-            // logo 与侧栏 / 线程头同一条路：registry 缓存的 `icon.svg`（内置 sidecar 是随包带的那份）。
+            // logo 与侧栏 / 会话头同一条路：registry 缓存的 `icon.svg`（内置 sidecar 是随包带的那份）。
             iconSvg: iconSvgOf(entry.key as String),
           ),
     ];
@@ -111,7 +111,7 @@ class AgentsState extends ChangeNotifier with GuardedNotifier {
     return registry.byId(id)?.name ?? id;
   }
 
-  /// agent 自己的 logo：registry 缓存的 `icon.svg` 原样内容，侧栏会话项与线程头的 agent 标记直接画它
+  /// agent 自己的 logo：registry 缓存的 `icon.svg` 原样内容，侧栏会话项与会话头的 agent 标记直接画它
   /// （画板 50 / 51 / 70 的图标框用的是同一份）。registry 里没有这条 / 没缓存到图标时为 null，退回画板的单色占位。
   /// 不按 agent 名判（规则 2）：id 查不到就是没有。
   String? iconSvgOf(String? agent) => agent == null || agent.isEmpty ? null : registry.byId(agent)?.iconSvg;

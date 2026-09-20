@@ -25,7 +25,7 @@ import '../../ui/shell/composer.dart';
 import '../../ui/shell/right_panel.dart';
 import '../../ui/shell/shell_common.dart';
 import '../../ui/shell/sidebar.dart';
-import '../../ui/shell/thread_header.dart';
+import '../../ui/shell/session_header.dart';
 import '../../ui/shell/topbar.dart';
 import '../../ui/shell/transcript_empty.dart';
 import '../../ui/traffic/traffic_page.dart';
@@ -95,7 +95,7 @@ String _agentName(FixtureReplay r) {
   return a?.agentName ?? FixtureReplay.agentId;
 }
 
-String _threadTitle(FixtureReplay r) => r.session.title ?? 'New ${_agentTitle(r)} Thread';
+String _sessionTitle(FixtureReplay r) => r.session.title ?? 'New ${_agentTitle(r)} Session';
 
 String _composerPlaceholder(FixtureReplay r) => 'Message to ${_agentTitle(r)} , @ to include context , / for commands';
 
@@ -197,8 +197,8 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
       ),
       main: WorkbenchColumn(
         topBar: const TopBar(projectName: _project, branch: _branch),
-        threadHeader: ThreadHeader(title: _threadTitle(r)),
-        body: NewThreadEmpty(title: _threadTitle(r)),
+        sessionHeader: SessionHeader(title: _sessionTitle(r)),
+        body: NewSessionEmpty(title: _sessionTitle(r)),
         composer: Composer(
           controller: _c(),
           focusNode: FocusNode(),
@@ -220,7 +220,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
       ),
       main: WorkbenchColumn(
         topBar: const TopBar(projectName: _project, branch: _branch),
-        threadHeader: const ThreadHeader(title: 'No Agent', hasAgent: false, canRename: false, canReload: false),
+        sessionHeader: const SessionHeader(title: 'No Agent', hasAgent: false, canRename: false, canReload: false),
         body: const NoAgentEmpty(),
         composer: Composer(
           controller: _c(),
@@ -232,7 +232,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
     );
   }),
   _window('02-workbench-running', '工作台 · 进行中的一轮', (_) {
-    // 停在挂起的权限请求上：回合仍在进行（线程头 spinner + 发送位是停止方块 + Awaiting 停靠条）。
+    // 停在挂起的权限请求上：回合仍在进行（会话头 spinner + 发送位是停止方块 + Awaiting 停靠条）。
     final r = FixtureReplay.replay(
       <String>['01-connect', '25-config-options', '02-turn-read', '03-permission-edit'],
       untilTag: 'session/request_permission',
@@ -250,7 +250,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
       ),
       main: WorkbenchColumn(
         topBar: const TopBar(projectName: _project, branch: _branch),
-        threadHeader: ThreadHeader(title: _threadTitle(r), running: s.isRunning),
+        sessionHeader: SessionHeader(title: _sessionTitle(r), running: s.isRunning),
         body: _transcript(r),
         composer: Composer(
           controller: _c(),
@@ -286,7 +286,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
       ),
       main: WorkbenchColumn(
         topBar: const TopBar(projectName: _project, branch: _branch, windowControls: false),
-        threadHeader: ThreadHeader(title: _threadTitle(r), menuSelected: true),
+        sessionHeader: SessionHeader(title: _sessionTitle(r), menuSelected: true),
         body: _transcript(r),
         composer: Composer(
           controller: _c(),
@@ -472,8 +472,8 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
             child: _left(NewSessionAgentPopover(agents: <AgentRef>[
               AgentRef(id: FixtureReplay.agentId, name: _agentTitle(r)),
             ]))),
-        BoardSection('线程头 ≡ 菜单（动作由 sessionCapabilities 驱动）',
-            child: _left(ThreadMenuPopover(
+        BoardSection('会话头 ≡ 菜单（动作由 sessionCapabilities 驱动）',
+            child: _left(SessionMenuPopover(
               canResume: sessionCaps.containsKey('resume'),
               canClose: sessionCaps.containsKey('close'),
               canDelete: sessionCaps.containsKey('delete'),

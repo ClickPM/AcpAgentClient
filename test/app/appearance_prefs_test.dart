@@ -1,17 +1,24 @@
-// 字体偏好（画板 70「外观」）：候选表不变量、四轴解析与落盘形状、tokens 的运行时生效、可选字体探测。
+// 外观偏好：字体（画板 70「外观」）的候选表不变量、四轴解析与落盘形状、tokens 的运行时生效、可选字体探测；
+// 主题（画板 07「深色 Token 对位表」）的两套取值、落盘形状与切换。
 
+import 'dart:async';
 import 'dart:io';
 
-import 'package:acp_agent_client/app/font_prefs.dart';
+import 'package:acp_agent_client/app/appearance_prefs.dart';
 import 'package:acp_agent_client/theme/tokens.dart' as t;
 import 'package:acp_agent_client/ui/transcript/card_chrome.dart';
+import 'package:acp_agent_client/ui/transcript/code_block.dart';
 import 'package:acp_agent_client/ui/transcript/mermaid_block.dart';
+import 'package:acp_agent_client/ui/transcript/terminal_card.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'fake_core.dart';
+
 void main() {
-  // Fonts 是全局可变状态：每个用例跑完必须复位，否则会污染后面的用例与别的测试文件。
+  // Fonts / Theming 都是全局可变状态：每个用例跑完必须复位，否则会污染后面的用例与别的测试文件。
   tearDown(t.Fonts.reset);
+  tearDown(t.Theming.reset);
 
   group('候选表', () {
     test('西文两轴与中文两轴的 family 不得有交集', () {
@@ -185,9 +192,14 @@ void main() {
       //
       // 只认「带初始化式的 static final」与「顶层 final」这两种一次求值的写法。
       // 实例字段（`final TextStyle style;`，每个实例各一份）是好的，不在此列。
+      //
+      // 颜色也在内：画板 07 之后颜色 token 同样是 getter，把 Color / BoxShadow / 整张色表
+      // 存成一次求值的缓存，换主题就对那一处不起作用（与冻住 family 是同一类 bug）。
       final Directory lib = Directory('lib');
       final RegExp frozen = RegExp(
-        r'^(\s*static\s+final|final)\s+(TextStyle|core\.MermaidTheme)\s+\w+\s*=',
+        r'^(\s*static\s+final|final)\s+'
+        r'(TextStyle|core\.MermaidTheme|Color|BoxShadow|List<Color>|Map<String, TextStyle>|xt\.TerminalTheme)'
+        r'\s+\w+\s*=',
         multiLine: true,
       );
       final List<String> offenders = <String>[];
@@ -257,9 +269,9 @@ void main() {
     });
   });
 
-  group('FontPrefsController', () {
+  group('AppearanceController', () {
     test('没有桥时只在内存里生效，改轴会通知监听者', () async {
-      final FontPrefsController c = FontPrefsController(
+      final AppearanceController c = AppearanceController(
         registry: FontRegistry(loadDirs: const <Directory>[], probeDirs: const <Directory>[]),
       );
       addTearDown(c.dispose);
@@ -267,20 +279,252 @@ void main() {
       c.addListener(() => notified++);
 
       await c.start();
-      expect(notified, 0, reason: '启动时没有任何设置，与默认相同，不该触发重建');
+      // 扫描结果是设置页要用的状态，跟「选择有没有变」无关：哪怕四个轴都还是默认，
+      // 也必须通知一次，否则设置页停在扫描前的「本机未找到」（所有者手测 2026-09-20 报障）。
+      expect(notified, 1, reason: 'start() 扫完必须通知一次');
 
       await c.setAxis(FontAxis.uiCjk, 'MiSans');
-      expect(notified, 1);
-      expect(c.prefs.resolved(FontAxis.uiCjk), 'MiSans');
+      expect(notified, 2);
+      expect(c.fonts.resolved(FontAxis.uiCjk), 'MiSans');
       expect(t.TextStyles.body.fontFamilyFallback!.first, 'MiSans');
 
       // 同一个值再设一次不重建。
       await c.setAxis(FontAxis.uiCjk, 'MiSans');
-      expect(notified, 1);
+      expect(notified, 2);
 
       await c.resetAll();
-      expect(notified, 2);
+      expect(notified, 3);
       expect(t.TextStyles.body.fontFamilyFallback!.first, t.Fonts.defaultCjk);
+    });
+
+    test('换主题：通知一次、tokens 换套、同值不重建', () async {
+      final AppearanceController c = AppearanceController(
+        registry: FontRegistry(loadDirs: const <Directory>[], probeDirs: const <Directory>[]),
+      );
+      addTearDown(c.dispose);
+      int notified = 0;
+      c.addListener(() => notified++);
+
+      expect(c.theme, t.Theming.defaultMode);
+      await c.toggleTheme();
+      expect(notified, 1);
+      expect(c.theme, t.AppTheme.dark);
+      expect(t.Neutral.canvas, t.Theming.darkColors.canvas);
+      expect(CardText.strong.color, t.Theming.darkColors.strong, reason: '派生字阶也要换套');
+
+      // 已经是深色了，再设一次深色不重建。
+      await c.setTheme(t.AppTheme.dark);
+      expect(notified, 1);
+
+      await c.toggleTheme();
+      expect(notified, 2);
+      expect(t.Neutral.canvas, t.Theming.lightColors.canvas);
+    });
+
+    test('读盘还没回来就点切换：不抹掉盘上已存的字体轴（发布前审查 high，2026-09-20）', () async {
+      // 切换按钮首帧就能点，而 `start()` 要先扫一遍字体目录再读设置。这个窗口里 `_prefs` 还是空的，
+      // 拿它算出来的全量快照四个字体轴都是缺省，而 `appearance` 段在 Rust 侧是**整段替换**的。
+      final FakeCore core = FakeCore()..appearance = <String, dynamic>{'ui_font_family': 'Inter'};
+      final Completer<void> gate = Completer<void>();
+      core.appearanceGetGate = gate;
+      final AppearanceController c = AppearanceController(
+        bridge: core,
+        registry: FontRegistry(loadDirs: const <Directory>[], probeDirs: const <Directory>[]),
+      );
+      addTearDown(c.dispose);
+
+      final Future<void> starting = c.start();
+      final Future<void> toggling = c.toggleTheme();
+      expect(core.appearance, <String, dynamic>{'ui_font_family': 'Inter'}, reason: '读盘没回来之前不该写盘');
+
+      gate.complete();
+      await starting;
+      await toggling;
+
+      expect(c.theme, t.AppTheme.dark, reason: '用户那一下不能被读盘结果盖掉');
+      expect(c.fonts.resolved(FontAxis.uiLatin), 'Inter', reason: '盘上已存的字体轴要留着');
+      expect(core.appearance, <String, dynamic>{'ui_font_family': 'Inter', 'theme': 'dark'});
+    });
+
+    test('启动时读设置失败：改动前再读一次，读到了就照常合并落盘（复审 high，2026-09-20）', () async {
+      // `AcpApp.initState` 里 `_appearance.start()` 排在 `_controller.start()` 前面、两个都不 await，
+      // 所以启动那一趟 GET 可能早于 `core_init`，桥回 not_initialized。
+      final FakeCore core = FakeCore()
+        ..appearance = <String, dynamic>{'ui_font_family': 'Inter'}
+        ..appearanceGetFailures = 1;
+      final AppearanceController c = AppearanceController(
+        bridge: core,
+        registry: FontRegistry(loadDirs: const <Directory>[], probeDirs: const <Directory>[]),
+      );
+      addTearDown(c.dispose);
+
+      await c.start();
+      expect(c.fonts.resolved(FontAxis.uiLatin), t.Fonts.defaultSans, reason: '这一趟没读到，界面先回缺省');
+
+      await c.toggleTheme();
+
+      expect(c.fonts.resolved(FontAxis.uiLatin), 'Inter', reason: '改动前补读一次，把盘上的捡回来');
+      expect(core.appearance, <String, dynamic>{'ui_font_family': 'Inter', 'theme': 'dark'});
+    });
+
+    test('一直读不到设置：只改内存不落盘，不拿空快照整段覆盖（复审 high，2026-09-20）', () async {
+      final FakeCore core = FakeCore()
+        ..appearance = <String, dynamic>{'ui_font_family': 'Inter'}
+        ..appearanceGetFailures = -1; // 一直失败
+      final AppearanceController c = AppearanceController(
+        bridge: core,
+        registry: FontRegistry(loadDirs: const <Directory>[], probeDirs: const <Directory>[]),
+      );
+      addTearDown(c.dispose);
+
+      await c.start();
+      await c.toggleTheme();
+
+      expect(c.theme, t.AppTheme.dark, reason: '界面上这次改动照常生效');
+      expect(core.appearance, <String, dynamic>{'ui_font_family': 'Inter'}, reason: '盘上一个字都不许动');
+    });
+
+    test('补读回来的主题不能当相对基线：用户按所见 toggle，不是对盘上的值取反（复审 high，2026-09-20）', () async {
+      // 盘上已是深色，启动 GET 失败 → 界面停在缺省浅色。用户看见浅色去点按钮，意思是「我要深色」。
+      // 若补读后拿盘上的 dark 当基线再取反，就会写成浅色 —— 点了「转深色」反而更浅了。
+      final FakeCore core = FakeCore()
+        ..appearance = <String, dynamic>{'ui_font_family': 'Inter', 'theme': 'dark'}
+        ..appearanceGetFailures = 1;
+      final AppearanceController c = AppearanceController(
+        bridge: core,
+        registry: FontRegistry(loadDirs: const <Directory>[], probeDirs: const <Directory>[]),
+      );
+      addTearDown(c.dispose);
+
+      await c.start();
+      expect(c.theme, t.AppTheme.light, reason: '没读到，界面先回缺省浅色');
+
+      await c.toggleTheme();
+
+      expect(c.theme, t.AppTheme.dark, reason: '用户按所见点的：浅 → 深');
+      expect(c.fonts.resolved(FontAxis.uiLatin), 'Inter', reason: '没改到的维度以盘上为准');
+      expect(core.appearance, <String, dynamic>{'ui_font_family': 'Inter', 'theme': 'dark'});
+    });
+
+    test('补读成功但这次改动是空操作：盘上快照照样灌进界面', () async {
+      final FakeCore core = FakeCore()
+        ..appearance = <String, dynamic>{'ui_font_family': 'Inter'}
+        ..appearanceGetFailures = 1;
+      final AppearanceController c = AppearanceController(
+        bridge: core,
+        registry: FontRegistry(loadDirs: const <Directory>[], probeDirs: const <Directory>[]),
+      );
+      addTearDown(c.dispose);
+
+      await c.start();
+      // 界面显示的就是缺省浅色，再设一次浅色什么也没改。
+      await c.setTheme(t.AppTheme.light);
+
+      expect(c.fonts.resolved(FontAxis.uiLatin), 'Inter', reason: '补读到的要灌进来，不能停在缺省');
+      expect(core.appearance, <String, dynamic>{'ui_font_family': 'Inter'});
+    });
+
+    test('字体与主题一起改时两边都生效（别写成 `||` 短路）', () async {
+      final AppearanceController c = AppearanceController(
+        registry: FontRegistry(loadDirs: const <Directory>[], probeDirs: const <Directory>[]),
+      );
+      addTearDown(c.dispose);
+      await c.setAxis(FontAxis.uiLatin, 'Inter');
+      await c.setTheme(t.AppTheme.dark);
+      expect(t.TextStyles.body.fontFamily, 'Inter');
+      expect(t.Neutral.text, t.Theming.darkColors.text);
+    });
+  });
+
+  group('主题（画板 07）', () {
+    test('两套取值字段一一对应，没有漏项也没有深色专有项', () {
+      // 画板 07 的规矩：一个浅色 token 名对应且只对应一个深色值。同一个类保证了字段集合相同，
+      // 这里守的是「别偷懒把某一项在两套里写成同一个值」——除了本来就该相同的那几项。
+      final t.ThemeColors l = t.Theming.lightColors;
+      final t.ThemeColors d = t.Theming.darkColors;
+      expect(l.canvas, isNot(d.canvas));
+      expect(l.strong, isNot(d.strong));
+      expect(l.accentBase, isNot(d.accentBase));
+      expect(l.surfacePopover, isNot(d.surfacePopover));
+      expect(l.overlayHover, isNot(d.overlayHover));
+      // 画板 07 § 2.3 明写的同构：info = accent.base，info.soft = accent.soft，两套都成立。
+      expect(l.info, l.accentBase);
+      expect(d.info, d.accentBase);
+      expect(l.infoSoft, l.accentSoft);
+      expect(d.infoSoft, d.accentSoft);
+      // § 2.5：浅色不画顶边提亮，取全透明（画法不分支）。
+      expect(l.popoverTopHighlight.a, 0);
+      expect(d.popoverTopHighlight.a, greaterThan(0));
+    });
+
+    test('Theming.apply 推进 Fonts.generation（字阶把颜色烘进去了）', () {
+      final int g0 = t.Fonts.generation;
+      t.Theming.apply(t.Theming.defaultMode);
+      expect(t.Fonts.generation, g0, reason: '值没变不该 +1');
+      t.Theming.apply(t.AppTheme.dark);
+      expect(t.Fonts.generation, g0 + 1);
+    });
+
+    test('派生 token 跟着换套', () {
+      t.Theming.apply(t.AppTheme.dark);
+      expect(t.Borders.subtle, t.Theming.darkColors.borderSubtle);
+      expect(t.Surface.popover, t.Theming.darkColors.surfacePopover);
+      expect(t.Shadows.popover.color, t.Theming.darkColors.shadowPopover.color);
+      expect(t.Overlays.selected, t.Overlays.active);
+      expect(t.FocusRing.color, t.Theming.darkColors.accentBase);
+      expect(t.Spinner.color, t.Theming.darkColors.accentBase);
+      expect(t.Kbd.border, t.Theming.darkColors.border);
+      expect(t.UnreadDot.color, t.Theming.darkColors.success);
+      expect(t.Timeline.rail, t.Theming.darkColors.borderSubtle);
+      expect(t.Timeline.nodeColor, t.Theming.darkColors.placeholder);
+      expect(t.Sweep.track, t.Theming.darkColors.borderSubtle);
+      // § 2.7：亮点渐变两端是 accent 的全透明版，不再硬编码某一套的 alpha 0 值。
+      expect(t.Sweep.focusGradient[1], t.Theming.darkColors.accentBase);
+      expect(t.Sweep.focusGradient.first.a, 0);
+      expect(t.Sweep.focusGradient.first.r, t.Theming.darkColors.accentBase.r);
+    });
+
+    test('代码高亮与终端 ANSI 换套（画板 07 § 2.8 / § 2.9）', () {
+      expect(codeHighlightTheme['keyword']!.color, t.Theming.lightColors.accentText);
+      expect(terminalTokenTheme.background, t.Theming.lightColors.panel);
+
+      t.Theming.apply(t.AppTheme.dark);
+
+      expect(codeHighlightTheme['keyword']!.color, t.Theming.darkColors.accentText);
+      expect(codeHighlightTheme['string']!.color, t.Theming.darkColors.success);
+      expect(codeHighlightTheme['comment']!.color, t.Theming.darkColors.placeholder);
+      expect(JsonHighlight.theme['attr']!.color, t.Theming.darkColors.accentText);
+      // 黑 / 白两位是「反差最大的墨 / 等于背景」，不是照搬浅色值。
+      expect(terminalTokenTheme.black, t.Theming.darkColors.strong);
+      expect(terminalTokenTheme.white, t.Theming.darkColors.canvas);
+      expect(terminalTokenTheme.brightBlack, t.Theming.darkColors.muted);
+      expect(terminalTokenTheme.background, t.Theming.darkColors.panel);
+      expect(terminalTokenTheme.cursor, t.Theming.darkColors.accentBase);
+      expect(terminalTokenTheme.selection, t.Theming.darkColors.accentSoft);
+      // 蓝与青不同色：蓝 = accent.base，青 = accent.text（画板 07 § 2.9 的列头）。
+      expect(terminalTokenTheme.cyan, t.Theming.darkColors.accentText);
+      expect(terminalTokenTheme.cyan, isNot(terminalTokenTheme.blue));
+    });
+
+    test('落盘形状：缺省档不落键，脏值当没设置过', () {
+      expect(const AppearancePrefs().toJson(), isNot(contains('theme')));
+      expect(const AppearancePrefs().resolvedTheme, t.Theming.defaultMode);
+
+      const AppearancePrefs dark = AppearancePrefs(theme: t.AppTheme.dark);
+      expect(dark.toJson()['theme'], 'dark');
+      expect(AppearancePrefs.fromJson(dark.toJson()).theme, t.AppTheme.dark);
+
+      // 选回缺省档存 null，不写死档名——以后改了缺省值，没动过设置的人会跟着走。
+      expect(dark.withTheme(t.Theming.defaultMode).theme, isNull);
+
+      expect(AppearancePrefs.fromJson(const <String, Object?>{'theme': '  DARK '}).theme, t.AppTheme.dark);
+      expect(AppearancePrefs.fromJson(const <String, Object?>{'theme': 'system'}).theme, isNull);
+      expect(AppearancePrefs.fromJson(const <String, Object?>{'theme': 7}).theme, isNull);
+      expect(AppearancePrefs.fromJson(const <String, Object?>{}).theme, isNull);
+
+      // 字体与主题同在 `appearance` 一段里，一次全给（Rust 侧整段替换）。
+      final AppearancePrefs both = dark.withFonts(const FontPrefs().withAxis(FontAxis.uiLatin, 'Inter'));
+      expect(both.toJson(), <String, Object?>{'ui_font_family': 'Inter', 'theme': 'dark'});
     });
   });
 }

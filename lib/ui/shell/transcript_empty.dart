@@ -1,4 +1,4 @@
-// 画板 01 · 转录区的两个空态：状态 1「有 agent 的新会话」（标题取线程头同一份标题）与
+// 画板 01 · 转录区的两个空态：状态 1「有 agent 的新会话」（标题取会话头同一份标题）与
 // 状态 2「首次启动、尚无已安装 agent」（主按钮切到右栏 Agents 标签，R5 前是空面板占位）。
 
 import 'package:flutter/widgets.dart';
@@ -11,12 +11,12 @@ import 'motion.dart';
 import 'shell_common.dart';
 
 /// 状态 1：新会话。
-class NewThreadEmpty extends StatelessWidget {
-  const NewThreadEmpty({super.key, required this.title, this.transitionEpoch, this.svg});
+class NewSessionEmpty extends StatelessWidget {
+  const NewSessionEmpty({super.key, required this.title, this.transitionEpoch, this.svg});
 
   final String title;
 
-  /// 当前 agent 的 `icon.svg`（与侧栏 / 线程头的 [AgentMark] 同一份数据，见 `agentIconSvgOf`）。
+  /// 当前 agent 的 `icon.svg`（与侧栏 / 会话头的 [AgentMark] 同一份数据，见 `agentIconSvgOf`）。
   /// 非空就整块铺那张 logo、不再套占位的边框；没有 / 解析不了才退回占位菱形。
   /// 画板 01 状态 1 画的是占位菱形，与画板 41「agent 图标位是单色占位，实现里换各 agent 自己的 logo」
   /// 同一口径 —— 所有者裁定 2026-09-18 这里也换成真 logo（设计稿注记待补）。
@@ -82,7 +82,7 @@ class NewThreadEmpty extends StatelessWidget {
   static InlineSpan _codeSpan(String text) => WidgetSpan(
         alignment: PlaceholderAlignment.middle,
         child: Container(
-          decoration: const BoxDecoration(color: t.Neutral.surface, borderRadius: t.Radii.chip),
+          decoration: BoxDecoration(color: t.Neutral.surface, borderRadius: t.Radii.chip),
           padding: t.Spacing.chip,
           child: Text(text, style: t.TextStyles.mono),
         ),
@@ -99,7 +99,7 @@ class NoAgentEmpty extends StatelessWidget {
   Widget build(BuildContext context) {
     return _Centered(
       children: <Widget>[
-        const DashedBox(
+        DashedBox(
           size: t.Controls.input,
           child: AcpIcon(AcpIcons.layers, color: t.Neutral.placeholder, size: t.IconSizes.base),
         ),

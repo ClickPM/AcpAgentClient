@@ -32,7 +32,7 @@ class WorkspaceState extends ChangeNotifier with GuardedNotifier {
   /// 等待期（`session/new` / 重载在途）里不换项目：判据在线程控制器那边（`waitingForAgent`）。
   final bool Function() _busy;
 
-  /// 换了项目：侧栏只留这个目录下的会话、正开着的会话若属于别的目录就从线程区放下（线程控制器的事）。
+  /// 换了项目：侧栏只留这个目录下的会话、正开着的会话若属于别的目录就从会话区放下（线程控制器的事）。
   final void Function() _onProjectChanged;
 
   List<ProjectRef> recentProjects = const <ProjectRef>[];
@@ -87,7 +87,7 @@ class WorkspaceState extends ChangeNotifier with GuardedNotifier {
   Future<void> openProject(ProjectRef ref) async {
     hidePopover(projectAnchor);
     // 等待期（`session/new` / 重载在途）里顶栏仍可点（`IgnorePointer` 只包住 `_body()`）：这时换项目，
-    // 在途那条 `session/new` 回来后 `_adoptSession` 会把它挂成当前会话，而它的 cwd 是旧目录——线程区开着一条
+    // 在途那条 `session/new` 回来后 `_adoptSession` 会把它挂成当前会话，而它的 cwd 是旧目录——会话区开着一条
     // 侧栏（只投影当前 workspace）里找不到的会话。与 `newSession` / `reloadAgent` 同一道守卫：
     // 等待期里不换项目（合并复审 2026-09-18）。
     if (_busy()) return;

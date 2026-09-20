@@ -1,5 +1,5 @@
 // 画板 22 / 23 · 嵌入式终端控制台卡：tool_call.content[] 的 { type: "terminal", terminalId } + 本地输出流。
-// 展开 = 命令块 + xterm 渲染的输出（ANSI 三色按语义色映射：黄 → warning、绿 → success、青 → info/accent）+
+// 展开 = 命令块 + xterm 渲染的输出（ANSI 三色按语义色映射：黄 → warning、绿 → success、青 → accent.text）+
 // Exit Code · terminalId · released 元信息行；折叠 = 头行 + Exit Code；进行中 = spinner + 红色停止方块（→ terminal/kill，R4 接）。
 // 终端被嵌进工具卡后即使 release 也继续显示输出（缓冲跟卡走，TerminalBuffer）。本轮只喂固定字节流，PTY 在 R4。
 // 跑完自动收起（所有者裁定 2026-09-18）：status 转 completed / failed（或终端自己 exit）的那一下，用户没手动点过头行就折叠。
@@ -17,7 +17,11 @@ import 'icons.dart';
 import 'tool_call_card.dart';
 
 /// xterm 主题：全部取 tokens；ANSI 红 / 绿 / 黄 / 青按语义色映射，不引入表外色相。
-const xt.TerminalTheme terminalTokenTheme = xt.TerminalTheme(
+/// 黑 / 白两位是「反差最大的墨 / 等于背景」的语义（浅色 n.strong / n.canvas，深色 d.strong / d.canvas），
+/// 不是把浅色值照搬（画板 07 § 2.9）。
+///
+/// getter 而不是常量：整张表把颜色烘在里面，换主题要整张重算（理由同 [CardText]）。
+xt.TerminalTheme get terminalTokenTheme => xt.TerminalTheme(
   cursor: t.Accent.base,
   selection: t.Accent.soft,
   foreground: t.Neutral.text,
@@ -29,14 +33,14 @@ const xt.TerminalTheme terminalTokenTheme = xt.TerminalTheme(
   yellow: t.Semantic.warning,
   blue: t.Accent.base,
   magenta: t.Accent.active,
-  cyan: t.Semantic.info,
+  cyan: t.Accent.text,
   brightBlack: t.Neutral.muted,
   brightRed: t.Semantic.error,
   brightGreen: t.Semantic.success,
   brightYellow: t.Semantic.warning,
   brightBlue: t.Accent.base,
   brightMagenta: t.Accent.active,
-  brightCyan: t.Semantic.info,
+  brightCyan: t.Accent.text,
   brightWhite: t.Neutral.canvas,
   searchHitBackground: t.Semantic.warningSoft,
   searchHitBackgroundCurrent: t.Semantic.warning,
@@ -58,7 +62,7 @@ class StopSquareButton extends StatelessWidget {
       child: Container(
         width: t.Spacing.s12,
         height: t.Spacing.s12,
-        decoration: const BoxDecoration(color: t.Semantic.error, borderRadius: t.Radii.chip),
+        decoration: BoxDecoration(color: t.Semantic.error, borderRadius: t.Radii.chip),
       ),
     );
   }
@@ -167,7 +171,7 @@ class _TerminalCardState extends State<TerminalCard> {
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           CardHeader(
-            leading: const AcpIcon(AcpIcons.terminal, color: t.Neutral.muted),
+            leading: AcpIcon(AcpIcons.terminal, color: t.Neutral.muted),
             title: e.title,
             subtitle: _expanded ? toolSubtitle(e, cwd: widget.cwd) : command,
             trailing: <Widget>[
@@ -185,7 +189,7 @@ class _TerminalCardState extends State<TerminalCard> {
               children: <Widget>[
                 MonoBlock(text: command),
                 Container(
-                  decoration: const BoxDecoration(color: t.Neutral.panel, borderRadius: t.Radii.control),
+                  decoration: BoxDecoration(color: t.Neutral.panel, borderRadius: t.Radii.control),
                   padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s8, vertical: t.Spacing.s8),
                   height: _rows * lineHeight + t.Spacing.s16,
                   child: xt.TerminalView(
