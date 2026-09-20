@@ -12,7 +12,10 @@ import 'code_block.dart';
 core.Color _c(Color color) => core.Color(color.toARGB32());
 
 /// 画板 15 注：节点只用中性色阶的两级表面，不引入配色。字体只能给一个家族名（无 fallback），CJK 靠平台回退。
-final core.MermaidTheme mermaidTokenTheme = core.MermaidTheme(
+///
+/// getter 而非顶层 `final`：顶层 final 只求值一次，会把 [t.Fonts.sans] 冻在首次访问那一刻，
+/// 换字体之后图里的文字不跟着变（理由同 [CardText]）。
+core.MermaidTheme get mermaidTokenTheme => core.MermaidTheme(
   background: _c(t.Surface.canvas),
   primaryColor: _c(t.Neutral.surface),
   primaryTextColor: _c(t.Neutral.strong),

@@ -764,6 +764,11 @@ class _SourceViewState extends State<SourceView> {
     _scheduleReveal();
   }
 
+  /// 算 [_spans] / [_lineHeight] / [_gutter] / [_maxLineWidth] 时用的字体代数。
+  /// 这些都带 family（span 的 style、TextPainter 量出来的宽高），换字体后必须重算；
+  /// 但它们又贵到不能每帧现算，所以按代数判断是否过期（`t.Fonts.generation`）。
+  int _fontGeneration = t.Fonts.generation;
+
   @override
   void didUpdateWidget(SourceView old) {
     super.didUpdateWidget(old);
@@ -779,6 +784,7 @@ class _SourceViewState extends State<SourceView> {
   }
 
   void _prepare() {
+    _fontGeneration = t.Fonts.generation;
     final text = widget.text;
     _lines = text.split('\n');
     if (_lines.length > 1 && _lines.last.isEmpty) _lines.removeLast();
@@ -817,6 +823,9 @@ class _SourceViewState extends State<SourceView> {
 
   @override
   Widget build(BuildContext context) {
+    // 换过字体就重算带 family 的那几样。放在 build 而不是监听器里：SourceView 拿不到
+    // FontPrefsController，而组合根换字体时本来就会重建整棵树，这里只是顺带对一次代数。
+    if (_fontGeneration != t.Fonts.generation) _prepare();
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = math.max(constraints.maxWidth, _gutter + t.Spacing.s12 + _maxLineWidth + t.Spacing.s16);

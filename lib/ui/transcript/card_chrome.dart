@@ -12,47 +12,53 @@ import '../../theme/tokens.dart' as t;
 import 'icons.dart';
 
 /// 从 tokens 派生的组合样式（不含字面量）。
+/// 卡片里的派生字阶。
+///
+/// 各档是 **getter 而不是 `static final`**：`static final` 只在首次访问时求值一次，之后 family 就冻住了——
+/// 而首帧几乎必然碰到这个类，早于启动时的字体扫描与 [t.Fonts.apply]，于是换字体对转录 / 终端 / 弹层 /
+/// diff 全都不起作用（R7.6 审查抓到的 high）。getter 每次从当前 [t.TextStyles] 派生，下游照常写
+/// `CardText.code`，不用改。底层实例由 [t.Fonts] 缓存，所以这里只多一次 `copyWith`。
 abstract final class CardText {
   /// 代码 / 等宽块正文：mono 12.5 · lh 1.5。
-  static final TextStyle code = t.TextStyles.mono.copyWith(height: t.LineHeights.body);
+  static TextStyle get code => t.TextStyles.mono.copyWith(height: t.LineHeights.body);
 
   /// 行内代码：mono 12.5 · surface 底。
-  static final TextStyle inlineCode = t.TextStyles.mono.copyWith(backgroundColor: t.Neutral.surface);
+  static TextStyle get inlineCode => t.TextStyles.mono.copyWith(backgroundColor: t.Neutral.surface);
 
   /// 头行副标题：mono 12.5 · muted。
-  static final TextStyle subtitle = t.TextStyles.mono.copyWith(color: t.Neutral.muted);
+  static TextStyle get subtitle => t.TextStyles.mono.copyWith(color: t.Neutral.muted);
 
   /// 链接：accent 文字。
-  static final TextStyle link = t.TextStyles.body.copyWith(color: t.Accent.text);
+  static TextStyle get link => t.TextStyles.body.copyWith(color: t.Accent.text);
 
   /// 加粗正文（13 / 500 / strong）。
-  static final TextStyle strong = t.TextStyles.body.copyWith(
+  static TextStyle get strong => t.TextStyles.body.copyWith(
     fontWeight: t.Weights.medium,
     fontVariations: t.Weights.mediumVariation,
     color: t.Neutral.strong,
   );
 
   /// 卡片标题（13 / 500，text 色）。
-  static final TextStyle cardTitle = t.TextStyles.body.copyWith(
+  static TextStyle get cardTitle => t.TextStyles.body.copyWith(
     fontWeight: t.Weights.medium,
     fontVariations: t.Weights.mediumVariation,
     height: t.LineHeights.control,
   );
 
   /// 头行标题（13 / 400，text 色，控件行高）。
-  static final TextStyle headerTitle = t.TextStyles.body.copyWith(height: t.LineHeights.control);
+  static TextStyle get headerTitle => t.TextStyles.body.copyWith(height: t.LineHeights.control);
 
   /// 12 / 400 muted，控件行高。
-  static final TextStyle secondary = t.TextStyles.secondary.copyWith(height: t.LineHeights.control);
+  static TextStyle get secondary => t.TextStyles.secondary.copyWith(height: t.LineHeights.control);
 
   /// 按钮文字（13 / 400 / 控件行高）。
-  static final TextStyle button = t.TextStyles.body.copyWith(height: t.LineHeights.control);
+  static TextStyle get button => t.TextStyles.body.copyWith(height: t.LineHeights.control);
 
   /// 主按钮文字：accent 底上的白字。
-  static final TextStyle buttonPrimary = button.copyWith(color: t.Accent.onAccent);
+  static TextStyle get buttonPrimary => button.copyWith(color: t.Accent.onAccent);
 
   /// 错误文本（mono）。
-  static final TextStyle codeError = code.copyWith(color: t.Semantic.error);
+  static TextStyle get codeError => code.copyWith(color: t.Semantic.error);
 }
 
 /// 卡片容器：1px subtle 边框、radius 6、canvas 底、裁剪圆角。

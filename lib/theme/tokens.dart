@@ -133,9 +133,17 @@ abstract final class Fonts {
   static List<String> get codeCjkFallback => <String>[_codeCjk, ...systemCjkFallback];
 
   static FontStyles _styles = FontStyles.build();
+  static int _generation = 0;
 
   /// 当前这套字体下派生出的全部字阶。[TextStyles] 与 [Kbd] 都从这里取。
   static FontStyles get styles => _styles;
+
+  /// 换字体的代数，每次 [apply] 真的改了值就 +1。
+  ///
+  /// 给**没法每帧重算**的下游用：把带 family 的东西（高亮 span、TextPainter 量出来的宽高）
+  /// 长期存在 State 里的地方，记下算它时的代数，跟当前不一致就重算。
+  /// 能每帧现取的（[TextStyles] / [CardText] 这些 getter）不需要它。
+  static int get generation => _generation;
 
   /// 换字体：只覆盖给到的轴，`null` 表示这一轴不动。改完重算 [styles]。
   ///
@@ -152,6 +160,7 @@ abstract final class Fonts {
     _cjk = nextCjk;
     _codeCjk = nextCodeCjk;
     _styles = FontStyles.build();
+    _generation++;
     return true;
   }
 

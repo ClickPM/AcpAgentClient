@@ -406,6 +406,17 @@ class FontPrefsController extends ChangeNotifier {
   FontPrefs _prefs = const FontPrefs();
   FontPrefs get prefs => _prefs;
 
+  /// [start] 与 [setAxis] 里都有 `await`（扫盘、读写设置），期间窗口可能已经关掉。
+  /// 对已 dispose 的 [ChangeNotifier] 调 [notifyListeners] 在 debug 下会断言失败，
+  /// 而且那时候也没人再需要这次结果了。
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
   /// 启动：先扫字体文件，再读设置并生效。任何一步失败都只是回到默认字体，不挡启动。
   Future<void> start() async {
     try {
@@ -422,11 +433,13 @@ class FontPrefsController extends ChangeNotifier {
         debugPrint('font: 读设置失败，回默认: $e');
       }
     }
+    if (_disposed) return;
     _applyLocally(loaded, notify: true);
   }
 
   /// 改一个轴：立即生效 + 落盘。落盘失败不回滚（界面已经变了，下次启动回到旧值即可），只报错。
   Future<void> setAxis(FontAxis axis, String? family) async {
+    if (_disposed) return;
     final FontPrefs next = _prefs.withAxis(axis, family);
     if (next == _prefs) return;
     _applyLocally(next, notify: true);
@@ -441,7 +454,7 @@ class FontPrefsController extends ChangeNotifier {
 
   /// 四个轴一起回默认。
   Future<void> resetAll() async {
-    if (_prefs == const FontPrefs()) return;
+    if (_disposed || _prefs == const FontPrefs()) return;
     _applyLocally(const FontPrefs(), notify: true);
     final CoreCommands? bridge = this.bridge;
     if (bridge == null) return;
@@ -461,6 +474,6 @@ class FontPrefsController extends ChangeNotifier {
       mono: next.resolved(FontAxis.codeLatin),
       codeCjk: next.resolved(FontAxis.codeCjk),
     );
-    if (notify && changed) notifyListeners();
+    if (notify && changed && !_disposed) notifyListeners();
   }
 }

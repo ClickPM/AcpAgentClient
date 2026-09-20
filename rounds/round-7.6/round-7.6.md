@@ -1,6 +1,6 @@
 # Round 7.6 — 字体切换（四轴）
 
-> 状态：进行中（实现与自验完成，待独立审查）
+> 状态：进行中（第 1 轮审查 3 条已整改，待复审）
 
 ## 目标
 
@@ -58,6 +58,7 @@
 | 6 | Rust 往返与脏值 | `cargo test -p settings` 15 条，含空串 / 超长 / 控制字符 | PASS |
 | 7 | 未知顶层键不被抹掉 | `unknown_top_level_keys_survive_a_save` | PASS |
 | 8 | 无字体文件也能构建 | 仓库内零可选字体文件，validate 全绿 | PASS |
+| 10 | 派生字阶不被冻住 | `CardText.*` / `mermaidTokenTheme` 跟着 `Fonts.apply` 走；扫源码禁止新的一次求值样式缓存 | PASS（审查第 1 轮整改） |
 | 9 | **随包字体真机渲染** | 放入 MiSans / HarmonyOS 后 `build.ps1` 出包、设置里切换肉眼确认 | **待所有者**（缺字体文件，见下） |
 
 ## 禁止
@@ -73,10 +74,42 @@
 
 ## 代码审查
 
-- 审查方式：待发起
-- 审查器与模型：待填
-- 审查范围与基准提交：`branch`（`main...HEAD`，本轮是第 1 轮，按 CLAUDE.md 用全量）
-- findings 处理：待填
+### 第 1 轮（2026-09-20）
+
+- 审查方式：`cursor-review.ps1`（默认档，后台）
+- 审查器与模型：cursor CLI `cursor-grok-4.6-high`
+- 审查范围与基准提交：`branch`（`main...HEAD`，40 文件）；产物 `.claude/reviews/20260920-103957-review.out.md`
+- findings：3 条（high 1 / P2 2），**全部采纳整改**
+
+**[high] 换字体后转录 / 终端 / 弹层 / markdown 仍用第一次读到的 family** —— `lib/ui/transcript/card_chrome.dart:17`。
+`TextStyles` 改成 getter 之后 family 能变了，但 `CardText.code` / `strong` / `button` 等仍是
+`static final TextStyle = t.TextStyles.*.copyWith(...)`，**首次访问就把当时的 family 焊死**；
+而首帧建 `WorkbenchScreen` 几乎必然碰到它，早于启动时的扫盘与 `Fonts.apply`。之后整树重建也没用。
+应用里大部分文字（转录卡、终端、diff、权限卡、侧栏、弹层、按钮）走的正是 `CardText`
+—— 也就是说**「全局生效」这条验收原本是假的**，而我自己的单测只断言 `t.TextStyles.*`，所以假通过。
+已核实属实。同一种冻结还有 `gfm_table.dart:26` 的 `_head` / `_cell` 与 `mermaid_block.dart:15`
+的顶层 `final mermaidTokenTheme`（审查一并点到）。
+整改：这三处共 14 个缓存全改 getter；新增 3 条测试直接断言 `CardText.*` 与 `mermaidTokenTheme`
+跟着 `Fonts.apply` 走，外加一条**扫源码**的回归测试，禁止 `lib/` 里再出现「带初始化式的 static final
+TextStyle」或「顶层 final TextStyle」——这类冻结不会报任何错，只能靠扫源码挡。
+（顺带核过：`JsonHighlight.theme` 与 `codeHighlightTheme` 只存颜色、不带 family，安全；
+`highlightCode` 与 `CodeBlock.build` 都是调用时现取，安全。）
+
+**[P2] 文件预览把带 family 的高亮 span 缓存在 State 里** —— `lib/ui/files/files_panel.dart:781`。
+`_prepare()` 生成的 `_spans` 带 `fontFamily`，`_lineHeight` / `_gutter` / `_maxLineWidth` 又是
+`TextPainter` 按当时字体量出来的，而 `didUpdateWidget` 只在 `text` / `language` 变时重跑。
+这些东西贵到不能每帧现算，所以整改用**字体代数**：`tokens.dart` 新增 `Fonts.generation`（`apply`
+真的改了值才 +1），`_SourceViewState` 记下算缓存时的代数，`build` 里对不上就 `_prepare()`。
+
+**[P2] `FontPrefsController.start` 在 dispose 之后仍会 `notifyListeners`** —— `lib/app/font_prefs.dart:410`。
+`start()` 要先 `await` 扫盘，期间关窗就会对已 dispose 的 notifier 发通知（debug 断言失败）。
+整改：加 `_disposed` 挡板，`dispose` 里置位，三个入口的 await 之后一律先判。
+
+- 结论：整改后待复审
+
+### 第 2 轮（复审）
+
+- 审查方式：`cursor-review.ps1`（默认档）；范围仍为全量 `branch`（CLAUDE.md：前两轮都用全量）
 - 结论：待填
 
 ## 失败处理

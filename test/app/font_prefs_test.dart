@@ -4,6 +4,8 @@ import 'dart:io';
 
 import 'package:acp_agent_client/app/font_prefs.dart';
 import 'package:acp_agent_client/theme/tokens.dart' as t;
+import 'package:acp_agent_client/ui/transcript/card_chrome.dart';
+import 'package:acp_agent_client/ui/transcript/mermaid_block.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -130,6 +132,74 @@ void main() {
       expect(t.Fonts.apply(sans: t.Fonts.defaultSans), isFalse);
       expect(t.Fonts.apply(sans: 'Inter'), isTrue);
       expect(t.Fonts.apply(sans: 'Inter'), isFalse);
+    });
+  });
+
+  group('派生字阶跟着换（R7.6 审查 high：static final 会把 family 冻在首次访问那一刻）', () {
+    test('CardText 的各档跟着 Fonts.apply 走', () {
+      // 应用里大部分文字（转录卡、终端、diff、弹层、按钮）走的是 CardText 而不是 TextStyles，
+      // 只断言 TextStyles 会假通过——审查第 1 轮就是这么抓到的。
+      expect(CardText.code.fontFamily, t.Fonts.defaultMono);
+      expect(CardText.strong.fontFamily, t.Fonts.defaultSans);
+
+      t.Fonts.apply(sans: 'Inter', cjk: 'MiSans', mono: 'JetBrains Mono', codeCjk: 'Sarasa Mono SC');
+
+      expect(CardText.code.fontFamily, 'JetBrains Mono');
+      expect(CardText.code.fontFamilyFallback!.first, 'Sarasa Mono SC');
+      expect(CardText.inlineCode.fontFamily, 'JetBrains Mono');
+      expect(CardText.subtitle.fontFamily, 'JetBrains Mono');
+      expect(CardText.codeError.fontFamily, 'JetBrains Mono', reason: 'codeError 从 code 派生');
+      expect(CardText.strong.fontFamily, 'Inter');
+      expect(CardText.strong.fontFamilyFallback!.first, 'MiSans');
+      expect(CardText.link.fontFamily, 'Inter');
+      expect(CardText.cardTitle.fontFamily, 'Inter');
+      expect(CardText.headerTitle.fontFamily, 'Inter');
+      expect(CardText.secondary.fontFamily, 'Inter');
+      expect(CardText.button.fontFamily, 'Inter');
+      expect(CardText.buttonPrimary.fontFamily, 'Inter', reason: 'buttonPrimary 从 button 派生');
+    });
+
+    test('mermaid 主题的字体跟着界面西文轴走', () {
+      expect(mermaidTokenTheme.fontFamily, t.Fonts.defaultSans);
+      t.Fonts.apply(sans: 'Inter');
+      expect(mermaidTokenTheme.fontFamily, 'Inter');
+    });
+
+    test('lib/ 里不得再出现会冻住 family 的样式缓存', () {
+      // 这一条守的是「类」而不是「某一处」：只要谁再写一个一次求值的样式缓存，换字体就会对那一处
+      // 不起作用，而且不会有任何报错——只能靠扫源码挡。
+      //
+      // 只认「带初始化式的 static final」与「顶层 final」这两种一次求值的写法。
+      // 实例字段（`final TextStyle style;`，每个实例各一份）是好的，不在此列。
+      final Directory lib = Directory('lib');
+      final RegExp frozen = RegExp(
+        r'^(\s*static\s+final|final)\s+(TextStyle|core\.MermaidTheme)\s+\w+\s*=',
+        multiLine: true,
+      );
+      final List<String> offenders = <String>[];
+      for (final FileSystemEntity e in lib.listSync(recursive: true)) {
+        if (e is! File || !e.path.endsWith('.dart')) continue;
+        final String src = e.readAsStringSync();
+        for (final RegExpMatch m in frozen.allMatches(src)) {
+          final int line = '\n'.allMatches(src.substring(0, m.start)).length + 1;
+          offenders.add('${e.path}:$line  ${m.group(0)!.trim()}');
+        }
+      }
+      expect(
+        offenders,
+        isEmpty,
+        reason: '这些会把字体冻在首次访问那一刻，改成 getter：\n${offenders.join('\n')}',
+      );
+    });
+
+    test('Fonts.generation 只在真的换了字体时 +1', () {
+      // 带 family 的重计算（高亮 span、TextPainter 量出的宽高）贵到不能每帧现算，
+      // 靠这个代数判断过期，见 lib/ui/files/files_panel.dart 的 _fontGeneration。
+      final int g0 = t.Fonts.generation;
+      t.Fonts.apply(sans: t.Fonts.defaultSans);
+      expect(t.Fonts.generation, g0, reason: '值没变不该 +1');
+      t.Fonts.apply(sans: 'Inter');
+      expect(t.Fonts.generation, g0 + 1);
     });
   });
 

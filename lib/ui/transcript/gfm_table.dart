@@ -23,8 +23,9 @@ class GfmTable extends StatelessWidget {
     return TextAlign.left;
   }
 
-  static final TextStyle _head = CardText.strong;
-  static final TextStyle _cell = t.TextStyles.body;
+  // getter 而非 static final：理由同 [CardText]，static final 会把 family 冻在首次访问那一刻。
+  static TextStyle get _head => CardText.strong;
+  static TextStyle get _cell => t.TextStyles.body;
 
   /// 数字列开 tabular-nums：整列单元格都像数字（含单位后缀）时。
   static final RegExp _numeric = RegExp(r'^[\d.,]+\s*[a-zA-Z%]*$');
