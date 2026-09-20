@@ -384,6 +384,46 @@ void main() {
       expect(core.appearance, <String, dynamic>{'ui_font_family': 'Inter'}, reason: '盘上一个字都不许动');
     });
 
+    test('补读回来的主题不能当相对基线：用户按所见 toggle，不是对盘上的值取反（复审 high，2026-09-20）', () async {
+      // 盘上已是深色，启动 GET 失败 → 界面停在缺省浅色。用户看见浅色去点按钮，意思是「我要深色」。
+      // 若补读后拿盘上的 dark 当基线再取反，就会写成浅色 —— 点了「转深色」反而更浅了。
+      final FakeCore core = FakeCore()
+        ..appearance = <String, dynamic>{'ui_font_family': 'Inter', 'theme': 'dark'}
+        ..appearanceGetFailures = 1;
+      final AppearanceController c = AppearanceController(
+        bridge: core,
+        registry: FontRegistry(loadDirs: const <Directory>[], probeDirs: const <Directory>[]),
+      );
+      addTearDown(c.dispose);
+
+      await c.start();
+      expect(c.theme, t.AppTheme.light, reason: '没读到，界面先回缺省浅色');
+
+      await c.toggleTheme();
+
+      expect(c.theme, t.AppTheme.dark, reason: '用户按所见点的：浅 → 深');
+      expect(c.fonts.resolved(FontAxis.uiLatin), 'Inter', reason: '没改到的维度以盘上为准');
+      expect(core.appearance, <String, dynamic>{'ui_font_family': 'Inter', 'theme': 'dark'});
+    });
+
+    test('补读成功但这次改动是空操作：盘上快照照样灌进界面', () async {
+      final FakeCore core = FakeCore()
+        ..appearance = <String, dynamic>{'ui_font_family': 'Inter'}
+        ..appearanceGetFailures = 1;
+      final AppearanceController c = AppearanceController(
+        bridge: core,
+        registry: FontRegistry(loadDirs: const <Directory>[], probeDirs: const <Directory>[]),
+      );
+      addTearDown(c.dispose);
+
+      await c.start();
+      // 界面显示的就是缺省浅色，再设一次浅色什么也没改。
+      await c.setTheme(t.AppTheme.light);
+
+      expect(c.fonts.resolved(FontAxis.uiLatin), 'Inter', reason: '补读到的要灌进来，不能停在缺省');
+      expect(core.appearance, <String, dynamic>{'ui_font_family': 'Inter'});
+    });
+
     test('字体与主题一起改时两边都生效（别写成 `||` 短路）', () async {
       final AppearanceController c = AppearanceController(
         registry: FontRegistry(loadDirs: const <Directory>[], probeDirs: const <Directory>[]),

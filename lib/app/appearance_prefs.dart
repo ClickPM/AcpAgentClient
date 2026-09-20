@@ -573,16 +573,27 @@ class AppearanceController extends ChangeNotifier {
     await _awaitHydration();
     if (_disposed) return;
     final CoreCommands? bridge = this.bridge;
+
+    // 用户是按**界面上看得见的这一份**点的，相对操作（[toggleTheme]）必须对准它算。
+    final AppearancePrefs seen = _prefs;
+    AppearancePrefs next = change(seen);
+
     // 启动那一趟没读到（最常见的是核心还没 `core_init` 完 —— `AcpApp.initState` 里
     // `_appearance.start()` 排在 `_controller.start()` 前面，两个都不 await）就再读一次：
     // 多半只是早了几毫秒，这一下就能拿到盘上的真值。
+    bool hydratedLate = false;
     if (bridge != null && !_readSettingsOk) {
       final AppearancePrefs? retried = await _readSettings();
       if (_disposed) return;
-      if (retried != null) _applyLocally(retried, notify: true);
+      if (retried != null) {
+        next = _overlay(base: retried, seen: seen, edited: next);
+        hydratedLate = true;
+      }
     }
-    final AppearancePrefs next = change(_prefs);
-    if (next == _prefs) return;
+
+    // 补读成功时一定要走下去：哪怕这次改动本身是空操作，也得把刚读到的盘上快照灌进界面，
+    // 否则界面会一直停在读失败时的缺省值上（`_readSettingsOk` 已经翻真，不会再补读第二次）。
+    if (!hydratedLate && next == _prefs) return;
     _applyLocally(next, notify: true);
     if (bridge == null) return;
     if (!_readSettingsOk) {
@@ -596,6 +607,27 @@ class AppearanceController extends ChangeNotifier {
     } on Object catch (e) {
       debugPrint('appearance: 存设置失败: $e');
     }
+  }
+
+  /// 补读成功时的合并：以盘上的 `base` 为基底，把这次**真改到**的维度（`edited` 相对 `seen` 有差的那些）
+  /// 盖上去。
+  ///
+  /// 两边都不能少（复审 high，2026-09-20）：直接拿 `edited` 落盘会把盘上没改到的项抹掉（`appearance`
+  /// 段整段替换）；反过来先把 `base` 灌进 `_prefs` 再算，[toggleTheme] 这种相对操作就会对着**用户没看见
+  /// 的**主题取反 —— 盘上是深色、界面因读失败显示浅色时，用户点「转深色」反而被写成浅色。
+  ///
+  /// [resetAll] 在这条路上只重置用户看得见的那些维度：没看见的以盘上为准。这条路要求「启动读盘失败 +
+  /// 补读成功 + 正好点重置」，而重置目前也没有界面入口。
+  static AppearancePrefs _overlay({
+    required AppearancePrefs base,
+    required AppearancePrefs seen,
+    required AppearancePrefs edited,
+  }) {
+    FontPrefs fonts = base.fonts;
+    for (final FontAxis axis in FontAxis.values) {
+      if (edited.fonts.raw(axis) != seen.fonts.raw(axis)) fonts = fonts.withAxis(axis, edited.fonts.raw(axis));
+    }
+    return AppearancePrefs(fonts: fonts, theme: edited.theme != seen.theme ? edited.theme : base.theme);
   }
 
   /// 灌进 tokens。`notify` 只在真的变了时才发，避免无谓重建。
