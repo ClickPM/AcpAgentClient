@@ -213,7 +213,7 @@ class SidebarTitleBar extends StatelessWidget {
                 IgnorePointer(
                   child: Row(
                     children: <Widget>[
-                      const AppLogo(),
+                      AppLogo(),
                       const SizedBox(width: t.Spacing.s8),
                       Text(title, style: CardText.strong),
                     ],

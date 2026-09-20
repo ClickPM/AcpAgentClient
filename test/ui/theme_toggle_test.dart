@@ -8,9 +8,11 @@ import 'dart:io';
 
 import 'package:acp_agent_client/app/appearance_prefs.dart';
 import 'package:acp_agent_client/theme/tokens.dart' as t;
+import 'package:acp_agent_client/ui/shell/app_logo.dart';
 import 'package:acp_agent_client/ui/shell/sidebar.dart';
 import 'package:acp_agent_client/ui/transcript/icons.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// 不碰磁盘的 registry：用例只关心主题，不想让字体扫描去读系统目录。
@@ -20,6 +22,9 @@ AppearanceController _controller() => AppearanceController(
 
 Finder _icon(String body) =>
     find.byWidgetPredicate((Widget w) => w is AcpIcon && w.body == body, description: 'AcpIcon(body)');
+
+/// [AppLogo.document] 里写进 SVG 的 `#RRGGBB` 形式。
+String _hex(Color c) => '#${c.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
 
 /// 侧栏底部导航里的「设置」也是齿轮，这里按标题条那一段找，避免撞名。
 Finder _inTitleBar(Finder f) => find.descendant(of: find.byType(SidebarTitleBar), matching: f);
@@ -104,5 +109,29 @@ void main() {
     await pumpSidebar(tester);
     expect(_inTitleBar(_icon(AcpIcons.moon)), findsNothing);
     expect(_inTitleBar(_icon(AcpIcons.sun)), findsNothing);
+  });
+
+  // 应用标记把当前主题的颜色烘进了 SVG 文本，所以它必须跟着换主题重建。踩过的坑：调用点写成
+  // `const AppLogo()` 时，父级重建会因为 `identical(old, new)` 直接复用旧 element、不再 build，
+  // 标记就冻在首次构建那一套颜色上——深色下是黑底黑标（2026-09-20 所有者报障）。
+  testWidgets('应用标记跟着主题换色，不冻在首次构建那一套上', (WidgetTester tester) async {
+    final AppearanceController appearance = _controller();
+    addTearDown(appearance.dispose);
+    await pumpSidebar(tester, appearance: appearance);
+
+    BytesLoader logo() => tester
+        .widget<SvgPicture>(find.descendant(of: find.byType(AppLogo), matching: find.byType(SvgPicture)))
+        .bytesLoader;
+
+    final String lightDoc = AppLogo.document();
+    expect(logo(), SvgStringLoader(lightDoc));
+
+    await tester.tap(_inTitleBar(_icon(AcpIcons.moon)));
+    await tester.pumpAndSettle();
+
+    final String darkDoc = AppLogo.document();
+    expect(darkDoc, isNot(lightDoc), reason: '两套主题的标记本来就该不同色，否则下一条断言恒真');
+    expect(darkDoc, contains(_hex(t.Theming.darkColors.strong)), reason: '深色下标记取 d.strong（浅底上的深标记翻过来）');
+    expect(logo(), SvgStringLoader(darkDoc), reason: '冻住的话这里还是 lightDoc');
   });
 }

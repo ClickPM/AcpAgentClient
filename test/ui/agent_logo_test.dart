@@ -7,6 +7,8 @@ import 'dart:io';
 
 import 'package:acp_agent_client/app/workbench_controller.dart';
 import 'package:acp_agent_client/projection/wire.dart';
+import 'package:acp_agent_client/theme/tokens.dart' as t;
+import 'package:acp_agent_client/ui/registry/registry_entry.dart';
 import 'package:acp_agent_client/ui/popovers/topbar_popovers.dart';
 import 'package:acp_agent_client/ui/shell/shell_common.dart';
 import 'package:acp_agent_client/ui/shell/transcript_empty.dart';
@@ -57,6 +59,8 @@ Future<WorkbenchController> _start(FakeCore core) async {
 }
 
 void main() {
+  tearDown(t.Theming.reset);
+
   test('侧栏会话项与会话头拿的是所属 agent 的 icon.svg', () async {
     final core = FakeCore()..registry = _registry(<Object?>[_entry(_agent, icon: _svg)]);
     final c = await _start(core);
@@ -140,5 +144,44 @@ void main() {
     await pump(const AgentMark());
     expect(find.byType(SvgPicture), findsNothing);
     expect(tester.getSize(find.byType(AgentMark)), withLogo, reason: '有没有 logo 都占同样的 16 见方，行高不跳');
+  });
+
+  // 这些 logo 全是单色的 `fill="currentColor"`（registry 的约定；内置那两张同样如此），取什么色由宿主定。
+  // 不给 SvgTheme 的话 flutter_svg 把 currentColor 当纯黑（`SvgTheme.currentColor` 缺省 opaqueBlack），
+  // 深色主题下就是黑底上的黑标记（2026-09-20 所有者报障）。守住：三个画标记的地方都给取值，且随主题换。
+  testWidgets('agent 的 icon.svg 取色随主题走，不落回 flutter_svg 的纯黑缺省', (WidgetTester tester) async {
+    // 三个 widget 都不能写成 const：常量实例会被规范化，换主题后第二次 pump 时
+    // `Element.updateChild` 见到 `identical(old, new)` 就跳过重建，量到的还是旧取色。
+    // svg 过一道 final 局部量，构造就不再是常量表达式（也就不触发 prefer_const_constructors）。
+    final String icon = _svg;
+    Future<void> pump() => tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  AgentMark(svg: icon),
+                  NewSessionEmpty(title: 'New Codex Session', svg: icon),
+                  AgentIconBox(svg: icon),
+                ],
+              ),
+            ),
+          ),
+        );
+
+    List<Color?> tints() => tester
+        .widgetList<SvgPicture>(find.byType(SvgPicture))
+        .map((SvgPicture p) => (p.bytesLoader as SvgStringLoader).theme?.currentColor)
+        .toList();
+
+    await pump();
+    expect(tints(), hasLength(3), reason: '侧栏 / 会话头的标记、空态大图标、registry 图标框');
+    expect(tints(), everyElement(t.Theming.lightColors.strong));
+
+    t.Theming.apply(t.AppTheme.dark);
+    await pump();
+    expect(tints(), everyElement(t.Theming.darkColors.strong));
+    expect(tints(), isNot(contains(const Color(0xFF000000))), reason: 'flutter_svg 不给 theme 时的缺省就是这个黑');
   });
 }

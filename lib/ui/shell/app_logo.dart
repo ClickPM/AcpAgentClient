@@ -11,8 +11,13 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../theme/tokens.dart' as t;
 
 /// 侧栏顶部的应用标记。双色，尺寸只用 tokens 的 [t.IconSizes]。
+///
+/// **构造函数不是 `const`**（也别改回去）：[document] 把当前主题的颜色烘进了 SVG 文本，而常量 widget
+/// 会被规范化成同一个实例——父级换主题重建时 `Element.updateChild` 见到 `identical(old, new)` 就直接
+/// 复用旧 element、不再 build，标记于是冻在首次构建那一套颜色上（深色下是黑底黑标）。
 class AppLogo extends StatelessWidget {
-  const AppLogo({super.key, this.size = t.IconSizes.base});
+  // ignore: prefer_const_constructors_in_immutables  见上：const 化会让它在换主题时被跳过重建。
+  AppLogo({super.key, this.size = t.IconSizes.base});
 
   final double size;
 
