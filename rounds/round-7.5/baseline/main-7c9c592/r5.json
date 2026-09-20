@@ -1,0 +1,171 @@
+{
+  "ok": true,
+  "steps": {
+    "registry": {
+      "count": 45,
+      "installed": [
+        "dsh-acp-interactive:custom:unknown",
+        "fake-r3:custom:unknown",
+        "fake-r5:custom:unknown",
+        "fake-r6:custom:unknown"
+      ],
+      "fetchError": null,
+      "fetchedAt": "2026-09-20T11:56:27.424",
+      "node": {
+        "system": "v24.11.1",
+        "managed": null,
+        "systemError": null
+      },
+      "paths": {
+        "dataDir": "D:\\cargo-target\\AcpAgentClient\\r75\\run\\appdata\\AcpAgentClient",
+        "logPath": "D:\\cargo-target\\AcpAgentClient\\r75\\run\\appdata\\AcpAgentClient\\logs\\acp-2026-09-20.log",
+        "zed": null
+      },
+      "sample": [
+        "dsh-acp-interactive v custom",
+        "fake-r3 v custom",
+        "fake-r5 v custom",
+        "fake-r6 v custom",
+        "agoragentic-acp v1.3.0 npx",
+        "amp-acp v0.9.0 binary"
+      ]
+    },
+    "newSession": {
+      "sessionId": null,
+      "authRequired": true,
+      "authMethods": [
+        "fake-setup/terminal",
+        "fake-url/agent"
+      ],
+      "rightTab": "agents",
+      "error": "agent `fake-r5` requires authentication: FAKE_API_KEY is not configured. Run --setup."
+    },
+    "auth": {
+      "methodId": "fake-url",
+      "phase": "choose",
+      "error": null,
+      "elapsedMs": 3,
+      "requestScopeUrls": [
+        "https://example.invalid/fake-login"
+      ],
+      "terminalId": null,
+      "sessionId": "sess_fake_1",
+      "authPageClosed": true,
+      "authStatus": "unknown"
+    },
+    "turn": {
+      "prompt": "r75 auth turn",
+      "stopReason": "end_turn",
+      "usage": {
+        "totalTokens": 42,
+        "inputTokens": 30,
+        "outputTokens": 12,
+        "thoughtTokens": null,
+        "cachedReadTokens": null,
+        "cachedWriteTokens": null
+      },
+      "elapsedMs": 3,
+      "entries": {
+        "TurnEntry": 1,
+        "MessageEntry": 3,
+        "ToolCallEntry": 1,
+        "PermissionEntry": 1,
+        "PlanCardEntry": 1,
+        "ElicitationEntry": 1
+      },
+      "seen": {
+        "available_commands_update": 1,
+        "agent_message_chunk": 2,
+        "tool_call": 1,
+        "tool_call_update": 2,
+        "plan": 1,
+        "config_option_update": 1,
+        "usage_update": 1
+      },
+      "plans": 1,
+      "sessionUsage": {
+        "used": 1200,
+        "size": 128000,
+        "costAmount": null,
+        "costCurrency": null
+      },
+      "pendingLeft": 0,
+      "title": null,
+      "lastAgentMessage": "Done (form={\"action\":\"accept\",\"content\":{}}, url={\"action\":\"accept\",\"content\":{}}).",
+      "answers": [
+        {
+          "kind": "permission",
+          "requestId": "101",
+          "title": null,
+          "options": [
+            "allow-once/allow_once",
+            "reject-once/reject_once"
+          ],
+          "answered": "allow-once"
+        },
+        {
+          "kind": "elicitation",
+          "requestId": "102",
+          "mode": "form",
+          "scope": "session",
+          "message": "Commit after editing?",
+          "answered": "accept"
+        },
+        {
+          "kind": "elicitation",
+          "requestId": "103",
+          "mode": "url",
+          "scope": "request",
+          "message": "Open the login page",
+          "answered": "accept"
+        }
+      ]
+    },
+    "importZed": {
+      "zedSettingsPath": null,
+      "result": null,
+      "installedBefore": [
+        "dsh-acp-interactive",
+        "fake-r3",
+        "fake-r5",
+        "fake-r6"
+      ],
+      "installedAfter": [
+        "dsh-acp-interactive",
+        "fake-r3",
+        "fake-r5",
+        "fake-r6"
+      ],
+      "error": "settings: 找不到 Zed 的 settings.json"
+    },
+    "registryAfter": {
+      "count": 45,
+      "installed": [
+        "dsh-acp-interactive:custom:unknown",
+        "fake-r3:custom:unknown",
+        "fake-r5:custom:unknown",
+        "fake-r6:custom:unknown"
+      ],
+      "fetchError": null,
+      "fetchedAt": "2026-09-20T11:56:27.424",
+      "node": {
+        "system": "v24.11.1",
+        "managed": null,
+        "systemError": null
+      },
+      "paths": {
+        "dataDir": "D:\\cargo-target\\AcpAgentClient\\r75\\run\\appdata\\AcpAgentClient",
+        "logPath": "D:\\cargo-target\\AcpAgentClient\\r75\\run\\appdata\\AcpAgentClient\\logs\\acp-2026-09-20.log",
+        "zed": null
+      },
+      "sample": [
+        "dsh-acp-interactive v custom",
+        "fake-r3 v custom",
+        "fake-r5 v custom",
+        "fake-r6 v custom",
+        "agoragentic-acp v1.3.0 npx",
+        "amp-acp v0.9.0 binary"
+      ]
+    }
+  }
+}

@@ -399,7 +399,7 @@ r6 = `fake-r6`（`--sessions`）+ 三轮（第三轮 2 s 后 cancel）+ `ACP_R6_
 
 ### 验收 8：Windows 真跑（规则 9）——待所有者点跑
 
-`scripts/build.ps1 -Smoke`：过（第 8 步的 release 构建，`ACP_SMOKE_REPORT` + 隔离的 `APPDATA`，exit 0：init / ping / core_ready 三步 ok，coreVersion 1.1.0，droppedEvents 0）
+`scripts/build.ps1 -Smoke`：过（第 8 步的 release 构建，`ACP_SMOKE_REPORT` + 隔离的 `APPDATA`，exit 0：init / ping / core_ready 三步 ok，coreVersion 1.1.0，droppedEvents 0）；合并 main@7c9c592 后的构建（`4e17300`）再跑一次：过（`ok: true`，exit 0，coreVersion 1.2.0，droppedEvents 0）
 
 dsh-acp-interactive 与 claude-agent-acp 各一轮的命令（用真实数据目录、真实 agent；在 worktree 根跑，先 `scripts/build.ps1`）：
 
@@ -436,24 +436,31 @@ $p = Start-Process build\windows\x64\runner\Release\acp_agent_client.exe -PassTh
 
 | # | 检查 | 结果 |
 |---|---|---|
-| 1 | 契约与画板零 diff | 过（`--stat` 输出 0 行，`pins/upstream.json` 一并核过） |
-| 2 | validate 全绿 | 过（每步 13 项；第 9 步起 15 项） |
-| 3 | 测试只改路径 | 过（186 例 / 798 处 `expect(` 不变） |
-| 4 | 无头实跑等价 | 过（每步三份 EQUIVALENT；两次偶发重跑等价） |
+| 1 | 契约与画板零 diff | 过（`--stat` 输出 0 行，`pins/upstream.json` 一并核过；合并 main@7c9c592 后对 main 重核仍为空） |
+| 2 | validate 全绿 | 过（每步 13 项；第 9 步起 15 项；合并 main 后 15 项 PASS，`flutter test` 334） |
+| 3 | 测试只改路径 | 过（186 例 / 798 处 `expect(` 不变；合并 main 后 201 / 886，与 main 相同） |
+| 4 | 无头实跑等价 | 过（每步三份 EQUIVALENT；两次偶发重跑等价；合并 main 后对 main@7c9c592 的构建三份 EQUIVALENT） |
 | 5 | 行数门 | 过（组合根 356 ≤ 450；`headless_run.dart` 单独放宽，见偏离 8） |
 | 6 | 依赖方向门 | 过（见上表；validate 门守着） |
 | 7 | 通知等价（阶段 A） | 过（`test/ui` 全过；构造时转发七个 notifier，`sessions` / `files` / `terminals` 仍在 `start()` 里挂） |
-| 8 | Windows 真跑 | **待所有者点跑**（命令见上；smoke：过（第 8 步的 release 构建，`ACP_SMOKE_REPORT` + 隔离的 `APPDATA`，exit 0：init / ping / core_ready 三步 ok，coreVersion 1.1.0，droppedEvents 0）） |
+| 8 | Windows 真跑 | **待所有者点跑**（命令见上；smoke：过（第 8 步的 release 构建，`ACP_SMOKE_REPORT` + 隔离的 `APPDATA`，exit 0：init / ping / core_ready 三步 ok，coreVersion 1.1.0，droppedEvents 0）；合并 main@7c9c592 后的构建再跑一次：过，coreVersion 1.2.0，droppedEvents 0） |
 | 9 | 所有者手测 | **待所有者**（清单见上） |
 | 10 | 阶段 B | 不触发（一次 batch 的壳级 build = 1，未超过阈值）；数字记 BACKLOG，验收 10 不适用 |
 
-### main 的后续提交与合并（等所有者定时机）
+### main 的后续提交与合并（2026-09-20，所有者指示「在本分支把 main 合进来解冲突」）
 
-本轮开工基线 `f62520f` 之后 main 又进了 3 个提交（`48b9fd1` 字体扫描结果通知、`5feebbf` 合并、`44d256d`「UI 与前端代码语义统一：Thread 收敛为 Session」）。
-`44d256d` 碰了 `workbench_controller.dart` 62 行与 `workbench_screen.dart` 32 行——全是改名与文案（`threadTitle → sessionTitle`、`threadMenuAnchor → sessionMenuAnchor`、
-`ThreadHeader → SessionHeader`、默认标题 `New <agent> Thread → Session`、headless 的 JSON 键 `threadTitle → sessionTitle`、注释「线程头 / 线程区 → 会话头 / 会话区」），
-与本分支必然冲突（6 个文件：组合根、screen、headless、`workbench_wiring_test`、ROUNDS.md、BACKLOG.md）。
-2026-09-20 15:xx 在 worktree 里试合过一次：以本分支版本为底重放 main 的改名（脚本 `rounds/round-7.5/merge-main-44d256d.py`），analyze 干净、无冲突残留；
-随后所有者指示「先不要合并到 main，由我决定时机」，为稳妥起见这次反向合并也一并撤回（`git merge --abort`），分支停在第 9 步之上。
-要合的时候：`git merge --no-ff --no-commit main` → 跑那个脚本 → analyze → validate → **以 main@44d256d 重出三份无头基线**（标题文案与 JSON 键都变了，旧基线不能直接比）
-→ 比对 → 提交 → 第 3 轮审查只审 `fd5b7a9..HEAD`。`ThreadController` / `c.thread` 这个名字来自任务卡的粒度表，没有随 main 的 UI 收敛改成 Session，要不要改等裁定。
+本轮开工基线 `f62520f` 之后 main 进了 11 个提交，三件事：`44d256d`「UI 与前端代码语义统一：Thread 收敛为 Session」（碰组合根 62 行、screen 32 行、headless 6 行与 12 个测试文件，全是改名与文案；提交说明标「未构建 / 未审查（所有者指定）」）、画板 07 深色模式那一轮（`1420556` 合入 main，4 轮 cursor 审查收口；`lib/app/font_prefs.dart` → `appearance_prefs.dart`、`FontPrefsController` → `AppearanceController`，screen 的构造参数 `fonts` → `appearance`、侧栏多了 `dark` / `onToggleTheme` 两个参数）、`7c9c592` v1.2.0 版本号。先前那份只对 `44d256d` 备用的解冲突脚本已删，换成实际用的这份。
+
+合法（脚本 `rounds/round-7.5/merge-main-7c9c592.py`，随本轮入库）：`git merge --no-ff --no-commit main` 出 6 个文件的冲突——组合根 5 块（main 改了注释 / 名字的那几段本分支已经搬走，本分支侧全是空或一行）、screen 7 块、headless 2 块、`workbench_wiring_test` 3 块、ROUNDS.md 1 块、BACKLOG.md 1 块。每个冲突块取本分支这一侧再重放 main 的改名（`threadTitle → sessionTitle`、`threadMenuAnchor → sessionMenuAnchor`、`ThreadHeader → SessionHeader`、`NewThreadEmpty → NewSessionEmpty`、`_openThreadMenu → _openSessionMenu`、`_addThread → _addSession`、`acp-thread: → acp-session:`、默认标题 `New <agent> Thread → Session`、`+` 的 `Threads → Sessions`、注释「线程头 / 线程区 / 线程标题」→「会话头 / 会话区 / 会话标题」、`font_prefs → appearance_prefs`），改名同时施加到本轮拆出的九个文件与本轮改过的测试——搬走的代码在 main 那边改了名，git 合不到新文件上（七个文件有改动：`thread_controller` 的 `sessionTitle` / `sessionMenuAnchor` 与注释，`turn_controller` / `agents_state` / `auth_state` / `workspace_state` / `session_index` / `guarded` 只有注释）。深色模式对 screen 的四处改动不在冲突块里，git 自动合上（核对过 `import 'appearance_prefs.dart'`、`AppearanceController? appearance`、`onToggleTheme`、`appearance: widget.appearance` 四处都在）。ROUNDS.md 两行都留（main 的「Thread → Session 收敛」行在前）；BACKLOG 以本分支的 17 行为准换成 main 的措辞（它们的「新家」后缀保留），再补 main 新增的「设计稿补注记（Thread → Session 收敛）」一条。`CLAUDE.md` 仓库结构那一行的 `font_prefs` 改 `appearance_prefs`。
+
+核对（都对 main@7c9c592）：
+- 解完之后 `lib/app` + `test` 里不再有 `ThreadHeader` / `threadTitle` / `threadMenuAnchor` / `NewThreadEmpty` / `thread_header` / `acp-thread:` / 「线程头 / 线程区 / 线程标题」/ `font_prefs` / `FontPrefsController`；只剩本轮自己的 `ThreadController` / `thread_controller.dart` / 注释里的「线程控制器」（见下）。
+- 逐词比对 screen / headless / wiring 测试与 main 的差异（difflib 按行配对再按 token 配对）：256 / 219 / 89 处替换全部是接收者路径（`c.` → `c.thread.` 等）与附录 A 的改名（`installAgent → agents.install`、`authPhase → auth.phase` 等），0 行只删、1 行只增（screen 多一个 `import 'shell_state.dart';`）——main 的每一处改动都在。
+- 验收 1：`git diff main -- lib/ui lib/theme lib/projection lib/bridge rust test/fixtures pubspec.yaml pins` 为空。
+- 验收 3：`test/app` + `test/ui` 用例 201 / `expect(` 886，与 main 相同（main 那几轮加了主题切换与外观的用例，所以比开工时的 186 / 798 多）；`git diff main -- test` 的 `expect(` 行 `-` 191 / `+` 191。
+- `flutter analyze`：0 error / 0 warning / 14 info（与基线同一批）。
+- validate：15 项 PASS（`flutter test` 334，与 main 相同；cargo test 全过、clippy 干净；两道门 PASS）
+- 验收 4（无头等价）：基线换成 main@7c9c592——拿所有者 15:08 在 `AcpAgentClient-release` worktree（工作树干净、HEAD 就是 `7c9c592`、`app.so` / `acp_bridge.dll` 都晚于该提交）出的 release 构建，整个 `Release/` 复制到 `D:\cargo-target\AcpAgentClient\r75\main-bin` 跑，只删掉旁边的 `zed-agent-acp.exe`（核心见到它会多并一条内置 agent 条目，本分支的构建目录里没有它）。新基线与旧基线 `f62520f` 的差异只有 `threadTitle → sessionTitle` 这个键与 `New Fake Agent Thread → Session` 这个标题（r3 2 处、r6 3 处、r5 零差异），说明 main 这 11 个提交在这三条路径上除改名外行为没变。合并后的构建（`scripts/build.ps1`）对新基线：r5 / r6 **EQUIVALENT**；r3 第一次只在 `steps.files.error` 差一处（main 与之前 15 次跑都是 `fs: not found …fake-agent.txt`，这次是 null）——这是 Follow 开着时 `tool_call` 的 `locations` 先于 agent 的 `fs/write_text_file` 到达、文件面板先去开一个还没写出来的文件的竞态，`FilesState._guard` 记下的错误不会被之后的成功清掉，所以竞态哪边赢就报哪个；同一二进制重跑 r3 **EQUIVALENT**，与前两次偶发同类（取样时序，不是行为差异）。新基线三份存在 `rounds/round-7.5/baseline/main-7c9c592/`（合并后那三份与重跑的一份在 `D:\cargo-target\AcpAgentClient\r75\reports\merged{,-b}\`，不入库）
+- 第 3 轮审查（`fd5b7a9..HEAD`，含 main 带进来的改动与本次解冲突）：2026-09-20 15:23 → 15:28（5 分钟），产物 `.claude/reviews/20260920-152350-review.out.md`：**0 findings**。审查器核了：① `44d256d` 的符号表在 `lib/app` 与 `test/` 里旧名全部不存在，并逐个列了落地处（`thread_controller` 的 `sessionTitle` / `sessionMenuAnchor` / 默认标题、`turn_controller` 的 Sessions 与 `saveIndex`、screen 的 `SessionHeader` / `NewSessionEmpty` / `_openSessionMenu` / `_addSession` / `acp-session:`、headless 的 JSON 键、wiring 测试的断言、五个文件的注释）；② `lib/ui` / `lib/theme` / `appearance_prefs.dart` / `app.dart` / `rust/settings` / 两个外观测试相对 `7c9c592` 零 diff，screen 相对 main 只有成员路径前缀、画板 07 的三处接线都在；③ 行数门（组合根 356、thread 848、screen 950、headless 1186）与依赖方向门仍成立、没有子对象 import 组合根；另核了版本号、无新依赖、pins 未动、`unsafe_code = deny`、`set_appearance` 仍整段替换、无冲突标记残留。`ThreadController` 按任务书保留、未替所有者决定。未跟踪的基线目录 `rounds/round-7.5/baseline/main-7c9c592/` 不在 git 范围内（随本次回填入库）。无整改。
+
+合并提交 4e17300。**待裁定**：`ThreadController` / `c.thread` / `thread_controller.dart`——main 的 `lib/` 里现在一个 `Thread` 都不剩，本轮这三个名字是仅有的例外（来自任务卡的粒度表）。改名是纯机械替换（候选 `SessionController` / `c.session` / `session_controller.dart`，与 `sessions`（投影层）、`sessionId` 并排时读感要所有者看过），裁定后单独一个提交做，不混进合并。
