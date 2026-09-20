@@ -11,23 +11,10 @@ import '../projection/entries.dart';
 import '../projection/pending.dart';
 import '../projection/session_store.dart';
 import '../projection/wire.dart';
-import '../ui/popovers/topbar_popovers.dart';
 import 'composer_state.dart';
 import 'core_bridge.dart';
 import 'guarded.dart';
-
-/// 一轮对话要从当前线程读 / 调的九样东西。第 7 步由组合根实现（线程那段还在根里），第 8 步换成 `ThreadController` 本体后删掉。
-abstract class ThreadPort {
-  SessionStore? get store;
-  String? get agentId;
-  bool get sessionClosed;
-  AgentRef agentRefOf(String id);
-  Future<void> newSession(AgentRef agent);
-  void clearUnread(String id);
-  void markDone(String id, String? stopReason);
-  Future<void> saveIndex();
-  Future<void> stampPromptSent();
-}
+import 'thread_controller.dart';
 
 class TurnController extends ChangeNotifier with GuardedNotifier {
   TurnController({required this.bridge, required this.thread, required this.composer});
@@ -35,7 +22,7 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
   final CoreCommands? bridge;
 
   /// 当前线程（组合根持有）。
-  final ThreadPort thread;
+  final ThreadController thread;
 
   /// 输入框（组合根持有）：正文、附件块、配置格的弹层锚点。
   final ComposerState composer;

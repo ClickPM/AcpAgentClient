@@ -124,7 +124,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   /// 换会话（或第一次拿到 store）：跟随对象换一个，并回到这条会话的最新一条——
   /// 转录换了一份内容，停在上一条会话的偏移没有意义。
   void _observeStore() {
-    final store = c.store;
+    final store = c.thread.store;
     if (identical(store, _followed)) return;
     _followed?.removeListener(_onTranscriptGrew);
     _followed = store;
@@ -218,41 +218,41 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   // ---------------------------------------------------------------- 侧栏（画板 01 / 04）
 
   Widget _sidebar() => Sidebar(
-        sessions: c.visibleSessions,
+        sessions: c.thread.visibleSessions,
         now: DateTime.now(),
-        query: c.search,
-        selectedId: c.sessionId,
+        query: c.thread.search,
+        selectedId: c.thread.sessionId,
         // 线程头那支笔就地改（下面的 [ThreadHeader]），别同时把侧栏这一行也切成输入框。
-        renamingId: c.renamingInHeader ? null : c.renamingSessionId,
-        renameController: c.rename,
-        renameFocusNode: c.renameFocus,
-        searchController: c.sidebarSearch,
-        searchFocusNode: c.sidebarSearchFocus,
+        renamingId: c.thread.renamingInHeader ? null : c.thread.renamingSessionId,
+        renameController: c.thread.rename,
+        renameFocusNode: c.thread.renameFocus,
+        searchController: c.thread.sidebarSearch,
+        searchFocusNode: c.thread.sidebarSearchFocus,
         activeTab: c.shell.activeNavTab,
-        onSelect: c.selectSession,
-        onSearchChanged: c.setSearch,
-        onClearSearch: c.clearSearch,
-        onStartRename: c.startRename,
-        onCommitRename: c.commitRename,
-        onCancelRename: c.cancelRename,
+        onSelect: c.thread.selectSession,
+        onSearchChanged: c.thread.setSearch,
+        onClearSearch: c.thread.clearSearch,
+        onStartRename: c.thread.startRename,
+        onCommitRename: c.thread.commitRename,
+        onCancelRename: c.thread.cancelRename,
         onDelete: _askDelete,
         onTab: c.shell.toggleNavTab,
-        deleteAnchor: c.deleteAnchor,
-        confirmingDeleteId: c.confirmingDeleteId,
+        deleteAnchor: c.thread.deleteAnchor,
+        confirmingDeleteId: c.thread.confirmingDeleteId,
         // 画板 06：在跑的出扫掠亮点线，跑完没看的出绿点。
-        runningIds: c.runningSessionIds,
-        unreadIds: c.unreadSessionIds,
+        runningIds: c.thread.runningSessionIds,
+        unreadIds: c.thread.unreadSessionIds,
         // 侧栏标题条与顶栏是同一行：那一段也要能拖窗口、双击最大化。
         dragArea: _dragArea(),
       );
 
   void _askDelete(String id) {
-    c.askDelete(id);
-    final title = c.sidebarSessions.where((s) => s.id == id).map((s) => s.title).firstOrNull ?? '';
-    c.deleteAnchor.show(
-      (_) => DeleteSessionConfirm(title: title, onCancel: c.cancelDelete, onDelete: () => c.deleteSession(id)),
+    c.thread.askDelete(id);
+    final title = c.thread.sidebarSessions.where((s) => s.id == id).map((s) => s.title).firstOrNull ?? '';
+    c.thread.deleteAnchor.show(
+      (_) => DeleteSessionConfirm(title: title, onCancel: c.thread.cancelDelete, onDelete: () => c.thread.deleteSession(id)),
       // 点弹层之外关掉也要清「正在确认」，否则那一行的行内动作（锚点所在）会一直挂着（画板 04 的悬浮态）。
-      onDismiss: c.cancelDelete,
+      onDismiss: c.thread.cancelDelete,
     );
   }
 
@@ -341,31 +341,31 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   Widget _workbenchColumn() => WorkbenchColumn(
         topBar: _topBar(windowControls: _windowControlsInTopBar),
         threadHeader: ThreadHeader(
-          title: c.threadTitle,
-          hasAgent: c.hasAgent,
+          title: c.thread.threadTitle,
+          hasAgent: c.thread.hasAgent,
           // 等待期（重载 agent / 新建会话）借用同一只 spinner（画板 05 B 组阶段 ①：不新增元素）。
-          running: c.isRunning || c.waitingForAgent,
+          running: c.thread.isRunning || c.thread.waitingForAgent,
           // 标题与转录区同起同止（画板 05 A 组）。
-          transitionEpoch: c.sessionEpoch,
-          canRename: c.hasSession,
-          canReload: c.hasSession,
+          transitionEpoch: c.thread.sessionEpoch,
+          canRename: c.thread.hasSession,
+          canReload: c.thread.hasSession,
           menuSelected: c.shell.rightPanelOpen,
-          iconSvg: c.agentIconSvg,
-          renaming: c.renamingInHeader && c.renamingSessionId == c.sessionId,
-          renameController: c.rename,
-          renameFocusNode: c.renameFocus,
-          onRename: c.sessionId == null ? null : () => c.startRename(c.sessionId!, inHeader: true),
-          onCommitRename: c.commitRename,
-          onCancelRename: c.cancelRename,
+          iconSvg: c.thread.agentIconSvg,
+          renaming: c.thread.renamingInHeader && c.thread.renamingSessionId == c.thread.sessionId,
+          renameController: c.thread.rename,
+          renameFocusNode: c.thread.renameFocus,
+          onRename: c.thread.sessionId == null ? null : () => c.thread.startRename(c.thread.sessionId!, inHeader: true),
+          onCommitRename: c.thread.commitRename,
+          onCancelRename: c.thread.cancelRename,
           onNewSession: _openNewSessionPopover,
-          onReload: c.reloadAgent,
-          canTimeline: c.hasSession,
-          timelineSelected: c.timelineAnchor.isShowing,
+          onReload: c.thread.reloadAgent,
+          canTimeline: c.thread.hasSession,
+          timelineSelected: c.thread.timelineAnchor.isShowing,
           onTimeline: _openTimelinePopover,
           onMenu: _openThreadMenu,
-          newSessionAnchor: c.newSessionAnchor,
-          timelineAnchor: c.timelineAnchor,
-          menuAnchor: c.threadMenuAnchor,
+          newSessionAnchor: c.thread.newSessionAnchor,
+          timelineAnchor: c.thread.timelineAnchor,
+          menuAnchor: c.thread.threadMenuAnchor,
         ),
         body: _body(),
         composer: _composer(),
@@ -379,21 +379,21 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   /// 把卡片的展开态与滚动位置一起丢掉，代价远大于收益。
   Widget _body() {
     // 新会话空态自己按 motion.stagger 错开三层（画板 05 A 组的错开规则），那一下**代替**整体入场。
-    final staggered = c.hasAgent && (c.store?.entries.isEmpty ?? true);
+    final staggered = c.thread.hasAgent && (c.thread.store?.entries.isEmpty ?? true);
     final Widget content = IgnorePointer(
-      ignoring: c.waitingForAgent,
+      ignoring: c.thread.waitingForAgent,
       child: AnimatedOpacity(
-        opacity: c.waitingForAgent ? t.Opacities.pending : 1,
+        opacity: c.thread.waitingForAgent ? t.Opacities.pending : 1,
         duration: t.Motion.fast,
         curve: t.Motion.curve,
         child: _bodyContent(),
       ),
     );
-    return staggered ? content : MotionEnter(epoch: c.sessionEpoch, child: content);
+    return staggered ? content : MotionEnter(epoch: c.thread.sessionEpoch, child: content);
   }
 
   Widget _bodyContent() {
-    final store = c.store;
+    final store = c.thread.store;
     if (store == null || store.entries.isEmpty) {
       return CenteredContent(
         child: Column(
@@ -401,8 +401,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
           children: <Widget>[
             ..._stateBars(),
             Expanded(
-              child: c.hasAgent
-                  ? NewThreadEmpty(title: c.threadTitle, transitionEpoch: c.sessionEpoch, svg: c.agentIconSvg)
+              child: c.thread.hasAgent
+                  ? NewThreadEmpty(title: c.thread.threadTitle, transitionEpoch: c.thread.sessionEpoch, svg: c.thread.agentIconSvg)
                   : NoAgentEmpty(onOpenAgents: () => c.shell.openTab(ShellTab.agents)),
             ),
           ],
@@ -424,7 +424,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
               // 画板 43 的跳转落点：只有这一份转录需要行键（gallery / 单测里不开，见 TranscriptList.trackRows）。
               trackRows: true,
               focusedEntryId: _focusedEntryId,
-              agentName: c.agentDisplayName,
+              agentName: c.thread.agentDisplayName,
               onLink: _openLink,
               // 画板 18 的 Go to File 与 21 的行点击：落右栏文件面板并定位到行。
               onGoToFile: (path, line) => c.shell.goToFile(path, line: line),
@@ -443,23 +443,23 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
 
   /// 画板 34：连接状态条与丢弃告警（线程头下）。
   List<Widget> _stateBars() {
-    final connection = c.connection;
+    final connection = c.thread.connection;
     return <Widget>[
-      if (connection != null && c.showAgentStateBar) ...<Widget>[
+      if (connection != null && c.thread.showAgentStateBar) ...<Widget>[
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s24, vertical: t.Spacing.s4),
           child: AgentStateBar(
             connection,
             onAuthenticate: c.auth.authenticate,
-            onRestart: c.reloadAgent,
+            onRestart: c.thread.reloadAgent,
             onOpenTraffic: c.shell.openTraffic,
           ),
         ),
       ],
-      if (c.droppedUpdates > 0)
+      if (c.thread.droppedUpdates > 0)
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s24, vertical: t.Spacing.s4),
-          child: DroppedUpdatesBar(count: c.droppedUpdates, onOpenTraffic: c.shell.openTraffic),
+          child: DroppedUpdatesBar(count: c.thread.droppedUpdates, onOpenTraffic: c.shell.openTraffic),
         ),
     ];
   }
@@ -478,17 +478,17 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   // ---------------------------------------------------------------- 输入框（画板 01–03 / 40 / 42）
 
   Widget _composer() {
-    final store = c.store;
+    final store = c.thread.store;
     final pending = c.turn.firstPending;
     final plan = _activePlan();
     return Composer(
       key: _composerArea,
       controller: c.composer.editor,
       focusNode: c.composer.focus,
-      placeholder: c.composerPlaceholder,
+      placeholder: c.thread.composerPlaceholder,
       // 关掉的会话转录只读（画板 41 的 Close；R6 审查 finding P2）。
-      enabled: c.canCompose,
-      running: c.isRunning,
+      enabled: c.thread.canCompose,
+      running: c.thread.isRunning,
       usage: store?.usage,
       // 会话配置格（画板 40）：一条 configOption 一格，顺序 = 控制器的固定档序；boolean 就地开关。
       options: <ComposerOption>[
@@ -520,7 +520,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
           pending,
           toolCall: pending is PermissionEntry && pending.toolCallId != null ? store?.toolCalls[pending.toolCallId!] : null,
           cwd: store?.cwd,
-          agentName: c.agentDisplayName,
+          agentName: c.thread.agentDisplayName,
           onScroll: _scrollToBottom,
         ),
       ],
@@ -539,7 +539,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
 
   /// 输入框上方的折叠计划条（画板 29 / 03）：取最近一份未被移除也未被关掉的计划。
   PlanCardEntry? _activePlan() {
-    final store = c.store;
+    final store = c.thread.store;
     if (store == null) return null;
     PlanCardEntry? latest;
     for (final e in store.entries) {
@@ -584,7 +584,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     c.composer.usageAnchor.showAbove((_) => ListenableBuilder(
           listenable: c,
           builder: (context, _) => UsagePopover(
-            usage: c.store?.usage,
+            usage: c.thread.store?.usage,
             rulesCount: c.workspace.rulesCount,
             onOpenRules: () {
               c.composer.usageAnchor.hide();
@@ -598,7 +598,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   void _toggleFollow() {
     c.shell.toggleFollow();
     if (c.shell.follow) {
-      c.composer.followAnchor.showAbove((_) => FollowTip(agentName: c.agentDisplayName));
+      c.composer.followAnchor.showAbove((_) => FollowTip(agentName: c.thread.agentDisplayName));
     } else {
       c.composer.followAnchor.hide();
     }
@@ -606,7 +606,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
 
   void _openPlusPopover() {
     c.composer.plusAnchor.showAbove((_) => PlusPopover(
-          imageEnabled: c.canPromptImage,
+          imageEnabled: c.thread.canPromptImage,
           onFiles: _addFiles,
           onThreads: _addThread,
           onImage: _addImage,
@@ -635,7 +635,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     c.composer.plusAnchor.hide();
     final text = c.turn.transcriptText();
     if (text.isEmpty) return;
-    c.composer.addEmbeddedResource('acp-thread:${c.sessionId}', text, mimeType: 'text/plain');
+    c.composer.addEmbeddedResource('acp-thread:${c.thread.sessionId}', text, mimeType: 'text/plain');
   }
 
   Future<void> _addBranchDiff() async {
@@ -652,10 +652,10 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   // ---------------------------------------------------------------- 线程头的两个弹层（画板 41）
 
   void _openNewSessionPopover() {
-    c.newSessionAnchor.toggle(
+    c.thread.newSessionAnchor.toggle(
       (_) => ListenableBuilder(
         listenable: c,
-        builder: (context, _) => NewSessionAgentPopover(agents: c.agents.installed, onSelect: c.newSession),
+        builder: (context, _) => NewSessionAgentPopover(agents: c.agents.installed, onSelect: c.thread.newSession),
       ),
       // 右对齐：+ 就贴在窗口右边缘上（线程头右侧 padding 只有 8），左对齐的话 240 宽的弹层整块甩出屏外，
       // 只剩最左边一条（所有者手测 2026-09-17「选择框被截断」）。
@@ -679,21 +679,21 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   /// 开着的时候再点这个按钮其实到不了这里：弹层那层透明遮罩先吃掉点击并关掉它（与画板 41 的 ≡ / `+` 一样），
   /// 「再点一次关」是这么实现的。这里的 [PopoverHandle.isShowing] 分支只是兜底。
   void _openTimelinePopover() {
-    final store = c.store;
+    final store = c.thread.store;
     if (store == null) return;
-    if (c.timelineAnchor.isShowing) {
-      c.timelineAnchor.hide();
+    if (c.thread.timelineAnchor.isShowing) {
+      c.thread.timelineAnchor.hide();
       setState(() {});
       return;
     }
-    c.timelineAnchor.show(
+    c.thread.timelineAnchor.show(
       (_) => ListenableBuilder(
         // 弹层开着时这一轮还在跑：轮列表跟着转录长。
         listenable: store,
         builder: (context, _) => SessionTimelinePopover(
           turns: buildTimeline(store.entries),
           onJump: (row) {
-            c.timelineAnchor.hide();
+            c.thread.timelineAnchor.hide();
             _jumpToEntry(row.entryId, focus: row.isUser);
           },
         ),
@@ -715,7 +715,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   /// 所以先按行序比例估一个落点跳过去，下一帧再看目标建出来没有；建出来了就按它的真实位置精确落位。
   /// 与跟随底部那套多帧纠正同一个套路（见 [_scheduleFollow]），只是方向反过来。
   void _jumpToEntry(String entryId, {required bool focus}) {
-    final store = c.store;
+    final store = c.thread.store;
     if (store == null) return;
     final rows = buildRows(store.entries);
     final index = rows.indexWhere((r) => r is EntryRow && r.entry.id == entryId);
@@ -937,7 +937,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
                 store: c.traffic,
                 filterController: c.shell.trafficFilter,
                 filterFocusNode: c.shell.trafficFilterFocus,
-                stderrAgentId: c.agentId,
+                stderrAgentId: c.thread.agentId,
               ),
             ),
           ],

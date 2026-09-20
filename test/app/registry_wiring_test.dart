@@ -163,8 +163,8 @@ void main() {
   test('session/new 回 -32000：进认证页，agent 型认证成功后自动重试并回到工作台', () async {
     final core = AuthCore();
     final c = await _start(core);
-    await c.newSession(const AgentRef(id: 'codex-acp', name: 'Codex'));
-    expect(c.sessionId, isNull);
+    await c.thread.newSession(const AgentRef(id: 'codex-acp', name: 'Codex'));
+    expect(c.thread.sessionId, isNull);
     expect(c.auth.agentId, 'codex-acp');
     expect(c.shell.rightTab, ShellTab.agents);
     expect(c.auth.phase, AuthPhase.choose);
@@ -175,7 +175,7 @@ void main() {
     await c.auth.start();
     expect(core.calls, contains('authenticate:chat-gpt-device-code'));
     expect(core.calls.where((x) => x == 'session_new').length, 2, reason: '认证成功后自动重试 session/new');
-    expect(c.sessionId, 'sess_after_auth');
+    expect(c.thread.sessionId, 'sess_after_auth');
     expect(c.auth.agentId, isNull, reason: '回到工作台，认证页关掉');
     expect(c.shell.page, MainPage.workbench);
     c.dispose();
@@ -184,24 +184,24 @@ void main() {
   test('terminal 型：走 terminal_auth_run 并接管它返回的会话；失败态可换方式', () async {
     final core = AuthCore(terminal: true);
     final c = await _start(core);
-    await c.newSession(const AgentRef(id: 'codex-acp', name: 'Codex'));
+    await c.thread.newSession(const AgentRef(id: 'codex-acp', name: 'Codex'));
     c.auth.selectMethod('cli-login');
     await c.auth.start();
     expect(core.calls, contains('terminal_auth_run:cli-login'));
-    expect(c.sessionId, 'sess_from_terminal');
+    expect(c.thread.sessionId, 'sess_from_terminal');
     expect(core.calls.where((x) => x == 'session_new').length, 1, reason: '核心已经重试过，前端不再发第二次');
 
     // 失败态：authenticate 抛错 → failed，换一种方式回到选方法。
     final failing = AuthCore();
     final c2 = await _start(failing);
-    await c2.newSession(const AgentRef(id: 'codex-acp', name: 'Codex'));
+    await c2.thread.newSession(const AgentRef(id: 'codex-acp', name: 'Codex'));
     failing.authed = false;
     c2.auth.selectMethod('chat-gpt-device-code');
     // 让 authenticate 通过但 session/new 仍回 -32000（agent 认证了却仍没权限）：
     failing.calls.clear();
     await c2.auth.start();
     // authenticate 成功后 session/new 放行（authed = true），所以这里成功；改成模拟 authenticate 抛错：
-    expect(c2.sessionId, 'sess_after_auth');
+    expect(c2.thread.sessionId, 'sess_after_auth');
     c.dispose();
     c2.dispose();
   });
@@ -367,7 +367,7 @@ void main() {
     });
     expect(c.agents.editingId, isNull);
 
-    await c.selectSession('x');
+    await c.thread.selectSession('x');
     expect(c.shell.rightTab, ShellTab.settings, reason: '选会话不动右栏那一侧的标签');
     c.dispose();
   });

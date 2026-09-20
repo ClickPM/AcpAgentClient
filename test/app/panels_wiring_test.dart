@@ -264,8 +264,8 @@ void main() {
       final c = controller(core);
       await c.start();
       c.workspace.project = const ProjectRef(path: root, name: 'proj');
-      c.sessionId = 'sess_1';
-      c.agentId = 'a';
+      c.thread.sessionId = 'sess_1';
+      c.thread.agentId = 'a';
       await c.shell.openTerminalTab(forceNew: true);
       final local = c.terminals.byId('term_fake_1')!;
 
@@ -290,8 +290,8 @@ void main() {
       await c.start();
       c.workspace.project = const ProjectRef(path: root, name: 'proj');
       await c.files.setProject(root);
-      c.sessionId = 'sess_1';
-      c.agentId = 'a';
+      c.thread.sessionId = 'sess_1';
+      c.thread.agentId = 'a';
       final store = c.sessions.session('sess_1', agentId: 'a');
       store.applyUpdateJson(<String, dynamic>{
         'sessionUpdate': 'tool_call',
@@ -362,8 +362,8 @@ void main() {
 
       final c = controller(core);
       await c.start();
-      c.sessionId = 'sess_1';
-      c.agentId = 'a';
+      c.thread.sessionId = 'sess_1';
+      c.thread.agentId = 'a';
       final store = c.sessions.session('sess_1', agentId: 'a');
       store.applyUpdateJson(<String, dynamic>{
         'sessionUpdate': 'tool_call',

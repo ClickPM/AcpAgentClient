@@ -60,7 +60,7 @@ void main() {
   test('侧栏会话项与线程头拿的是所属 agent 的 icon.svg', () async {
     final core = FakeCore()..registry = _registry(<Object?>[_entry(_agent, icon: _svg)]);
     final c = await _start(core);
-    expect(c.sidebarSessions.single.iconSvg, _svg);
+    expect(c.thread.sidebarSessions.single.iconSvg, _svg);
     expect(c.agents.iconSvgOf(_agent), _svg);
     // registry 里没有这条（custom 条目 / 没缓存到图标）→ null，widget 退回占位。
     expect(c.agents.iconSvgOf('not-in-registry'), isNull);
@@ -71,11 +71,11 @@ void main() {
   test('registry 后到（首启时图标是联网刷新才落盘的）：侧栏重投影，不停在占位上', () async {
     final core = FakeCore()..registry = _registry(<Object?>[_entry(_agent)]);
     final c = await _start(core);
-    expect(c.sidebarSessions.single.iconSvg, isNull, reason: '这轮 registry 还没有图标');
+    expect(c.thread.sidebarSessions.single.iconSvg, isNull, reason: '这轮 registry 还没有图标');
 
     core.registry = _registry(<Object?>[_entry(_agent, icon: _svg)]);
     await c.agents.refreshRegistry(network: true);
-    expect(c.sidebarSessions.single.iconSvg, _svg, reason: 'registry 一变就要重投影侧栏');
+    expect(c.thread.sidebarSessions.single.iconSvg, _svg, reason: 'registry 一变就要重投影侧栏');
     c.dispose();
   });
 

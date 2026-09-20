@@ -89,17 +89,17 @@ Future<void> runR6({required String reportPath}) async {
 
     // ---- 新会话（顺带把能力声明记下来：矩阵的「能力」列与 ≡ 菜单裁剪都看它）
     trace('newSession');
-    await c.newSession(_agentOf(agentId)).timeout(timeout);
-    if (c.sessionId == null) throw StateError('新会话失败：${c.lastError}');
-    final sessionId = c.sessionId!;
+    await c.thread.newSession(_agentOf(agentId)).timeout(timeout);
+    if (c.thread.sessionId == null) throw StateError('新会话失败：${c.thread.lastError}');
+    final sessionId = c.thread.sessionId!;
     steps['capabilities'] = _capabilitySummary(c);
     steps['newSession'] = <String, dynamic>{
-      'agentId': c.agentId,
+      'agentId': c.thread.agentId,
       'sessionId': sessionId,
-      'cwd': c.store?.cwd,
-      'agentName': c.connection?.agentName,
-      'threadTitle': c.threadTitle,
-      'commands': <String?>[for (final x in c.store!.commands) x.name],
+      'cwd': c.thread.store?.cwd,
+      'agentName': c.thread.connection?.agentName,
+      'threadTitle': c.thread.threadTitle,
+      'commands': <String?>[for (final x in c.thread.store!.commands) x.name],
       'modeDropdown': _modeDropdownSummary(c),
     };
 
@@ -123,14 +123,14 @@ Future<void> runR6({required String reportPath}) async {
       steps['setMode'] = <String, dynamic>{
         'requested': mode,
         'via': option?.id == SessionStore.modeFallbackId ? 'session/set_mode（modes 回退）' : 'session/set_config_option',
-        'currentModeId': c.store?.currentModeId,
+        'currentModeId': c.thread.store?.currentModeId,
         'dropdown': _modeDropdownSummary(c),
         'error': c.turn.lastError,
       };
     }
 
     // ---- session/list 校对（侧栏以本地索引为准，只补标题）
-    if (c.canListSessions) {
+    if (c.thread.canListSessions) {
       trace('reconcile');
       final listed = <Map<String, dynamic>>[];
       String? cursor;
@@ -148,42 +148,42 @@ Future<void> runR6({required String reportPath}) async {
         if (next is! String || next.isEmpty) break;
         cursor = next;
       }
-      await c.reconcileSessions();
+      await c.thread.reconcileSessions();
       steps['sessionList'] = <String, dynamic>{
         'pages': listed,
         'containsCurrent': listed.any((p) => (p['sessions'] as List).any((s) => '$s'.startsWith(sessionId))),
-        'sidebar': <String>[for (final s in c.sidebarSessions) '${s.id}｜${s.title}'],
-        'missingOnAgent': c.missingOnAgent.toList(),
+        'sidebar': <String>[for (final s in c.thread.sidebarSessions) '${s.id}｜${s.title}'],
+        'missingOnAgent': c.thread.missingOnAgent.toList(),
       };
     }
 
     // ---- 重载 agent（声明 loadSession 的应当重连后自动 load 回原会话）
     if (_env('ACP_R6_RELOAD') == '1') {
       trace('reloadAgent');
-      final before = _transcriptDigest(c.store!);
-      await c.reloadAgent().timeout(timeout);
-      final after = c.sessionId == sessionId ? _transcriptDigest(c.store!) : null;
+      final before = _transcriptDigest(c.thread.store!);
+      await c.thread.reloadAgent().timeout(timeout);
+      final after = c.thread.sessionId == sessionId ? _transcriptDigest(c.thread.store!) : null;
       steps['reloadAgent'] = <String, dynamic>{
         'sessionIdBefore': sessionId,
-        'sessionIdAfter': c.sessionId,
-        'sameSession': c.sessionId == sessionId,
+        'sessionIdAfter': c.thread.sessionId,
+        'sameSession': c.thread.sessionId == sessionId,
         'digestMatches': after == before,
         // 重放来自 agent 侧的历史，客户端本地态（轮边界 TurnEntry、权限 / elicitation 卡）不在里面：
         // 两份摘要都记下来，差在哪一眼能看出来，不靠一个 bool 下结论。
         'beforeDigest': before,
         'afterDigest': after,
-        'error': c.lastError,
+        'error': c.thread.lastError,
       };
     }
 
     // ---- 关掉应用重开（验收 2）：断开 agent、忘掉内存里的转录，再照侧栏点击那条路走一遍
     trace('reconnect');
-    final before = _transcriptDigest(c.store!);
-    final beforeEntries = c.store!.entries.length;
+    final before = _transcriptDigest(c.thread.store!);
+    final beforeEntries = c.thread.store!.entries.length;
     await bridge.agentDisconnect(agentId);
     c.sessions.forget(sessionId);
-    c.sessionId = null;
-    await c.selectSession(sessionId).timeout(timeout);
+    c.thread.sessionId = null;
+    await c.thread.selectSession(sessionId).timeout(timeout);
     final after = c.sessions.maybe(sessionId);
     // agent 可以在 `session/load` 返回之后才补发 `available_commands_update`（pi-acp 就是这样，2026-09-16 实测），
     // 立刻取样会看到空的 `/` 菜单：等一小会儿再照一张，两张都记。
@@ -192,8 +192,8 @@ Future<void> runR6({required String reportPath}) async {
     c.batcher.flush();
     final afterDigest = after == null ? null : _transcriptDigest(after);
     steps['reopen'] = <String, dynamic>{
-      'loadSessionDeclared': c.canLoadSessionOf(agentId),
-      'sessionId': c.sessionId,
+      'loadSessionDeclared': c.thread.canLoadSessionOf(agentId),
+      'sessionId': c.thread.sessionId,
       'beforeEntries': beforeEntries,
       'afterEntries': after?.entries.length,
       'digestMatches': afterDigest == before,
@@ -203,12 +203,12 @@ Future<void> runR6({required String reportPath}) async {
       'commandsAtReturn': commandsAtReturn,
       'commands': <String?>[for (final x in after?.commands ?? const <AvailableCommandWire>[]) x.name],
       'modeDropdown': _modeDropdownSummary(c),
-      'error': c.lastError,
+      'error': c.thread.lastError,
     };
 
     // ---- 载回来的会话还能接着对话
     final prompt2 = _env('ACP_R6_PROMPT2');
-    if (prompt2 != null && c.sessionId != null) {
+    if (prompt2 != null && c.thread.sessionId != null) {
       trace('turn2');
       c.composer.editor.text = prompt2;
       await c.turn.send().timeout(timeout);
@@ -218,54 +218,54 @@ Future<void> runR6({required String reportPath}) async {
     // ---- 取消一轮（验收 5 的 `cancelled`：五种 stopReason 要在真实 agent 上见到）
     final prompt3 = _env('ACP_R6_PROMPT3');
     final cancelAfter = _envInt('ACP_R6_CANCEL_AFTER', 0);
-    if (prompt3 != null && cancelAfter > 0 && c.sessionId != null) {
+    if (prompt3 != null && cancelAfter > 0 && c.thread.sessionId != null) {
       trace('cancel');
-      c.lastError = null;
+      c.thread.lastError = null;
       c.composer.editor.text = prompt3;
       Timer(Duration(seconds: cancelAfter), () => c.turn.cancel());
       await c.turn.send().timeout(timeout);
       steps['cancelledTurn'] = _turnSummary(c, prompt3)
         ..['cancelAfterSeconds'] = cancelAfter
         ..['cancelledToolCalls'] = <String>[
-          for (final e in c.store!.entries)
+          for (final e in c.thread.store!.entries)
             if (e is ToolCallEntry && e.cancelledLocally) e.toolCallId,
         ];
     }
 
     // ---- close → resume → delete（按能力）。顺序不能反：`session/resume` 是给「没在本连接上活着的会话」
     // 重新挂上下文用的，活着的会话上发它 dsh 1.3.0 直接回 -32602（2026-09-16 实测）。
-    if (_env('ACP_R6_CLOSE') == '1' && c.canCloseSession) {
+    if (_env('ACP_R6_CLOSE') == '1' && c.thread.canCloseSession) {
       trace('close');
-      c.lastError = null;
-      await c.closeSession().timeout(timeout);
+      c.thread.lastError = null;
+      await c.thread.closeSession().timeout(timeout);
       steps['close'] = <String, dynamic>{
-        'sessionIdAfter': c.sessionId,
-        'closed': c.sessionClosed,
-        'canResumeNow': c.canResumeSession,
-        'canCloseNow': c.canCloseSession,
-        'error': c.lastError,
+        'sessionIdAfter': c.thread.sessionId,
+        'closed': c.thread.sessionClosed,
+        'canResumeNow': c.thread.canResumeSession,
+        'canCloseNow': c.thread.canCloseSession,
+        'error': c.thread.lastError,
       };
     }
-    if (_env('ACP_R6_RESUME') == '1' && c.canResumeSession) {
+    if (_env('ACP_R6_RESUME') == '1' && c.thread.canResumeSession) {
       trace('resume');
-      c.lastError = null;
-      final entriesBefore = c.store!.entries.length;
-      await c.resumeSession().timeout(timeout);
+      c.thread.lastError = null;
+      final entriesBefore = c.thread.store!.entries.length;
+      await c.thread.resumeSession().timeout(timeout);
       steps['resume'] = <String, dynamic>{
         'entriesBefore': entriesBefore,
-        'entriesAfter': c.store?.entries.length,
-        'noReplay': c.store?.entries.length == entriesBefore,
-        'closedAfter': c.sessionClosed,
-        'error': c.lastError,
+        'entriesAfter': c.thread.store?.entries.length,
+        'noReplay': c.thread.store?.entries.length == entriesBefore,
+        'closedAfter': c.thread.sessionClosed,
+        'error': c.thread.lastError,
       };
     }
     if (_env('ACP_R6_DELETE') == '1') {
       trace('delete');
-      c.lastError = null;
-      final onAgent = c.deletesOnAgent(sessionId);
-      await c.deleteSession(sessionId).timeout(timeout);
+      c.thread.lastError = null;
+      final onAgent = c.thread.deletesOnAgent(sessionId);
+      await c.thread.deleteSession(sessionId).timeout(timeout);
       final listedAfter = <String>[];
-      if (c.canListSessions) {
+      if (c.thread.canListSessions) {
         String? cursor;
         for (var page = 0; page < 20; page++) {
           final result = await bridge.sessionList(agentId, cwd: c.workspace.project?.path, cursor: cursor).timeout(timeout);
@@ -279,10 +279,10 @@ Future<void> runR6({required String reportPath}) async {
       }
       steps['delete'] = <String, dynamic>{
         'sentToAgent': onAgent,
-        'inSidebar': c.sidebarSessions.any((s) => s.id == sessionId),
+        'inSidebar': c.thread.sidebarSessions.any((s) => s.id == sessionId),
         'inAgentList': listedAfter.contains(sessionId),
         'agentListAfter': listedAfter,
-        'error': c.lastError,
+        'error': c.thread.lastError,
       };
     }
     watcher.detach();
@@ -291,7 +291,7 @@ Future<void> runR6({required String reportPath}) async {
   } catch (e, st) {
     report['error'] = e.toString();
     report['stack'] = st.toString();
-    report['lastError'] = controller?.lastError;
+    report['lastError'] = controller?.thread.lastError;
   }
   try {
     await controller?.shutdown();
@@ -310,16 +310,16 @@ Future<void> runR6({required String reportPath}) async {
 /// `declared` 是 agent 自己说的，`menuNow` 是这一刻 ≡ 菜单会不会渲染那一行——
 /// Resume / Close 还要看会话是死是活，两者不是一回事。
 Map<String, dynamic> _capabilitySummary(WorkbenchController c) {
-  final raw = c.connection?.agentCapabilities?['sessionCapabilities'];
+  final raw = c.thread.connection?.agentCapabilities?['sessionCapabilities'];
   final keys = raw is Map ? raw.keys.map((k) => '$k').toList() : const <String>[];
   return <String, dynamic>{
-    'loadSession': c.canLoadSession,
+    'loadSession': c.thread.canLoadSession,
     'declared': keys,
     'menuNow': <String, bool>{
-      'list': c.canListSessions,
-      'resume': c.canResumeSession,
-      'close': c.canCloseSession,
-      'delete': c.canDeleteSession,
+      'list': c.thread.canListSessions,
+      'resume': c.thread.canResumeSession,
+      'close': c.thread.canCloseSession,
+      'delete': c.thread.canDeleteSession,
     },
     'raw': raw,
   };
@@ -449,13 +449,13 @@ Future<void> runR5({required String reportPath}) async {
     // ---- 新会话（-32000 → 认证页）
     final agentId = _env('ACP_R5_AGENT') ?? install;
     if (agentId != null && (cwd != null || c.workspace.project != null)) {
-      await c.newSession(AgentRef(id: agentId, name: agentId)).timeout(timeout);
+      await c.thread.newSession(AgentRef(id: agentId, name: agentId)).timeout(timeout);
       steps['newSession'] = <String, dynamic>{
-        'sessionId': c.sessionId,
+        'sessionId': c.thread.sessionId,
         'authRequired': c.auth.agentId == agentId,
         'authMethods': <String?>[for (final m in c.auth.methods) '${m['id']}/${AuthPage.methodType(m)}'],
         'rightTab': c.shell.rightTab?.name,
-        'error': c.lastError,
+        'error': c.thread.lastError,
       };
       if (c.auth.agentId == agentId) {
         final methodId = _env('ACP_R5_AUTH_METHOD') ?? c.auth.methodId;
@@ -476,7 +476,7 @@ Future<void> runR5({required String reportPath}) async {
           'elapsedMs': DateTime.now().difference(authStarted).inMilliseconds,
           'requestScopeUrls': urls,
           'terminalId': c.auth.terminalId,
-          'sessionId': c.sessionId,
+          'sessionId': c.thread.sessionId,
           'authPageClosed': c.auth.agentId == null,
           'authStatus': c.agents.registry.byId(agentId)?.authStatus.wire,
         };
@@ -485,7 +485,7 @@ Future<void> runR5({required String reportPath}) async {
 
     // ---- 一轮（验收 1 / 2 的「一轮对话」）
     final prompt = _env('ACP_R5_PROMPT');
-    if (prompt != null && c.sessionId != null) {
+    if (prompt != null && c.thread.sessionId != null) {
       final answers = <Map<String, dynamic>>[];
       final watcher = _AutoAnswer(c, 'allow_once', answers)..attach();
       c.composer.editor.text = prompt;
@@ -530,7 +530,7 @@ Future<void> runR5({required String reportPath}) async {
   } catch (e, st) {
     report['error'] = e.toString();
     report['stack'] = st.toString();
-    report['lastError'] = controller?.lastError;
+    report['lastError'] = controller?.thread.lastError;
   }
   try {
     final file = File(reportPath);
@@ -675,7 +675,7 @@ Future<void> runR3({required String reportPath}) async {
       'branch': c.workspace.branch,
       'branches': <String>[for (final b in c.workspace.branches) b.name],
       'rulesCount': c.workspace.rulesCount,
-      'sidebarSessions': c.sidebarSessions.length,
+      'sidebarSessions': c.thread.sidebarSessions.length,
     };
 
     // ---- 项目（验收 5：切项目后新会话的 cwd 正确）
@@ -715,18 +715,18 @@ Future<void> runR3({required String reportPath}) async {
     trace('newSession');
     final agentId = _env('ACP_R3_AGENT') ?? (c.agents.installed.isEmpty ? null : c.agents.installed.first.id);
     if (agentId == null) throw StateError('settings.json 里没有 agent_servers，也没有给 ACP_R3_AGENT');
-    await c.newSession(_agentOf(agentId));
-    if (c.sessionId == null) throw StateError('新会话失败：${c.lastError}');
-    final store = c.store!;
+    await c.thread.newSession(_agentOf(agentId));
+    if (c.thread.sessionId == null) throw StateError('新会话失败：${c.thread.lastError}');
+    final store = c.thread.store!;
     steps['newSession'] = <String, dynamic>{
-      'agentId': c.agentId,
-      'sessionId': c.sessionId,
+      'agentId': c.thread.agentId,
+      'sessionId': c.thread.sessionId,
       'cwd': store.cwd,
       'cwdMatchesProject': store.cwd == c.workspace.project?.path,
-      'agentName': c.connection?.agentName,
-      'agentTitle': c.connection?.agentTitle,
-      'threadTitle': c.threadTitle,
-      'capabilities': c.connection?.capabilityNames,
+      'agentName': c.thread.connection?.agentName,
+      'agentTitle': c.thread.connection?.agentTitle,
+      'threadTitle': c.thread.threadTitle,
+      'capabilities': c.thread.connection?.capabilityNames,
       'configOptions': <String, dynamic>{
         for (final o in store.configOptions) o.id ?? '?': <String, dynamic>{'category': o.category, 'type': o.type},
       },
@@ -804,17 +804,17 @@ Future<void> runR3({required String reportPath}) async {
         },
         'killedByStopButton': killer?.killed ?? const <String>[],
         'toolCallsWithTerminal': <String, dynamic>{
-          for (final e in c.store!.entries)
+          for (final e in c.thread.store!.entries)
             if (e is ToolCallEntry && e.terminalIds.isNotEmpty) e.toolCallId: <String, dynamic>{'status': e.displayStatus.name, 'terminals': e.terminalIds.toList()},
         },
         'toolCallsWithLocations': <String, dynamic>{
-          for (final e in c.store!.entries)
+          for (final e in c.thread.store!.entries)
             if (e is ToolCallEntry && e.locations.isNotEmpty)
               e.toolCallId: <String?>[for (final l in e.locations) '${l.path}:${l.line ?? ''}'],
         },
         // 每张工具卡的 content 种类（diff 卡 = 画板 21、terminal = 22 / 23、content = 普通）与 kind。
         'toolCallContent': <String, dynamic>{
-          for (final e in c.store!.entries)
+          for (final e in c.thread.store!.entries)
             if (e is ToolCallEntry)
               e.toolCallId: <String, dynamic>{
                 'kind': e.kind.name,
@@ -835,8 +835,8 @@ Future<void> runR3({required String reportPath}) async {
       steps['afterTurn1'] = <String, dynamic>{
         'trafficLines': c.traffic.lines.length,
         'trafficDropped': c.traffic.droppedCount,
-        'agentDroppedUpdates': c.droppedUpdates,
-        'bothWarningsVisible': c.droppedUpdates > 0 && c.traffic.droppedCount > 0,
+        'agentDroppedUpdates': c.thread.droppedUpdates,
+        'bothWarningsVisible': c.thread.droppedUpdates > 0 && c.traffic.droppedCount > 0,
       };
     }
 
@@ -852,7 +852,7 @@ Future<void> runR3({required String reportPath}) async {
       steps['turn2Cancelled'] = _turnSummary(c, prompt2)
         ..['answers'] = List<Map<String, dynamic>>.of(answers)
         ..['cancelledToolCalls'] = <String>[
-          for (final e in c.store!.entries)
+          for (final e in c.thread.store!.entries)
             if (e is ToolCallEntry && e.cancelledLocally) e.toolCallId,
         ];
     }
@@ -865,7 +865,7 @@ Future<void> runR3({required String reportPath}) async {
       final tree = f.tree;
       String? located;
       int? locatedLine;
-      final store = c.store;
+      final store = c.thread.store;
       if (store != null) {
         for (final e in store.entries) {
           if (e is ToolCallEntry && e.locations.isNotEmpty && e.locations.first.path != null) {
@@ -949,7 +949,7 @@ Future<void> runR3({required String reportPath}) async {
     // ---- 杀掉 agent（验收 6：34 的 exited 条 + 重启可用；应用不崩）
     trace('kill agent');
     if (_env('ACP_R3_KILL') == '1') {
-      final pid = c.connection?.pid?.toInt();
+      final pid = c.thread.connection?.pid?.toInt();
       final kill = pid == null
           ? <String, dynamic>{'skipped': 'no pid in spawned event'}
           : await Process.run('taskkill', <String>['/F', '/T', '/PID', '$pid']).then(
@@ -957,29 +957,29 @@ Future<void> runR3({required String reportPath}) async {
             );
       // 等 exited 事件落到投影层（画板 34 的 exited 条就是它）。
       final deadline = DateTime.now().add(const Duration(seconds: 15));
-      while (c.connection?.state != AgentLifecycle.exited && DateTime.now().isBefore(deadline)) {
+      while (c.thread.connection?.state != AgentLifecycle.exited && DateTime.now().isBefore(deadline)) {
         await Future<void>.delayed(const Duration(seconds: 1));
       }
       steps['killAgent'] = <String, dynamic>{
         'taskkill': kill,
-        'state': c.connection?.state.wire,
-        'exitCode': c.connection?.exitCode,
-        'stderrTail': c.connection?.stderrTail,
-        'stderrLines': c.connection?.stderrLines.length,
+        'state': c.thread.connection?.state.wire,
+        'exitCode': c.thread.connection?.exitCode,
+        'stderrTail': c.thread.connection?.stderrTail,
+        'stderrLines': c.thread.connection?.stderrLines.length,
       };
     }
 
     // ---- 重载 agent（验收 3 / 6）
     trace('reload agent');
-    final before = c.sessionId;
-    await c.reloadAgent().timeout(timeout);
+    final before = c.thread.sessionId;
+    await c.thread.reloadAgent().timeout(timeout);
     steps['reloadAgent'] = <String, dynamic>{
       'sessionBefore': before,
-      'sessionAfter': c.sessionId,
-      'newSession': before != c.sessionId,
-      'agentState': c.connection?.state.wire,
+      'sessionAfter': c.thread.sessionId,
+      'newSession': before != c.thread.sessionId,
+      'agentState': c.thread.connection?.state.wire,
       'transcriptOfOldSessionKept': c.sessions.maybe(before ?? '')?.entries.isNotEmpty ?? false,
-      'error': c.lastError,
+      'error': c.thread.lastError,
     };
 
     // ---- 流量（验收 4）
@@ -996,19 +996,19 @@ Future<void> runR3({required String reportPath}) async {
       // 规则 8：核心侧已脱敏；这里核对一次「原始行里没有裸密钥形状」。
       'looksRedacted': !c.traffic.lines.any((l) => RegExp(r'sk-[A-Za-z0-9]{8,}').hasMatch(l.raw)),
     };
-    steps['droppedUpdates'] = c.droppedUpdates;
+    steps['droppedUpdates'] = c.thread.droppedUpdates;
 
     // ---- R4：退出收尾（验收 4：应用退出时子进程全部回收）——与关窗走同一条 `shutdown()`。
     trace('shutdown');
     await c.shutdown();
-    steps['shutdown'] = <String, dynamic>{'agentState': c.connection?.state.wire, 'terminalTabs': c.terminals.tabs.length};
+    steps['shutdown'] = <String, dynamic>{'agentState': c.thread.connection?.state.wire, 'terminalTabs': c.terminals.tabs.length};
 
     report['ok'] = true;
     exitCode = 0;
   } catch (e, st) {
     report['error'] = e.toString();
     report['stack'] = st.toString();
-    report['lastError'] = controller?.lastError;
+    report['lastError'] = controller?.thread.lastError;
   }
   try {
     final file = File(reportPath);
@@ -1021,7 +1021,7 @@ Future<void> runR3({required String reportPath}) async {
 }
 
 Map<String, dynamic> _turnSummary(WorkbenchController c, String prompt) {
-  final store = c.store!;
+  final store = c.thread.store!;
   final turns = store.entries.whereType<TurnEntry>().toList();
   final last = turns.isEmpty ? null : turns.last;
   return <String, dynamic>{
@@ -1073,7 +1073,7 @@ class _AutoAnswer {
   void detach() => c.sessions.pending.removeListener(_tick);
 
   void _tick() {
-    final store = c.store;
+    final store = c.thread.store;
     if (store == null) return;
     // requestScope 的 elicitation（无 sessionId，认证阶段）不在会话队列里：R3 没有认证页（画板 52 归 R5），
     // 但不回应 agent 会一直等，所以验收脚本这里一并代答，并在报告里标出来。
@@ -1103,7 +1103,7 @@ class _AutoAnswer {
           // 队列项不属于任何会话：直接经 PendingQueue 回应。
           final payload = c.sessions.pending.answerElicitation(e.requestId, 'accept', now: c.sessions.now);
           final bridge = c.bridge;
-          final agent = e.agentId ?? c.agentId;
+          final agent = e.agentId ?? c.thread.agentId;
           if (payload != null && bridge != null && agent != null) {
             unawaited(bridge.acpRespond(agent, e.requestId, payload));
           }
@@ -1162,7 +1162,7 @@ class _BackgroundKiller {
   }
 
   void _tick() {
-    final store = c.store;
+    final store = c.thread.store;
     if (store == null) return;
     for (final e in store.entries) {
       if (e is! ToolCallEntry || e.isFinished) continue;
