@@ -267,19 +267,21 @@ void main() {
       c.addListener(() => notified++);
 
       await c.start();
-      expect(notified, 0, reason: '启动时没有任何设置，与默认相同，不该触发重建');
+      // 扫描结果是设置页要用的状态，跟「选择有没有变」无关：哪怕四个轴都还是默认，
+      // 也必须通知一次，否则设置页停在扫描前的「本机未找到」（所有者手测 2026-09-20 报障）。
+      expect(notified, 1, reason: 'start() 扫完必须通知一次');
 
       await c.setAxis(FontAxis.uiCjk, 'MiSans');
-      expect(notified, 1);
+      expect(notified, 2);
       expect(c.prefs.resolved(FontAxis.uiCjk), 'MiSans');
       expect(t.TextStyles.body.fontFamilyFallback!.first, 'MiSans');
 
       // 同一个值再设一次不重建。
       await c.setAxis(FontAxis.uiCjk, 'MiSans');
-      expect(notified, 1);
+      expect(notified, 2);
 
       await c.resetAll();
-      expect(notified, 2);
+      expect(notified, 3);
       expect(t.TextStyles.body.fontFamilyFallback!.first, t.Fonts.defaultCjk);
     });
   });

@@ -434,7 +434,12 @@ class FontPrefsController extends ChangeNotifier {
       }
     }
     if (_disposed) return;
-    _applyLocally(loaded, notify: true);
+    _applyLocally(loaded, notify: false);
+    // 扫描结果（哪些可选字体本机有）本身就是设置页要用的状态，**与「字体选择有没有变」无关**。
+    // 没存过设置时 `Fonts.apply` 返回 false，若沿用 `_applyLocally` 的「变了才通知」，
+    // 设置页就会一直停在扫描之前的「本机未找到」——所有者手测 2026-09-20 报的正是这个。
+    // 启动只发这一次，代价可以忽略。
+    notifyListeners();
   }
 
   /// 改一个轴：立即生效 + 落盘。落盘失败不回滚（界面已经变了，下次启动回到旧值即可），只报错。
