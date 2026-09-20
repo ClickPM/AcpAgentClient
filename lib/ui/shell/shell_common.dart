@@ -40,6 +40,7 @@ class AgentMark extends StatelessWidget {
         icon,
         width: t.IconSizes.base,
         height: t.IconSizes.base,
+        theme: t.SvgTint.mark,
         errorBuilder: (_, _, _) => _placeholder(),
       );
     }

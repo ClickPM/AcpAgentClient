@@ -4,6 +4,7 @@
 // 用法：import 'package:acp_agent_client/theme/tokens.dart' as t;  →  t.Accent.base、t.TextStyles.body。
 
 import 'package:flutter/widgets.dart';
+import 'package:flutter_svg/flutter_svg.dart' show SvgTheme;
 
 /// 主题两档（画板 07「深色 Token 对位表」）。深色**只换颜色**：间距 / 圆角 / 字阶 / 控件高度 /
 /// 动效时长与浅色完全相同，所以只有颜色这一层分两套，其余 token 一份。
@@ -592,6 +593,20 @@ abstract final class IconSizes {
   static const double base = 16;
   static const double toolbar = 14;
   static const double stroke = 1.5;
+}
+
+/// 外来 SVG（registry 缓存的 `icon.svg` 与内置条目随包带的那两张）的取色。
+///
+/// 这些图标一律是单色的 `fill="currentColor"`（ACP registry 的约定，本机缓存的 41 张无一例外，
+/// `rust/acp-core/assets/` 的两张同样如此），取什么色由宿主定。**不给 [SvgTheme] 的话
+/// flutter_svg 把 `currentColor` 当纯黑**（`SvgTheme.currentColor` 缺省 `Color.opaqueBlack`），
+/// 于是深色主题下这些标记是黑底上的黑——所以这里给它一个随主题走的取值。
+///
+/// 不能用 `colorFilter`：那是把整张图压成一色，会连 `fill="none"` 的镂空一起填掉。
+abstract final class SvgTint {
+  /// agent 标记（画板 01–04 的会话项 / 会话头、41 的 agent 列表、50 / 51 / 70 的图标框、
+  /// 转录区空态的大图标位）。与应用自己的标记（`AppLogo`）同一档中性色。
+  static SvgTheme get mark => SvgTheme(currentColor: Neutral.strong);
 }
 
 /// kbd：mono 11 · 边框 1 [Borders.base] · radius 3 · 0 4px · line-height 16。

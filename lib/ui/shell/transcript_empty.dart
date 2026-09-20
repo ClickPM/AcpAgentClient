@@ -59,6 +59,7 @@ class NewSessionEmpty extends StatelessWidget {
       icon,
       width: t.Controls.input,
       height: t.Controls.input,
+      theme: t.SvgTint.mark,
       errorBuilder: (_, _, _) => _placeholder(),
     );
   }

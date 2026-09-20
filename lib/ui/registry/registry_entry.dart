@@ -30,7 +30,8 @@ class AgentIconBox extends StatelessWidget {
       alignment: Alignment.center,
       child: icon == null || icon.isEmpty
           ? const _Diamond()
-          : SvgPicture.string(icon, width: t.IconSizes.base, height: t.IconSizes.base, errorBuilder: (_, _, _) => const _Diamond()),
+          : SvgPicture.string(icon, width: t.IconSizes.base, height: t.IconSizes.base, theme: t.SvgTint.mark,
+              errorBuilder: (_, _, _) => const _Diamond()),
     );
   }
 }
