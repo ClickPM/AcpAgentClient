@@ -110,7 +110,7 @@ Future<void> runR6({required String reportPath}) async {
     if (prompt1 != null) {
       trace('turn1');
       c.composer.editor.text = prompt1;
-      await c.send().timeout(timeout);
+      await c.turn.send().timeout(timeout);
       steps['turn1'] = _turnSummary(c, prompt1)..['answers'] = List<Map<String, dynamic>>.of(answers);
     }
 
@@ -118,14 +118,14 @@ Future<void> runR6({required String reportPath}) async {
     final mode = _env('ACP_R6_MODE');
     if (mode != null) {
       trace('setMode');
-      final option = c.optionOf('mode');
-      if (option != null) await c.selectConfigValue(option.id ?? '', mode).timeout(timeout);
+      final option = c.turn.optionOf('mode');
+      if (option != null) await c.turn.selectConfigValue(option.id ?? '', mode).timeout(timeout);
       steps['setMode'] = <String, dynamic>{
         'requested': mode,
         'via': option?.id == SessionStore.modeFallbackId ? 'session/set_mode（modes 回退）' : 'session/set_config_option',
         'currentModeId': c.store?.currentModeId,
         'dropdown': _modeDropdownSummary(c),
-        'error': c.lastError,
+        'error': c.turn.lastError,
       };
     }
 
@@ -211,7 +211,7 @@ Future<void> runR6({required String reportPath}) async {
     if (prompt2 != null && c.sessionId != null) {
       trace('turn2');
       c.composer.editor.text = prompt2;
-      await c.send().timeout(timeout);
+      await c.turn.send().timeout(timeout);
       steps['turn2AfterLoad'] = _turnSummary(c, prompt2)..['answers'] = List<Map<String, dynamic>>.of(answers);
     }
 
@@ -222,8 +222,8 @@ Future<void> runR6({required String reportPath}) async {
       trace('cancel');
       c.lastError = null;
       c.composer.editor.text = prompt3;
-      Timer(Duration(seconds: cancelAfter), () => c.cancel());
-      await c.send().timeout(timeout);
+      Timer(Duration(seconds: cancelAfter), () => c.turn.cancel());
+      await c.turn.send().timeout(timeout);
       steps['cancelledTurn'] = _turnSummary(c, prompt3)
         ..['cancelAfterSeconds'] = cancelAfter
         ..['cancelledToolCalls'] = <String>[
@@ -327,7 +327,7 @@ Map<String, dynamic> _capabilitySummary(WorkbenchController c) {
 
 /// 模式下拉：走 configOptions 还是 modes 回退，当前值与候选。
 Map<String, dynamic> _modeDropdownSummary(WorkbenchController c) {
-  final option = c.optionOf('mode');
+  final option = c.turn.optionOf('mode');
   return <String, dynamic>{
     'id': option?.id,
     'source': option == null
@@ -489,7 +489,7 @@ Future<void> runR5({required String reportPath}) async {
       final answers = <Map<String, dynamic>>[];
       final watcher = _AutoAnswer(c, 'allow_once', answers)..attach();
       c.composer.editor.text = prompt;
-      await c.send().timeout(timeout);
+      await c.turn.send().timeout(timeout);
       watcher.detach();
       steps['turn'] = _turnSummary(c, prompt)..['answers'] = answers;
     }
@@ -739,9 +739,9 @@ Future<void> runR3({required String reportPath}) async {
           },
       },
       'commands': <String?>[for (final x in store.commands) x.name],
-      'modelDropdown': c.optionOf('model')?.id,
-      'thoughtDropdown': c.optionOf('thought_level')?.id,
-      'modeDropdown': c.optionOf('mode')?.id,
+      'modelDropdown': c.turn.optionOf('model')?.id,
+      'thoughtDropdown': c.turn.optionOf('thought_level')?.id,
+      'modeDropdown': c.turn.optionOf('mode')?.id,
     };
 
     // ---- config option（验收 3 末：改一个 config option 后弹层与线程头同步刷新）
@@ -760,7 +760,7 @@ Future<void> runR3({required String reportPath}) async {
         } on FormatException {
           decoded = raw;
         }
-        await (decoded is bool ? c.toggleConfigBoolean(id, decoded) : c.selectConfigValue(id, '$decoded'));
+        await (decoded is bool ? c.turn.toggleConfigBoolean(id, decoded) : c.turn.selectConfigValue(id, '$decoded'));
         applied[id] = <String, dynamic>{
           'requested': decoded,
           'afterwards': <String, dynamic>{
@@ -785,7 +785,7 @@ Future<void> runR3({required String reportPath}) async {
     final prompt1 = _env('ACP_R3_PROMPT');
     if (prompt1 != null) {
       c.composer.editor.text = prompt1;
-      await c.send().timeout(timeout);
+      await c.turn.send().timeout(timeout);
       killer?.detach();
       steps['turn1'] = _turnSummary(c, prompt1)..['answers'] = List<Map<String, dynamic>>.of(answers);
       // R4：终端卡（terminal/create 路径与 _meta 通道共用一份缓冲）、停止方块、fs 回调落地的文件、Follow 的落点。
@@ -846,8 +846,8 @@ Future<void> runR3({required String reportPath}) async {
     if (prompt2 != null) {
       answers.clear();
       c.composer.editor.text = prompt2;
-      final turn = c.send();
-      Timer(Duration(seconds: _envInt('ACP_R3_CANCEL_AFTER', 4)), () => c.cancel());
+      final turn = c.turn.send();
+      Timer(Duration(seconds: _envInt('ACP_R3_CANCEL_AFTER', 4)), () => c.turn.cancel());
       await turn.timeout(timeout);
       steps['turn2Cancelled'] = _turnSummary(c, prompt2)
         ..['answers'] = List<Map<String, dynamic>>.of(answers)
@@ -1089,7 +1089,7 @@ class _AutoAnswer {
           'options': <String?>[for (final o in e.options) '${o.optionId}/${o.kind}'],
           'answered': option,
         });
-        if (option != null) unawaited(c.answerPermission(e.requestId, option));
+        if (option != null) unawaited(c.turn.answerPermission(e.requestId, option));
       } else if (e is ElicitationEntry && _done.add(e)) {
         log.add(<String, dynamic>{
           'kind': 'elicitation',
@@ -1108,7 +1108,7 @@ class _AutoAnswer {
             unawaited(bridge.acpRespond(agent, e.requestId, payload));
           }
         } else {
-          unawaited(c.answerElicitation(e.requestId, 'accept', e.wire.isUrl ? null : <String, dynamic>{}));
+          unawaited(c.turn.answerElicitation(e.requestId, 'accept', e.wire.isUrl ? null : <String, dynamic>{}));
         }
       }
     }
@@ -1172,7 +1172,7 @@ class _BackgroundKiller {
         _timers[id] = Timer(delay, () {
           if (store.terminals[id]?.exited ?? true) return;
           killed.add(id);
-          unawaited(c.killTerminal(id));
+          unawaited(c.turn.killTerminal(id));
         });
       }
     }

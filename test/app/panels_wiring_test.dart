@@ -301,7 +301,7 @@ void main() {
         'status': 'in_progress',
         'content': <JsonMap>[<String, dynamic>{'type': 'terminal', 'terminalId': 'term_agent'}],
       });
-      await c.killTerminal('term_agent');
+      await c.turn.killTerminal('term_agent');
       expect(core.killedTerminals, <String>['term_agent']);
       expect(store.terminals['term_agent']!.killed, isTrue);
 
@@ -373,8 +373,8 @@ void main() {
         'status': 'in_progress',
         'content': <JsonMap>[<String, dynamic>{'type': 'terminal', 'terminalId': 'toolu_1'}],
       });
-      await c.killTerminal('toolu_1');
-      expect(c.lastError, isNull);
+      await c.turn.killTerminal('toolu_1');
+      expect(c.turn.lastError, isNull);
       // 没有 `_meta.terminal_output` 到达前缓冲都不存在；有也不该被标 killed。
       expect(store.terminals['toolu_1']?.killed ?? false, isFalse);
       c.dispose();

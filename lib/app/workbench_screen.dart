@@ -174,7 +174,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   Future<void> _send() {
     _stick = true;
     _scheduleFollow();
-    return c.send();
+    return c.turn.send();
   }
 
   @override
@@ -428,12 +428,12 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
               onLink: _openLink,
               // 画板 18 的 Go to File 与 21 的行点击：落右栏文件面板并定位到行。
               onGoToFile: (path, line) => c.shell.goToFile(path, line: line),
-              onRestore: (message) => c.restore(message),
-              onRegenerate: (message, text) => c.restore(message, newText: text),
-              onAnswerPermission: c.answerPermission,
-              onAnswerElicitation: c.answerElicitation,
+              onRestore: (message) => c.turn.restore(message),
+              onRegenerate: (message, text) => c.turn.restore(message, newText: text),
+              onAnswerPermission: c.turn.answerPermission,
+              onAnswerElicitation: c.turn.answerElicitation,
               // 画板 23 的停止方块：terminal_kill。
-              onKillTerminal: c.killTerminal,
+              onKillTerminal: c.turn.killTerminal,
             ),
           ),
         ],
@@ -479,7 +479,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
 
   Widget _composer() {
     final store = c.store;
-    final pending = c.firstPending;
+    final pending = c.turn.firstPending;
     final plan = _activePlan();
     return Composer(
       key: _composerArea,
@@ -492,12 +492,12 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       usage: store?.usage,
       // 会话配置格（画板 40）：一条 configOption 一格，顺序 = 控制器的固定档序；boolean 就地开关。
       options: <ComposerOption>[
-        for (final o in c.composerOptions)
+        for (final o in c.turn.composerOptions)
           if (o.type == 'boolean')
             ComposerOption(
               label: o.name ?? o.id ?? '',
               on: o.currentValue == true,
-              onToggle: () => c.toggleConfigBoolean(o.id ?? '', o.currentValue != true),
+              onToggle: () => c.turn.toggleConfigBoolean(o.id ?? '', o.currentValue != true),
             )
           else
             ComposerOption(
@@ -526,7 +526,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       ],
       onChanged: c.composer.onChanged,
       onSend: _send,
-      onStop: c.cancel,
+      onStop: c.turn.cancel,
       onPlus: _openPlusPopover,
       onFollow: _toggleFollow,
       followOn: c.shell.follow,
@@ -555,7 +555,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
 
   /// 按 configOption 的 id 开那一格的 select 弹层（画板 40）：模型那格带搜索框与行首图标占位，其余都是窄弹层。
   void _openSelectPopover(String id) {
-    final option = c.optionById(id);
+    final option = c.turn.optionById(id);
     if (option == null) return;
     final searchable = option.category == 'model';
     c.composer.hideConfigPopovers();
@@ -563,7 +563,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
           listenable: c,
           builder: (context, _) {
             // `set_config_option` 的响应是全量替换，所以每次 rebuild 都按 id 重新取当前那一份。
-            final current = c.optionById(id);
+            final current = c.turn.optionById(id);
             if (current == null) return const SizedBox.shrink();
             return ConfigSelectPopover(
               option: current,
@@ -574,7 +574,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
               showLeadingMark: searchable,
               width: searchable ? t.Geometry.menuWidthWide : t.Geometry.menuWidthNarrow,
               onQueryChanged: (_) => c.refresh(),
-              onSelect: (value) => c.selectConfigValue(current.id ?? '', value),
+              onSelect: (value) => c.turn.selectConfigValue(current.id ?? '', value),
             );
           },
         ));
@@ -633,7 +633,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
 
   void _addThread() {
     c.composer.plusAnchor.hide();
-    final text = c.transcriptText();
+    final text = c.turn.transcriptText();
     if (text.isEmpty) return;
     c.composer.addEmbeddedResource('acp-thread:${c.sessionId}', text, mimeType: 'text/plain');
   }

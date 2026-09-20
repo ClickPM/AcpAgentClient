@@ -277,13 +277,13 @@ void main() {
     await c.closeSession();
 
     c.composer.editor.text = '还想说点什么';
-    await c.send();
-    await c.restore(bubble);
-    await c.restore(bubble, newText: '换个说法');
-    await c.selectConfigValue('model', 'gpt');
-    await c.toggleConfigBoolean('auto_approve', true);
-    await c.setMode('code');
-    await c.cancel();
+    await c.turn.send();
+    await c.turn.restore(bubble);
+    await c.turn.restore(bubble, newText: '换个说法');
+    await c.turn.selectConfigValue('model', 'gpt');
+    await c.turn.toggleConfigBoolean('auto_approve', true);
+    await c.turn.setMode('code');
+    await c.turn.cancel();
 
     // 逐个命令面分别断言：只看 `lastError` 会假通过（`send()` 先跑就已经把它写成同一句，
     // 审查第 3 轮 P3）。
@@ -292,7 +292,7 @@ void main() {
     expect(core.modeCalls, isEmpty, reason: '模式下拉不该发 session/set_mode');
     expect(core.cancels, 0, reason: '停止方块不该把 session/cancel 打到已释放的会话上');
     expect(store.entries, hasLength(entriesBefore), reason: 'Restore 不能把本地转录截断了却发不出去');
-    expect(c.lastError, contains('已经关闭'));
+    expect(c.turn.lastError, contains('已经关闭'));
     c.dispose();
   });
 
@@ -302,11 +302,11 @@ void main() {
     final store = c.sessions.session(_session, agentId: _agent)..cwd = _cwd;
 
     c.composer.editor.text = '正常发一条';
-    await c.send();
-    await c.selectConfigValue('model', 'gpt');
-    await c.setMode('code');
+    await c.turn.send();
+    await c.turn.selectConfigValue('model', 'gpt');
+    await c.turn.setMode('code');
     store.startTurn(const <ContentBlockWire>[]);
-    await c.cancel();
+    await c.turn.cancel();
 
     expect(core.prompts, hasLength(1));
     expect(core.configOptionCalls.map((e) => e.$1), <String>['model']);
@@ -513,13 +513,13 @@ void main() {
         ],
       },
     });
-    final option = c.optionOf('mode')!;
+    final option = c.turn.optionOf('mode')!;
     expect(option.id, SessionStore.modeFallbackId);
 
-    await c.selectConfigValue(option.id!, 'code');
+    await c.turn.selectConfigValue(option.id!, 'code');
 
     expect(store.currentModeId, 'code');
-    expect(c.optionOf('mode')!.currentValue, 'code');
+    expect(c.turn.optionOf('mode')!.currentValue, 'code');
     c.dispose();
   });
 

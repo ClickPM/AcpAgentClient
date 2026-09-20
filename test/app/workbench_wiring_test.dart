@@ -138,7 +138,7 @@ void main() {
     final store = c.sessions.session(_session);
     expect(store.pending.forSession(_session).length, 2, reason: '两条都还挂着');
 
-    await c.restore(bubble);
+    await c.turn.restore(bubble);
 
     final byId = <String, JsonMap>{for (final r in core.responded) r.$1: r.$2};
     expect(byId.keys.toSet(), <String>{'req_perm', 'req_elic'}, reason: '一条都不能漏，否则 agent 挂起');
@@ -154,7 +154,7 @@ void main() {
 
   test('Regenerate 用新文本重发，同样先回应被截断的挂起请求', () async {
     final (c, core, bubble) = _scenario(running: false);
-    await c.restore(bubble, newText: '改过的提示');
+    await c.turn.restore(bubble, newText: '改过的提示');
 
     expect(core.responded.length, 2);
     expect(core.prompts.single.length, 1);
@@ -180,7 +180,7 @@ void main() {
     expect(store.entries.whereType<TurnEntry>(), isEmpty, reason: '轮边界回不来（docs/design.md § 3）');
     final bubbles = store.entries.whereType<MessageEntry>().where((m) => m.role == MessageRole.user).toList();
 
-    await c.restore(bubbles.last, newText: '改过的第二句');
+    await c.turn.restore(bubbles.last, newText: '改过的第二句');
 
     expect(core.prompts.single.length, 1, reason: '点了要真发出去，不能是死键');
     expect((core.prompts.single.single as JsonMap)['text'], '改过的第二句');
@@ -201,7 +201,7 @@ void main() {
       'content': <String, dynamic>{'type': 'text', 'text': '原样这句'},
     });
 
-    await c.restore(store.entries.whereType<MessageEntry>().single);
+    await c.turn.restore(store.entries.whereType<MessageEntry>().single);
 
     expect((core.prompts.single.single as JsonMap)['text'], '原样这句');
     c.dispose();
@@ -212,7 +212,7 @@ void main() {
     final store = c.sessions.session(_session);
     expect(store.isRunning, isTrue);
 
-    await c.restore(bubble);
+    await c.turn.restore(bubble);
 
     final byId = <String, JsonMap>{for (final r in core.responded) r.$1: r.$2};
     expect(core.cancels, 1, reason: '先把在途那一轮收掉');
@@ -224,7 +224,7 @@ void main() {
 
   test('session/cancel：权限交给核心，elicitation 前端必须自己回 cancel（审查 finding high）', () async {
     final (c, core, _) = _scenario();
-    await c.cancel();
+    await c.turn.cancel();
 
     expect(core.cancels, 1);
     // 权限请求由核心 session_cancel 自动回 cancelled，前端再回一遍会撞 unknown_request。
@@ -243,12 +243,12 @@ void main() {
       ..sessionId = _session;
     final store = c.sessions.session(_session, agentId: _agent);
     c.composer.editor.text = '第一轮';
-    final sending = c.send();
+    final sending = c.turn.send();
     expect(store.isRunning, isTrue);
     final bubble = store.entries.whereType<MessageEntry>().first;
 
     // 第一轮还没返回就点 Restore。
-    final restoring = c.restore(bubble, newText: '改过的提示');
+    final restoring = c.turn.restore(bubble, newText: '改过的提示');
     core.release();
     await Future.wait(<Future<void>>[sending, restoring]);
 
@@ -269,7 +269,7 @@ void main() {
     final store = c.sessions.session(_session, agentId: _agent);
     c.composer.editor.text = '会失败的一轮';
 
-    await c.send();
+    await c.turn.send();
 
     expect(store.isRunning, isFalse, reason: 'currentTurn 不收，停止键与 spinner 就永远去不掉');
     final turn = store.entries.whereType<TurnEntry>().single;
@@ -277,7 +277,7 @@ void main() {
     expect(turn.stopReason, isNull, reason: '连接断了没有协议给的结束值，不编一个');
     expect(turn.error, contains('not_connected'),
         reason: '原因必须落在轮上：lastError 界面上没人读，只记它等于什么都没说（2026-09-18）');
-    expect(c.lastError, contains('not_connected'));
+    expect(c.turn.lastError, contains('not_connected'));
     c.dispose();
   });
 
@@ -311,7 +311,7 @@ void main() {
     expect(c.composerPlaceholder, 'Message to Zed Agent , @ to include context , / for commands');
 
     c.composer.editor.text = '第一条';
-    await c.send();
+    await c.turn.send();
 
     expect(c.sessionId, 'sess_fake', reason: '第一条消息把会话现开出来');
     expect(core.prompts.single.length, 1);
@@ -330,7 +330,7 @@ void main() {
     expect(c.composerPlaceholder, '先选一个项目目录，新会话的 cwd 从它来');
 
     c.composer.editor.text = '发不出去';
-    await c.send();
+    await c.turn.send();
     expect(c.sessionId, isNull);
     expect(core.prompts, isEmpty);
     expect(c.composer.editor.text, '发不出去', reason: '没发出去就不能把输入清掉');
@@ -402,8 +402,8 @@ void main() {
 
   test('权限与 elicitation 的回应载荷原样来自投影层', () async {
     final (c, core, _) = _scenario();
-    await c.answerPermission('req_perm', 'ok');
-    await c.answerElicitation('req_elic', 'accept', <String, dynamic>{'env': 'dev'});
+    await c.turn.answerPermission('req_perm', 'ok');
+    await c.turn.answerElicitation('req_elic', 'accept', <String, dynamic>{'env': 'dev'});
 
     final byId = <String, JsonMap>{for (final r in core.responded) r.$1: r.$2};
     expect(byId['req_perm'], <String, dynamic>{

@@ -38,6 +38,7 @@ import 'auth_state.dart';
 import 'paths.dart';
 import 'session_index.dart';
 import 'shell_state.dart';
+import 'turn_controller.dart';
 import 'workspace_state.dart';
 
 enum DataSource {
@@ -49,7 +50,7 @@ enum DataSource {
       const String.fromEnvironment('DATA_SOURCE') == 'fixtures' ? DataSource.fixtures : DataSource.bridge;
 }
 
-class WorkbenchController extends ChangeNotifier with GuardedNotifier {
+class WorkbenchController extends ChangeNotifier with GuardedNotifier implements ThreadPort {
   WorkbenchController({required this.source, this.bridge, FlushScheduler? scheduler})
       : _scheduler = scheduler ?? _scheduleOnFrame {
     shell.addListener(notifyListeners);
@@ -57,6 +58,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     agents.addListener(notifyListeners);
     auth.addListener(notifyListeners);
     composer.addListener(notifyListeners);
+    turn.addListener(notifyListeners);
   }
 
   final DataSource source;
@@ -74,6 +76,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   // ---- 本地态（协议之外）
   List<SidebarSession> sidebarSessions = const <SidebarSession>[];
 
+  @override
   String? agentId;
   String? sessionId;
 
@@ -110,7 +113,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     onWorkbenchShown: () {
       // 从流量页回到工作台，当前那条会话就又在眼前了：它的绿点一并撤掉（画板 06 的清除条件）。
       final id = sessionId;
-      if (id != null) _clearUnread(id);
+      if (id != null) clearUnread(id);
     },
   );
 
@@ -138,6 +141,10 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     canCompose: () => canCompose,
     canPromptImage: () => canPromptImage,
   );
+
+  // ---- 一轮对话（R7.5 拆出）：发送 / 取消 / 回应 / Restore、会话配置、停止方块、本地转录文本。
+  // 它读当前线程走 ThreadPort（第 7 步由本类实现，第 8 步换成 ThreadController 本体）。
+  late final TurnController turn = TurnController(bridge: bridge, thread: this, composer: composer);
 
   // ---- 已装 agent 列表、registry 面板（画板 50 / 51）与设置面板（画板 70）（R7.5 拆出）
   late final AgentsState agents = AgentsState(
@@ -177,7 +184,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
         await _createSession(agent, cwd);
       } else {
         _adoptSession(agent, cwd, session);
-        await _saveIndex();
+        await saveIndex();
       }
     },
   );
@@ -199,6 +206,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
 
   // ---------------------------------------------------------------- 派生
 
+  @override
   SessionStore? get store => sessionId == null ? null : sessions.maybe(sessionId!);
   AgentConnection? get connection => agentId == null ? null : sessions.agents[agentId!];
 
@@ -263,7 +271,8 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   ///
   /// 「正在看着的那条」不点：它当场就满足画板 06 的清除条件。**偏离**：画板写的是「切入该会话，或它已是当前会话
   /// 且窗口聚焦」，这里没有窗口聚焦这一维（宿主没给这个信号），按「当前会话 + 停在工作台页」判。
-  void _markDone(String id, String? stopReason) {
+  @override
+  void markDone(String id, String? stopReason) {
     if (stopReason == null || stopReason == 'cancelled' || stopReason == 'refusal') return;
     if (_isViewing(id)) return;
     _unreadDone.add(id);
@@ -272,60 +281,8 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   bool _isViewing(String id) => shell.page == MainPage.workbench && sessionId == id;
 
   /// 该会话被查看 / 被删 / 又开了新一轮：绿点撤掉（运行中与绿点严格互斥）。
-  void _clearUnread(String id) => _unreadDone.remove(id);
-
-  ConfigOptionWire? optionOf(String category) {
-    for (final o in store?.configOptions ?? const <ConfigOptionWire>[]) {
-      if (o.category == category) return o;
-    }
-    // modes 回退（R6）：只发 modes / `current_mode_update`、不发 configOptions 的 agent，
-    // 模式下拉用 `SessionStore.modeFallbackOption` 合成的那条；两者都有时上面的循环已经命中，走不到这里。
-    if (category == 'mode') return store?.modeFallbackOption;
-    return null;
-  }
-
-  /// 输入框右下的固定档序（所有者裁定 2026-09-18）：`mode → model → model_config → thought_level → 其余`，
-  /// 档内保持 agent 给的数组顺序、同一档可以有多条。ACP 的 category 是开放集合（schema：
-  /// `Mode | Model | ModelConfig | ThoughtLevel | Other(String)`，字段本身还可缺省，`_` 开头的是 agent 自定义），
-  /// 所以匹配不上的一律排进最后一档、一条一格，不丢条目（spec v1 session-config-options：
-  /// 「Clients MUST handle missing or unknown categories gracefully」）。boolean 型也在这条列表里，就地渲染成开关。
-  /// 与 Zed 的差别只在顺序：Zed 照 agent 给的数组顺序排，我们按档序排（换 agent 时输入框的位置稳定）。
-  static const List<String> _categoryOrder = <String>['mode', 'model', 'model_config', 'thought_level'];
-
-  List<ConfigOptionWire> get composerOptions {
-    final all = store?.configOptions ?? const <ConfigOptionWire>[];
-    final ordered = <ConfigOptionWire>[];
-    for (final category in _categoryOrder) {
-      // modes 回退（R6）：没有 `category == 'mode'` 的 configOption 时才合成，排在 mode 档的头一格。
-      if (category == 'mode') {
-        final fallback = store?.modeFallbackOption;
-        if (fallback != null) ordered.add(fallback);
-      }
-      for (final o in all) {
-        if (o.category == category) ordered.add(o);
-      }
-    }
-    for (final o in all) {
-      if (!_categoryOrder.contains(o.category)) ordered.add(o);
-    }
-    return ordered;
-  }
-
-  /// 按 id 取当前那一份（弹层要在每次 rebuild 时重新读，`set_config_option` 的响应是全量替换）。
-  ConfigOptionWire? optionById(String id) {
-    for (final o in composerOptions) {
-      if (o.id == id) return o;
-    }
-    return null;
-  }
-
-  /// 挂起队列的首项（画板 26 的停靠条）。
-  TranscriptEntry? get firstPending {
-    final s = store;
-    if (s == null) return null;
-    final list = s.pending.forSession(s.sessionId);
-    return list.isEmpty ? null : list.first;
-  }
+  @override
+  void clearUnread(String id) => _unreadDone.remove(id);
 
   /// 画板 34 要显示的连接状态条：initialized 与 none 不出条（那是常态，不是告警）。
   bool get showAgentStateBar {
@@ -477,6 +434,8 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     auth.dispose();
     composer.removeListener(notifyListeners);
     composer.dispose();
+    turn.removeListener(notifyListeners);
+    turn.dispose();
     super.dispose();
   }
 
@@ -499,6 +458,10 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     if (current != null && installed.contains(current)) return; // 已经选好且还装着：不动它
     agentId = index.lastUsedAgentId(installed) ?? (agents.installed.isEmpty ? null : agents.installed.first.id);
   }
+
+  /// 已安装列表里的这一条，不在列表里就按 id 造一条（`send` 现开会话时给 [newSession] 用）。
+  @override
+  AgentRef agentRefOf(String id) => agents.installedRef(id) ?? AgentRef(id: id, name: id);
 
   /// 本地索引变了 / registry 变了（图标）：侧栏项重投影一次。不通知，调用方收尾时 `touch`。
   void _refreshSidebar() {
@@ -570,6 +533,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   /// Resume 与 Close 还要看会话是不是还「活着」——实测 dsh-acp-interactive 1.3.0 对活着的会话回
   /// `-32602 session is already active in this ACP connection`（2026-09-16）：`session/resume` 是给**没在本连接上活着**的
   /// 会话重新挂上下文用的，所以只在 `session/close` 之后给；反过来 Close 只对还活着的给。
+  @override
   bool get sessionClosed => sessionId != null && _closedSessions.contains(sessionId);
   bool get canResumeSession => hasSession && sessionClosed && _sessionCaps.containsKey('resume');
   bool get canCloseSession => hasSession && !sessionClosed && _sessionCaps.containsKey('close');
@@ -598,6 +562,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
 
   // ---------------------------------------------------------------- 会话
 
+  @override
   Future<void> newSession(AgentRef agent) async {
     hidePopover(newSessionAnchor);
     // 重入守卫（发布前审查 P2，2026-09-18）：等待期里线程头的 `+` 仍可点（`IgnorePointer` 只包住 `_body()`），
@@ -661,7 +626,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       // 核心按 session/new 的结果回写了认证状态（已登录 / 需要认证），面板上的徽章跟着刷（画板 50 / 51 / 70）。
       unawaited(agents.refreshRegistry());
     }
-    await _saveIndex();
+    await saveIndex();
   }
 
   /// `agent_connect` + 把返回的 `initialize` 立刻落进 agent 状态表。
@@ -750,7 +715,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     sessionId = id;
     agentId = _sessionAgent[id] ?? agentId;
     // 切进来就算「被查看」：绿点淡出（画板 06 B ④）。
-    _clearUnread(id);
+    clearUnread(id);
     touch();
     await _ensureLoaded(id);
   }
@@ -962,7 +927,8 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
 
   /// 当前会话写进本地索引（`sessions.json`）：收轮刷消息计数、新会话登记、发消息时打 `updatedAt`
   /// （口径见 [SessionIndex.upsert]）。没有当前会话就什么都不做。
-  Future<void> _saveIndex({bool promptSent = false}) async {
+  @override
+  Future<void> saveIndex({bool promptSent = false}) async {
     final s = store;
     if (s == null) return;
     await index.upsert(s, agentFallback: agentId ?? '', titleFallback: threadTitle, promptSent: promptSent);
@@ -971,11 +937,12 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   /// 用户发出一条消息（发送 / Restore / Regenerate）：把索引的 `updatedAt` 打成现在，侧栏这条立刻升到最上面。
   /// **不 await**：`startTurn` 与 `_runTurn` 之间不能有异步间隙，否则这段里 `isRunning` 已是 true 而
   /// `_turnInFlight` 还是 null，Restore / cancel 等不到在途那一轮就会重叠两个 `session/prompt`
-  /// （审查 finding high，2026-09-15）。先后由 [SessionIndex] 本地记的发消息时间兜住：收轮那次 [_saveIndex] 不靠这条命令回没回来，
+  /// （审查 finding high，2026-09-15）。先后由 [SessionIndex] 本地记的发消息时间兜住：收轮那次 [saveIndex] 不靠这条命令回没回来，
   /// 本地记的那份时间总在。写不动只记日志不挡发送——索引是可再生缓存（`rust/settings/src/index.rs`），发送才是正事。
-  Future<void> _stampPromptSent() async {
+  @override
+  Future<void> stampPromptSent() async {
     try {
-      await _saveIndex(promptSent: true);
+      await saveIndex(promptSent: true);
     } catch (e) {
       debugPrint('[workbench] session index: ${describeError(e)}');
     }
@@ -1005,7 +972,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       touch();
       return;
     }
-    // 线程头显示的是 store 的标题，改完要跟着变；不写回去的话 [_saveIndex] 收轮时还会拿旧标题把索引盖回去。
+    // 线程头显示的是 store 的标题，改完要跟着变；不写回去的话 [saveIndex] 收轮时还会拿旧标题把索引盖回去。
     // agent 之后再发 `session_info_update.title` 仍然照单全收（规则 2），改名只管到那时候。
     sessions.maybe(id)?.title = title.trim();
     await guard(() async {
@@ -1087,255 +1054,11 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       _deletedOnAgent.remove(id);
       _sessionAgent.remove(id);
       index.forgetPromptSent(id);
-      _clearUnread(id);
+      clearUnread(id);
       sessions.forget(id);
       if (sessionId == id) sessionId = null;
     });
     touch();
-  }
-
-  // ---------------------------------------------------------------- 一轮对话
-
-  /// `session/close` 之后这条会话是**只读**的：所有会往它发命令的入口共用这一道门
-  /// （prompt / Restore / Regenerate / 三个下拉；审查第 2 轮 P2：第 1 轮只挡住了 `send()`）。
-  bool _blockedByClose() {
-    if (!sessionClosed) return false;
-    lastError = '这个会话已经关闭；用 ≡ 菜单的 Resume 挂回来，或新建一个会话';
-    touch();
-    return true;
-  }
-
-  /// 「选了 agent 但还没有会话」时，第一条消息现开一条：在途期间挡住重复点发送。
-  bool _startingSession = false;
-
-  Future<void> send() async {
-    final b = bridge;
-    final id = agentId;
-    if (b == null || id == null) return;
-    if (composer.editor.text.trim().isEmpty && composer.pendingBlocks.isEmpty) return; // 空输入不开会话
-    // 启动后的画板 01 状态 1：agent 已选、会话还没开（进程也没拉）。第一条消息把它开出来，
-    // 失败（认证 / 缺 Node）时 `newSession` 已经把错误与认证页安排好，输入框里的文本原样留着。
-    // 守卫看 `store`（= 没有可用转录）。已知问题：选中的会话只是**载不回**转录时 `store` 也是 null，
-    // 于是这里会开一条新会话把选中的那条静默顶掉（审查 finding P2）。两轮针对性整改都在别处引入了
-    // 新缺陷（改 `sessionId` 判据 → 不支持 loadSession 的 agent 按发送零响应；加能力判据 →
-    // 覆盖掉 `newSession` 安排好的认证 / 缺 Node 报错，且能力未知时仍会顶掉），
-    // 所有者裁定 2026-09-18：回退到出厂行为，记 `rounds/BACKLOG.md` 等单独一轮做。
-    if (store == null) {
-      if (_startingSession) return;
-      _startingSession = true;
-      try {
-        await newSession(agents.installedRef(id) ?? AgentRef(id: id, name: id));
-      } finally {
-        _startingSession = false;
-      }
-    }
-    // 静默 return 是有意的：走到这里说明 `newSession` 失败了，而它的每条失败路径都已经把
-    // 真实原因写进 `lastError`（认证 / 缺 Node / 没选项目目录）并安排好认证页，这里再写一句会盖掉它。
-    final s = store;
-    if (s == null) return;
-    if (_blockedByClose()) return;
-    // 快照要取在开会话之后：拉起进程 + `initialize` + `session/new` 要几百毫秒到数秒，
-    // 这期间新打的字与新加的附件也得发出去，否则下面的 clear 会把它们静默抹掉（审查 finding P2，2026-09-18）。
-    final blocks = _promptBlocks(composer.editor.text);
-    if (blocks.isEmpty) return;
-    composer.clearForSend();
-    // 又开了一轮：上一轮留下的绿点立即撤（画板 06 D「运行中 · 绿点：无（有则立即撤）」）。
-    _clearUnread(s.sessionId);
-    s.startTurn(<ContentBlockWire>[for (final b in blocks) ContentBlockWire(b)]);
-    unawaited(_stampPromptSent());
-    await _runTurn(b, id, s, blocks);
-  }
-
-  /// 在途的那一轮（`session/prompt` 还没返回）。Restore / Regenerate 要先等它结束，
-  /// 否则同一个 session 上会重叠两个 `session/prompt`，先返回的那次会把 `endTurn` 打到新开的轮上
-  /// （审查 finding high，2026-09-15）。
-  Future<void>? _turnInFlight;
-
-  Future<void> _runTurn(CoreCommands b, String id, SessionStore s, List<JsonMap> blocks) async {
-    final turn = () async {
-      try {
-        final result = await b.sessionPrompt(id, s.sessionId, blocks);
-        final stopReason = result['stopReason'] as String?;
-        s.endTurn(
-          stopReason: stopReason,
-          usage: result['usage'] is Map ? (result['usage'] as Map).cast<String, dynamic>() : null,
-        );
-        _markDone(s.sessionId, stopReason);
-        await _saveIndex(); // 只刷消息计数：`updatedAt` 沿用发消息时打的那个（见 [_saveIndex]）
-      } catch (e) {
-        // 失败也必须收轮：不收的话 `currentTurn` 一直挂着，线程头永远转 spinner、发送位永远是停止键，
-        // 之后的 Restore 还会拿新连接去操作一个 agent 侧已不存在的 sessionId（审查第 2 轮 finding P2，2026-09-15）。
-        // `stopReason` 留空：连接断了本来就没有协议给的结束值，不编一个（规则 2）；原因走 `TurnEntry.error`，
-        // 由画板 31 的结束行显示——只记 `lastError` 的话整条错误在界面上无处可见，用户只看到一个 `?` 徽章
-        // （2026-09-18 实测：dsh 回 `-32602 model does not declare image input` 与 `-32603 turn failed`，界面全无提示）。
-        final message = describeError(e);
-        s.endTurn(error: message);
-        lastError = message;
-        debugPrint('[workbench] session/prompt failed: $message');
-      }
-    }();
-    _turnInFlight = turn;
-    try {
-      await turn;
-    } finally {
-      if (identical(_turnInFlight, turn)) _turnInFlight = null;
-    }
-    touch();
-  }
-
-  /// 输入框正文 + 附件块。`/` 命令按 unstructured 口径原样作为一条 text 块发出（docs/design.md § 3）。
-  List<JsonMap> _promptBlocks(String text) {
-    final trimmed = text.trim();
-    return <JsonMap>[
-      if (trimmed.isNotEmpty) <String, dynamic>{'type': 'text', 'text': text},
-      ...composer.pendingBlocks,
-    ];
-  }
-
-  Future<void> cancel() async {
-    final s = store;
-    final b = bridge;
-    final id = agentId;
-    if (s == null || b == null || id == null) return;
-    // 停止方块也是往会话发命令的入口：`closeSession` 里的 `s.cancel()` 不收轮（`isRunning` 还是 true），
-    // 作曲器禁用态下 Stop 仍会渲染，点下去就把 `session/cancel` 打到已经释放掉的会话上（审查第 3 轮 P2）。
-    if (_blockedByClose()) return;
-    await guard(() async {
-      // 权限请求由核心自动回 cancelled（api.rs 的契约），前端再回会撞 unknown_request；
-      // **elicitation 核心不管**，不回 agent 会一直等（审查 finding high，2026-09-15）。
-      await b.sessionCancel(id, s.sessionId);
-      final result = s.cancel();
-      for (final requestId in result.cancelledElicitationIds) {
-        await guard(() => b.acpRespond(id, requestId, PendingQueue.cancelledAction));
-      }
-    });
-    touch();
-  }
-
-  Future<void> answerPermission(String requestId, String optionId) async {
-    final s = store;
-    final b = bridge;
-    final id = agentId;
-    if (s == null) return;
-    final payload = s.answerPermission(requestId, optionId);
-    if (payload == null || b == null || id == null) return;
-    await guard(() => b.acpRespond(id, requestId, payload));
-  }
-
-  Future<void> answerElicitation(String requestId, String action, JsonMap? content) async {
-    final s = store;
-    final b = bridge;
-    final id = agentId;
-    if (s == null) return;
-    final payload = s.answerElicitation(requestId, action, content: content);
-    if (payload == null || b == null || id == null) return;
-    await guard(() => b.acpRespond(id, requestId, payload));
-  }
-
-  /// 用户气泡上的 Restore 与 Regenerate（画板 11）：从这条用户消息本地截断 + 同会话重发
-  /// （截断点是消息本身而不是轮边界：`session/load` 重放回来的历史没有轮边界，见 `restoreTo` 的注释）。
-  /// （画板 10 的 Restore Checkpoint 分隔线已废弃，所有者裁定 2026-09-17：与这里是同一个动作。）
-  /// **截断范围内仍挂起的请求必须回应**，否则 agent 一直等着：permission 回 cancelled outcome、
-  /// elicitation 回 cancelled action（`RestoreResult` 的两组 id）。
-  Future<void> restore(MessageEntry message, {String? newText}) async {
-    final s = store;
-    if (s == null) return;
-    // 关掉的会话不能 Restore / Regenerate：`restoreTo` 会先把本地转录截断，随后的 `session/prompt`
-    // 必然失败，本地就少了一截而 agent 侧还是关闭前那份（审查第 2 轮 P2）。
-    if (_blockedByClose()) return;
-    // 先把在途的那一轮收干净（发 cancel 并等 session/prompt 真正返回），再截断重发。
-    if (s.isRunning) {
-      await cancel();
-      await _turnInFlight;
-    }
-    final result = s.restoreTo(message.id);
-    if (result == null) return;
-    await _respondCancelled(result);
-    final blocks = <JsonMap>[
-      if (newText != null && newText.trim().isNotEmpty)
-        <String, dynamic>{'type': 'text', 'text': newText}
-      else
-        for (final b in result.prompt) b.json,
-    ];
-    if (blocks.isEmpty) return;
-    final b = bridge;
-    final id = agentId;
-    if (b == null || id == null) {
-      touch();
-      return;
-    }
-    _clearUnread(s.sessionId);
-    s.startTurn(<ContentBlockWire>[for (final x in blocks) ContentBlockWire(x)]);
-    unawaited(_stampPromptSent());
-    await _runTurn(b, id, s, blocks);
-  }
-
-  /// 把被截断的挂起请求逐条回应（顺序无所谓，但一条都不能漏）。
-  Future<void> _respondCancelled(RestoreResult result) async {
-    final b = bridge;
-    final id = agentId;
-    if (b == null || id == null) return;
-    for (final requestId in result.cancelledRequestIds) {
-      await guard(() => b.acpRespond(id, requestId, PendingQueue.cancelledOutcome));
-    }
-    for (final requestId in result.cancelledElicitationIds) {
-      await guard(() => b.acpRespond(id, requestId, PendingQueue.cancelledAction));
-    }
-  }
-
-  // ---------------------------------------------------------------- 会话配置
-
-  Future<void> setConfigOption(String configId, JsonMap value) async {
-    composer.hideConfigPopovers();
-    final s = store;
-    final b = bridge;
-    final id = agentId;
-    if (s == null || b == null || id == null) return;
-    if (_blockedByClose()) return;
-    await guard(() async {
-      final result = await b.sessionSetConfigOption(id, s.sessionId, configId, value);
-      s.applyConfigOptionsResponse(result);
-    });
-    touch();
-  }
-
-  Future<void> selectConfigValue(String configId, String value) {
-    // modes 回退（R6）：合成条目的 id 是本地哨兵，不能当 configId 发出去——它走 `session/set_mode`。
-    if (configId == SessionStore.modeFallbackId) return setMode(value);
-    return setConfigOption(configId, <String, dynamic>{'type': 'select', 'value': value});
-  }
-
-  /// `session/set_mode`（modes 回退路径）。响应是空的；按规范客户端发起的切换成功即生效，
-  /// 所以本地同步 `currentModeId`（agent 自己改模式时会另发 `current_mode_update`）。
-  Future<void> setMode(String modeId) async {
-    composer.hideConfigPopovers();
-    final s = store;
-    final b = bridge;
-    final id = agentId;
-    if (s == null || b == null || id == null) return;
-    if (_blockedByClose()) return;
-    await guard(() async {
-      await b.sessionSetMode(id, s.sessionId, modeId);
-      s.applyModeSelected(modeId);
-    });
-    touch();
-  }
-
-  Future<void> toggleConfigBoolean(String configId, bool value) =>
-      setConfigOption(configId, <String, dynamic>{'type': 'boolean', 'value': value});
-
-  // ---------------------------------------------------------------- 本地转录文本（`+` 的 Threads）
-
-  /// 本地转录文本（`+` 的 Threads）：把当前会话的消息拼成一份 embedded resource。
-  String transcriptText() {
-    final s = store;
-    if (s == null) return '';
-    final buffer = StringBuffer();
-    for (final e in s.entries) {
-      if (e is! MessageEntry) continue;
-      buffer.writeln('[${e.role.name}] ${e.blocks.map((b) => b.text ?? '').where((t) => t.isNotEmpty).join('')}');
-    }
-    return buffer.toString();
   }
 
   // ---------------------------------------------------------------- 侧栏搜索
@@ -1352,25 +1075,6 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   }
 
   // ---------------------------------------------------------------- agent 终端（画板 23）
-
-  /// 画板 23 的停止方块（agent 建的终端）：`terminal_kill` = `terminal/kill` 语义，退出状态随 `acp/terminal_output` 回来。
-  Future<void> killTerminal(String terminalId) async {
-    final b = bridge;
-    if (b == null) return;
-    try {
-      await b.terminalKill(terminalId);
-    } catch (e) {
-      // `_meta` 通道喂出来的终端 id 是 agent 的 toolUseId，核心没有这个 pty：协议里没有能停它的动作，
-      // 不算错误、也不标 killed（审查 finding，2026-09-16）。
-      final text = describeError(e);
-      if (!text.contains('unknown terminal')) {
-        lastError = text;
-        touch();
-      }
-      return;
-    }
-    store?.markTerminalKilled(terminalId);
-  }
 
   /// `acp/terminal_output`：source = local 的进终端面板，其余（agent / auth）进转录里的终端卡。
   void _onTerminalOutput(JsonMap json) {

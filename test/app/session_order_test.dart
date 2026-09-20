@@ -70,7 +70,7 @@ void main() {
     core.gate = Completer<JsonMap>();
     final before = DateTime.now().millisecondsSinceEpoch;
     c.composer.editor.text = '第一条';
-    final sending = c.send();
+    final sending = c.turn.send();
     await _untilPromptSent(core);
     final t1 = _updatedAtOf(core, sid);
     expect(t1, greaterThanOrEqualTo(before), reason: '发出去之前就该打好时间');
@@ -92,7 +92,7 @@ void main() {
     core.gate = null;
     await Future<void>.delayed(const Duration(milliseconds: 20));
     c.composer.editor.text = '第二条';
-    await c.send();
+    await c.turn.send();
     expect(_updatedAtOf(core, sid), greaterThan(t1));
     expect(core.sessionIndex.single['messageCount'], 2);
     c.dispose();
@@ -109,7 +109,7 @@ void main() {
     final before = DateTime.now().millisecondsSinceEpoch;
     c.composer.editor.text = '一轮秒回';
     // 发消息那次 upsert 已落地但还没回来；prompt 立刻返回，收轮那次 upsert 先跑。
-    await c.send();
+    await c.turn.send();
     expect(core.prompts, hasLength(1));
     expect(_updatedAtOf(core, sid), greaterThanOrEqualTo(before), reason: '收轮那次不能把发消息时打的时间盖回去');
     hold.complete();
