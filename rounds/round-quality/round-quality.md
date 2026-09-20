@@ -87,7 +87,12 @@ validate 全绿、独立审查清零后合 `main`。第 6 项（桥的四层手�
     1. [P2] 第 1 轮 finding 2 的整改把**两道门共用了一个 `skippedTooLarge` 旗标**，而 `ComposerState` 的提示文案写死 `clipboardImageSizeLimit`（20 MB）：一张 9000×9000 的位图（像素 324 MB，但 PNG 可能只有几百字节）会被报成「图片超过 20 MB」→ 文案改成不写死数字的「图片太大，没有加进输入框」（两道门的数不一样，写死任一个都会谎报）；顺带把「runner 少给 `bgra`」从尺寸门里分出来静默跳过（形状不对不是尺寸问题）。旗标本身保留：静默丢图比文案不精确更糟。
     2. [P3] `rounds/BACKLOG.md` 那条剪贴板条目的句尾还写着「每次粘贴要拉一次 powershell（几百毫秒）」→ 改成「剪贴板里是文本时提前 return，不去读位图」。
   - **第 3 轮**（2026-09-20 18:32，`a61981f..HEAD` 只审整改 diff，产物 `.claude/reviews/20260920-183201-review.out.md`）：**0 条**，收口。审查者逐条核了旗标与两处 `continue` 的先后顺序（对调就会让 9000×9000 那条静默丢图、第 1 轮 finding 2 回退）、正常位图路径仍完整、全库再无写死的「20 MB」用户文案、BACKLOG 那条没把现行路径写回子进程。
-- 结论：**整改后 PASS**（3 轮：3 条 P2 → 1 条 P2 + 1 条 P3 → 0 条；累计 5 条全部采纳整改，0 条 high，无记 BACKLOG 放行的项）
+  - **合并 `main` 之后不再复审（所有者裁定 2026-09-20）**：理由是 main 上是已审过的代码，而本次合并是**零冲突的自动合并**——
+    6 个双边文件全部 auto-merge、没有任何手工解冲突（对比 R4 那次合并动了 18 个文件、所以当时要补一轮全量）。
+    合并后仍跑了完整验证：validate **16 项**全 PASS（多出 R8 的版本门，`app 1.4.0; sidecar 1.21.0 (zed pin)`）、
+    `flutter test` 346 项、`cargo build --workspace --locked` 单独验过合并后的 `Cargo.lock` 自洽。
+- 结论：**整改后 PASS**（3 轮：3 条 P2 → 1 条 P2 + 1 条 P3 → 0 条；累计 5 条全部采纳整改，0 条 high，无记 BACKLOG 放行的项）；
+  合并 `main` 那一步按所有者指定未走复审
 
 ## 失败处理
 
@@ -137,6 +142,19 @@ validate 全绿、独立审查清零后合 `main`。第 6 项（桥的四层手�
 **合完必须做的两件事**：① `cargo build --locked` 验一次 lock（版本号与依赖边在同一个 `[[package]]` 块里，文本合得上不等于 lock 自洽）；
 ② 本卡的 `ROUNDS.md` 进度表行**有意没在本分支加** —— § 7 表的最后一行正是 R8 那行，两边内容不同，在其后追加会人为造一个冲突；合并时再按 main 的最终表追加。
 
-**`rounds/BACKLOG.md` 的约定差异**：本分支按 `main@4ddaf2e` 的老约定就地标 `[x]` + 写结论（两条剪贴板条目），
-而 main 现在已有 `BACKLOG-CLOSED.md`（R8 那批拆出去的）。合并后要把这两条连结论剪到 `BACKLOG-CLOSED.md` 的「工程」小节末尾。
+**`rounds/BACKLOG.md` 的约定（合并时核实后订正）**：合并前以为 main 已有 `BACKLOG-CLOSED.md`，实际**没有** ——
+那份当时只是 `round-08` 工作副本里的未跟踪文件，从未提交进 main（`4ddaf2e..de3b73a` 的 diff 里没有 `rounds/`）。
+所以本轮那两条剪贴板条目就地标 `[x]` + 写结论，与文件里既有的三十多条 `[x]` 同一约定，不需要搬。
+
+**合并实测（2026-09-20）**：`git merge --no-commit --no-ff main` **自动合并干净**（6 个双边文件全部 auto-merge，零冲突标记）。
+逐项核过语义：版本取 main 的 1.4.0（`pubspec.yaml` 与 `rust/Cargo.toml` 一致，新增的「版本门」认这个）；
+`base64` 在三份 manifest 与 `core.rs` 的 import 里都还在；`core.rs` 上「删 `adopt_connection` / 手写 base64」与
+main 的「启动 banner」两侧改动共存；`CLAUDE.md` 同时留住本轮的规则 1 `base64` + 结构行与 main 的规则 11；
+`scripts/validate.ps1` 同时留住 main 的版本门与本轮的行数门注释（15 → 16 项）。
+
+合并后在合并树上重跑了全套：validate **16 项全 PASS**（`app 1.4.0; sidecar 1.21.0 (zed pin)`）、`flutter test` 346 项；
+`cargo build --workspace --locked` 单独验过 lock 自洽；product / headless 两份 release 重建；
+smoke `ok:true` / `coreVersion 1.4.0` / `droppedEvents 0`；三份剪贴板探针与合并前逐项一致
+（位图 201 B、含中文名的文件列表 224 B、纯文本空，左上像素都是 `[255,0,0,255]`）；
+product exe 对 `ACP_R3_REPORT` 仍无反应、headless 构建才进无头。
 

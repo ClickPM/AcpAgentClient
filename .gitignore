@@ -47,3 +47,6 @@ ai-output/temporary/
 .metadata.bak
 # cargokit build tool scratch (rust build itself goes to CARGO_TARGET_DIR)
 cargokit/build_tool/.dart_tool/
+
+# 打包产物（R8，scripts/package.ps1）：zip / 安装器与 stage 目录都不入库
+dist/

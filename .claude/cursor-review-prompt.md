@@ -38,6 +38,7 @@
 8. **规则 8 密钥不入库、不入日志**：明文密钥进仓库、进日志、进 ACP 流量调试面板未打码，判阻断级。
 9. **规则 9 Windows 首发**：子进程拉起（`.cmd` 包装、引号、含中文或空格的路径）相关改动没有 Windows 实测记录，判 P2 并要求补测。
 10. **规则 10 协议对齐**：rust-sdk 的 `unstable` 特性集或 `unstable_protocol_v2` 被改动而没有走钉版本流程，判阻断级。
+10b. **规则 11 版本号两处、sidecar 不跟**（R8 新增；编号写成 10b 是为了不动下面两条既有编号——历史审查记录按「判据 11 / 12」引用它们）：`sidecar/zed-agent-acp/Cargo.toml` 的 `version` 又跟着应用版本抬了（＝等于 `pubspec.yaml` 的版本），或与 `pins/upstream.json` 里 zed 那条的 `version` 不一致，判 P2 并要求改回 zed 钉版本；`pubspec.yaml` 与 `rust/Cargo.toml` 两处应用版本不一致同样判 P2。
 11. **ACP 协议正确性**：`initialize` 的能力声明与 `docs/design.md` § 4 不符；`tool_call_update` 未按「同 id 覆盖、content 替换」合并；`session/request_permission` 或 `elicitation/create` 有路径不回响应（agent 会永久挂起）；`session/cancel` 之后仍把 update 当正常流处理；`AuthRequired` 未映射到认证流程。
 12. **常规缺陷**：逻辑错误、边界与空值、并发与顺序、资源泄漏（未关闭的流 / 定时器 / 子进程未 kill 或 wait / pty 未 release / Dart `StreamSubscription` 未 cancel / `ChangeNotifier` 未 dispose）、错误被吞、类型谎报（`as` 强转或 `unwrap` 掩盖的运行期形状不符；Dart 侧 `jsonDecode` 结果的 `as Map` 强转无守卫）、在 tokio runtime 线程上做阻塞 IO、frb 边界上 Rust panic 未转 `Result`、子进程 stdout 与 stderr 未并发读取导致管道死锁、测试断言假通过。
 

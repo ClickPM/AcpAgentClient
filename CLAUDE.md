@@ -30,8 +30,9 @@ AcpAgentClient/
 │                                          + rounds/round-NN/{round-NN.md, BLOCKED.md}
 ├── .claude/                               cursor-review.ps1（审查启动脚本）+ cursor-review-prompt.md（任务书契约，入库）
 │                                          + reviews/（审查产物，gitignored）
-├── pins/upstream.json                     上游钉版本清单（提交进仓库；改版本先改这里）
-├── scripts/                               fetch-upstream.ps1 / .sh、validate.ps1、build.ps1、build-sidecar.ps1（R7）、render-design.ps1（画板 → PNG）、render-icon.ps1（app-icon.svg → .ico）
+├── pins/upstream.json                     上游钉版本清单（提交进仓库；改版本先改这里。zed 那条的 `version` 是 sidecar 版本的事实来源，见规则 11）
+├── scripts/                               fetch-upstream.ps1 / .sh、validate.ps1、build.ps1、build-sidecar.ps1（R7）、package.ps1 + verify-package.ps1（R8 打包与产物验收）、render-design.ps1（画板 → PNG）、render-icon.ps1（app-icon.svg → .ico）
+├── packaging/windows/                     Inno Setup 安装器脚本（R8；per-user、不签名，由 scripts/package.ps1 调用）
 ├── vendor/upstream/<name>/                钉版本源码（gitignored；fetch 脚本按 pins 填充）
 ├── rust/                                  Rust 核心 workspace：acp-core（含 assets/ 里内置条目的图标）/ registry / pty / fs / settings + bridge（frb cdylib，包名 acp_bridge）+ tools/acp-smoke
 ├── cargokit/                              frb 模板自带的 cargokit 副本；windows/CMakeLists.txt 直接 apply_cargokit（不走 pub 插件，见 rounds/round-00）
@@ -89,6 +90,7 @@ AcpAgentClient/
 8. **密钥不入库、不入日志。** ACP 流量日志与调试面板对 `Authorization`、`api_key`、`token` 类字段打码；`.env*` 与 `*.pem` 已在 `.gitignore`。
 9. **Windows 首发。** 涉及子进程拉起（`.cmd` 包装、引号、路径含中文与空格）的改动必须在 Windows 实测并在任务卡记录命令与输出；不得只在 macOS / Linux 验证。
 10. **协议对齐。** rust-sdk 的 `unstable` 特性集与 Zed 钉版本对齐（见 `docs/research.md` § 2），不开 `unstable_protocol_v2`；改特性集视为改钉版本，走规则 4。
+11. **版本号两处，sidecar 不跟。**（R8，所有者裁定 2026-09-20）发应用版本只改 `pubspec.yaml` 与 `rust/Cargo.toml` 的 `[workspace.package]`，两处必须一致。`sidecar/zed-agent-acp/Cargo.toml` 的 `version` **跟 zed 钉版本走**（= `pins/upstream.json` 里 zed 那条的 `version`，= `vendor/upstream/zed/crates/zed/Cargo.toml` 的 version），只在换 zed 钉版本时一起改：改这一行 = 那个 crate 重编 + 176 MB 二进制全量重链（2026-09-20 实测 14 分 16 秒；不改时 cargo 判 fresh，8.2 秒），而发应用版本根本不动 sidecar 的源码。`scripts/validate.ps1` 的「版本门」核对这四个数。
 
 ## 本地开发
 

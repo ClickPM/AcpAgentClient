@@ -1,6 +1,6 @@
 {
   "pinned_at": "2026-09-11",
-  "notes": "Development-time pins (frozen for v1). vendor/upstream/ is gitignored; run scripts/fetch-upstream.sh or .ps1 to populate and pass --check / -Check to verify. To move a pin: edit this file first, then update docs/research.md, then re-run fetch.",
+  "notes": "Development-time pins (frozen for v1). vendor/upstream/ is gitignored; run scripts/fetch-upstream.sh or .ps1 to populate and pass --check / -Check to verify. To move a pin: edit this file first, then update docs/research.md, then re-run fetch. The `version` field on the zed entry is the upstream crate version (vendor/upstream/zed/crates/zed/Cargo.toml); sidecar/zed-agent-acp/Cargo.toml must carry exactly that version, because the sidecar's version tracks the zed pin and NOT the application version (R8). scripts/validate.ps1 checks the three against each other.",
   "upstream": [
     {
       "name": "agent-client-protocol",
@@ -31,6 +31,7 @@
       "url": "https://github.com/zed-industries/zed.git",
       "branch": "main",
       "commit": "d9e1c024f393832765a03f4de204d6c8cd9abcb2",
+      "version": "1.21.0",
       "license": "GPL-3.0-or-later (gpui, util, collections: Apache-2.0)",
       "role": "reuse pool: crates/project/src/agent_registry_store.rs + agent_server_store.rs (copy), crates/agent_servers/src/acp.rs (transcribe), crates/acp_thread/src/terminal.rs (transcribe), crates/agent + crates/eval_cli (sidecar); node_runtime / http_client / reqwest_client / paths / util are gpui-free and linkable"
     },

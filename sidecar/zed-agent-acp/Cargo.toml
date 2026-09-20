@@ -20,7 +20,13 @@ members = ["."]
 
 [package]
 name = "zed-agent-acp"
-version = "1.3.0"
+# **版本与应用解耦**（R8，所有者裁定 2026-09-20）：这里跟 **zed 钉版本**走，不跟 pubspec.yaml /
+# rust/Cargo.toml 的应用版本走。改这一行 = zed-agent-acp 这个 crate 重编 + 176 MB 二进制全量重链
+# （耗时数字见 CLAUDE.md 规则 11），而发应用版本本来就不会改 sidecar 的任何源码，
+# 让它跟着抬等于每次发版白烧一刻钟。取值必须等于 vendor/upstream/zed/crates/zed/Cargo.toml 的
+# version（= pins/upstream.json 里 zed 那条的 `version`），scripts/validate.ps1 的「版本门」核对三方一致；
+# 换 zed 钉版本时一起改（那本来就要重编整个依赖闭包）。
+version = "1.21.0"
 edition = "2024"
 rust-version = "1.98"
 license = "GPL-3.0-or-later"

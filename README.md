@@ -14,7 +14,7 @@ Agent 一律经 [Agent Client Protocol（ACP）](https://agentclientprotocol.com
 - **2026-09-20 发布 v1.1.0**：v1.0.0 之后的两项功能——画板 43「会话时间线」（线程头 history 开弹层，按轮列出 query 与回答首行，点一行跳到转录里对应那条）与**字体切换四轴**（界面 / 代码各分中西文；随包三款之外的候选不入库，放 `assets/fonts/optional/`（构建时随包）或 `%APPDATA%/AcpAgentClient/fonts/`（运行时）后自动点亮，见 `assets/fonts/optional/README.md`）。同样只发源码。
 - **2026-09-20 发布 v1.2.0**：v1.1.0 之后的一项功能与两项修订——画板 07「深色模式」（`lib/theme/tokens.dart` 拆浅 / 深两套取值，切换按钮在侧栏标题条右端，主题与字体切换同存在设置的 `appearance` 段）、UI 文案与前端 Dart 符号从 `Thread` 收敛为 `Session`（中文「会话」），以及字体扫描结果不通知 UI 的修复。同样只发源码。
 - **2026-09-20 发布 v1.3.0**：v1.2.0 之后的一项重构与两项修订——R7.5 组合根拆分（`lib/app/workbench_controller.dart` 2645 行的单类拆成组合根 + 8 个对象，行为零变化：契约零 diff、测试只改路径、三份 fake-agent 无头报告逐步骤与基线等价；validate 新增 `lib/app` 行数门与依赖方向门）、markdown 渲染器认行内 HTML 的 `<br>`（表格单元格里的换行）、深色下 agent 图标与应用标记看不见的修复（外来 SVG 的 `currentColor` 随主题取色）。同样只发源码。
-- **R8（打包与发布）未开始**：Windows zip / 安装器、macOS 构建、干净机验收。许可证文件已随 v1.0.0 落地，R8 只剩打包本身。
+- **2026-09-20 发布 v1.4.0**：R8 Windows 端，**首个带安装包的 release**（前四版只发源码）—— ① **sidecar 版本与应用解耦** —— `sidecar/zed-agent-acp` 的版本改为跟 zed 钉版本走（`1.21.0`），发一次应用版本不再触发 176 MB 二进制的全量重链（实测 14 分 16 秒 → 1.5 秒），落成 CLAUDE.md 规则 11 与 `validate.ps1` 的版本门；② **打包**：`scripts/package.ps1` 出免安装 zip（含 sidecar 110.3 MB / 不含 46.7 MB）与 per-user 安装器（79.0 MB，未签名），`scripts/verify-package.ps1` 在全新空数据目录上自动验收（解压即用、随包 sidecar `--selftest`、静默装 → 跑 → 静默卸）；③ 版本与构建信息进日志首行（画板 70 没有版本位，规则 3）。release 里三件产物：`AcpAgentClient-1.4.0-windows-x64.zip`（含 sidecar，110.3 MB）、`…-nosidecar.zip`（46.7 MB）、`AcpAgentClient-1.4.0-setup.exe`（79.0 MB，per-user、未签名）。**macOS / Linux 构建留给后续一轮**。
 
 ## 文档
 
@@ -63,9 +63,17 @@ Git Bash：`scripts/fetch-upstream.sh [--check]`。`pins/upstream.json` 里的 `
 powershell -File scripts/validate.ps1            # 编译 + 测试 + 契约检查（-Quick 只跑静态检查；不含 sidecar）
 powershell -File scripts/build.ps1               # flutter build windows --release（-Smoke 跑一次无头自检）
 powershell -File scripts/build-sidecar.ps1       # zed-agent-acp sidecar（独立 cargo workspace，冷编译约 50 分钟）
+powershell -File scripts/package.ps1             # R8 打包：zip（含 / 不含 sidecar）+ Inno Setup 安装器 → dist/
+powershell -File scripts/verify-package.ps1      # 打包产物自动化验收：空数据目录跑通、装得上卸得掉
 ```
 
 主程序产物在 `build/windows/x64/runner/<Debug|Release>/`；sidecar 先落 `build/sidecar/`，再由 runner 的 CMake install 规则放到应用目录旁，缺了不报错、只是 agent 列表里没有 Zed Agent。
+
+**版本号只有两处**：`pubspec.yaml` 与 `rust/Cargo.toml` 的 `[workspace.package]`（CLAUDE.md 规则 11）。`sidecar/zed-agent-acp/Cargo.toml` 的版本**跟 zed 钉版本走**，发应用版本时不动它 —— 动一下就是 176 MB 二进制全量重链。`scripts/validate.ps1` 的版本门会拦住改错的情况。
+
+### 安装包
+
+`dist/` 里出三件（`<版本>` 取自 `pubspec.yaml`）：免安装 `AcpAgentClient-<版本>-windows-x64.zip`（含 sidecar）、`…-nosidecar.zip`，以及 per-user 安装器 `AcpAgentClient-<版本>-setup.exe`（装进 `%LOCALAPPDATA%\Programs\AcpAgentClient`，免 UAC、**未签名**，SmartScreen 首次会拦一下走「更多信息 → 仍要运行」）。zip 解压即用；两者都不动 `%APPDATA%\AcpAgentClient` 里的用户数据，卸载也不删。
 
 ## 许可证
 
