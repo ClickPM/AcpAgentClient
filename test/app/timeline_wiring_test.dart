@@ -169,6 +169,34 @@ void main() {
     expect(c.composer.selection.baseOffset, 3, reason: '光标不该被方向键挪走');
   });
 
+  // 复审 P2（2026-09-20，cursor）：改成抢焦点之后，`_onKey` 没吃的键会沿焦点链落到 WidgetsApp 的默认
+  // Shortcuts —— Tab / Shift+Tab / 左右方向键是 Next/Previous/DirectionalFocusIntent，会把键盘交回输入框，
+  // 而弹层还开着；此后 Enter 又走输入框的「发送」。弹层开着时键盘必须完全归它。
+  testWidgets('弹层开着时 Tab 与左右键不把焦点交回输入框，之后 Enter 也发不出草稿', (tester) async {
+    final (c, _) = await _pumpShellWithCore(tester, turns: 3);
+    c.composer.text = '还没写完的草稿';
+    c.composerFocus.requestFocus();
+    await tester.pump();
+    await _openTimeline(tester);
+    expect(c.composerFocus.hasFocus, isFalse);
+
+    for (final key in <LogicalKeyboardKey>[
+      LogicalKeyboardKey.tab,
+      LogicalKeyboardKey.arrowRight,
+      LogicalKeyboardKey.arrowLeft,
+    ]) {
+      await tester.sendKeyEvent(key);
+      await _settle(tester);
+      expect(c.composerFocus.hasFocus, isFalse, reason: '$key 把焦点带回输入框了');
+      expect(find.byType(SessionTimelinePopover), findsOneWidget, reason: '$key 之后弹层还该开着');
+    }
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await _settle(tester);
+    expect(_core.prompts, isEmpty, reason: '焦点没被带走，这一下 Enter 仍归弹层');
+    expect(c.composer.text, '还没写完的草稿');
+  });
+
   testWidgets('弹层关掉后焦点还回输入框（用户能接着打字）', (tester) async {
     final (c, _) = await _pumpShellWithCore(tester, turns: 3);
     c.composerFocus.requestFocus();
@@ -181,6 +209,18 @@ void main() {
 
     expect(find.byType(SessionTimelinePopover), findsNothing);
     expect(c.composerFocus.hasFocus, isTrue, reason: '关掉要把焦点还回去，不然得再点一下才能打字');
+  });
+
+  testWidgets('Esc 关掉弹层：它是唯一放行的键，靠 EscapeDismissible 的全局处理器', (tester) async {
+    final (c, _) = await _pumpShellWithCore(tester, turns: 3);
+    await _openTimeline(tester);
+    expect(c.timelineAnchor.isShowing, isTrue);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await _settle(tester);
+
+    expect(c.timelineAnchor.isShowing, isFalse);
+    expect(find.byType(SessionTimelinePopover), findsNothing);
   });
 
   testWidgets('点弹层之外关掉它，按钮的选中容器跟着撤', (tester) async {

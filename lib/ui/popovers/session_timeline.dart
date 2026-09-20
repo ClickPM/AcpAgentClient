@@ -92,9 +92,10 @@ class _SessionTimelinePopoverState extends State<SessionTimelinePopover> {
   void initState() {
     super.initState();
     _restoreFocusTo = FocusManager.instance.primaryFocus;
-    // 显式抢焦点，不靠 `autofocus`：弹层挂在 `OverlayPortal` 的 overlay 子树里、自成一个焦点域，
-    // 而 `autofocus` 只在**所在域自己拿到焦点时**才兑现 —— 输入框的焦点在另一个域里，这个域一直没被选中，
-    // 于是 autofocus 永远不生效，输入框照样握着键盘（实测）。
+    // 显式抢焦点，不靠 `autofocus`：`OverlayPortal` **不给** overlay 子树另开 `FocusScope`（overlay child
+    // 与锚点同属一个域），而 `_Autofocus.applyIfValid` 要求 `scope.focusedChild == null` 才兑现
+    //（flutter/lib/src/widgets/focus_manager.dart）—— 这个域里输入框已经是 focusedChild，autofocus 于是被
+    // 直接丢弃，输入框照样握着键盘（实测；复审订正了「自成焦点域」那个说法）。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _focus.requestFocus();
     });
@@ -133,24 +134,30 @@ class _SessionTimelinePopoverState extends State<SessionTimelinePopover> {
     super.dispose();
   }
 
-  /// 这四个键**只要弹层开着就一律吃掉**，哪怕这一下什么也不做（没有高亮时 Enter 就是什么也不做）：
-  /// 放行等于把它交回给下面的输入框，而那边 Enter 是「发送」。
+  /// 弹层开着时**键盘完全归它**：上下键移高亮、Enter 命中，其余的键一概吃掉、什么也不做。
+  ///
+  /// 「其余的键也吃掉」不是图省事，是这条路径已经漏过两次（发布前审查与复审各一条 P2）：放行的键会沿焦点链
+  /// 继续上浮到 `WidgetsApp` 的默认 `Shortcuts`，Tab / Shift+Tab / 左右方向键在那里是
+  /// `NextFocusIntent` / `PreviousFocusIntent` / `DirectionalFocusIntent`，会把键盘交回输入框，
+  /// 而弹层还开着 —— 之后 Enter 又走输入框的「发送」，把没写完的草稿发出去。逐个枚举要挡的键就是在赌
+  /// 没有下一个漏网的，所以这里反过来：只放行 Esc（它由 `EscapeDismissible` 的全局处理器负责关这一层，
+  /// 全局处理器本来就跑在焦点链之前，放不放行都拦不住，写成 ignored 只是让这件事在代码里看得见）。
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) return KeyEventResult.ignored;
     switch (event.logicalKey) {
+      case LogicalKeyboardKey.escape:
+        return KeyEventResult.ignored;
       case LogicalKeyboardKey.arrowDown:
         _move(1);
-        return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowUp:
         _move(-1);
-        return KeyEventResult.handled;
       case LogicalKeyboardKey.enter:
       case LogicalKeyboardKey.numpadEnter:
         if (_selected >= 0 && _selected < _rows.length) widget.onJump?.call(_rows[_selected]);
-        return KeyEventResult.handled;
       default:
-        return KeyEventResult.ignored;
+        break;
     }
+    return KeyEventResult.handled;
   }
 
   /// 打开那一下没有高亮，所以第一次按下键从第一行起、按上键从最后一行起；之后夹在两端不回绕。
