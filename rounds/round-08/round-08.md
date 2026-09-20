@@ -81,7 +81,23 @@ Windows 免安装 zip 与 per-user 安装器随包 sidecar 一起交付，并且
   | `pins/upstream.json` 现状（`name` → `url` → `branch` → `commit`） | `d9e1c024…`（对） | `d9e1c024…`（对） |
   | 字段重排成 `branch` → `commit` → `name` | `6b7473b1…`（**下一条 claude-agent-acp 的 commit**，正是 finding 说的） | `d9e1c024…`（对） |
 
-- 结论：<第 2 轮复审后回填>
+### 第 2 轮（全量复审）
+
+- 范围：`main...HEAD`（`c1c3fbf` + 整改提交 `38b8578`，22 文件）；产物 `.claude/reviews/20260920-173603-review.out.md`
+- findings：**1 条（high 0 / P2 0 / P3 1）**，采纳整改。三条整改本身逐条复核通过（`try/finally` 与 `$uninstaller` 的作用域、跳过分支的退出码语义、对象边界收口、`$sandboxes` 的引用可变）。
+
+  | # | 级别 | finding | 整改 |
+  |---|---|---|---|
+  | 4 | P3 | 版本门把「sidecar 版本 == 应用版本」当成解耦被改回去：应用哪天正好升到 `1.21.0`（= zed 钉版本）时，第一道「sidecar == pins.zed.version」通过、第二道却报错，而 sidecar 又不能改成别的数 —— 两道门互相死锁（`validate.ps1` 与 `verify-package.ps1` 各一处） | 删掉这两处判定，只留「应用两处一致」与「sidecar == pins.zed.version」：后者成立时 sidecar 本来就不可能是跟着应用抬上来的，那一判是冗余的。`validate.ps1` 补注释写明为什么不再判 |
+
+  改动只在两个开发脚本里（不进产物），所以按所有者 2026-09-20 的指示**没有重出安装包**；改完跑了 PowerShell 解析检查与 `validate.ps1 -Quick`（全绿）。
+
+### 第 3 轮（只审整改 diff）
+
+- 范围：`38b8578..HEAD`
+- findings：<回填>
+
+- 结论：<回填>
 
 ## 偏离
 

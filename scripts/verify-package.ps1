@@ -119,7 +119,6 @@ try {
         $pins = Get-Content (Join-Path $root "pins/upstream.json") -Raw -Encoding UTF8 | ConvertFrom-Json
         $zedPin = $pins.upstream | Where-Object { $_.name -eq "zed" }
         if ($versionLine -notmatch [regex]::Escape($zedPin.version)) { throw "--version 里不是 zed 钉版本 $($zedPin.version)" }
-        if ($versionLine -match [regex]::Escape(" $version ")) { throw "--version 里出现了应用版本 $version —— 版本解耦被改回去了？" }
         if ($versionLine -notmatch [regex]::Escape($zedPin.commit)) { throw "--version 里的 zed commit 不是 pins 钉的那个（$($zedPin.commit)）" }
         # --selftest 会真的起一遍 headless gpui，不给 --user-data-dir 就落到**本机 Zed 自己的**
         # 数据目录里（CLAUDE.md 规则 7：不动用户数据），所以指到临时目录。

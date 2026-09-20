@@ -156,8 +156,9 @@ try {
             $sidecar = Get-Content $sidecarToml -Raw -Encoding UTF8
             if ($sidecar -notmatch '(?ms)^\[package\].*?^version\s*=\s*"([^"]+)"') { throw "sidecar Cargo.toml has no [package] version" }
             $sidecarVersion = $Matches[1]
+            # 只核对「== pins 的 zed 版本」：那一条成立时 sidecar 就不可能是跟着应用抬上来的。
+            # 不再另判「!= 应用版本」——应用哪天正好升到和 zed 钉版本同号（1.21.0）时，那一判会与这一条互相死锁。
             if ($sidecarVersion -ne $zedPin.version) { throw "sidecar version $sidecarVersion != pinned zed version $($zedPin.version) (改 zed 钉版本时一起改；发应用版本时别动它)" }
-            if ($sidecarVersion -eq $appVersion) { throw "sidecar version equals the app version ($appVersion) -- 版本解耦被改回去了？sidecar 跟 zed 钉版本走（R8）" }
             $zedManifest = Join-Path $root "vendor/upstream/zed/crates/zed/Cargo.toml"
             if (Test-Path $zedManifest) {
                 $zedToml = Get-Content $zedManifest -Raw -Encoding UTF8
