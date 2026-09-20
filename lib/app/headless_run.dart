@@ -454,7 +454,7 @@ Future<void> runR5({required String reportPath}) async {
         'sessionId': c.sessionId,
         'authRequired': c.authAgentId == agentId,
         'authMethods': <String?>[for (final m in c.authMethods) '${m['id']}/${AuthPage.methodType(m)}'],
-        'rightTab': c.rightTab?.name,
+        'rightTab': c.shell.rightTab?.name,
         'error': c.lastError,
       };
       if (c.authAgentId == agentId) {
@@ -778,7 +778,7 @@ Future<void> runR3({required String reportPath}) async {
     final watcher = _AutoAnswer(c, permission, answers);
     watcher.attach();
     // R4：Follow 开着时 locations 到达即定位（验收 1 的「Follow 落右栏」）。
-    if (_env('ACP_R4_FOLLOW') == '1' && !c.follow) c.toggleFollow();
+    if (_env('ACP_R4_FOLLOW') == '1' && !c.shell.follow) c.shell.toggleFollow();
     final killAfter = _envInt('ACP_R4_KILL_BG_AFTER', 0);
     final killer = killAfter > 0 ? _BackgroundKiller(c, Duration(seconds: killAfter)) : null;
     killer?.attach();
@@ -823,8 +823,8 @@ Future<void> runR3({required String reportPath}) async {
               },
         },
         'follow': <String, dynamic>{
-          'on': c.follow,
-          'rightTab': c.rightTab?.name,
+          'on': c.shell.follow,
+          'rightTab': c.shell.rightTab?.name,
           'selectedPath': c.files.selectedPath,
           'highlightLine': c.files.highlightLine,
           'viewMode': c.files.viewMode.name,
@@ -875,7 +875,7 @@ Future<void> runR3({required String reportPath}) async {
           }
         }
       }
-      if (located != null) await c.goToFile(located, line: locatedLine);
+      if (located != null) await c.shell.goToFile(located, line: locatedLine);
       final badges = <String, String>{};
       if (tree != null) {
         for (final n in tree.visibleRows) {
@@ -892,7 +892,7 @@ Future<void> runR3({required String reportPath}) async {
         'badges': badges,
         'goToFile': located,
         'goToLine': locatedLine,
-        'rightTab': c.rightTab?.name,
+        'rightTab': c.shell.rightTab?.name,
         'selectedPath': f.selectedPath,
         'viewer': f.viewer == null
             ? null
@@ -913,8 +913,8 @@ Future<void> runR3({required String reportPath}) async {
     // ---- R4：本地 shell（画板 61）——开标签、敲命令、看输出、关掉。
     trace('local shell');
     if (_env('ACP_R4_LOCAL_SHELL') == '1') {
-      await c.openTerminalTab(forceNew: true);
-      final id = c.activeTerminalId;
+      await c.shell.openTerminalTab(forceNew: true);
+      final id = c.shell.activeTerminalId;
       final term = id == null ? null : c.terminals.byId(id);
       final shell = <String, dynamic>{'terminalId': id, 'title': term?.title, 'cwd': term?.cwd, 'openError': c.terminals.lastError};
       if (term != null) {
@@ -927,21 +927,21 @@ Future<void> runR3({required String reportPath}) async {
         final ok = await _waitFor(() => _screenText(term).split('\n').any((l) => l.trim() == 'r4-local-shell-ok'), timeout);
         shell['echoed'] = ok;
         shell['screenTail'] = _screenText(term).trimRight().split('\n').where((l) => l.trim().isNotEmpty).toList().reversed.take(3).toList().reversed.toList();
-        shell['panelTabs'] = <String>[for (final t in c.panelTabs) t.toString()];
+        shell['panelTabs'] = <String>[for (final t in c.shell.panelTabs) t.toString()];
         // 停止方块：进程退出、状态行变已退出。
-        await c.stopTerminalTab(term.id);
+        await c.shell.stopTerminalTab(term.id);
         final exited = await _waitFor(() => !term.running, timeout);
         shell['stoppedExited'] = exited;
         shell['exitCode'] = term.exitCode;
         shell['signal'] = term.signal;
         // 重启：同位置换新 shell；再关掉。
-        await c.restartTerminalTab(term.id);
-        final fresh = c.activeTerminalId;
+        await c.shell.restartTerminalTab(term.id);
+        final fresh = c.shell.activeTerminalId;
         shell['restartedId'] = fresh;
         shell['restartedRunning'] = fresh == null ? null : c.terminals.byId(fresh)?.running;
-        if (fresh != null) await c.closeTerminalTab(fresh);
+        if (fresh != null) await c.shell.closeTerminalTab(fresh);
         shell['tabsAfterClose'] = c.terminals.tabs.length;
-        shell['rightPanelOpen'] = c.rightPanelOpen;
+        shell['rightPanelOpen'] = c.shell.rightPanelOpen;
       }
       steps['localShell'] = shell;
     }

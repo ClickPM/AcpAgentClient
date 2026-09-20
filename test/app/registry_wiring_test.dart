@@ -6,6 +6,7 @@
 import 'dart:async';
 
 import 'package:acp_agent_client/app/core_bridge.dart';
+import 'package:acp_agent_client/app/shell_state.dart';
 import 'package:acp_agent_client/app/workbench_controller.dart';
 import 'package:acp_agent_client/projection/entries.dart';
 import 'package:acp_agent_client/projection/registry.dart';
@@ -164,7 +165,7 @@ void main() {
     await c.newSession(const AgentRef(id: 'codex-acp', name: 'Codex'));
     expect(c.sessionId, isNull);
     expect(c.authAgentId, 'codex-acp');
-    expect(c.rightTab, ShellTab.agents);
+    expect(c.shell.rightTab, ShellTab.agents);
     expect(c.authPhase, AuthPhase.choose);
     expect(c.authMethods.length, 2, reason: 'authMethods 来自 initialize');
     expect(c.authMethodId, 'chat-gpt-device-code');
@@ -175,7 +176,7 @@ void main() {
     expect(core.calls.where((x) => x == 'session_new').length, 2, reason: '认证成功后自动重试 session/new');
     expect(c.sessionId, 'sess_after_auth');
     expect(c.authAgentId, isNull, reason: '回到工作台，认证页关掉');
-    expect(c.page, MainPage.workbench);
+    expect(c.shell.page, MainPage.workbench);
     c.dispose();
   });
 
@@ -221,7 +222,7 @@ void main() {
     });
     await Future<void>.delayed(Duration.zero);
     expect(c.authAgentId, 'codex-acp', reason: '没开认证页也要为它打开');
-    expect(c.rightTab, ShellTab.agents);
+    expect(c.shell.rightTab, ShellTab.agents);
     expect(c.authElicitations.length, 1);
     final e = c.authElicitations.single;
     expect(e.isRequestScope, isTrue);
@@ -312,7 +313,7 @@ void main() {
     expect(c2.authAgentId, 'codex-acp');
     expect(c2.authPhase, AuthPhase.choose);
     expect(succeeding.calls.where((x) => x == 'session_new'), isEmpty);
-    expect(c2.rightTab, ShellTab.agents);
+    expect(c2.shell.rightTab, ShellTab.agents);
     c2.dispose();
   });
 
@@ -340,12 +341,12 @@ void main() {
     };
     final saved = <(String, JsonMap)>[];
     final c = await _start(_SettingsCore(core, saved));
-    c.openTab(ShellTab.settings);
+    c.shell.openTab(ShellTab.settings);
     // 设置是右栏的一个标签（与文件 / Agents 一致），不占主区。
-    expect(c.page, MainPage.workbench);
-    expect(c.rightTab, ShellTab.settings);
-    expect(c.rightPanelOpen, isTrue);
-    expect(c.activeNavTab, ShellTab.settings);
+    expect(c.shell.page, MainPage.workbench);
+    expect(c.shell.rightTab, ShellTab.settings);
+    expect(c.shell.rightPanelOpen, isTrue);
+    expect(c.shell.activeNavTab, ShellTab.settings);
     expect(c.installedEntries.map((e) => e.id), <String>['dsh']);
 
     c.editAgent('dsh');
@@ -366,7 +367,7 @@ void main() {
     expect(c.settingsEditingId, isNull);
 
     await c.selectSession('x');
-    expect(c.rightTab, ShellTab.settings, reason: '选会话不动右栏那一侧的标签');
+    expect(c.shell.rightTab, ShellTab.settings, reason: '选会话不动右栏那一侧的标签');
     c.dispose();
   });
 

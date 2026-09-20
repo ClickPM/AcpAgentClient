@@ -43,6 +43,7 @@ import '../ui/transcript/plan_card.dart';
 import '../ui/transcript/transcript_list.dart';
 import 'clipboard_image.dart';
 import 'font_prefs.dart';
+import 'shell_state.dart';
 import 'window_controls.dart';
 import 'workbench_controller.dart';
 
@@ -183,19 +184,19 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       builder: (context, _) => Listener(
         onPointerDown: _closeInlineMenuOnOutsideTap,
         child: AppShell(
-          sidebar: c.sidebarCollapsed ? null : _sidebar(),
-          main: switch (c.page) {
+          sidebar: c.shell.sidebarCollapsed ? null : _sidebar(),
+          main: switch (c.shell.page) {
             MainPage.traffic => _trafficColumn(),
             MainPage.workbench => _workbenchColumn(),
           },
-          rightPanel: c.rightPanelOpen ? _rightPanel() : null,
-          sidebarWidth: c.sidebarWidth,
-          rightPanelWidth: c.rightPanelWidth,
-          onResizeSidebar: c.resizeSidebar,
-          onResizeRightPanel: c.resizeRightPanel,
-          onResizeEnd: c.saveUiState,
-          onResetSidebar: c.resetSidebarWidth,
-          onResetRightPanel: c.resetRightPanelWidth,
+          rightPanel: c.shell.rightPanelOpen ? _rightPanel() : null,
+          sidebarWidth: c.shell.sidebarWidth,
+          rightPanelWidth: c.shell.rightPanelWidth,
+          onResizeSidebar: c.shell.resizeSidebar,
+          onResizeRightPanel: c.shell.resizeRightPanel,
+          onResizeEnd: c.shell.saveUiState,
+          onResetSidebar: c.shell.resetSidebarWidth,
+          onResetRightPanel: c.shell.resetRightPanelWidth,
         ),
       ),
     );
@@ -227,7 +228,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         renameFocusNode: c.renameFocus,
         searchController: c.sidebarSearch,
         searchFocusNode: c.sidebarSearchFocus,
-        activeTab: c.activeNavTab,
+        activeTab: c.shell.activeNavTab,
         onSelect: c.selectSession,
         onSearchChanged: c.setSearch,
         onClearSearch: c.clearSearch,
@@ -235,7 +236,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         onCommitRename: c.commitRename,
         onCancelRename: c.cancelRename,
         onDelete: _askDelete,
-        onTab: c.toggleNavTab,
+        onTab: c.shell.toggleNavTab,
         deleteAnchor: c.deleteAnchor,
         confirmingDeleteId: c.confirmingDeleteId,
         // 画板 06：在跑的出扫掠亮点线，跑完没看的出绿点。
@@ -257,15 +258,15 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
 
   // ---------------------------------------------------------------- 顶栏（画板 01–04）
 
-  bool get _windowControlsInTopBar => !c.rightPanelOpen;
+  bool get _windowControlsInTopBar => !c.shell.rightPanelOpen;
 
   Widget _topBar({bool windowControls = true}) {
     return TopBar(
       projectName: c.project?.name ?? '—',
       branch: c.branchAreaVisible ? c.branch : null,
-      sidebarCollapsed: c.sidebarCollapsed,
+      sidebarCollapsed: c.shell.sidebarCollapsed,
       windowControls: windowControls,
-      onToggleSidebar: c.toggleSidebar,
+      onToggleSidebar: c.shell.toggleSidebar,
       onProject: _openProjectPopover,
       onBranch: _openBranchPopover,
       onMinimize: AppWindow.minimize,
@@ -348,7 +349,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
           transitionEpoch: c.sessionEpoch,
           canRename: c.hasSession,
           canReload: c.hasSession,
-          menuSelected: c.rightPanelOpen,
+          menuSelected: c.shell.rightPanelOpen,
           iconSvg: c.agentIconSvg,
           renaming: c.renamingInHeader && c.renamingSessionId == c.sessionId,
           renameController: c.rename,
@@ -402,7 +403,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
             Expanded(
               child: c.hasAgent
                   ? NewThreadEmpty(title: c.threadTitle, transitionEpoch: c.sessionEpoch, svg: c.agentIconSvg)
-                  : NoAgentEmpty(onOpenAgents: () => c.openTab(ShellTab.agents)),
+                  : NoAgentEmpty(onOpenAgents: () => c.shell.openTab(ShellTab.agents)),
             ),
           ],
         ),
@@ -426,7 +427,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
               agentName: c.agentDisplayName,
               onLink: _openLink,
               // 画板 18 的 Go to File 与 21 的行点击：落右栏文件面板并定位到行。
-              onGoToFile: (path, line) => c.goToFile(path, line: line),
+              onGoToFile: (path, line) => c.shell.goToFile(path, line: line),
               onRestore: (message) => c.restore(message),
               onRegenerate: (message, text) => c.restore(message, newText: text),
               onAnswerPermission: c.answerPermission,
@@ -451,14 +452,14 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
             connection,
             onAuthenticate: c.authenticate,
             onRestart: c.reloadAgent,
-            onOpenTraffic: c.openTraffic,
+            onOpenTraffic: c.shell.openTraffic,
           ),
         ),
       ],
       if (c.droppedUpdates > 0)
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s24, vertical: t.Spacing.s4),
-          child: DroppedUpdatesBar(count: c.droppedUpdates, onOpenTraffic: c.openTraffic),
+          child: DroppedUpdatesBar(count: c.droppedUpdates, onOpenTraffic: c.shell.openTraffic),
         ),
     ];
   }
@@ -471,7 +472,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       return;
     }
     // 文件链接与 `@` 芯片（file:// 或裸路径）：右栏文件面板定位。
-    await c.goToFile(href);
+    await c.shell.goToFile(href);
   }
 
   // ---------------------------------------------------------------- 输入框（画板 01–03 / 40 / 42）
@@ -528,7 +529,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       onStop: c.cancel,
       onPlus: _openPlusPopover,
       onFollow: _toggleFollow,
-      followOn: c.follow,
+      followOn: c.shell.follow,
       onUsage: _openUsagePopover,
       plusAnchor: c.plusAnchor,
       followAnchor: c.followAnchor,
@@ -587,7 +588,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
             rulesCount: c.rulesCount,
             onOpenRules: () {
               c.usageAnchor.hide();
-              c.openTab(ShellTab.files);
+              c.shell.openTab(ShellTab.files);
             },
           ),
         ));
@@ -595,8 +596,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
 
   /// Follow 是客户端本地开关（画板 40 的提示）：点一下切换，开的那一下顺带把提示浮出来。
   void _toggleFollow() {
-    c.toggleFollow();
-    if (c.follow) {
+    c.shell.toggleFollow();
+    if (c.shell.follow) {
       c.followAnchor.showAbove((_) => FollowTip(agentName: c.agentDisplayName));
     } else {
       c.followAnchor.hide();
@@ -669,7 +670,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   /// `deleteSession` 与能力裁剪都在组合根里、有单测覆盖），产品里的入口留到改完画板的那一轮。
   /// 现有入口：删除走侧栏的删除图标（画板 04）；Resume / Close 本轮在产品 UI 上没有入口（见任务卡「已知限制」）。
   void _openThreadMenu() {
-    c.toggleRightPanel();
+    c.shell.toggleRightPanel();
   }
 
   // ---------------------------------------------------------------- 会话时间线（画板 43）
@@ -859,15 +860,15 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       );
 
   Widget _rightPanel() {
-    final active = c.activePanel!;
+    final active = c.shell.activePanel!;
     // 画板 05 C 组：标签互切时内容区复用 A 组的入场；标签条本身、分隔线、栏宽都不动。
     // `PanelTab` 自带 == / hashCode，直接当触发器。
     final body = _panelBody(active);
     return RightPanel(
-      tabs: c.panelTabs,
+      tabs: c.shell.panelTabs,
       active: active,
-      onSelect: c.selectPanel,
-      onCloseTab: c.closePanel,
+      onSelect: c.shell.selectPanel,
+      onCloseTab: c.shell.closePanel,
       onMinimize: AppWindow.minimize,
       onMaximize: AppWindow.toggleMaximize,
       onCloseWindow: AppWindow.close,
@@ -888,9 +889,9 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         key: ValueKey<String>('terminal-${term.id}'),
         terminal: term,
         autofocus: true,
-        onStop: () => c.stopTerminalTab(term.id),
-        onClear: () => c.clearTerminalTab(term.id),
-        onRestart: () => c.restartTerminalTab(term.id),
+        onStop: () => c.shell.stopTerminalTab(term.id),
+        onClear: () => c.shell.clearTerminalTab(term.id),
+        onRestart: () => c.shell.restartTerminalTab(term.id),
       );
     }
     if (active.shell == ShellTab.files) {
@@ -914,12 +915,12 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         onToggleDir: f.toggleDir,
         onViewMode: f.setViewMode,
         onLink: _openLink,
-        treeWidth: c.filesTreeWidth,
-        treeCollapsed: c.filesTreeCollapsed,
-        onToggleTree: c.toggleFilesTree,
-        onResizeTree: c.resizeFilesTree,
-        onResizeTreeEnd: c.saveUiState,
-        onResetTreeWidth: c.resetFilesTreeWidth,
+        treeWidth: c.shell.filesTreeWidth,
+        treeCollapsed: c.shell.filesTreeCollapsed,
+        onToggleTree: c.shell.toggleFilesTree,
+        onResizeTree: c.shell.resizeFilesTree,
+        onResizeTreeEnd: c.shell.saveUiState,
+        onResetTreeWidth: c.shell.resetFilesTreeWidth,
       );
     }
     return null;
@@ -934,8 +935,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
             Expanded(
               child: TrafficPage(
                 store: c.traffic,
-                filterController: c.trafficFilter,
-                filterFocusNode: c.trafficFilterFocus,
+                filterController: c.shell.trafficFilter,
+                filterFocusNode: c.shell.trafficFilterFocus,
                 stderrAgentId: c.agentId,
               ),
             ),

@@ -27,13 +27,11 @@ import '../projection/session_store.dart';
 import '../projection/tool_calls.dart';
 import '../projection/traffic.dart';
 import '../projection/wire.dart';
-import '../theme/tokens.dart' as t;
 import '../ui/popovers/inline_menus.dart';
 import '../ui/popovers/topbar_popovers.dart';
 import '../ui/registry/auth_page.dart';
 import '../ui/settings/settings_page.dart';
 import '../ui/shell/popover_anchor.dart';
-import '../ui/shell/right_panel.dart';
 import '../ui/shell/shell_common.dart';
 import '../ui/shell/sidebar.dart';
 import 'clipboard_image.dart';
@@ -42,6 +40,7 @@ import 'files_state.dart';
 import 'guarded.dart';
 import 'local_terminals.dart';
 import 'paths.dart';
+import 'shell_state.dart';
 
 enum DataSource {
   bridge,
@@ -52,16 +51,14 @@ enum DataSource {
       const String.fromEnvironment('DATA_SOURCE') == 'fixtures' ? DataSource.fixtures : DataSource.bridge;
 }
 
-/// 主区显示什么：会话工作台、ACP 流量调试（画板 80，从画板 34 的「打开流量面板」进）。
-/// 设置（画板 70）不在这里——它是右栏的一个标签（画板 03 的标签条），跟文件 / Agents 一样不占主区。
-enum MainPage { workbench, traffic }
-
 /// 项目根下算作「规则文件」的名字（docs/design.md § 9 的 Rules 行，清单在 R3 任务卡定）。
 const List<String> ruleFileNames = <String>['AGENTS.md', 'CLAUDE.md', '.rules'];
 
 class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   WorkbenchController({required this.source, this.bridge, FlushScheduler? scheduler})
-      : _scheduler = scheduler ?? _scheduleOnFrame;
+      : _scheduler = scheduler ?? _scheduleOnFrame {
+    shell.addListener(notifyListeners);
+  }
 
   final DataSource source;
   final CoreCommands? bridge;
@@ -103,25 +100,18 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   bool waitingForAgent = false;
   final Map<String, String> _sessionAgent = <String, String>{}; // sessionId → agentId
 
-  // ---- UI 态
-  bool sidebarCollapsed = false;
-
-  /// 两栏宽度（画板 04 的分栏把手）：启动时从 `ui-state.json` 读回，没存过就是画板缺省。
-  double sidebarWidth = t.Geometry.sidebarWidth;
-  double rightPanelWidth = t.Geometry.rightPanelWidth;
-
-  /// 文件面板（画板 60）里树列的宽度与收起态：同样记在 `ui-state.json`（所有者裁定 2026-09-17）。
-  double filesTreeWidth = t.Geometry.filesTreeWidth;
-  bool filesTreeCollapsed = false;
-  final List<ShellTab> openTabs = <ShellTab>[];
-  ShellTab? rightTab;
-
-  /// 右栏当前是某个本地终端标签（画板 61）；null = 显示 [rightTab] 那个面板。
-  String? activeTerminalId;
-
-  /// Follow（画板 40 的提示；客户端本地开关）：开着时 `locations[]` 到达即在文件面板定位。
-  bool follow = false;
-  String? _lastFollowed;
+  // ---- 壳的本地 UI 态（R7.5 拆出）：三栏宽度、主区页面、右栏标签条、本地终端标签、Follow、流量过滤框。
+  late final ShellState shell = ShellState(
+    bridge: bridge,
+    files: files,
+    terminals: terminals,
+    cwd: () => project?.path,
+    onWorkbenchShown: () {
+      // 从流量页回到工作台，当前那条会话就又在眼前了：它的绿点一并撤掉（画板 06 的清除条件）。
+      final id = sessionId;
+      if (id != null) _clearUnread(id);
+    },
+  );
 
   /// 文件面板（画板 60）与终端面板（画板 61）的接线状态（R4）。
   late final FilesState files = FilesState(bridge: bridge);
@@ -129,7 +119,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
 
   /// agent 终端（`acp/terminal_output` source = agent / auth）的分块 UTF-8 解码：跨块的多字节字符不能逐块 `utf8.decode`。
   final Map<String, ChunkedUtf8> _agentTerminalText = <String, ChunkedUtf8>{};
-  MainPage page = MainPage.workbench;
+  // ---- UI 态
   String search = '';
   String? renamingSessionId;
 
@@ -219,8 +209,6 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   final FocusNode branchFocus = FocusNode();
   final TextEditingController modelSearch = TextEditingController();
   final FocusNode modelSearchFocus = FocusNode();
-  final TextEditingController trafficFilter = TextEditingController();
-  final FocusNode trafficFilterFocus = FocusNode();
 
   // ---- 弹层锚点（画板 40 / 41 / 43）
   final PopoverHandle projectAnchor = PopoverHandle();
@@ -313,7 +301,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     _unreadDone.add(id);
   }
 
-  bool _isViewing(String id) => page == MainPage.workbench && sessionId == id;
+  bool _isViewing(String id) => shell.page == MainPage.workbench && sessionId == id;
 
   /// 该会话被查看 / 被删 / 又开了新一轮：绿点撤掉（运行中与绿点严格互斥）。
   void _clearUnread(String id) => _unreadDone.remove(id);
@@ -403,7 +391,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
         if (sid is String) _updateArrivals[sid] = (_updateArrivals[sid] ?? 0) + 1;
         _enqueue(e, (json) {
           sessions.applySessionUpdateEnvelope(json);
-          _followLocations(json);
+          shell.followLocations(json, sessionId: sessionId);
         });
       }),
       b.on(CoreEvent.clientRequest).listen((e) => _enqueue(e, (json) => sessions.applyClientRequestEnvelope(json))),
@@ -429,95 +417,11 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       await refreshRegistry();
       await refreshAgents();
       await _restoreLastProject();
-      await _restoreUiState();
+      await shell.restoreUiState();
     });
     notifyListeners();
     // registry.json 的联网刷新（1 小时节流）放到后台：断网时 30 秒超时不能挡住启动。
     unawaited(refreshRegistry(network: true));
-  }
-
-  // ---------------------------------------------------------------- 分栏宽度（画板 04）
-
-  /// 读回上次拖出来的宽度。没存过 / 存的是垃圾 → 保持画板缺省；夹取一遍再用，
-  /// 免得改过 token 之后旧文件里的值落在范围外。
-  Future<void> _restoreUiState() async {
-    final b = bridge;
-    if (b == null) return;
-    final state = await b.uiStateGet();
-    final side = state['sidebarWidth'];
-    final right = state['rightPanelWidth'];
-    final tree = state['filesTreeWidth'];
-    final treeCollapsed = state['filesTreeCollapsed'];
-    if (side is num) sidebarWidth = _clampSidebar(side.toDouble());
-    if (right is num) rightPanelWidth = _clampRightPanel(right.toDouble());
-    if (tree is num) filesTreeWidth = _clampFilesTree(tree.toDouble());
-    if (treeCollapsed is bool) filesTreeCollapsed = treeCollapsed;
-  }
-
-  static double _clampSidebar(double w) => w.clamp(t.Geometry.sidebarMinWidth, t.Geometry.sidebarMaxWidth);
-  static double _clampRightPanel(double w) => w.clamp(t.Geometry.rightPanelMinWidth, t.Geometry.rightPanelMaxWidth);
-  static double _clampFilesTree(double w) => w.clamp(t.Geometry.filesTreeMinWidth, t.Geometry.filesTreeMaxWidth);
-
-  /// 拖拽增量（正 = 变宽）。夹取在这里做，widget 只报位移。
-  void resizeSidebar(double delta) {
-    final next = _clampSidebar(sidebarWidth + delta);
-    if (next == sidebarWidth) return;
-    sidebarWidth = next;
-    notifyListeners();
-  }
-
-  void resizeRightPanel(double delta) {
-    final next = _clampRightPanel(rightPanelWidth + delta);
-    if (next == rightPanelWidth) return;
-    rightPanelWidth = next;
-    notifyListeners();
-  }
-
-  void resetSidebarWidth() {
-    if (sidebarWidth == t.Geometry.sidebarWidth) return;
-    sidebarWidth = t.Geometry.sidebarWidth;
-    notifyListeners();
-    saveUiState();
-  }
-
-  void resetRightPanelWidth() {
-    if (rightPanelWidth == t.Geometry.rightPanelWidth) return;
-    rightPanelWidth = t.Geometry.rightPanelWidth;
-    notifyListeners();
-    saveUiState();
-  }
-
-  void resizeFilesTree(double delta) {
-    final next = _clampFilesTree(filesTreeWidth + delta);
-    if (next == filesTreeWidth) return;
-    filesTreeWidth = next;
-    notifyListeners();
-  }
-
-  void resetFilesTreeWidth() {
-    if (filesTreeWidth == t.Geometry.filesTreeWidth) return;
-    filesTreeWidth = t.Geometry.filesTreeWidth;
-    notifyListeners();
-    saveUiState();
-  }
-
-  /// 文件面板头行的「缩小」 / 查看器头行的「放回来」：同一个开关。
-  void toggleFilesTree() {
-    filesTreeCollapsed = !filesTreeCollapsed;
-    notifyListeners();
-    saveUiState();
-  }
-
-  /// 松手才落盘：拖拽途中每帧写文件没有意义。
-  Future<void> saveUiState() async {
-    final b = bridge;
-    if (b == null) return;
-    await guard(() => b.uiStateSet(<String, dynamic>{
-          'sidebarWidth': sidebarWidth,
-          'rightPanelWidth': rightPanelWidth,
-          'filesTreeWidth': filesTreeWidth,
-          'filesTreeCollapsed': filesTreeCollapsed,
-        }));
   }
 
   /// fixtures 数据源：把线上行喂进同一套投影层与流量面板，本地态给一份可用的假数据。
@@ -590,13 +494,13 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     files.dispose();
     terminals.dispose();
     for (final c in <TextEditingController>[
-      composer, sidebarSearch, rename, projectSearch, branchInput, modelSearch, trafficFilter, registrySearch,
+      composer, sidebarSearch, rename, projectSearch, branchInput, modelSearch, registrySearch,
       settingsEdit.command, settingsEdit.args, settingsEdit.env,
     ]) {
       c.dispose();
     }
     for (final f in <FocusNode>[
-      composerFocus, sidebarSearchFocus, renameFocus, projectSearchFocus, branchFocus, modelSearchFocus, trafficFilterFocus,
+      composerFocus, sidebarSearchFocus, renameFocus, projectSearchFocus, branchFocus, modelSearchFocus,
       registrySearchFocus, settingsEdit.focus,
     ]) {
       f.dispose();
@@ -608,6 +512,8 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       h.dispose();
     }
     registry.dispose();
+    shell.removeListener(notifyListeners);
+    shell.dispose();
     super.dispose();
   }
 
@@ -962,7 +868,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
           await openAuth(agent.id, retryCwd: cwd);
         // npx 型 agent 缺 Node：Agents 面板顶上的受管 Node 提示卡（画板 51）。
         case 'node_missing':
-          openTab(ShellTab.agents);
+          shell.openTab(ShellTab.agents);
         default:
           break;
       }
@@ -1015,7 +921,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     sessions.session(sid, agentId: agent)
       ..cwd = cwd
       ..applyNewSession(result);
-    page = MainPage.workbench;
+    shell.page = MainPage.workbench;
   }
 
   /// 重载 agent（画板 01 / 41）：断开 + 重拉。agent 声明 `loadSession` 时重连后自动 `session/load` 回原来那个会话
@@ -1067,7 +973,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
 
   /// 侧栏点选一条会话（画板 04）。内存里没有转录且 agent 声明 `loadSession` 时顺带 `session/load` 把历史重放回来。
   Future<void> selectSession(String id) async {
-    page = MainPage.workbench;
+    shell.page = MainPage.workbench;
     // 线程头正在改名时切走：那个输入框改的是原来那条会话，跟着切过去会把名字落到别人头上。
     if (renamingInHeader && renamingSessionId != id) cancelRename();
     if (sessionId != id) sessionEpoch++;
@@ -1935,12 +1841,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     return buffer.toString();
   }
 
-  // ---------------------------------------------------------------- 壳的 UI 动作
-
-  void toggleSidebar() {
-    sidebarCollapsed = !sidebarCollapsed;
-    touch();
-  }
+  // ---------------------------------------------------------------- 侧栏搜索
 
   void setSearch(String value) {
     search = value;
@@ -1953,138 +1854,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     touch();
   }
 
-  // ---------------------------------------------------------------- 右栏（画板 03 / 50 / 60 / 61）
-
-  /// 标签条：面板标签在前、每个本地终端一个标签在后（画板 60 / 61）。侧栏的「终端」入口不作面板标签，它开的是终端实例。
-  List<PanelTab> get panelTabs => <PanelTab>[
-        for (final tab in openTabs) PanelTab.shell(tab),
-        for (final term in terminals.tabs) PanelTab.terminal(term.id, term.title),
-      ];
-
-  PanelTab? get activePanel {
-    final tid = activeTerminalId;
-    if (tid != null) {
-      final term = terminals.byId(tid);
-      if (term != null) return PanelTab.terminal(term.id, term.title);
-    }
-    return rightTab == null ? null : PanelTab.shell(rightTab!);
-  }
-
-  bool get rightPanelOpen => activePanel != null;
-
-  /// 侧栏底部导航 / 右栏标签：终端开一个本地 shell 标签（已有就切到最近那个，画板 61）；
-  /// 设置 / 文件 / Agents 是右栏标签（画板 03 / 50 / 60 / 70）。
-  void openTab(ShellTab tab) {
-    if (tab == ShellTab.terminal) {
-      openTerminalTab();
-      return;
-    }
-    if (!openTabs.contains(tab)) openTabs.add(tab);
-    rightTab = tab;
-    activeTerminalId = null;
-    touch();
-  }
-
-  /// 侧栏底部导航点一下：没开这个面板就开；当前就是它，再点一下把右栏整个收起
-  /// （画板 03 的面板关闭键已废弃，右栏的「关」挪到这里，见 `lib/ui/shell/right_panel.dart` 文件头）。
-  void toggleNavTab(ShellTab tab) {
-    if (rightPanelOpen && activeNavTab == tab) {
-      closeRightPanel();
-      return;
-    }
-    openTab(tab);
-  }
-
-  /// 侧栏底部导航的选中项：终端标签活着时是「终端」；否则跟右栏当前标签（设置也在右栏标签里）。
-  ShellTab? get activeNavTab {
-    if (activeTerminalId != null && terminals.byId(activeTerminalId!) != null) return ShellTab.terminal;
-    return rightTab;
-  }
-
-  void closeTab(ShellTab tab) {
-    openTabs.remove(tab);
-    if (rightTab == tab) rightTab = openTabs.isEmpty ? null : openTabs.last;
-    touch();
-  }
-
-  /// 点标签条上的标签。
-  void selectPanel(PanelTab tab) {
-    if (tab.isTerminal) {
-      activeTerminalId = tab.terminalId;
-    } else {
-      activeTerminalId = null;
-      if (tab.shell != null) openTab(tab.shell!);
-    }
-    touch();
-  }
-
-  /// 标签条上的关闭键：终端标签 = 关掉那个 shell；面板标签 = 收起该面板。
-  Future<void> closePanel(PanelTab tab) async {
-    if (tab.isTerminal) {
-      await closeTerminalTab(tab.terminalId!);
-      return;
-    }
-    if (tab.shell != null) closeTab(tab.shell!);
-  }
-
-  /// 整个右栏收起：面板标签清空、本地 shell 全部关掉。
-  Future<void> closeRightPanel() async {
-    openTabs.clear();
-    rightTab = null;
-    activeTerminalId = null;
-    final ids = <String>[for (final term in terminals.tabs) term.id];
-    for (final id in ids) {
-      await terminals.close(id);
-    }
-    touch();
-  }
-
-  void toggleRightPanel() {
-    if (rightPanelOpen) {
-      closeRightPanel();
-    } else {
-      openTab(ShellTab.files);
-    }
-  }
-
-  // ---------------------------------------------------------------- 本地终端（画板 61）
-
-  /// 开一个本地 shell（cwd = 当前项目）并切到它；已有标签时（侧栏入口）切到最近的那个而不是再开一个。
-  Future<void> openTerminalTab({bool forceNew = false}) async {
-    if (!forceNew && terminals.tabs.isNotEmpty) {
-      activeTerminalId = terminals.tabs.last.id;
-      touch();
-      return;
-    }
-    final cwd = project?.path;
-    if (cwd == null) {
-      lastError = '先选一个项目目录，终端在它里面打开';
-      touch();
-      return;
-    }
-    final id = await terminals.open(cwd);
-    if (id != null) activeTerminalId = id;
-    lastError = terminals.lastError ?? lastError;
-    touch();
-  }
-
-  Future<void> closeTerminalTab(String id) async {
-    final wasActive = activeTerminalId == id;
-    await terminals.close(id);
-    if (wasActive) activeTerminalId = terminals.tabs.isEmpty ? null : terminals.tabs.last.id;
-    touch();
-  }
-
-  Future<void> stopTerminalTab(String id) => terminals.stop(id);
-
-  void clearTerminalTab(String id) => terminals.clear(id);
-
-  Future<void> restartTerminalTab(String id) async {
-    final wasActive = activeTerminalId == id;
-    final fresh = await terminals.restart(id);
-    if (wasActive) activeTerminalId = fresh ?? (terminals.tabs.isEmpty ? null : terminals.tabs.last.id);
-    touch();
-  }
+  // ---------------------------------------------------------------- agent 终端（画板 23）
 
   /// 画板 23 的停止方块（agent 建的终端）：`terminal_kill` = `terminal/kill` 语义，退出状态随 `acp/terminal_output` 回来。
   Future<void> killTerminal(String terminalId) async {
@@ -2117,41 +1887,6 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     if (json['exitStatus'] is Map) _agentTerminalText.remove(id);
   }
 
-  // ---------------------------------------------------------------- 定位与 Follow（画板 18 / 21 / 11 / 40）
-
-  /// 「Go to File」/ diff 行 / `@` 芯片：右栏切到文件面板并打开该文件（给了行就切 Source 高亮那一行）。
-  Future<void> goToFile(String path, {int? line}) async {
-    var p = path;
-    if (p.startsWith('file:///')) p = Uri.parse(p).toFilePath(windows: Platform.isWindows);
-    openTab(ShellTab.files);
-    await files.openPath(p, line: line);
-  }
-
-  void toggleFollow() {
-    follow = !follow;
-    if (!follow) _lastFollowed = null;
-    touch();
-  }
-
-  /// Follow 开着时，当前会话的 `tool_call` / `tool_call_update` 带 `locations[]` 就跟到第一条（同一位置不重复跳）。
-  void _followLocations(JsonMap envelope) {
-    if (!follow || envelope['sessionId'] != sessionId) return;
-    final update = envelope['update'];
-    if (update is! Map) return;
-    final kind = update['sessionUpdate'];
-    if (kind != 'tool_call' && kind != 'tool_call_update') return;
-    final locations = update['locations'];
-    if (locations is! List || locations.isEmpty) return;
-    final first = locations.first;
-    if (first is! Map || first['path'] is! String) return;
-    final path = first['path'] as String;
-    final line = first['line'];
-    final key = '$path:${line ?? ''}';
-    if (key == _lastFollowed) return;
-    _lastFollowed = key;
-    unawaited(goToFile(path, line: line is num ? line.toInt() : null));
-  }
-
   // ---------------------------------------------------------------- 退出收尾
 
   /// 应用退出前：释放全部终端、断开全部 agent（核心侧 `core_shutdown`）。超时也放行，别把窗口卡住。
@@ -2163,19 +1898,6 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     } catch (e) {
       debugPrint('[workbench] shutdown: $e');
     }
-  }
-
-  void openTraffic() {
-    page = MainPage.traffic;
-    touch();
-  }
-
-  void openWorkbench() {
-    page = MainPage.workbench;
-    // 从流量页回到工作台，当前那条会话就又在眼前了：它的绿点一并撤掉（画板 06 的清除条件）。
-    final id = sessionId;
-    if (id != null) _clearUnread(id);
-    touch();
   }
 
   /// 画板 34 状态条的登录键：进认证页（画板 52），方法预选。
@@ -2318,7 +2040,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     _authRetryCwd = retryCwd ?? project?.path;
     _authGeneration++;
     _cancelAuthElicitations();
-    openTab(ShellTab.agents);
+    shell.openTab(ShellTab.agents);
     final b = bridge;
     // 「没连上的」这句判据原先只看 `authMethods.isEmpty`：已经连上、且 `initialize` 里本来就没有 authMethods 的
     // agent 从画板 51 / 34 的登录键进来会白白重连一次，把它上面正在跑的会话全杀掉（与 [newSession] 同一个坑）。
@@ -2378,7 +2100,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       }
       if (stale()) return;
       closeAuth();
-      page = MainPage.workbench;
+      shell.page = MainPage.workbench;
     } on CoreCommandError catch (e) {
       if (stale()) return;
       authPhase = AuthPhase.failed;
@@ -2465,7 +2187,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       authMethodId ??= authMethods.firstOrNull?['id'] as String?;
       _authRetryCwd ??= project?.path;
     }
-    if (rightTab != ShellTab.agents) openTab(ShellTab.agents);
+    if (shell.rightTab != ShellTab.agents) shell.openTab(ShellTab.agents);
     touch();
   }
 

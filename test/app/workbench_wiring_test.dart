@@ -290,11 +290,11 @@ void main() {
     expect(c.hasAgent, isFalse, reason: '画板 01 状态 2：线程头 No Agent、输入框禁用');
     expect(c.threadTitle, 'No Agent');
     expect(c.composerPlaceholder, '安装并选择一个 agent 后即可输入');
-    expect(c.rightTab, isNull);
+    expect(c.shell.rightTab, isNull);
 
-    c.openTab(ShellTab.agents);
-    expect(c.rightTab, ShellTab.agents);
-    expect(c.openTabs, <ShellTab>[ShellTab.agents]);
+    c.shell.openTab(ShellTab.agents);
+    expect(c.shell.rightTab, ShellTab.agents);
+    expect(c.shell.openTabs, <ShellTab>[ShellTab.agents]);
     c.dispose();
   });
 
@@ -421,18 +421,18 @@ void main() {
     final core = FakeCore();
     final c = WorkbenchController(source: DataSource.bridge, bridge: core);
 
-    c.resizeSidebar(1000);
-    expect(c.sidebarWidth, t.Geometry.sidebarMaxWidth, reason: '拖过头也不能超上限');
-    c.resizeRightPanel(-1000);
-    expect(c.rightPanelWidth, t.Geometry.rightPanelMinWidth, reason: '往回拖也不能低于下限');
+    c.shell.resizeSidebar(1000);
+    expect(c.shell.sidebarWidth, t.Geometry.sidebarMaxWidth, reason: '拖过头也不能超上限');
+    c.shell.resizeRightPanel(-1000);
+    expect(c.shell.rightPanelWidth, t.Geometry.rightPanelMinWidth, reason: '往回拖也不能低于下限');
     expect(core.uiState, isEmpty, reason: '拖拽途中不落盘');
 
-    await c.saveUiState();
+    await c.shell.saveUiState();
     expect(core.uiState['sidebarWidth'], t.Geometry.sidebarMaxWidth);
     expect(core.uiState['rightPanelWidth'], t.Geometry.rightPanelMinWidth);
 
-    c.resetSidebarWidth();
-    expect(c.sidebarWidth, t.Geometry.sidebarWidth, reason: '双击复位到画板缺省');
+    c.shell.resetSidebarWidth();
+    expect(c.shell.sidebarWidth, t.Geometry.sidebarWidth, reason: '双击复位到画板缺省');
     // 复位自己就该落盘（双击之后没有「松手」）。这里不能再补一次 saveUiState：
     // 补了的话，把复位里那次落盘删掉，这条用例照样绿。
     await pumpEventQueue();
@@ -441,8 +441,8 @@ void main() {
 
     final next = WorkbenchController(source: DataSource.bridge, bridge: core);
     await next.start();
-    expect(next.rightPanelWidth, t.Geometry.rightPanelMinWidth, reason: '下次启动读回上次拖出来的宽度');
-    expect(next.sidebarWidth, t.Geometry.sidebarWidth);
+    expect(next.shell.rightPanelWidth, t.Geometry.rightPanelMinWidth, reason: '下次启动读回上次拖出来的宽度');
+    expect(next.shell.sidebarWidth, t.Geometry.sidebarWidth);
     next.dispose();
   });
 
@@ -450,8 +450,8 @@ void main() {
     final core = FakeCore()..uiState = <String, dynamic>{'sidebarWidth': 99999, 'rightPanelWidth': 1};
     final c = WorkbenchController(source: DataSource.bridge, bridge: core);
     await c.start();
-    expect(c.sidebarWidth, t.Geometry.sidebarMaxWidth);
-    expect(c.rightPanelWidth, t.Geometry.rightPanelMinWidth);
+    expect(c.shell.sidebarWidth, t.Geometry.sidebarMaxWidth);
+    expect(c.shell.rightPanelWidth, t.Geometry.rightPanelMinWidth);
     c.dispose();
   });
 
