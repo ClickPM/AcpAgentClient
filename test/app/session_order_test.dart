@@ -61,7 +61,7 @@ void main() {
   test('索引的 updatedAt 只在用户发消息时打：收轮、改名都不动它', () async {
     final core = _GatedCore();
     final c = WorkbenchController(source: DataSource.bridge, bridge: core, scheduler: WorkbenchController.scheduleOnMicrotask)
-      ..project = const ProjectRef(path: 'D:/repo', name: 'repo');
+      ..workspace.project = const ProjectRef(path: 'D:/repo', name: 'repo');
     await c.newSession(const AgentRef(id: 'a', name: 'a'));
     final sid = c.sessionId!;
     expect(_updatedAtOf(core, sid), 0, reason: '刚建的会话控制器不传 updatedAt（核心打创建时间；假核心记 0）');
@@ -101,7 +101,7 @@ void main() {
   test('发消息那次索引写还没回来、这一轮就收了：收轮不把时间盖回旧值（合并复审 2026-09-18）', () async {
     final core = _LaggyIndexCore();
     final c = WorkbenchController(source: DataSource.bridge, bridge: core, scheduler: WorkbenchController.scheduleOnMicrotask)
-      ..project = const ProjectRef(path: 'D:/repo', name: 'repo');
+      ..workspace.project = const ProjectRef(path: 'D:/repo', name: 'repo');
     await c.newSession(const AgentRef(id: 'a', name: 'a'));
     final sid = c.sessionId!;
 

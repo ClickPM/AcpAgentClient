@@ -40,7 +40,9 @@ import 'files_state.dart';
 import 'guarded.dart';
 import 'local_terminals.dart';
 import 'paths.dart';
+import 'session_index.dart';
 import 'shell_state.dart';
+import 'workspace_state.dart';
 
 enum DataSource {
   bridge,
@@ -51,13 +53,11 @@ enum DataSource {
       const String.fromEnvironment('DATA_SOURCE') == 'fixtures' ? DataSource.fixtures : DataSource.bridge;
 }
 
-/// 项目根下算作「规则文件」的名字（docs/design.md § 9 的 Rules 行，清单在 R3 任务卡定）。
-const List<String> ruleFileNames = <String>['AGENTS.md', 'CLAUDE.md', '.rules'];
-
 class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   WorkbenchController({required this.source, this.bridge, FlushScheduler? scheduler})
       : _scheduler = scheduler ?? _scheduleOnFrame {
     shell.addListener(notifyListeners);
+    workspace.addListener(notifyListeners);
   }
 
   final DataSource source;
@@ -74,15 +74,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
 
   // ---- 本地态（协议之外）
   List<SidebarSession> sidebarSessions = const <SidebarSession>[];
-  List<ProjectRef> recentProjects = const <ProjectRef>[];
   List<AgentRef> installedAgents = const <AgentRef>[];
-  ProjectRef? project;
-  String? branch;
-  List<BranchRef> branches = const <BranchRef>[];
-
-  /// 顶栏分支区是否渲染：找得到 git 且当前项目是 git 工作区。
-  bool branchAreaVisible = false;
-  int rulesCount = 0;
 
   String? agentId;
   String? sessionId;
@@ -100,12 +92,23 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   bool waitingForAgent = false;
   final Map<String, String> _sessionAgent = <String, String>{}; // sessionId → agentId
 
+  // ---- 项目与分支（R7.5 拆出）：当前项目 / 最近项目 / 分支区 / Rules 计数；等待期守卫与换项目的后续动作经回调回到这里。
+  late final WorkspaceState workspace = WorkspaceState(
+    bridge: bridge,
+    files: files,
+    busy: () => waitingForAgent,
+    onProjectChanged: _enterWorkspace,
+  );
+
+  // ---- 本地会话索引 `sessions.json` 的内存镜像（R7.5 拆出）：不是 notifier，条目一变就在这里重投影侧栏。
+  late final SessionIndex index = SessionIndex(bridge: bridge, onChanged: _refreshSidebar);
+
   // ---- 壳的本地 UI 态（R7.5 拆出）：三栏宽度、主区页面、右栏标签条、本地终端标签、Follow、流量过滤框。
   late final ShellState shell = ShellState(
     bridge: bridge,
     files: files,
     terminals: terminals,
-    cwd: () => project?.path,
+    cwd: () => workspace.project?.path,
     onWorkbenchShown: () {
       // 从流量页回到工作台，当前那条会话就又在眼前了：它的绿点一并撤掉（画板 06 的清除条件）。
       final id = sessionId;
@@ -203,16 +206,10 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   final FocusNode sidebarSearchFocus = FocusNode();
   final TextEditingController rename = TextEditingController();
   final FocusNode renameFocus = FocusNode();
-  final TextEditingController projectSearch = TextEditingController();
-  final FocusNode projectSearchFocus = FocusNode();
-  final TextEditingController branchInput = TextEditingController();
-  final FocusNode branchFocus = FocusNode();
   final TextEditingController modelSearch = TextEditingController();
   final FocusNode modelSearchFocus = FocusNode();
 
   // ---- 弹层锚点（画板 40 / 41 / 43）
-  final PopoverHandle projectAnchor = PopoverHandle();
-  final PopoverHandle branchAnchor = PopoverHandle();
   final PopoverHandle newSessionAnchor = PopoverHandle();
   final PopoverHandle threadMenuAnchor = PopoverHandle();
 
@@ -258,12 +255,12 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   String get composerPlaceholder {
     if (!hasAgent) return '安装并选择一个 agent 后即可输入';
     // 会话是发第一条消息时才开的，cwd 从当前项目来：没项目就先说清楚，别让发送静默失败。
-    if (!hasSession && project == null) return '先选一个项目目录，新会话的 cwd 从它来';
+    if (!hasSession && workspace.project == null) return '先选一个项目目录，新会话的 cwd 从它来';
     return 'Message to $agentDisplayName , @ to include context , / for commands';
   }
 
   /// 输入框可用：选了 agent、没项目也没会话时不可用（发不出去），已关掉的会话只读。
-  bool get canCompose => hasAgent && !sessionClosed && (hasSession || project != null);
+  bool get canCompose => hasAgent && !sessionClosed && (hasSession || workspace.project != null);
 
   /// 侧栏按搜索过滤后的会话（标题子串，大小写不敏感）。
   List<SidebarSession> get visibleSessions {
@@ -413,10 +410,10 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       logPath = info['logPath'] as String?;
       // 本地索引先读：下面挑「当前 agent」要按索引里最近用过的那条来（`refreshRegistry` 末尾
       // 会用 registry 的图标把侧栏重投影一次，所以先读索引不会让会话项停在占位菱形上）。
-      await refreshSessionIndex();
+      await index.refresh();
       await refreshRegistry();
       await refreshAgents();
-      await _restoreLastProject();
+      await workspace.restoreLastProject();
       await shell.restoreUiState();
     });
     notifyListeners();
@@ -453,7 +450,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     agentId = agent;
     sessionId = replayer.lastSessionId;
     final cwd = sessionId == null ? null : sessions.maybe(sessionId!)?.cwd;
-    if (cwd != null) project = ProjectRef(path: cwd, name: cwd.split(RegExp(r'[\\/]')).last);
+    if (cwd != null) workspace.project = ProjectRef(path: cwd, name: cwd.split(RegExp(r'[\\/]')).last);
     sidebarSessions = <SidebarSession>[
       if (sessionId != null)
         SidebarSession(
@@ -494,19 +491,19 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     files.dispose();
     terminals.dispose();
     for (final c in <TextEditingController>[
-      composer, sidebarSearch, rename, projectSearch, branchInput, modelSearch, registrySearch,
+      composer, sidebarSearch, rename, modelSearch, registrySearch,
       settingsEdit.command, settingsEdit.args, settingsEdit.env,
     ]) {
       c.dispose();
     }
     for (final f in <FocusNode>[
-      composerFocus, sidebarSearchFocus, renameFocus, projectSearchFocus, branchFocus, modelSearchFocus,
+      composerFocus, sidebarSearchFocus, renameFocus, modelSearchFocus,
       registrySearchFocus, settingsEdit.focus,
     ]) {
       f.dispose();
     }
     for (final h in <PopoverHandle>[
-      projectAnchor, branchAnchor, newSessionAnchor, threadMenuAnchor, timelineAnchor, deleteAnchor, plusAnchor,
+      newSessionAnchor, threadMenuAnchor, timelineAnchor, deleteAnchor, plusAnchor,
       followAnchor, usageAnchor, ..._configAnchors.values,
     ]) {
       h.dispose();
@@ -514,13 +511,15 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     registry.dispose();
     shell.removeListener(notifyListeners);
     shell.dispose();
+    workspace.removeListener(notifyListeners);
+    workspace.dispose();
     super.dispose();
   }
 
   /// 组合根里的纯 UI 变化（弹层里的搜索框输入等）需要重建时调它。
   void refresh() => touch();
 
-  // ---------------------------------------------------------------- 本地索引与项目
+  // ---------------------------------------------------------------- 已装 agent、侧栏投影与 agent 能力
 
   Future<void> refreshAgents() async {
     final b = bridge;
@@ -553,23 +552,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     final installed = <String>{for (final a in installedAgents) a.id};
     final current = agentId;
     if (current != null && installed.contains(current)) return; // 已经选好且还装着：不动它
-    agentId = _lastUsedAgentId(installed) ?? (installedAgents.isEmpty ? null : installedAgents.first.id);
-  }
-
-  /// 本地索引（`sessions.json`）里 `updatedAt` 最大的那条会话的 agent，限于还装着的。
-  String? _lastUsedAgentId(Set<String> installed) {
-    String? best;
-    var bestAt = -1;
-    for (final e in _indexEntries) {
-      final id = e['agentId'];
-      if (id is! String || !installed.contains(id)) continue;
-      final at = (e['updatedAt'] as num?)?.toInt() ?? 0;
-      if (at > bestAt) {
-        bestAt = at;
-        best = id;
-      }
-    }
-    return best;
+    agentId = index.lastUsedAgentId(installed) ?? (installedAgents.isEmpty ? null : installedAgents.first.id);
   }
 
   /// 已安装列表里的这一条（展示名与图标从它来）。
@@ -589,21 +572,9 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     return registry.byId(id)?.name ?? id;
   }
 
-  Future<void> refreshSessionIndex() async {
-    final b = bridge;
-    if (b == null) return;
-    final result = await b.sessionIndexList();
-    _applyIndex(result['sessions']);
-  }
-
-  /// 本地索引落地：原始条目（cwd 等字段接线要用）与侧栏投影一起更新。
-  void _applyIndex(Object? raw) {
-    _indexEntries = <JsonMap>[
-      if (raw is List)
-        for (final item in raw)
-          if (item is Map) item.cast<String, dynamic>(),
-    ];
-    sidebarSessions = _toSidebar(raw);
+  /// 本地索引变了 / registry 变了（图标）：侧栏项重投影一次。不通知，调用方收尾时 `touch`。
+  void _refreshSidebar() {
+    sidebarSessions = _toSidebar(index.entries);
   }
 
   /// 把 `sessions.json` 的一条映射成侧栏项，**顺带把 agentId 记进 [_sessionAgent]**：
@@ -622,7 +593,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       final owner = item['agentId'] as String?;
       if (owner != null && owner.isNotEmpty) _sessionAgent[sessionId] = owner;
       final cwd = item['cwd'];
-      if (!_inCurrentWorkspace(cwd is String ? cwd : null)) continue;
+      if (!workspace.inCurrentWorkspace(cwd is String ? cwd : null)) continue;
       out.add(SidebarSession(
         id: sessionId,
         title: item['title'] as String? ?? sessionId,
@@ -633,23 +604,6 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       ));
     }
     return out;
-  }
-
-  /// 这条索引记录属不属于当前 workspace。还没选项目时不过滤；没记 cwd 的老条目分不清归属，照给，
-  /// 免得永远找不回来。两边路径同源（都是 `workspace_open` 回的那份），但仍按分隔符、尾斜杠与
-  /// （Windows 上）大小写归一后再比，同一目录的两种写法不能被判成两个 workspace。
-  bool _inCurrentWorkspace(String? cwd) {
-    final scope = project?.path;
-    if (scope == null || cwd == null || cwd.isEmpty) return true;
-    return _normalizeCwd(cwd) == _normalizeCwd(scope);
-  }
-
-  static String _normalizeCwd(String path) {
-    var p = path.replaceAll('\\', '/');
-    while (p.length > 1 && p.endsWith('/')) {
-      p = p.substring(0, p.length - 1);
-    }
-    return Platform.isWindows ? p.toLowerCase() : p;
   }
 
   /// agent 自己的 logo：registry 缓存的 `icon.svg` 原样内容，侧栏会话项与线程头的 agent 标记直接画它
@@ -704,126 +658,20 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   // （实测 dsh-acp-interactive 1.3.0）的会话在侧栏里永远清不掉——本地记录是我们自己的，不该被 agent
   // 的能力声明锁住（所有者报障 2026-09-18）。见 [_toSidebar] 的 `canDelete: true`。
 
-  /// 启动时恢复最近一次打开的项目（没有就留空，顶栏显示 `—`，新建会话前要先选项目）。
-  Future<void> _restoreLastProject() async {
-    final b = bridge;
-    if (b == null) return;
-    final result = await b.workspaceRecent();
-    recentProjects = _toProjects(result['projects']);
-    if (recentProjects.isNotEmpty) await openProject(recentProjects.first);
-  }
-
-  List<ProjectRef> _toProjects(Object? raw) => <ProjectRef>[
-        if (raw is List)
-          for (final p in raw)
-            if (p is Map) ProjectRef(path: p['path'] as String? ?? '', name: p['name'] as String? ?? ''),
-      ];
-
-  Future<void> openProject(ProjectRef ref) async {
-    hidePopover(projectAnchor);
-    // 等待期（`session/new` / 重载在途）里顶栏仍可点（`IgnorePointer` 只包住 `_body()`）：这时换项目，
-    // 在途那条 `session/new` 回来后 `_adoptSession` 会把它挂成当前会话，而它的 cwd 是旧目录——线程区开着一条
-    // 侧栏（只投影当前 workspace，见 [_toSidebar]）里找不到的会话。与 [newSession] / [reloadAgent] 同一道守卫：
-    // 等待期里不换项目（合并复审 2026-09-18）。
-    if (waitingForAgent) return;
-    final b = bridge;
-    if (b == null) {
-      project = ref;
-      touch();
-      return;
-    }
-    await guard(() async {
-      final result = await b.workspaceOpen(ref.path);
-      final p = result['project'];
-      project = p is Map ? ProjectRef(path: p['path'] as String? ?? ref.path, name: p['name'] as String? ?? ref.name) : ref;
-      recentProjects = _toProjects(result['projects']);
-      _enterWorkspace();
-      await refreshBranches();
-      await refreshRules();
-      await files.setProject(project?.path);
-    });
-    touch();
-  }
-
   /// 换了项目：侧栏只留这个目录下的会话（[_toSidebar] 按 [project] 过滤）；正开着的会话若属于别的目录，
   /// 就从线程区放下（回到画板 01 的空态，下一条消息在新目录里现开会话）——不然顶栏写着新项目、
   /// 消息却发进旧目录的会话，侧栏里还找不到它。放下不等于关掉：它在 agent 侧照跑，切回那个目录再点回来。
   /// 同一个目录换种写法（分隔符 / 尾斜杠）不算换项目，会话不动。
   void _enterWorkspace() {
-    sidebarSessions = _toSidebar(_indexEntries);
+    _refreshSidebar();
     // 正在改名的那条（侧栏行或线程头）若不属于这个 workspace，它的输入框随行一起没了，`renamingSessionId`
     // 不能悬着：切回来时那行会直接以改名态出现、带着上次没提交的文本（合并复审 2026-09-18）。
     final renaming = renamingSessionId;
-    if (renaming != null && !_inCurrentWorkspace(_indexCwdOf(renaming))) cancelRename();
+    if (renaming != null && !workspace.inCurrentWorkspace(_cwdOf(renaming))) cancelRename();
     final id = sessionId;
-    if (id == null || _inCurrentWorkspace(_indexCwdOf(id))) return;
+    if (id == null || workspace.inCurrentWorkspace(_cwdOf(id))) return;
     sessionId = null;
     sessionEpoch++;
-  }
-
-  Future<void> refreshBranches() async {
-    final b = bridge;
-    final cwd = project?.path;
-    if (b == null || cwd == null) return;
-    final result = await b.gitBranches(cwd);
-    final available = result['available'] == true;
-    final isRepo = result['isRepo'] == true;
-    branchAreaVisible = available && isRepo;
-    branch = branchAreaVisible ? result['current'] as String? : null;
-    final raw = result['branches'];
-    branches = <BranchRef>[
-      if (raw is List)
-        for (final x in raw)
-          if (x is Map)
-            BranchRef(
-              name: x['name'] as String? ?? '',
-              author: x['author'] as String?,
-              when: x['when'] as String?,
-              subject: x['subject'] as String?,
-            ),
-    ];
-  }
-
-  /// Rules 行（画板 30 / 40）：项目根下规则文件的计数。
-  Future<void> refreshRules() async {
-    final b = bridge;
-    final cwd = project?.path;
-    if (b == null || cwd == null) return;
-    final listing = await b.fsListDir(cwd, cwd);
-    final entries = listing['entries'];
-    var count = 0;
-    if (entries is List) {
-      for (final e in entries) {
-        if (e is Map && e['isDir'] != true && ruleFileNames.contains(e['name'])) count++;
-      }
-    }
-    rulesCount = count;
-  }
-
-  Future<void> switchBranch(String name) async {
-    hidePopover(branchAnchor);
-    branchInput.clear();
-    final b = bridge;
-    final cwd = project?.path;
-    if (b == null || cwd == null) return;
-    await guard(() async {
-      await b.gitSwitch(cwd, name);
-      await refreshBranches();
-    });
-    touch();
-  }
-
-  Future<void> createBranch(String name) async {
-    hidePopover(branchAnchor);
-    branchInput.clear();
-    final b = bridge;
-    final cwd = project?.path;
-    if (b == null || cwd == null) return;
-    await guard(() async {
-      await b.gitCreateBranch(cwd, name);
-      await refreshBranches();
-    });
-    touch();
   }
 
   // ---------------------------------------------------------------- 会话
@@ -841,7 +689,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
 
   Future<void> _newSession(AgentRef agent) async {
     final b = bridge;
-    final cwd = project?.path;
+    final cwd = workspace.project?.path;
     if (b == null || cwd == null) {
       lastError = cwd == null ? '先选一个项目目录，新会话的 cwd 从它来' : null;
       touch();
@@ -930,7 +778,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     hidePopover(threadMenuAnchor);
     final id = agentId;
     final b = bridge;
-    final cwd = project?.path;
+    final cwd = workspace.project?.path;
     if (id == null || b == null || cwd == null) return;
     // 重入守卫：等待期里线程头的重载按钮仍可点（`canReload` 全程为真，`IgnorePointer` 只包住 `_body()`），
     // 连点两下会让两条 disconnect → reconnect → load 序列交叠，且先返回的那条提前把等待态收掉
@@ -1009,7 +857,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     if (b == null || owner == null || owner.isEmpty) return;
     final reopening = _closedSessions.contains(id);
     if (sessions.maybe(id) != null && !reopening) return;
-    final cwd = _indexCwdOf(id) ?? project?.path;
+    final cwd = _cwdOf(id) ?? workspace.project?.path;
     if (cwd == null) return;
     if (missingOnAgent.contains(id)) {
       lastError = '$id 在 agent 侧已经不存在了，载不回历史';
@@ -1032,36 +880,8 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     touch();
   }
 
-  /// 本地索引里这条记录登记的 agentId（删 / 改索引都按 (agentId, sessionId) 匹配，见 [deleteSession]）。
-  String? _indexAgentOf(String sessionId) {
-    for (final s in _indexEntries) {
-      if (s['sessionId'] == sessionId) {
-        final agent = s['agentId'];
-        if (agent is String) return agent;
-      }
-    }
-    return null;
-  }
-
-  String? _indexCwdOf(String sessionId) {
-    for (final s in _indexEntries) {
-      if (s['sessionId'] == sessionId) {
-        final cwd = s['cwd'];
-        if (cwd is String && cwd.isNotEmpty) return cwd;
-      }
-    }
-    return sessions.maybe(sessionId)?.cwd;
-  }
-
-  /// 本地索引原始条目（`sessions.json` 的投影；侧栏项只留了展示要用的字段，cwd 在这里）。
-  List<JsonMap> _indexEntries = const <JsonMap>[];
-
-  /// 每条会话最近一次发消息时打的 `updatedAt`（[_saveIndex] 的 promptSent 那次）。[_indexEntries] 只在那条
-  /// 命令**回来**之后才带上新时间，而它是不 await 的（见 [_stampPromptSent]）；核心又是每条命令各起一个任务
-  /// （`rust/bridge/src/api.rs` 的 `on_core`），不保证先发的先回——一轮跑得比索引写回来还快时，收轮那次
-  /// [_saveIndex] 从 [_indexEntries] 读到的还是发消息之前的旧时间、把刚打的盖回去（概率很低，但顺序不该靠运气）。
-  /// 这里记一份本地的，[_indexUpdatedAtOf] 取两者里大的（合并复审 2026-09-18）。
-  final Map<String, int> _promptSentAt = <String, int>{};
+  /// 这条会话的 cwd：本地索引里登记的，没有就退到内存里那份转录的。
+  String? _cwdOf(String sessionId) => index.cwdOf(sessionId) ?? sessions.maybe(sessionId)?.cwd;
 
   /// `session/load`（R6）：整段历史由 agent 用 `session/update` 重放，**重放期间不逐条刷新 UI**——
   /// 事件照常入队，但 batcher 挂起到命令返回后一次性刷完。成功返回 true。
@@ -1117,7 +937,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     final id = sessionId;
     final agent = agentId;
     if (b == null || id == null || agent == null) return;
-    final cwd = sessions.maybe(id)?.cwd ?? _indexCwdOf(id) ?? project?.path;
+    final cwd = sessions.maybe(id)?.cwd ?? _cwdOf(id) ?? workspace.project?.path;
     if (cwd == null) return;
     await guard(() async {
       final result = await b.sessionResume(agent, id, cwd);
@@ -1174,7 +994,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       final remote = <String, JsonMap>{};
       String? cursor;
       for (var page = 0; page < maxPages; page++) {
-        final result = await b.sessionList(agent, cwd: project?.path, cursor: cursor);
+        final result = await b.sessionList(agent, cwd: workspace.project?.path, cursor: cursor);
         final list = result['sessions'];
         if (list is List) {
           for (final item in list) {
@@ -1188,8 +1008,8 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
         cursor = next;
       }
       var changed = false;
-      final scope = project?.path;
-      for (final entry in <JsonMap>[..._indexEntries]) {
+      final scope = workspace.project?.path;
+      for (final entry in <JsonMap>[...index.entries]) {
         if (entry['agentId'] != agent) continue;
         // `session/list` 按 cwd 过滤了，本地也只能拿同一个 cwd 的条目去对——否则别的项目下的会话
         // 会被整批判成「agent 侧没有了」（2026-09-16 dsh 实测踩到：21 条全被误标）。
@@ -1207,8 +1027,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
         // 只补、不覆盖：本地改过的名字是用户的，agent 的标题不能盖回去。
         final needsTitle = local is! String || local.isEmpty || local == sid;
         if (needsTitle && title is String && title.isNotEmpty) {
-          final result = await b.sessionIndexUpsert(<String, dynamic>{...entry, 'title': title});
-          _applyIndex(result['sessions']);
+          await index.upsertEntry(<String, dynamic>{...entry, 'title': title});
           changed = true;
         }
       }
@@ -1219,31 +1038,18 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   /// 删除 / 改名用的 agentId：优先本地索引里记的那个，退到当前连接。
   String _ownerOf(String sessionId) => _sessionAgent[sessionId] ?? agentId ?? '';
 
-  /// 侧栏按索引的 `updatedAt` 倒序（核心 `IndexStore::sessions`），而 `updatedAt` 的口径是**用户最后一次发消息的时间**
-  /// （所有者裁定 2026-09-18）：只在 `session/prompt` 发出时打新时间（[promptSent]），收轮、改名、补标题都沿用
-  /// 索引里已有的值——按收轮时间打的话，一条早发出去、晚跑完的会话会在收轮时跳到刚发过消息的那条前面。
-  /// 索引里还没有这条（刚 `session/new`）时不传，核心打当前时间：新会话按创建时间排最上面。
+  /// 当前会话写进本地索引（`sessions.json`）：收轮刷消息计数、新会话登记、发消息时打 `updatedAt`
+  /// （口径见 [SessionIndex.upsert]）。没有当前会话就什么都不做。
   Future<void> _saveIndex({bool promptSent = false}) async {
-    final b = bridge;
     final s = store;
-    if (b == null || s == null) return;
-    final updatedAt = promptSent ? DateTime.now().millisecondsSinceEpoch : _indexUpdatedAtOf(s.sessionId);
-    if (promptSent && updatedAt != null) _promptSentAt[s.sessionId] = updatedAt;
-    final result = await b.sessionIndexUpsert(<String, dynamic>{
-      'agentId': s.agentId ?? agentId ?? '',
-      'sessionId': s.sessionId,
-      'title': s.title ?? threadTitle,
-      'cwd': s.cwd,
-      'messageCount': s.entries.whereType<MessageEntry>().length,
-      'updatedAt': ?updatedAt,
-    });
-    _applyIndex(result['sessions']);
+    if (s == null) return;
+    await index.upsert(s, agentFallback: agentId ?? '', titleFallback: threadTitle, promptSent: promptSent);
   }
 
   /// 用户发出一条消息（发送 / Restore / Regenerate）：把索引的 `updatedAt` 打成现在，侧栏这条立刻升到最上面。
   /// **不 await**：`startTurn` 与 `_runTurn` 之间不能有异步间隙，否则这段里 `isRunning` 已是 true 而
   /// `_turnInFlight` 还是 null，Restore / cancel 等不到在途那一轮就会重叠两个 `session/prompt`
-  /// （审查 finding high，2026-09-15）。先后由 [_promptSentAt] 兜住：收轮那次 [_saveIndex] 不靠这条命令回没回来，
+  /// （审查 finding high，2026-09-15）。先后由 [SessionIndex] 本地记的发消息时间兜住：收轮那次 [_saveIndex] 不靠这条命令回没回来，
   /// 本地记的那份时间总在。写不动只记日志不挡发送——索引是可再生缓存（`rust/settings/src/index.rs`），发送才是正事。
   Future<void> _stampPromptSent() async {
     try {
@@ -1251,23 +1057,6 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     } catch (e) {
       debugPrint('[workbench] session index: ${describeError(e)}');
     }
-  }
-
-  /// 本地索引（`sessions.json`）里这条会话的原始条目；没有为 null。
-  JsonMap? _indexEntryOf(String sessionId) {
-    for (final e in _indexEntries) {
-      if (e['sessionId'] == sessionId) return e;
-    }
-    return null;
-  }
-
-  /// 索引里这条会话的 `updatedAt`，与本地记的最近一次发消息时间（[_promptSentAt]）取大；
-  /// 没有这条或还没打过时间时为 null。
-  int? _indexUpdatedAtOf(String sessionId) {
-    var at = (_indexEntryOf(sessionId)?['updatedAt'] as num?)?.toInt() ?? 0;
-    final sent = _promptSentAt[sessionId];
-    if (sent != null && sent > at) at = sent;
-    return at <= 0 ? null : at;
   }
 
   void startRename(String id, {bool inHeader = false}) {
@@ -1301,16 +1090,15 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       final owner = _ownerOf(id);
       // 计数与 cwd 都从索引本身取，不从侧栏：侧栏只投影当前 workspace 的条目（[_toSidebar]），
       // 核心的 upsert 是整行替换，这里少给一个字段就是把它抹成默认值。
-      final result = await b.sessionIndexUpsert(<String, dynamic>{
+      await index.upsertEntry(<String, dynamic>{
         'agentId': owner,
         'sessionId': id,
         'title': title.trim(),
-        'cwd': _indexCwdOf(id) ?? project?.path,
-        'messageCount': (_indexEntryOf(id)?['messageCount'] as num?)?.toInt() ?? 0,
-        // 改名不是发消息：沿用原时间，侧栏不因此重排（见 [_saveIndex]）。
-        'updatedAt': ?_indexUpdatedAtOf(id),
+        'cwd': _cwdOf(id) ?? workspace.project?.path,
+        'messageCount': (index.entryOf(id)?['messageCount'] as num?)?.toInt() ?? 0,
+        // 改名不是发消息：沿用原时间，侧栏不因此重排（见 [SessionIndex.upsert]）。
+        'updatedAt': ?index.updatedAtOf(id),
       });
-      _applyIndex(result['sessions']);
     });
     touch();
   }
@@ -1365,10 +1153,9 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       }
       // 索引这条记录按 (agentId, sessionId) 精确匹配删除，agentId 要用**索引里登记的那个**：
       // 拿当前连接的 agentId 去删会一条都对不上，核心照样返回成功，于是那一行纹丝不动、也没有任何提示。
-      final result = await b.sessionIndexRemove(_indexAgentOf(id) ?? owner, id);
-      _applyIndex(result['sessions']);
+      await index.remove(index.agentOf(id) ?? owner, id);
       // 查索引本身而不是侧栏：侧栏只投影当前 workspace 的条目（[_toSidebar]），不在侧栏 ≠ 已删掉。
-      if (_indexEntries.any((e) => e['sessionId'] == id)) {
+      if (index.entries.any((e) => e['sessionId'] == id)) {
         lastError = '这条会话的本地记录没能删掉（索引里找不到匹配的记录）';
       }
       missingOnAgent.remove(id);
@@ -1377,7 +1164,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       _updateArrivals.remove(id);
       _deletedOnAgent.remove(id);
       _sessionAgent.remove(id);
-      _promptSentAt.remove(id);
+      index.forgetPromptSent(id);
       _clearUnread(id);
       sessions.forget(id);
       if (sessionId == id) sessionId = null;
@@ -1694,7 +1481,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   Future<void> _updateMentionMenu(String query) async {
     final b = bridge;
     // 提及的根用当前会话的 cwd（agent 按它解析路径），没有才回落到当前项目。
-    final cwd = store?.cwd ?? project?.path;
+    final cwd = store?.cwd ?? workspace.project?.path;
     if (b == null || cwd == null) {
       _clearInlineMenu();
       touch();
@@ -1904,7 +1691,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   Future<void> authenticate(String methodId) async {
     final id = agentId ?? connection?.agentId;
     if (id == null) return;
-    await openAuth(id, retryCwd: project?.path, methodId: methodId);
+    await openAuth(id, retryCwd: workspace.project?.path, methodId: methodId);
   }
 
   // ---------------------------------------------------------------- registry 面板（画板 50 / 51，R5）
@@ -1921,7 +1708,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       registry.applyList(list);
       // 侧栏的 agent logo 是从 registry 查出来**烘进** [SidebarSession] 的，所以 registry 一变就要重投影一次：
       // 首次启动时图标是这轮联网刷新才落盘的，不重投影侧栏会一直停在占位菱形上，直到下次刷新本地索引。
-      sidebarSessions = _toSidebar(_indexEntries);
+      _refreshSidebar();
       final paths = list['paths'];
       if (paths is Map) {
         dataDir = paths['dataDir'] as String? ?? dataDir;
@@ -2037,7 +1824,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     authPhase = AuthPhase.choose;
     authError = null;
     authTerminalLabel = null;
-    _authRetryCwd = retryCwd ?? project?.path;
+    _authRetryCwd = retryCwd ?? workspace.project?.path;
     _authGeneration++;
     _cancelAuthElicitations();
     shell.openTab(ShellTab.agents);
@@ -2069,7 +1856,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     final methodId = authMethodId ?? authMethods.firstOrNull?['id'] as String?;
     if (b == null || agent == null || methodId == null) return;
     final method = authMethods.where((m) => m['id'] == methodId).firstOrNull ?? const <String, dynamic>{};
-    final cwd = _authRetryCwd ?? project?.path;
+    final cwd = _authRetryCwd ?? workspace.project?.path;
     final generation = _authGeneration;
     bool stale() => generation != _authGeneration;
     authPhase = AuthPhase.running;
@@ -2185,7 +1972,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       authAgentId = agent;
       authPhase = AuthPhase.running;
       authMethodId ??= authMethods.firstOrNull?['id'] as String?;
-      _authRetryCwd ??= project?.path;
+      _authRetryCwd ??= workspace.project?.path;
     }
     if (shell.rightTab != ShellTab.agents) shell.openTab(ShellTab.agents);
     touch();

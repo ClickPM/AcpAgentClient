@@ -262,8 +262,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
 
   Widget _topBar({bool windowControls = true}) {
     return TopBar(
-      projectName: c.project?.name ?? '—',
-      branch: c.branchAreaVisible ? c.branch : null,
+      projectName: c.workspace.project?.name ?? '—',
+      branch: c.workspace.branchAreaVisible ? c.workspace.branch : null,
       sidebarCollapsed: c.shell.sidebarCollapsed,
       windowControls: windowControls,
       onToggleSidebar: c.shell.toggleSidebar,
@@ -272,8 +272,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       onMinimize: AppWindow.minimize,
       onMaximize: AppWindow.toggleMaximize,
       onClose: AppWindow.close,
-      projectAnchor: c.projectAnchor,
-      branchAnchor: c.branchAnchor,
+      projectAnchor: c.workspace.projectAnchor,
+      branchAnchor: c.workspace.branchAnchor,
       dragArea: _dragArea(),
     );
   }
@@ -294,44 +294,44 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       );
 
   void _openProjectPopover() {
-    c.projectAnchor.toggle((_) => ListenableBuilder(
+    c.workspace.projectAnchor.toggle((_) => ListenableBuilder(
           listenable: c,
           builder: (context, _) => ProjectSwitcherPopover(
-            openProjects: <ProjectRef>[if (c.project != null) c.project!],
+            openProjects: <ProjectRef>[if (c.workspace.project != null) c.workspace.project!],
             recentProjects: <ProjectRef>[
-              for (final p in c.recentProjects)
-                if (p.path != c.project?.path) p,
+              for (final p in c.workspace.recentProjects)
+                if (p.path != c.workspace.project?.path) p,
             ],
-            currentPath: c.project?.path,
-            searchController: c.projectSearch,
-            searchFocusNode: c.projectSearchFocus,
-            query: c.projectSearch.text,
+            currentPath: c.workspace.project?.path,
+            searchController: c.workspace.projectSearch,
+            searchFocusNode: c.workspace.projectSearchFocus,
+            query: c.workspace.projectSearch.text,
             onQueryChanged: (_) => c.refresh(),
-            onSelect: c.openProject,
+            onSelect: c.workspace.openProject,
             onOpenLocalFolders: _pickProjectDirectory,
           ),
         ));
   }
 
   Future<void> _pickProjectDirectory() async {
-    c.projectAnchor.hide();
+    c.workspace.projectAnchor.hide();
     final path = await getDirectoryPath();
     if (path == null) return;
-    await c.openProject(ProjectRef(path: path, name: path.split(RegExp(r'[\\/]')).last));
+    await c.workspace.openProject(ProjectRef(path: path, name: path.split(RegExp(r'[\\/]')).last));
   }
 
   void _openBranchPopover() {
-    c.branchAnchor.toggle((_) => ListenableBuilder(
+    c.workspace.branchAnchor.toggle((_) => ListenableBuilder(
           listenable: c,
           builder: (context, _) => BranchSwitcherPopover(
-            branches: c.branches,
-            current: c.branch ?? '',
-            controller: c.branchInput,
-            focusNode: c.branchFocus,
-            query: c.branchInput.text,
+            branches: c.workspace.branches,
+            current: c.workspace.branch ?? '',
+            controller: c.workspace.branchInput,
+            focusNode: c.workspace.branchFocus,
+            query: c.workspace.branchInput.text,
             onQueryChanged: (_) => c.refresh(),
-            onSwitch: c.switchBranch,
-            onCreate: c.createBranch,
+            onSwitch: c.workspace.switchBranch,
+            onCreate: c.workspace.createBranch,
           ),
         ));
   }
@@ -585,7 +585,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
           listenable: c,
           builder: (context, _) => UsagePopover(
             usage: c.store?.usage,
-            rulesCount: c.rulesCount,
+            rulesCount: c.workspace.rulesCount,
             onOpenRules: () {
               c.usageAnchor.hide();
               c.shell.openTab(ShellTab.files);
@@ -640,7 +640,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
 
   Future<void> _addBranchDiff() async {
     c.plusAnchor.hide();
-    final cwd = c.project?.path;
+    final cwd = c.workspace.project?.path;
     final bridge = c.bridge;
     if (cwd == null || bridge == null) return;
     final result = await bridge.gitDiff(cwd);

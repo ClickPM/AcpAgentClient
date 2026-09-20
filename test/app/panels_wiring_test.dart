@@ -205,7 +205,7 @@ void main() {
       final core = PanelsCore();
       final c = controller(core);
       await c.start();
-      c.project = const ProjectRef(path: root, name: 'proj');
+      c.workspace.project = const ProjectRef(path: root, name: 'proj');
 
       c.shell.openTab(ShellTab.files);
       expect(c.shell.activePanel, const PanelTab.shell(ShellTab.files));
@@ -239,7 +239,7 @@ void main() {
       final core = PanelsCore();
       final c = controller(core);
       await c.start();
-      c.project = const ProjectRef(path: root, name: 'proj');
+      c.workspace.project = const ProjectRef(path: root, name: 'proj');
 
       c.shell.toggleNavTab(ShellTab.files);
       expect(c.shell.rightPanelOpen, isTrue);
@@ -263,7 +263,7 @@ void main() {
       final core = PanelsCore();
       final c = controller(core);
       await c.start();
-      c.project = const ProjectRef(path: root, name: 'proj');
+      c.workspace.project = const ProjectRef(path: root, name: 'proj');
       c.sessionId = 'sess_1';
       c.agentId = 'a';
       await c.shell.openTerminalTab(forceNew: true);
@@ -288,7 +288,7 @@ void main() {
       final core = PanelsCore();
       final c = controller(core);
       await c.start();
-      c.project = const ProjectRef(path: root, name: 'proj');
+      c.workspace.project = const ProjectRef(path: root, name: 'proj');
       await c.files.setProject(root);
       c.sessionId = 'sess_1';
       c.agentId = 'a';

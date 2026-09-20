@@ -83,8 +83,8 @@ Future<(WorkbenchController, _LifecycleCore)> _connected({
     'messageCount': 3,
   });
   final c = WorkbenchController(source: DataSource.bridge, bridge: core, scheduler: WorkbenchController.scheduleOnMicrotask)
-    ..project = const ProjectRef(path: _cwd, name: 'repo');
-  await c.refreshSessionIndex();
+    ..workspace.project = const ProjectRef(path: _cwd, name: 'repo');
+  await c.index.refresh();
   if (!indexOnly) {
     c.sessions.agents.applyInitializeResult(_agent, core.initialize);
     c.agentId = _agent;
@@ -409,7 +409,7 @@ void main() {
 
     test('没声明 delete 的 agent：不发 session/delete，只删本地索引；侧栏照给删除图标', () async {
       final (c, core) = await _connected(initialize: _initialize(caps: <String>['list', 'close']));
-      await c.refreshSessionIndex();
+      await c.index.refresh();
       expect(c.sidebarSessions.single.canDelete, isTrue, reason: '本地记录不被 agent 的能力声明锁住');
       expect(c.canDeleteSession, isFalse);
 

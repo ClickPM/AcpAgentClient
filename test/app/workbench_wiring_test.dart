@@ -325,7 +325,7 @@ void main() {
     await c.start();
 
     expect(c.hasAgent, isTrue);
-    expect(c.project, isNull);
+    expect(c.workspace.project, isNull);
     expect(c.canCompose, isFalse);
     expect(c.composerPlaceholder, '先选一个项目目录，新会话的 cwd 从它来');
 
@@ -348,21 +348,21 @@ void main() {
       });
     final c = WorkbenchController(source: DataSource.bridge, bridge: core);
     await c.start();
-    expect(c.project?.path, r'D:\proj');
+    expect(c.workspace.project?.path, r'D:\proj');
     expect(c.sidebarSessions.map((s) => s.id), unorderedEquals(<String>['older', 'recent']), reason: '别的目录下的会话不露出来');
 
     c.sessionId = 'recent';
     // 同一个目录换种写法（分隔符 / 尾斜杠）：还是这个 workspace，会话与侧栏都不动。
-    await c.openProject(const ProjectRef(path: 'D:/proj/', name: 'proj'));
+    await c.workspace.openProject(const ProjectRef(path: 'D:/proj/', name: 'proj'));
     expect(c.sessionId, 'recent');
     expect(c.sidebarSessions.map((s) => s.id), unorderedEquals(<String>['older', 'recent']));
 
-    await c.openProject(const ProjectRef(path: r'D:\other', name: 'other'));
+    await c.workspace.openProject(const ProjectRef(path: r'D:\other', name: 'other'));
     expect(c.sidebarSessions.map((s) => s.id), <String>['other']);
     expect(c.sessionId, isNull, reason: '正开着的会话属于旧目录：线程区回到空态，下一条消息在新目录里现开');
     expect(c.canCompose, isTrue, reason: '空态下照样能发：agent 与项目都在');
 
-    await c.openProject(const ProjectRef(path: r'D:\proj', name: 'proj'));
+    await c.workspace.openProject(const ProjectRef(path: r'D:\proj', name: 'proj'));
     expect(c.sidebarSessions.map((s) => s.id), unorderedEquals(<String>['older', 'recent']));
     expect(c.sessionId, isNull, reason: '切回来不替用户自动选会话');
     c.dispose();
@@ -374,9 +374,9 @@ void main() {
     await c.start();
     c.startRename('recent');
     expect(c.renamingSessionId, 'recent');
-    await c.openProject(const ProjectRef(path: r'D:\other', name: 'other'));
+    await c.workspace.openProject(const ProjectRef(path: r'D:\other', name: 'other'));
     expect(c.renamingSessionId, isNull, reason: '那一行随侧栏一起没了，改名态不能悬着');
-    await c.openProject(const ProjectRef(path: r'D:\proj', name: 'proj'));
+    await c.workspace.openProject(const ProjectRef(path: r'D:\proj', name: 'proj'));
     expect(c.renamingSessionId, isNull);
     c.dispose();
   });
@@ -387,15 +387,15 @@ void main() {
     await c.start();
     final creating = c.newSession(const AgentRef(id: 'zed', name: 'Zed Agent'));
     expect(c.waitingForAgent, isTrue);
-    await c.openProject(const ProjectRef(path: r'D:\other', name: 'other'));
-    expect(c.project?.path, r'D:\proj', reason: '等待期里不换项目：不然回来的会话挂在旧目录、侧栏里找不到');
+    await c.workspace.openProject(const ProjectRef(path: r'D:\other', name: 'other'));
+    expect(c.workspace.project?.path, r'D:\proj', reason: '等待期里不换项目：不然回来的会话挂在旧目录、侧栏里找不到');
     core.gate.complete(<String, dynamic>{'sessionId': 'fresh'});
     await creating;
     expect(c.waitingForAgent, isFalse);
     expect(c.sessionId, 'fresh');
     expect(c.sidebarSessions.map((s) => s.id), contains('fresh'));
-    await c.openProject(const ProjectRef(path: r'D:\other', name: 'other'));
-    expect(c.project?.path, r'D:\other');
+    await c.workspace.openProject(const ProjectRef(path: r'D:\other', name: 'other'));
+    expect(c.workspace.project?.path, r'D:\other');
     expect(c.sessionId, isNull);
     c.dispose();
   });

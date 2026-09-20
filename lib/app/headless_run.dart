@@ -82,10 +82,10 @@ Future<void> runR6({required String reportPath}) async {
     controller = c;
     await c.start();
     final cwd = _env('ACP_R6_CWD');
-    if (cwd != null) await c.openProject(_projectOf(cwd));
+    if (cwd != null) await c.workspace.openProject(_projectOf(cwd));
     final agentId = _env('ACP_R6_AGENT') ?? (c.installedAgents.isEmpty ? null : c.installedAgents.first.id);
     if (agentId == null) throw StateError('settings.json 里没有 agent_servers，也没有给 ACP_R6_AGENT');
-    if (c.project == null) throw StateError('没有项目目录：给 ACP_R6_CWD 或先打开一个项目');
+    if (c.workspace.project == null) throw StateError('没有项目目录：给 ACP_R6_CWD 或先打开一个项目');
 
     // ---- 新会话（顺带把能力声明记下来：矩阵的「能力」列与 ≡ 菜单裁剪都看它）
     trace('newSession');
@@ -135,7 +135,7 @@ Future<void> runR6({required String reportPath}) async {
       final listed = <Map<String, dynamic>>[];
       String? cursor;
       for (var page = 0; page < 20; page++) {
-        final result = await bridge.sessionList(agentId, cwd: c.project?.path, cursor: cursor).timeout(timeout);
+        final result = await bridge.sessionList(agentId, cwd: c.workspace.project?.path, cursor: cursor).timeout(timeout);
         listed.add(<String, dynamic>{
           'cursor': cursor,
           'sessions': <String?>[
@@ -268,7 +268,7 @@ Future<void> runR6({required String reportPath}) async {
       if (c.canListSessions) {
         String? cursor;
         for (var page = 0; page < 20; page++) {
-          final result = await bridge.sessionList(agentId, cwd: c.project?.path, cursor: cursor).timeout(timeout);
+          final result = await bridge.sessionList(agentId, cwd: c.workspace.project?.path, cursor: cursor).timeout(timeout);
           for (final s in (result['sessions'] as List? ?? const <Object?>[])) {
             if (s is Map && s['sessionId'] is String) listedAfter.add(s['sessionId'] as String);
           }
@@ -404,7 +404,7 @@ Future<void> runR5({required String reportPath}) async {
     controller = c;
     await c.start();
     final cwd = _env('ACP_R5_CWD');
-    if (cwd != null) await c.openProject(_projectOf(cwd));
+    if (cwd != null) await c.workspace.openProject(_projectOf(cwd));
     if (_env('ACP_R5_REFRESH') == '1') await c.refreshRegistry(network: true, force: true).timeout(timeout);
     steps['registry'] = _registrySummary(c);
 
@@ -448,7 +448,7 @@ Future<void> runR5({required String reportPath}) async {
 
     // ---- 新会话（-32000 → 认证页）
     final agentId = _env('ACP_R5_AGENT') ?? install;
-    if (agentId != null && (cwd != null || c.project != null)) {
+    if (agentId != null && (cwd != null || c.workspace.project != null)) {
       await c.newSession(AgentRef(id: agentId, name: agentId)).timeout(timeout);
       steps['newSession'] = <String, dynamic>{
         'sessionId': c.sessionId,
@@ -670,11 +670,11 @@ Future<void> runR3({required String reportPath}) async {
     trace('controller started');
     steps['start'] = <String, dynamic>{
       'agents': <String>[for (final a in c.installedAgents) a.id],
-      'project': c.project?.path,
-      'branchAreaVisible': c.branchAreaVisible,
-      'branch': c.branch,
-      'branches': <String>[for (final b in c.branches) b.name],
-      'rulesCount': c.rulesCount,
+      'project': c.workspace.project?.path,
+      'branchAreaVisible': c.workspace.branchAreaVisible,
+      'branch': c.workspace.branch,
+      'branches': <String>[for (final b in c.workspace.branches) b.name],
+      'rulesCount': c.workspace.rulesCount,
       'sidebarSessions': c.sidebarSessions.length,
     };
 
@@ -682,31 +682,31 @@ Future<void> runR3({required String reportPath}) async {
     trace('openProject');
     final cwd = _env('ACP_R3_CWD');
     if (cwd != null) {
-      await c.openProject(_projectOf(cwd));
+      await c.workspace.openProject(_projectOf(cwd));
       steps['openProject'] = <String, dynamic>{
-        'path': c.project?.path,
-        'branchAreaVisible': c.branchAreaVisible,
-        'branch': c.branch,
-        'branches': <String>[for (final b in c.branches) b.name],
+        'path': c.workspace.project?.path,
+        'branchAreaVisible': c.workspace.branchAreaVisible,
+        'branch': c.workspace.branch,
+        'branches': <String>[for (final b in c.workspace.branches) b.name],
         // 画板 30 / 40 的 Rules 行：项目根下 AGENTS.md / CLAUDE.md / .rules 的计数。
-        'rulesCount': c.rulesCount,
+        'rulesCount': c.workspace.rulesCount,
       };
     }
 
     // ---- 分支（验收 5：分支列表与 git branch 一致；新建分支后顶栏立即更新；非 git 目录整块隐藏）
     trace('branches');
     final newBranch = _env('ACP_R3_NEW_BRANCH');
-    if (newBranch != null && c.branchAreaVisible) {
-      final before = c.branch;
-      await c.createBranch(newBranch);
-      final created = c.branch;
-      if (before != null) await c.switchBranch(before);
+    if (newBranch != null && c.workspace.branchAreaVisible) {
+      final before = c.workspace.branch;
+      await c.workspace.createBranch(newBranch);
+      final created = c.workspace.branch;
+      if (before != null) await c.workspace.switchBranch(before);
       steps['branches'] = <String, dynamic>{
         'before': before,
         'afterCreate': created,
         'createdIsCurrent': created == newBranch,
-        'afterSwitchBack': c.branch,
-        'list': <String>[for (final b in c.branches) b.name],
+        'afterSwitchBack': c.workspace.branch,
+        'list': <String>[for (final b in c.workspace.branches) b.name],
         'error': c.lastError,
       };
     }
@@ -722,7 +722,7 @@ Future<void> runR3({required String reportPath}) async {
       'agentId': c.agentId,
       'sessionId': c.sessionId,
       'cwd': store.cwd,
-      'cwdMatchesProject': store.cwd == c.project?.path,
+      'cwdMatchesProject': store.cwd == c.workspace.project?.path,
       'agentName': c.connection?.agentName,
       'agentTitle': c.connection?.agentTitle,
       'threadTitle': c.threadTitle,

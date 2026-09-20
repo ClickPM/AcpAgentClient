@@ -40,8 +40,8 @@ Future<(WorkbenchController, FakeCore)> _pumpShell(WidgetTester tester) async {
     'messageCount': 3,
   });
   final c = WorkbenchController(source: DataSource.bridge, bridge: core, scheduler: WorkbenchController.scheduleOnMicrotask)
-    ..project = const ProjectRef(path: _cwd, name: 'repo');
-  await c.refreshSessionIndex();
+    ..workspace.project = const ProjectRef(path: _cwd, name: 'repo');
+  await c.index.refresh();
   addTearDown(c.dispose);
 
   await tester.pumpWidget(MaterialApp(home: WorkbenchScreen(controller: c)));

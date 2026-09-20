@@ -90,7 +90,7 @@ Future<WorkbenchController> _pumpShell(WidgetTester tester, _GatedCore core) asy
   await tester.runAsync(loadGalleryFonts);
 
   final c = WorkbenchController(source: DataSource.bridge, bridge: core, scheduler: WorkbenchController.scheduleOnMicrotask)
-    ..project = const ProjectRef(path: 'D:/repo', name: 'repo')
+    ..workspace.project = const ProjectRef(path: 'D:/repo', name: 'repo')
     ..installedAgents = const <AgentRef>[AgentRef(id: 'zed', name: 'Zed Agent')];
   addTearDown(c.dispose);
 
