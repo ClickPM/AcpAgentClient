@@ -73,6 +73,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 | 40 | 输入框弹层合集 | R3 | `lib/ui/popovers/composer_popovers.dart`（+ 40 / 41 / 42 共用的 `lib/ui/popovers/menu.dart`） |
 | 41 | 顶栏与侧栏弹层合集 | R3（会话菜单动作 R6） | `lib/ui/popovers/topbar_popovers.dart` |
 | 42 | 输入框内联菜单 | R3 | `lib/ui/popovers/inline_menus.dart` |
+| 43 | 会话时间线弹层 | main 直改（2026-09-20） | `lib/ui/popovers/session_timeline.dart` + 派生层 `lib/projection/timeline.dart`；接线点 `thread_header.dart`（history 按钮）、`workbench_screen.dart`（弹层与跳转）、`transcript_list.dart` / `user_message.dart`（行键与落点聚焦态）；数值在 `tokens.dart` 的 `Timeline` |
 | 50 | Agents 面板（ACP Registry） | R5 | `lib/ui/registry/registry_panel.dart` |
 | 51 | Registry 条目状态 | R5 | `lib/ui/registry/registry_entry.dart` |
 | 52 | agent 认证 | R5 | `lib/ui/registry/auth_page.dart` |

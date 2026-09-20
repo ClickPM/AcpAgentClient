@@ -59,16 +59,24 @@ class MenuPopover extends StatelessWidget {
 
 /// 分组标题（`SessionConfigSelectGroup.name` / `Files` / `Commands` / `This Window`…）。
 class MenuGroupLabel extends StatelessWidget {
-  const MenuGroupLabel(this.text, {super.key});
+  const MenuGroupLabel(this.text, {super.key, this.style});
 
   final String text;
+
+  /// 画板 43 的时间线标题行要等宽数字（[t.TextStyles.labelTabular]）；不给就是分组标题原样。
+  final TextStyle? style;
 
   @override
   Widget build(BuildContext context) => Container(
         height: t.Geometry.menuGroupLabelHeight,
         padding: t.Controls.padCompact,
         alignment: Alignment.centerLeft,
-        child: Text(text, style: t.TextStyles.label.copyWith(color: t.Neutral.placeholder), maxLines: 1, overflow: TextOverflow.ellipsis),
+        child: Text(
+          text,
+          style: style ?? t.TextStyles.label.copyWith(color: t.Neutral.placeholder),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
       );
 }
 
@@ -112,7 +120,7 @@ class MenuRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fg = danger ? t.Semantic.error : (selected ? t.Accent.text : t.Neutral.text);
-    return _RevealWhenSelected(
+    return RevealWhenSelected(
       selected: selected,
       child: Hoverable(
         onTap: onTap,
@@ -182,7 +190,7 @@ class MenuTwoLineRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _RevealWhenSelected(
+    return RevealWhenSelected(
       selected: selected,
       child: Hoverable(
         onTap: onTap,
@@ -219,24 +227,24 @@ class MenuTwoLineRow extends StatelessWidget {
   }
 }
 
-/// 选中行自动露出：`/` 菜单几十条时键盘上下键必然把高亮移出滚动区。
+/// 选中行自动露出：`/` 菜单几十条时键盘上下键必然把高亮移出滚动区。画板 43 的时间线行复用它。
 ///
 /// **只在高亮移动时露出，打开那一下不露**（发布前审查 P2，2026-09-18）：代价是打开时当前值可能在
 /// 视口外，翻一下或敲字过滤即可。画板对照页里的静态样张不会乱滚，靠的是 `selected` 自始至终不变、
 /// 压根不触发下面那一次 flip —— [MenuPopover] 现在总是带滚动区，别指望「没有滚动祖先」来兜底。
-class _RevealWhenSelected extends StatefulWidget {
-  const _RevealWhenSelected({required this.selected, required this.child});
+class RevealWhenSelected extends StatefulWidget {
+  const RevealWhenSelected({super.key, required this.selected, required this.child});
 
   final bool selected;
   final Widget child;
 
   @override
-  State<_RevealWhenSelected> createState() => _RevealWhenSelectedState();
+  State<RevealWhenSelected> createState() => _RevealWhenSelectedState();
 }
 
-class _RevealWhenSelectedState extends State<_RevealWhenSelected> {
+class _RevealWhenSelectedState extends State<RevealWhenSelected> {
   @override
-  void didUpdateWidget(_RevealWhenSelected oldWidget) {
+  void didUpdateWidget(RevealWhenSelected oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.selected && !oldWidget.selected) _reveal();
   }

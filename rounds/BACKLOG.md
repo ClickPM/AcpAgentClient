@@ -19,6 +19,7 @@
 - [x] 拆解 画板 01–04 / 50 / 60 / 61 的自绘窗口控制意味着无边框窗口 → 所有者裁定 2026-09-15：Windows runner 自写平台通道，不引 `window_manager` 类库；macOS 用原生 traffic lights；已写 `docs/design.md` § 9（R3 / R8） (2026-09-15)
 - [x] 拆解 画板 61 的本地交互 shell 不在 `docs/design.md` § 3 → 所有者裁定 2026-09-15：新增 `terminal_open / write / resize / close` 四个桥命令，复用 `rust/pty`；已写 § 3（R4） (2026-09-15)
 - [x] 拆解 画板 10 / 11 的 Restore Checkpoint 与 Regenerate：协议没有回滚 → 所有者裁定 2026-09-15：照原型「本地截断 + 同会话重发」，agent 侧上下文不回退作为已知限制，不在 UI 加提示；已写 `docs/design.md` § 3（R2） (2026-09-15)
+- [x] main 直改 会话大纲（所有者 2026-09-18 提出，参照 pi 桌面版右侧的会话树）→ 所有者 2026-09-20 裁定：**不做右栏标签**（当时记的推荐项），做成线程头 reload 与 ≡ 之间的 history 按钮 + 弹层，先出画板 43「会话时间线弹层」（简报 `design/round-design/input/revision-03.md`）再实现，编号从 01 起。已在 `session-timeline` 分支落地：派生层 `lib/projection/timeline.dart`（按顶层用户消息切轮，不按 `TurnEntry`）、弹层 `lib/ui/popovers/session_timeline.dart`、跳转在 `workbench_screen.dart`（行键 `GlobalObjectKey` + 多帧估位纠正）。当时记下的四个待定项按画板 43 定死：编号从 01、A 行取最后一条 agent 文本的首行并去掉行首 Markdown 标记、不做跟随滚动高亮、正在跑的那轮只画编号行 (2026-09-18)
 
 ## 工程
 

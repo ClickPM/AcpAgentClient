@@ -222,11 +222,14 @@ class WorkbenchController extends ChangeNotifier {
   final TextEditingController trafficFilter = TextEditingController();
   final FocusNode trafficFilterFocus = FocusNode();
 
-  // ---- 弹层锚点（画板 40 / 41）
+  // ---- 弹层锚点（画板 40 / 41 / 43）
   final PopoverHandle projectAnchor = PopoverHandle();
   final PopoverHandle branchAnchor = PopoverHandle();
   final PopoverHandle newSessionAnchor = PopoverHandle();
   final PopoverHandle threadMenuAnchor = PopoverHandle();
+
+  /// 画板 43：线程头 history 的会话时间线弹层。
+  final PopoverHandle timelineAnchor = PopoverHandle();
   final PopoverHandle deleteAnchor = PopoverHandle();
   final PopoverHandle plusAnchor = PopoverHandle();
   final PopoverHandle followAnchor = PopoverHandle();
@@ -600,7 +603,7 @@ class WorkbenchController extends ChangeNotifier {
       f.dispose();
     }
     for (final h in <PopoverHandle>[
-      projectAnchor, branchAnchor, newSessionAnchor, threadMenuAnchor, deleteAnchor, plusAnchor,
+      projectAnchor, branchAnchor, newSessionAnchor, threadMenuAnchor, timelineAnchor, deleteAnchor, plusAnchor,
       followAnchor, usageAnchor, ..._configAnchors.values,
     ]) {
       h.dispose();
