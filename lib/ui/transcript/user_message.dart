@@ -19,6 +19,7 @@ class UserMessage extends StatefulWidget {
     this.entry, {
     super.key,
     this.initialState = UserMessageState.normal,
+    this.focused = false,
     this.onOpenMention,
     this.onRestore,
     this.onRegenerate,
@@ -27,6 +28,10 @@ class UserMessage extends StatefulWidget {
 
   final MessageEntry entry;
   final UserMessageState initialState;
+
+  /// 外部给的聚焦态（画板 43：时间线跳过来的落点）。与本地点击聚焦是**或**的关系，
+  /// 清除由外部负责——转录区里再点一下别处就撤（见 `workbench_screen.dart` 的 `_focusedEntryId`）。
+  final bool focused;
   final void Function(String uri)? onOpenMention;
   final VoidCallback? onRestore;
 
@@ -79,7 +84,7 @@ class _UserMessageState extends State<UserMessage> {
   @override
   Widget build(BuildContext context) {
     if (_editing) return _editor();
-    final focused = _state == UserMessageState.focused;
+    final focused = _state == UserMessageState.focused || widget.focused;
     final hovered = _state == UserMessageState.hovered;
     final bubble = MouseRegion(
       onEnter: (_) => _state == UserMessageState.normal ? _set(UserMessageState.hovered) : null,

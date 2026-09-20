@@ -10,11 +10,13 @@ import 'package:flutter/widgets.dart';
 import '../../projection/entries.dart';
 import '../../projection/fixture_line.dart';
 import '../../projection/session_store.dart';
+import '../../projection/timeline.dart';
 import '../../projection/traffic.dart';
 import '../../projection/wire.dart';
 import '../../theme/tokens.dart' as t;
 import '../../ui/popovers/composer_popovers.dart';
 import '../../ui/popovers/inline_menus.dart';
+import '../../ui/popovers/session_timeline.dart';
 import '../../ui/popovers/topbar_popovers.dart';
 import '../../ui/files/file_tree.dart';
 import '../../ui/files/files_panel.dart';
@@ -520,6 +522,39 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
           '分组按所有者裁定 2026-09-15 只渲染单组 Commands（AvailableCommand 没有分组与来源字段）。',
     );
   }),
+  _page('43-session-timeline', '会话时间线弹层', () {
+    return BoardPage(
+      number: '43',
+      title: '会话时间线弹层',
+      source: 'session/prompt（轮边界）· user_message_chunk · agent_message_chunk',
+      sections: <BoardSection>[
+        BoardSection('B · 弹层 · 完整样张（5 轮，第 03 轮无 A 行）',
+            child: _left(const SessionTimelinePopover(turns: _timelineSample, scrollToBottomOnOpen: false))),
+        BoardSection('C · 行的四态（默认 / 悬浮 6% / 键盘高亮 10% / 没有 A 行的轮）',
+            // 画板页宽 800，四份 420 的样张排一行装不下，按内容折行（画板上是横排四份）。
+            child: Wrap(
+              spacing: t.Spacing.s24,
+              runSpacing: t.Spacing.s24,
+              children: <Widget>[
+                for (final sample in _timelineRowStates)
+                  SessionTimelinePopover(
+                    turns: sample.turns,
+                    initialSelection: sample.selected,
+                    forceHoverIndex: sample.hovered,
+                    scrollToBottomOnOpen: false,
+                  ),
+              ],
+            )),
+        BoardSection('D · 封顶滚动（30 轮 · 高 675 = 900 × 0.75）',
+            child: _left(SessionTimelinePopover(turns: _timelineLong, maxHeight: _timelineBoardMaxHeight))),
+        BoardSection('E · 空态（有会话、还没有任何一轮）',
+            child: _left(const SessionTimelinePopover(turns: <TimelineTurn>[]))),
+      ],
+      footnote: '轮按顶层用户消息切（不按 TurnEntry —— session/load 重放回来的历史里一条边界都没有）；'
+          'A 行取该轮最后一条 agent 文本的首行，去掉行首 Markdown 标记；没有 A 行的轮只画编号行。'
+          '点一行转录区 0ms 跳到该条，目标块顶边对齐转录区顶部内边距 16。',
+    );
+  }),
   _window('80-traffic', 'ACP 流量调试', (_) {
     final r = FixtureReplay.replay(<String>['01-connect', '02-turn-read', '08-end-turn']);
     final agentId = _agentName(r);
@@ -588,6 +623,51 @@ class _Left extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Align(alignment: Alignment.centerLeft, child: child);
 }
+
+// ---------------------------------------------------------------- 画板 43 的时间线样张（本地假数据）
+
+/// 画板 43 B 组的 5 轮示例（第 03 轮被打断、没有 A 行）。
+const List<TimelineTurn> _timelineSample = <TimelineTurn>[
+  TimelineTurn(n: 1, entryId: 'msg-1', query: 'hi', answer: '你好！有什么可以帮你的？', answerEntryId: 'msg-2'),
+  TimelineTurn(
+      n: 2,
+      entryId: 'msg-3',
+      query: '你是什么模型',
+      answer: '当前会话跑的是 deepseek-v4-flash（provider: deepseek），思考强度 high',
+      answerEntryId: 'msg-4'),
+  TimelineTurn(n: 3, entryId: 'msg-5', query: '你能看到这张图吗'),
+  TimelineTurn(
+      n: 4, entryId: 'msg-6', query: '你能看到这张图吗', answer: '能看到。这是 Pi Agent 桌面版的截图，里面有：', answerEntryId: 'msg-7'),
+  TimelineTurn(n: 5, entryId: 'msg-8', query: '当前 会话的jsonl保存在哪里', answer: '当前会话的 JSONL：', answerEntryId: 'msg-9'),
+];
+
+/// C 组四态各自一份单轮数据（第四份没有 A 行）。
+class _TimelineRowSample {
+  const _TimelineRowSample(this.turns, {this.selected = -1, this.hovered = -1});
+
+  final List<TimelineTurn> turns;
+  final int selected;
+  final int hovered;
+}
+
+const TimelineTurn _timelineRowTurn =
+    TimelineTurn(n: 4, entryId: 'msg-6', query: '你能看到这张图吗', answer: '能看到。这是桌面版的截图', answerEntryId: 'msg-7');
+
+const List<_TimelineRowSample> _timelineRowStates = <_TimelineRowSample>[
+  _TimelineRowSample(<TimelineTurn>[_timelineRowTurn]),
+  _TimelineRowSample(<TimelineTurn>[_timelineRowTurn], hovered: 0),
+  _TimelineRowSample(<TimelineTurn>[_timelineRowTurn], selected: 1),
+  _TimelineRowSample(<TimelineTurn>[TimelineTurn(n: 3, entryId: 'msg-5', query: '你能看到这张图吗')]),
+];
+
+/// D 组：30 轮，弹层按画板给的 675（= 900 × 0.75）封顶后在内部滚动。
+final List<TimelineTurn> _timelineLong = <TimelineTurn>[
+  for (var i = 1; i <= 30; i++)
+    TimelineTurn(n: i, entryId: 'msg-$i', query: '第 $i 轮问的那句', answer: '第 $i 轮的回答', answerEntryId: 'a-$i'),
+];
+
+/// 画板 D 组按 1440 × 900 的窗口算出来的上限；真实弹层按当帧窗口高现算（见 [SessionTimelinePopover.maxHeight]）。
+const double _timelineBoardMaxHeight = 900 * t.Timeline.maxHeightFactor;
 
 // ---------------------------------------------------------------- 画板 03 右栏的文件树（本地假数据）
 

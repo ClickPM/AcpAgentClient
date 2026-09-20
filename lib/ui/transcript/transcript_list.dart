@@ -26,6 +26,12 @@ import 'tool_call_card.dart';
 import 'turn_state.dart';
 import 'user_message.dart';
 
+/// 画板 43 的跳转落点：时间线点一行要滚到这个条目上，而惰性列表里只有**建出来的**行才有 RenderObject，
+/// 所以给行挂一枚按条目对象取的 `GlobalKey`，跳转时按它拿真实位置（拿不到就说明还没建出来，见
+/// `workbench_screen.dart` 的 `_jumpToEntry`）。键按 `TranscriptEntry` 实例取，不按 `entry.id` ——
+/// 两个 store 里都有 `msg-1`，按 id 取会在同屏渲染两份转录时撞成重复 GlobalKey。
+GlobalObjectKey<State<StatefulWidget>> transcriptRowKey(TranscriptEntry entry) => GlobalObjectKey<State<StatefulWidget>>(entry);
+
 /// 列表行：一个条目，或某轮的结束行。
 sealed class TranscriptRow {
   const TranscriptRow();
@@ -74,9 +80,18 @@ class TranscriptList extends StatelessWidget {
     this.onAnswerElicitation,
     this.onSelectionChanged,
     this.onKillTerminal,
+    this.focusedEntryId,
+    this.trackRows = false,
   });
 
   final SessionStore store;
+
+  /// 画板 43：时间线刚跳过来的那条用户气泡进入画板 11 的「点击聚焦」态；null = 没有。
+  final String? focusedEntryId;
+
+  /// 给每行挂 [transcriptRowKey]，让时间线能精确跳到某一条。**只有真正在用的那一份转录该开**
+  /// （工作台里那一份）：gallery 与单测里同一个 fixture store 可能同屏渲染两次，开了就是重复 GlobalKey。
+  final bool trackRows;
 
   /// 画板 23 的停止方块：结束该终端里的进程（`terminal_kill`；R4 接线）。
   final void Function(String terminalId)? onKillTerminal;
@@ -128,7 +143,8 @@ class TranscriptList extends StatelessWidget {
 
   Widget buildRow(TranscriptRow row) => switch (row) {
         TurnEndRow(:final turn) => KeyedSubtree(key: ValueKey<String>('${turn.id}-end'), child: TurnEndLine(turn, usage: store.usage)),
-        EntryRow(:final entry) => KeyedSubtree(key: ValueKey<String>(entry.id), child: buildEntry(entry)),
+        EntryRow(:final entry) =>
+          KeyedSubtree(key: trackRows ? transcriptRowKey(entry) : ValueKey<String>(entry.id), child: buildEntry(entry)),
       };
 
   Widget buildEntry(TranscriptEntry e) {
@@ -138,6 +154,7 @@ class TranscriptList extends StatelessWidget {
         if (m.role != MessageRole.user) return AssistantText(m, onLink: onLink);
         return UserMessage(
           m,
+          focused: m.id == focusedEntryId,
           onOpenMention: onLink,
           onRestore: onRestore == null ? null : () => onRestore!(m),
           onRegenerate: onRegenerate == null ? null : (text) => onRegenerate!(m, text),

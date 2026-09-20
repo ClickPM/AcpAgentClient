@@ -128,6 +128,9 @@ abstract final class AcpIcons {
   /// 41：≡ 菜单里的 Reload Agent。
   static const String rotateCw = '<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"/>';
 
+  /// 01–03 / 43：线程头「会话时间线」（表盘 + 逆时针箭头）。
+  static const String history = '<path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/>';
+
   /// 01–03：线程头 ≡ 菜单（右栏开关）。
   static const String menuLines = '<line x1="3" y1="6" x2="16" y2="6"/><line x1="3" y1="12" x2="16" y2="12"/><line x1="3" y1="18" x2="16" y2="18"/><line x1="20" y1="4" x2="20" y2="20"/>';
 
@@ -173,7 +176,7 @@ abstract final class AcpIcons {
     alertTriangle, info, plus, arrowUpRight, play, link, dot, lock, slashCircle, diamond,
     panelLeft, gitBranch, settings, folder, plusSquare, reload, rotateCw, menuLines, target, arrowUp,
     arrowRight, arrowLeft, messageSquare, image, command, windowMinimize, windowMaximize, download,
-    chevronRight, collapseAll, clearScreen,
+    chevronRight, collapseAll, clearScreen, history,
   ];
 
   /// 完整 SVG 文档：stroke 固定为黑，真实颜色由 [AcpIcon] 的 colorFilter 给，这样同一图标只解析一次。

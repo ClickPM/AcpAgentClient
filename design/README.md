@@ -58,6 +58,7 @@
 | 40 | 输入框弹层合集 | 会话工作台 | round-design | `design/round-design/40-composer-popovers.dc.html` | `design/round-design/40-composer-popovers.png` | — | 已实现（R3） | — |
 | 41 | 顶栏与侧栏弹层合集 | 会话工作台 | round-design | `design/round-design/41-topbar-popovers.dc.html` | `design/round-design/41-topbar-popovers.png` | — | 已实现（R3） | — |
 | 42 | 输入框内联菜单 | 会话工作台 | round-design | `design/round-design/42-inline-menus.dc.html` | `design/round-design/42-inline-menus.png` | — | 已实现（R3） | — |
+| 43 | 会话时间线弹层 | 会话工作台 | round-design | `design/round-design/43-session-timeline.dc.html` | `design/round-design/43-session-timeline.png` | — | 已实现（2026-09-20，`session-timeline` 分支） | 新增 `Timeline` 一组（maxHeightFactor / width / rail / railWidth / railColumn / node / nodeColor / label / turnGap）；`TextStyles` 补 `labelTabular`（`label` 加等宽数字，标题行用） |
 | 50 | Agents 面板（ACP Registry） | agent 管理 | round-design | `design/round-design/50-registry.dc.html` | `design/round-design/50-registry.png` | — | 已实现（R5） | — |
 | 51 | Registry 条目状态 | agent 管理 | round-design | `design/round-design/51-registry-states.dc.html` | `design/round-design/51-registry-states.png` | — | 已实现（R5） | — |
 | 52 | agent 认证 | agent 管理 | round-design | `design/round-design/52-auth.dc.html` | `design/round-design/52-auth.png` | — | 已实现（R5） | — |
@@ -70,6 +71,7 @@
 
 ## 变更记录（入库后对 `.dc.html` 的改动，PNG 已用 `scripts/render-design.ps1` 重渲染）
 
+- 2026-09-20 新增画板 43「会话时间线弹层」，并给画板 01 / 02 / 03 的线程头在 reload 与 ≡ 之间插入一个 history 按钮（01 的「尚无已安装 agent」态不画它，显示条件与 reload 同规则）。起因是一条会话跑到几十轮之后只能靠滚轮翻，找不到第 7 轮问的那句在哪；参照 pi 桌面版右侧的会话树，只取信息结构、视觉按本项目风格重做。简报 `design/round-design/input/revision-03.md`。画板自带「本画板新增 token」表（`timeline.*` 七项），已按表回写`lib/theme/tokens.dart`（画板 00 未改，这组值只服务画板 43）。**画布上的 01 / 02 / 03 是旧版**（缺 `4e59ef3` 那次本地整改的六处 32→36 与分栏把手注脚），所以这三张没有整份拉回来，只把 history 那个 span 按画布的写法插进本地文件再重渲 PNG。
 - 2026-09-15 画板 40：`+` 弹层删去 Symbols 与 Selection 两行。需要 LSP 与编辑器选区，与 `docs/requirements.md`「不做」冲突；所有者裁定，见 `ROUNDS.md` § 6。
 - 2026-09-15 画板 42：`/` 命令菜单合并为单组（保留 Commands 标题），去掉 Skills 分组标题与右侧的 built-in / 项目名来源标签；`<path>` 参数提示保留。`AvailableCommand` 只有 name / description / input，没有分组与来源字段；所有者裁定，见 `ROUNDS.md` § 6。
 - 2026-09-18 新增画板 06「侧栏会话活动指示」。起因是会话在后台跑时侧栏看不出哪条在动、哪条已经跑完。A 组是运行中会话项底边的扫掠亮点线（1px 常亮底线 + 96px accent 亮点匀速单向掠过，`sweep.cycle` 1400ms · linear，**全系统唯一允许用 linear 的动效**；行高 48 → 58 不做过渡），B 组是回合结束后「N 条消息」之后的 6px success 绿点（只做 opacity，会话被查看后淡出且不留占位）；D 表规定两者严格互斥，取消与失败侧栏一律不表达。画板自带「本画板新增 token」表，已按表回写 `lib/theme/tokens.dart`（画板 00 未改，这组值只服务画板 06）。
