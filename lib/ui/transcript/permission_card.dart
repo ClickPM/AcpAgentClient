@@ -157,7 +157,7 @@ class _PermissionCardState extends State<PermissionCard> {
             child: Container(
               height: t.Controls.standard,
               padding: t.Controls.padInput,
-              decoration: const BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+              decoration: BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
               child: Row(
                 children: <Widget>[
                   Text('View Raw Input', style: CardText.secondary),
@@ -173,7 +173,7 @@ class _PermissionCardState extends State<PermissionCard> {
               child: MonoBlock(span: JsonHighlight.span(patch.json)),
             ),
           Container(
-            decoration: const BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+            decoration: BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
             padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12, vertical: t.Spacing.s8),
             child: Row(
               children: <Widget>[
@@ -270,7 +270,7 @@ class PermissionScopeMenu extends StatelessWidget {
                       Text(o.kind ?? '', style: t.TextStyles.monoMeta),
                       if (o.optionId == selectedId) ...<Widget>[
                         const SizedBox(width: t.Spacing.s8),
-                        const AcpIcon(AcpIcons.check, color: t.Accent.base, size: t.IconSizes.toolbar),
+                        AcpIcon(AcpIcons.check, color: t.Accent.base, size: t.IconSizes.toolbar),
                       ],
                     ],
                   ),

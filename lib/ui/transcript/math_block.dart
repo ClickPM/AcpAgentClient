@@ -15,7 +15,7 @@ class MathBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(
           top: BorderSide(color: t.Borders.subtle, width: t.Borders.width),
           bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width),

@@ -63,6 +63,8 @@ class Sidebar extends StatelessWidget {
     this.dragArea,
     this.runningIds = const <String>{},
     this.unreadIds = const <String>{},
+    this.dark = false,
+    this.onToggleTheme,
   });
 
   final List<SidebarSession> sessions;
@@ -96,19 +98,23 @@ class Sidebar extends StatelessWidget {
   final Set<String> runningIds;
   final Set<String> unreadIds;
 
+  /// 画板 07：当前是不是深色，以及标题条右端那个切换按钮。不给 [onToggleTheme] 就不画按钮。
+  final bool dark;
+  final VoidCallback? onToggleTheme;
+
   @override
   Widget build(BuildContext context) {
     return Container(
       // 独立渲染时的缺省宽；装进 [AppShell] 时由它的紧约束覆盖（分栏把手拖出来的宽度单点在那里）。
       width: t.Geometry.sidebarWidth,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: t.Neutral.panel,
         border: Border(right: BorderSide(color: t.Borders.subtle, width: t.Borders.width)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          SidebarTitleBar(dragArea: dragArea),
+          SidebarTitleBar(dragArea: dragArea, dark: dark, onToggleTheme: onToggleTheme),
           SidebarSearchField(
             controller: searchController,
             focusNode: searchFocusNode,
@@ -172,7 +178,7 @@ class SidebarEmpty extends StatelessWidget {
 
 /// 侧栏顶部的应用标题条。
 class SidebarTitleBar extends StatelessWidget {
-  const SidebarTitleBar({super.key, this.title = 'Agent ACP Client', this.dragArea});
+  const SidebarTitleBar({super.key, this.title = 'Agent ACP Client', this.dragArea, this.dark = false, this.onToggleTheme});
 
   final String title;
 
@@ -180,28 +186,50 @@ class SidebarTitleBar extends StatelessWidget {
   /// 要能拖窗口、双击最大化。和 `TopBar.dragArea` 同一种装配 —— 铺在容器**里面**、内容行**下面**。
   final Widget? dragArea;
 
+  /// 当前是不是深色（决定按钮画月亮还是太阳）。
+  final bool dark;
+
+  /// 主题切换（画板 07）。不给就不画这个按钮 —— gallery 与画板对照页照画板 01–04 的原样出图。
+  final VoidCallback? onToggleTheme;
+
   @override
   Widget build(BuildContext context) {
+    final VoidCallback? toggle = onToggleTheme;
     return Container(
       height: t.Geometry.barHeight,
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
       child: Stack(
         // `StackFit.expand`：内容行要拿到与原来一样的紧约束（同 [TopBar]）。
         fit: StackFit.expand,
         children: <Widget>[
           if (dragArea != null) Positioned.fill(child: dragArea!),
-          // 这条上没有任何可点的东西，[IgnorePointer] 让 logo 与标题文字也把 pointer 漏给下层拖拽层
-          // （`RenderParagraph.hitTestSelf` 恒为 true，不挡住就拖不动标题那一段）。
-          IgnorePointer(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12),
-              child: Row(
-                children: <Widget>[
-                  const AppLogo(),
-                  const SizedBox(width: t.Spacing.s8),
-                  Text(title, style: CardText.strong),
-                ],
-              ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12),
+            child: Row(
+              children: <Widget>[
+                // logo 与标题文字上没有任何可点的东西，[IgnorePointer] 让它们把 pointer 漏给下层拖拽层
+                // （`RenderParagraph.hitTestSelf` 恒为 true，不挡住就拖不动标题那一段）。
+                // 主题按钮要收 pointer，所以留在这一层之外。
+                IgnorePointer(
+                  child: Row(
+                    children: <Widget>[
+                      const AppLogo(),
+                      const SizedBox(width: t.Spacing.s8),
+                      Text(title, style: CardText.strong),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                if (toggle != null)
+                  AcpTooltip(
+                    message: dark ? 'Switch to light mode' : 'Switch to dark mode',
+                    child: IconButtonGhost(
+                      icon: dark ? AcpIcons.sun : AcpIcons.moon,
+                      size: t.Controls.compact,
+                      onTap: toggle,
+                    ),
+                  ),
+              ],
             ),
           ),
         ],
@@ -224,7 +252,7 @@ class SidebarSearchField extends StatelessWidget {
     return Container(
       // 条高而不是 [t.Controls.input]：侧栏搜索行与中栏会话头共用第二条分割线，32 对 36 会错开 4px。
       height: t.Geometry.barHeight,
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
       padding: const EdgeInsets.only(left: t.Spacing.s12, right: t.Spacing.s8),
       child: ValueListenableBuilder<TextEditingValue>(
         valueListenable: controller,
@@ -474,7 +502,7 @@ class _SessionSweepLineState extends State<SessionSweepLine> with SingleTickerPr
   @override
   Widget build(BuildContext context) {
     // 降级为同位置、同内缩的静态 1px accent 实线（亮点不移动），运行中依然可辨。
-    if (_reduced) return const CustomPaint(painter: _SweepPainter(null));
+    if (_reduced) return CustomPaint(painter: _SweepPainter(null));
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) => CustomPaint(painter: _SweepPainter(_controller.value)),
@@ -483,10 +511,14 @@ class _SessionSweepLineState extends State<SessionSweepLine> with SingleTickerPr
 }
 
 class _SweepPainter extends CustomPainter {
-  const _SweepPainter(this.progress);
+  _SweepPainter(this.progress) : _styleGeneration = t.Fonts.generation;
 
   /// 一个周期内的进度 0 → 1（linear）。null = reduced-motion 的静态替代线。
   final double? progress;
+
+  /// 见 `shell_common.dart` 的 `_DashedBoxPainter`：颜色现取，重绘判定要带上样式代数
+  /// （reduced-motion 的静态线 progress 恒为 null，不带这个就永远不会跟着主题变色）。
+  final int _styleGeneration;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -506,13 +538,13 @@ class _SweepPainter extends CustomPainter {
     canvas.drawRect(
       focus,
       Paint()
-        ..shader = const LinearGradient(colors: t.Sweep.focusGradient, stops: t.Sweep.focusStops).createShader(focus),
+        ..shader = LinearGradient(colors: t.Sweep.focusGradient, stops: t.Sweep.focusStops).createShader(focus),
     );
     canvas.restore();
   }
 
   @override
-  bool shouldRepaint(_SweepPainter old) => old.progress != progress;
+  bool shouldRepaint(_SweepPainter old) => old.progress != progress || old._styleGeneration != _styleGeneration;
 }
 
 /// 画板 06 B ·「N 条消息」后的完成未读绿点：出现与清除都**只做 opacity**（[t.Motion.fast] · [t.Motion.curve]），
@@ -563,7 +595,7 @@ class _SessionUnreadDotState extends State<SessionUnreadDot> with SingleTickerPr
               child: Container(
                 width: t.UnreadDot.size,
                 height: t.UnreadDot.size,
-                decoration: const BoxDecoration(color: t.UnreadDot.color, shape: BoxShape.circle),
+                decoration: BoxDecoration(color: t.UnreadDot.color, shape: BoxShape.circle),
               ),
             ),
           );
@@ -585,7 +617,7 @@ class SidebarNav extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: t.Geometry.barHeight,
-      decoration: const BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+      decoration: BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
       padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s8),
       child: Row(
         children: <Widget>[

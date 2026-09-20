@@ -108,7 +108,7 @@ class _AcpTooltipState extends State<AcpTooltip> {
           color: t.Surface.popover,
           border: Border.all(color: t.Borders.subtle, width: t.Borders.width),
           borderRadius: t.Radii.control,
-          boxShadow: const <BoxShadow>[t.Shadows.popover],
+          boxShadow: <BoxShadow>[t.Shadows.popover],
         ),
         child: Text(
           widget.message,

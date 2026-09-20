@@ -48,7 +48,7 @@ class SessionHeaderRunning extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12),
       child: Row(
         children: <Widget>[
-          const AcpIcon(AcpIcons.diamond, color: t.Accent.base),
+          AcpIcon(AcpIcons.diamond, color: t.Accent.base),
           const SizedBox(width: t.Spacing.s8),
           Text(title, style: CardText.headerTitle),
           if (running) ...<Widget>[const SizedBox(width: t.Spacing.s8), const Spinner()],
@@ -72,11 +72,11 @@ class ComposerRunning extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: t.Controls.input + t.Spacing.s16,
-      decoration: const BoxDecoration(color: t.Neutral.panel, borderRadius: t.Radii.card),
+      decoration: BoxDecoration(color: t.Neutral.panel, borderRadius: t.Radii.card),
       padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s16),
       child: Row(
         children: <Widget>[
-          const AcpIcon(AcpIcons.plus, color: t.Neutral.placeholder),
+          AcpIcon(AcpIcons.plus, color: t.Neutral.placeholder),
           const Spacer(),
           AcpButton(label: thoughtLevel, trailing: const Chevron(expanded: false)),
           const SizedBox(width: t.Spacing.s4),

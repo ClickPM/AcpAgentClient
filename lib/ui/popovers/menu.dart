@@ -157,7 +157,7 @@ class MenuRow extends StatelessWidget {
               if (trailing != null) ...<Widget>[const SizedBox(width: t.Spacing.s8), trailing!]
               else if (selected) ...<Widget>[
                 const SizedBox(width: t.Spacing.s8),
-                const AcpIcon(AcpIcons.check, color: t.Accent.text, size: t.IconSizes.toolbar),
+                AcpIcon(AcpIcons.check, color: t.Accent.text, size: t.IconSizes.toolbar),
               ],
             ],
           ),
@@ -206,7 +206,7 @@ class MenuTwoLineRow extends StatelessWidget {
             children: <Widget>[
               SizedBox(
                 width: t.IconSizes.toolbar,
-                child: showCheck ? const AcpIcon(AcpIcons.check, color: t.Accent.text, size: t.IconSizes.toolbar) : null,
+                child: showCheck ? AcpIcon(AcpIcons.check, color: t.Accent.text, size: t.IconSizes.toolbar) : null,
               ),
               const SizedBox(width: t.Spacing.s8),
               Expanded(
@@ -345,7 +345,7 @@ class MenuToggle extends StatelessWidget {
             borderRadius: t.Radii.pill(t.Geometry.toggleTrackHeight),
           ),
           alignment: on ? Alignment.centerRight : Alignment.centerLeft,
-          child: const AspectRatio(
+          child: AspectRatio(
             aspectRatio: 1,
             child: DecoratedBox(decoration: BoxDecoration(shape: BoxShape.circle, color: t.Accent.onAccent)),
           ),

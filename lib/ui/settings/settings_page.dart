@@ -7,7 +7,7 @@
 
 import 'package:flutter/widgets.dart';
 
-import '../../app/font_prefs.dart';
+import '../../app/appearance_prefs.dart';
 import '../../projection/registry.dart';
 import '../../theme/tokens.dart' as t;
 import '../registry/registry_entry.dart';
@@ -47,7 +47,7 @@ class SettingsPage extends StatelessWidget {
     this.onDownloadNode,
     this.onOpenPath,
     this.onCopyPath,
-    this.fonts,
+    this.appearance,
     this.onOpenUrl,
   });
 
@@ -77,8 +77,8 @@ class SettingsPage extends StatelessWidget {
   final ValueChanged<String>? onOpenPath;
   final ValueChanged<String>? onCopyPath;
 
-  /// 字体偏好（画板 70「外观」）。gallery 与单测可以不给，不给就不出这一小节。
-  final FontPrefsController? fonts;
+  /// 外观偏好（画板 70「外观」）。gallery 与单测可以不给，不给就不出这一小节。
+  final AppearanceController? appearance;
 
   /// 「去下载」用：在系统浏览器里打开候选字体的官网。
   final ValueChanged<String>? onOpenUrl;
@@ -96,11 +96,11 @@ class SettingsPage extends StatelessWidget {
             children: <Widget>[
               _title(),
               const SizedBox(height: t.Spacing.s16),
-              if (fonts != null) ...<Widget>[
+              if (appearance != null) ...<Widget>[
                 _section(
                   '外观',
                   note: '西文与中文分轴：西文档只列不含中文字形的字体，中文才不会被它吃掉',
-                  child: AppearanceCard(fonts: fonts!, onOpenUrl: onOpenUrl),
+                  child: AppearanceCard(appearance: appearance!, onOpenUrl: onOpenUrl),
                 ),
                 const SizedBox(height: t.Spacing.s16),
               ],
@@ -121,7 +121,7 @@ class SettingsPage extends StatelessWidget {
 
   Widget _title() => Container(
         padding: const EdgeInsets.only(bottom: t.Spacing.s8),
-        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.baseline,
           textBaseline: TextBaseline.alphabetic,
@@ -184,7 +184,7 @@ class SettingsPage extends StatelessWidget {
     ];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12, vertical: t.Spacing.s8),
-      decoration: last ? null : const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+      decoration: last ? null : BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
       child: Row(
         children: <Widget>[
           AgentIconBox(svg: a.iconSvg),
@@ -242,15 +242,15 @@ class SettingsPage extends StatelessWidget {
           SettingsRow(
             label: '系统 Node',
             leading: system != null
-                ? const AcpIcon(AcpIcons.checkCircle, color: t.Semantic.success, size: t.IconSizes.toolbar)
-                : const AcpIcon(AcpIcons.slashCircle, color: t.Semantic.warning, size: t.IconSizes.toolbar),
+                ? AcpIcon(AcpIcons.checkCircle, color: t.Semantic.success, size: t.IconSizes.toolbar)
+                : AcpIcon(AcpIcons.slashCircle, color: t.Semantic.warning, size: t.IconSizes.toolbar),
             value: system != null ? '${system.version} · ${system.path}' : (node.systemError ?? '未检测到 Node ≥ ${node.minVersion.split('.').first}'),
             muted: system == null,
             bottomBorder: true,
           ),
           SettingsRow(
             label: '受管 Node',
-            leading: managed != null ? const AcpIcon(AcpIcons.checkCircle, color: t.Semantic.success, size: t.IconSizes.toolbar) : null,
+            leading: managed != null ? AcpIcon(AcpIcons.checkCircle, color: t.Semantic.success, size: t.IconSizes.toolbar) : null,
             value: managed != null
                 ? '${managed.version} · ${managed.path}'
                 : downloading
@@ -315,7 +315,7 @@ class SettingsRow extends StatelessWidget {
     final valueStyle = t.TextStyles.monoMeta.copyWith(fontSize: t.TextStyles.secondary.fontSize, color: muted ? t.Neutral.muted : t.Neutral.text);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12, vertical: t.Spacing.s8),
-      decoration: bottomBorder ? const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))) : null,
+      decoration: bottomBorder ? BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))) : null,
       child: Row(
         children: <Widget>[
           SizedBox(width: t.Geometry.settingsLabelWidth, child: Text(label, style: t.TextStyles.secondary)),

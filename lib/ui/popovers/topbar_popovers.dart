@@ -189,7 +189,7 @@ class _CreateBranchRow extends StatelessWidget {
         decoration: BoxDecoration(color: hovered ? t.Overlays.active : t.Overlays.hover, borderRadius: t.Radii.control),
         child: Row(
           children: <Widget>[
-            const AcpIcon(AcpIcons.plus, color: t.Neutral.muted, size: t.IconSizes.toolbar),
+            AcpIcon(AcpIcons.plus, color: t.Neutral.muted, size: t.IconSizes.toolbar),
             const SizedBox(width: t.Spacing.s4),
             Flexible(
               child: Text.rich(

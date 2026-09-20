@@ -82,7 +82,7 @@ class NewSessionEmpty extends StatelessWidget {
   static InlineSpan _codeSpan(String text) => WidgetSpan(
         alignment: PlaceholderAlignment.middle,
         child: Container(
-          decoration: const BoxDecoration(color: t.Neutral.surface, borderRadius: t.Radii.chip),
+          decoration: BoxDecoration(color: t.Neutral.surface, borderRadius: t.Radii.chip),
           padding: t.Spacing.chip,
           child: Text(text, style: t.TextStyles.mono),
         ),
@@ -99,7 +99,7 @@ class NoAgentEmpty extends StatelessWidget {
   Widget build(BuildContext context) {
     return _Centered(
       children: <Widget>[
-        const DashedBox(
+        DashedBox(
           size: t.Controls.input,
           child: AcpIcon(AcpIcons.layers, color: t.Neutral.placeholder, size: t.IconSizes.base),
         ),

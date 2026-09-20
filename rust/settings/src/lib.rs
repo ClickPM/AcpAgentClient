@@ -74,7 +74,7 @@ impl AgentServer {
     }
 }
 
-/// 外观：四个字体轴，各存一个 family 名（画板 70「外观」小节）。
+/// 外观：四个字体轴各存一个 family 名（画板 70「外观」小节），加一个主题档（画板 07）。
 ///
 /// 键名与 Zed 同形取 `ui_font_family` / `buffer_font_family`（Zed `crates/settings_content/src/theme.rs`）；
 /// 两个 `*_cjk_font_family` 是本客户端自己的——Zed 没有中西文分轴，它靠系统 fallback 兜中文。
@@ -83,6 +83,13 @@ impl AgentServer {
 /// 不在这里再写一份（同 [`ui_state`] 的口径）。没存过就返回 null，由前端落到 token 上。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct Appearance {
+    /// 主题：`"light"` / `"dark"`（画板 07「深色 Token 对位表」）。
+    ///
+    /// 放在 `appearance` 段里而不是顶层 `theme`：顶层那个键是 Zed 的主题名（`"One Dark"` 这种），
+    /// 从 Zed 抄过设置的用户文件里可能已经有了；本客户端不解释它，也不能把它改掉（规则 7，见
+    /// `unknown_top_level_keys_survive_a_save`）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme: Option<String>,
     /// 界面西文。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ui_font_family: Option<String>,
@@ -99,6 +106,15 @@ pub struct Appearance {
 
 /// family 名的最大长度。真实字体家族名远短于此，这里只挡住把整个文件塞进来那种输入。
 const MAX_FAMILY_LEN: usize = 128;
+
+/// 主题档的全部合法取值。手写进文件的别的值一律当没设置（回缺省浅色），不报错。
+const THEMES: [&str; 2] = ["light", "dark"];
+
+fn sane_theme(value: Option<String>) -> Option<String> {
+    let v = value?;
+    let v = v.trim().to_ascii_lowercase();
+    THEMES.contains(&v.as_str()).then_some(v)
+}
 
 /// 去首尾空白；空串、纯空白、超长、含控制字符的一律当没设置。
 ///
@@ -117,6 +133,7 @@ impl Appearance {
     #[must_use]
     pub fn sanitized(self) -> Self {
         Self {
+            theme: sane_theme(self.theme),
             ui_font_family: sane_family(self.ui_font_family),
             ui_cjk_font_family: sane_family(self.ui_cjk_font_family),
             buffer_font_family: sane_family(self.buffer_font_family),
@@ -141,7 +158,7 @@ pub struct Settings {
 }
 
 impl Appearance {
-    /// 四个轴全空时不写 `appearance` 键，省得给没动过外观的用户平白多一段。
+    /// 全空时不写 `appearance` 键，省得给没动过外观的用户平白多一段。
     fn is_default(&self) -> bool {
         *self == Self::default()
     }
@@ -191,7 +208,8 @@ impl SettingsStore {
         self.load().map(|s| s.appearance.sanitized()).unwrap_or_default()
     }
 
-    /// 覆盖外观设置并落盘，返回落盘后的外观。整段替换而不是合并：四个轴前端一次全给。
+    /// 覆盖外观设置并落盘，返回落盘后的外观。整段替换而不是合并：这一段前端一次全给
+    /// （所以前端只能有一个写者，见 `lib/app/appearance_prefs.dart`）。
     pub fn set_appearance(&self, appearance: Appearance) -> Result<Appearance> {
         let mut settings = self.load()?;
         settings.appearance = appearance.sanitized();
@@ -310,10 +328,11 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("mkdir");
         let store = SettingsStore::new(dir.clone());
 
-        // 没存过 -> 四个轴全空，前端据此落回 token。
+        // 没存过 -> 全空，前端据此落回 token。
         assert_eq!(store.appearance(), Appearance::default());
 
         let want = Appearance {
+            theme: Some("dark".into()),
             ui_font_family: Some("Inter".into()),
             ui_cjk_font_family: Some("MiSans".into()),
             buffer_font_family: Some("JetBrains Mono".into()),
@@ -322,7 +341,12 @@ mod tests {
         assert_eq!(store.set_appearance(want.clone()).expect("set"), want);
         assert_eq!(store.appearance(), want);
 
-        // 四个轴全空时不写 `appearance` 键。
+        // 只改主题、字体全默认，也要能独立落盘。
+        let only_theme = Appearance { theme: Some("light".into()), ..Default::default() };
+        assert_eq!(store.set_appearance(only_theme.clone()).expect("set"), only_theme);
+        assert_eq!(store.appearance(), only_theme);
+
+        // 全空时不写 `appearance` 键。
         store.set_appearance(Appearance::default()).expect("clear");
         let text = std::fs::read_to_string(&store.path).expect("read");
         assert!(!text.contains("appearance"), "空外观不该落键: {text}");
@@ -330,8 +354,21 @@ mod tests {
     }
 
     #[test]
+    fn appearance_theme_only_takes_light_or_dark() {
+        let norm = |v: &str| Appearance { theme: Some(v.into()), ..Default::default() }.sanitized().theme;
+        assert_eq!(norm("dark").as_deref(), Some("dark"));
+        assert_eq!(norm("  Light  ").as_deref(), Some("light"), "去空白 + 大小写不敏感");
+        // 手写的别的值一律当没设置：前端落回缺省浅色，不报错也不改用户的文件。
+        assert_eq!(norm("system"), None);
+        assert_eq!(norm("One Dark"), None);
+        assert_eq!(norm(""), None);
+        assert_eq!(Appearance::default().sanitized().theme, None);
+    }
+
+    #[test]
     fn appearance_sanitizes_junk() {
         let junk = Appearance {
+            theme: None,
             ui_font_family: Some("   ".into()),                       // 纯空白
             ui_cjk_font_family: Some("  MiSans  ".into()),            // 去首尾空白
             buffer_font_family: Some("a".repeat(MAX_FAMILY_LEN + 1)), // 超长

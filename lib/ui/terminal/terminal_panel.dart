@@ -76,7 +76,7 @@ class _TerminalPanelState extends State<TerminalPanel> {
     return Container(
       height: t.Geometry.panelHeaderHeight,
       padding: const EdgeInsets.only(left: t.Spacing.s12, right: t.Spacing.s4),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
       child: Row(
         children: <Widget>[
           Container(
@@ -170,8 +170,8 @@ class TerminalExitLine extends StatelessWidget {
             const TextSpan(text: 'Exit Code '),
             TextSpan(text: '$code', style: TextStyle(color: ok ? t.Semantic.success : t.Semantic.error)),
           ] else
-            TextSpan(text: 'Signal ${signal ?? 'none'}', style: const TextStyle(color: t.Semantic.error)),
-          if (elapsed != null) TextSpan(text: ' · ${formatElapsed(elapsed!)}', style: const TextStyle(color: t.Neutral.muted)),
+            TextSpan(text: 'Signal ${signal ?? 'none'}', style: TextStyle(color: t.Semantic.error)),
+          if (elapsed != null) TextSpan(text: ' · ${formatElapsed(elapsed!)}', style: TextStyle(color: t.Neutral.muted)),
         ],
       ),
     );

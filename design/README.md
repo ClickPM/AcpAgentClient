@@ -30,6 +30,7 @@
 | 04 | 侧栏与顶栏状态 | 会话工作台 | round-design | `design/round-design/04-sidebar-states.dc.html` | `design/round-design/04-sidebar-states.png` | — | 已实现（R3） | — |
 | 05 | 转场规格 | 全局 | round-design | `design/round-design/05-motion.dc.html` | `design/round-design/05-motion.png` | — | 已实现（2026-09-17，main 直改） | —（规格值全部登记在画板 00） |
 | 06 | 侧栏会话活动指示 | 会话工作台（侧栏） | round-design | `design/round-design/06-session-activity.dc.html` | `design/round-design/06-session-activity.png` | — | 已实现（2026-09-18，main 直改） | 新增 `Sweep`（track / focus / focusGradient / cycle / band / inset / bottom）与 `UnreadDot`（size / color / gap）两组；`Geometry` 补 `sidebarRowRunning` 58 与 `sidebarRowRunningContent` 50 |
+| 07 | 深色 Token 对位表 | 全局 | round-design | `design/round-design/07-dark-tokens.dc.html` | `design/round-design/07-dark-tokens.png` | — | 已实现（2026-09-20，`dark-mode-toggle-implementation` 分支） | 颜色层拆成 `Theming.lightColors` / `Theming.darkColors` 两套（`ThemeColors` 29 项）；`Neutral` / `Accent` / `Semantic` / `Surface` / `Borders` / `Shadows` / `Overlays` 等全部改成 getter；新增 `AppTheme` 与 `Theming`，`Shadows` 补 `topHighlight`（深色弹层顶边 1px 提亮），`Sweep.focusGradient` 改为由 `focus` 现算 |
 | 10 | Restore Checkpoint 分隔线 | 转录 | round-design | `design/round-design/10-checkpoint.dc.html` | `design/round-design/10-checkpoint.png` | — | **已废弃（2026-09-17）** | — |
 | 11 | 用户消息气泡 | 转录 | round-design | `design/round-design/11-user-message.dc.html` | `design/round-design/11-user-message.png` | — | 已实现（R2） | — |
 | 12 | 助手富文本正文 | 转录 | round-design | `design/round-design/12-assistant-text.dc.html` | `design/round-design/12-assistant-text.png` | — | 已实现（R2） | — |
@@ -71,6 +72,7 @@
 
 ## 变更记录（入库后对 `.dc.html` 的改动，PNG 已用 `scripts/render-design.ps1` 重渲染）
 
+- 2026-09-20 新增画板 07「深色 Token 对位表」（画布上已有，本次整份拉回入库并渲 PNG，1440 × 1760）。它是画板 00 深色区的完整版本：**一个浅色 token 名对应且只对应一个深色值**，中性 10 + 强调 6 + 语义 8 + popover 表面 1 + 阴影 1 共 26 项全部填满，无深色专有 token；另加「跟随派生」「代码高亮」「终端 ANSI」三小节说明不新增 token 的那些。相对画板 00 的深色区有两处变动：补 `d.strong` #f0f0f4，原第 10 档 `d.accent` 挪进强调色小节并改名 `d.accent.base`（画板 00 未改，gallery 的画板 00 对照页仍按旧表排）。实现按本表落地，**切换按钮本身画板上没有**（所有者 2026-09-20 指图放在侧栏标题条右端），见 `rounds/BACKLOG.md` 的「设计稿补注记」。画板自己写明的后续三张深色页面画板（90 工作台整屏 / 91 转录卡片合集 / 92 弹层与叠色）与画板 70「外观」小节都还没出。
 - 2026-09-20 新增画板 43「会话时间线弹层」，并给画板 01 / 02 / 03 的会话头在 reload 与 ≡ 之间插入一个 history 按钮（01 的「尚无已安装 agent」态不画它，显示条件与 reload 同规则）。起因是一条会话跑到几十轮之后只能靠滚轮翻，找不到第 7 轮问的那句在哪；参照 pi 桌面版右侧的会话树，只取信息结构、视觉按本项目风格重做。简报 `design/round-design/input/revision-03.md`。画板自带「本画板新增 token」表（`timeline.*` 七项），已按表回写`lib/theme/tokens.dart`（画板 00 未改，这组值只服务画板 43）。**画布上的 01 / 02 / 03 是旧版**（缺 `4e59ef3` 那次本地整改的六处 32→36 与分栏把手注脚），所以这三张没有整份拉回来，只把 history 那个 span 按画布的写法插进本地文件再重渲 PNG。
 - 2026-09-15 画板 40：`+` 弹层删去 Symbols 与 Selection 两行。需要 LSP 与编辑器选区，与 `docs/requirements.md`「不做」冲突；所有者裁定，见 `ROUNDS.md` § 6。
 - 2026-09-15 画板 42：`/` 命令菜单合并为单组（保留 Commands 标题），去掉 Skills 分组标题与右侧的 built-in / 项目名来源标签；`<path>` 参数提示保留。`AvailableCommand` 只有 name / description / input，没有分组与来源字段；所有者裁定，见 `ROUNDS.md` § 6。

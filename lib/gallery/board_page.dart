@@ -29,7 +29,7 @@ class BoardPage extends StatelessWidget {
         children: <Widget>[
           Container(
             padding: const EdgeInsets.only(bottom: t.Spacing.s8),
-            decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,

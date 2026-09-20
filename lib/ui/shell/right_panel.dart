@@ -82,7 +82,7 @@ class RightPanel extends StatelessWidget {
     return Container(
       // 独立渲染时的缺省宽；装进 [AppShell] 时由它的紧约束覆盖。
       width: t.Geometry.rightPanelWidth,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: t.Neutral.panel,
         border: Border(left: BorderSide(color: t.Borders.subtle, width: t.Borders.width)),
       ),
@@ -99,7 +99,7 @@ class RightPanel extends StatelessWidget {
   Widget _tabBar() => Container(
         // 条高而不是 [t.Controls.input]：标签条与顶栏共用第一条分割线，32 对 36 会错开 4px。
         height: t.Geometry.barHeight,
-        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
         child: Stack(
           // `StackFit.expand`：标签行要拿到与原来一样的紧约束（同 [TopBar]）。
           fit: StackFit.expand,

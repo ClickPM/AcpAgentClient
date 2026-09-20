@@ -63,10 +63,12 @@ abstract final class CardText {
 
 /// 卡片容器：1px subtle 边框、radius 6、canvas 底、裁剪圆角。
 class TranscriptCard extends StatelessWidget {
-  const TranscriptCard({super.key, required this.child, this.background = t.Surface.canvas, this.clip = Clip.antiAlias});
+  const TranscriptCard({super.key, required this.child, this.background, this.clip = Clip.antiAlias});
 
   final Widget child;
-  final Color background;
+
+  /// 不给就是 [t.Surface.canvas]。**可空而不是默认值**：颜色 token 换成了 getter（主题切换），进不了 `const` 默认值。
+  final Color? background;
   final Clip clip;
 
   @override
@@ -74,7 +76,7 @@ class TranscriptCard extends StatelessWidget {
     return Container(
       clipBehavior: clip,
       decoration: BoxDecoration(
-        color: background,
+        color: background ?? t.Surface.canvas,
         border: Border.all(color: t.Borders.subtle, width: t.Borders.width),
         borderRadius: t.Radii.card,
       ),
@@ -161,13 +163,16 @@ class CardHeader extends StatelessWidget {
 
 /// 折叠 / 展开箭头（14 · placeholder 色）。
 class Chevron extends StatelessWidget {
-  const Chevron({super.key, required this.expanded, this.color = t.Neutral.placeholder});
+  const Chevron({super.key, required this.expanded, this.color});
 
   final bool expanded;
-  final Color color;
+
+  /// 不给就是 [t.Neutral.placeholder]。**可空而不是默认值**：颜色 token 换成了 getter（主题切换），进不了 `const` 默认值。
+  final Color? color;
 
   @override
-  Widget build(BuildContext context) => AcpIcon(expanded ? AcpIcons.chevronUp : AcpIcons.chevronDown, color: color, size: t.IconSizes.toolbar);
+  Widget build(BuildContext context) =>
+      AcpIcon(expanded ? AcpIcons.chevronUp : AcpIcons.chevronDown, color: color ?? t.Neutral.placeholder, size: t.IconSizes.toolbar);
 }
 
 /// 卡片展开体：上边框 + 8/12 内边距 + 子项间距 8。
@@ -180,7 +185,7 @@ class CardBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+      decoration: BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
       padding: padding ?? const EdgeInsets.symmetric(horizontal: t.Spacing.s12, vertical: t.Spacing.s8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -209,7 +214,7 @@ class CollapseBar extends StatelessWidget {
       onTap: onTap,
       child: Container(
         height: t.Controls.compact,
-        decoration: const BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+        decoration: BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
         alignment: Alignment.center,
         child: const Chevron(expanded: true),
       ),
@@ -232,11 +237,13 @@ class SectionLabel extends StatelessWidget {
 
 /// 等宽文本块：panel 底、radius 4、8/12 内边距、pre-wrap。`background` 可换 error.soft 等。
 class MonoBlock extends StatelessWidget {
-  const MonoBlock({super.key, this.text, this.span, this.background = t.Neutral.panel, this.style, this.softWrap = true});
+  const MonoBlock({super.key, this.text, this.span, this.background, this.style, this.softWrap = true});
 
   final String? text;
   final InlineSpan? span;
-  final Color background;
+
+  /// 不给就是 [t.Neutral.panel]。**可空而不是默认值**：颜色 token 换成了 getter（主题切换），进不了 `const` 默认值。
+  final Color? background;
   final TextStyle? style;
   final bool softWrap;
 
@@ -245,7 +252,7 @@ class MonoBlock extends StatelessWidget {
     final s = style ?? CardText.code;
     return Container(
       width: double.infinity,
-      decoration: BoxDecoration(color: background, borderRadius: t.Radii.control),
+      decoration: BoxDecoration(color: background ?? t.Neutral.panel, borderRadius: t.Radii.control),
       padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12, vertical: t.Spacing.s8),
       child: span != null ? Text.rich(span!, style: s, softWrap: softWrap) : Text(text ?? '', style: s, softWrap: softWrap),
     );
@@ -256,12 +263,13 @@ class MonoBlock extends StatelessWidget {
 abstract final class JsonHighlight {
   static final Highlight _hl = Highlight()..registerLanguage('json', langJson);
 
-  static final Map<String, TextStyle> theme = <String, TextStyle>{
-    'attr': const TextStyle(color: t.Accent.text),
-    'string': const TextStyle(color: t.Semantic.success),
-    'number': const TextStyle(color: t.Semantic.warning),
-    'literal': const TextStyle(color: t.Accent.text),
-    'punctuation': const TextStyle(color: t.Neutral.muted),
+  /// getter 而不是 `static final`：理由同 [CardText]，存成 final 会冻在首次访问时的那一套主题。
+  static Map<String, TextStyle> get theme => <String, TextStyle>{
+    'attr': TextStyle(color: t.Accent.text),
+    'string': TextStyle(color: t.Semantic.success),
+    'number': TextStyle(color: t.Semantic.warning),
+    'literal': TextStyle(color: t.Accent.text),
+    'punctuation': TextStyle(color: t.Neutral.muted),
   };
 
   static String pretty(Object? value) {
@@ -439,10 +447,12 @@ class _AcpButtonState extends State<AcpButton> {
 
 /// 图标按钮（24 / 28 方块，hover 6% 叠色）。
 class IconButtonGhost extends StatefulWidget {
-  const IconButtonGhost({super.key, required this.icon, this.color = t.Neutral.muted, this.onTap, this.size = t.Controls.standard, this.child});
+  const IconButtonGhost({super.key, required this.icon, this.color, this.onTap, this.size = t.Controls.standard, this.child});
 
   final String icon;
-  final Color color;
+
+  /// 不给就是 [t.Neutral.muted]。**可空而不是默认值**：颜色 token 换成了 getter（主题切换），进不了 `const` 默认值。
+  final Color? color;
   final VoidCallback? onTap;
   final double size;
 
@@ -469,14 +479,18 @@ class _IconButtonGhostState extends State<IconButtonGhost> {
           height: widget.size,
           decoration: BoxDecoration(color: _hover ? t.Overlays.hover : null, borderRadius: t.Radii.control),
           alignment: Alignment.center,
-          child: widget.child ?? AcpIcon(widget.icon, color: widget.color, size: t.IconSizes.toolbar),
+          child: widget.child ?? AcpIcon(widget.icon, color: widget.color ?? t.Neutral.muted, size: t.IconSizes.toolbar),
         ),
       ),
     );
   }
 }
 
-/// 弹层容器：popover 底、subtle 边框、radius 4、shadow.popover。
+/// 弹层容器：popover 底、subtle 边框、radius 4、shadow.popover + 顶边 1px 提亮。
+///
+/// 提亮那一条对应画板 07 § 2.5 路线 B 的 `inset 0 1px 0`：深底上加重黑影只会把周围变得更黑、边界依旧糊，
+/// 顶部一条亮线才直接给出「上边缘」。Flutter 的 [BoxShadow] 没有 inset，所以改画一条 1px 顶线；
+/// 颜色取 [t.Shadows.topHighlight]，浅色下它是全透明，两套主题走同一条代码路径。
 class Popover extends StatelessWidget {
   const Popover({super.key, required this.child, this.padding, this.radius = t.Radii.control});
 
@@ -491,10 +505,22 @@ class Popover extends StatelessWidget {
         color: t.Surface.popover,
         border: Border.all(color: t.Borders.subtle, width: t.Borders.width),
         borderRadius: radius,
-        boxShadow: const <BoxShadow>[t.Shadows.popover],
+        boxShadow: <BoxShadow>[t.Shadows.popover],
       ),
-      padding: padding,
-      child: child,
+      child: ClipRRect(
+        borderRadius: radius,
+        child: Stack(
+          children: <Widget>[
+            Padding(padding: padding ?? EdgeInsets.zero, child: child),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SizedBox(height: t.Borders.width, child: ColoredBox(color: t.Shadows.topHighlight)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

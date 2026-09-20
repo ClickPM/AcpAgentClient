@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet"><style>body{margin:0;background:#fbfbfc}a{color:#4a59c9;text-decoration:none}a:hover{color:#3d4cb5}</style></helmet>
+<div data-screen-label="07" style="width:1440px;min-width:1440px;box-sizing:border-box;padding:24px 24px 28px;background:#fbfbfc;color:#33333d;font-family:Geist,'Noto Sans SC',system-ui,sans-serif;font-size:13px;display:flex;flex-direction:column;gap:18px">
+
+  <div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #e2e2e7;padding-bottom:10px">
+    <span style="font-size:15px;font-weight:500;color:#1e1e26">07 · 深色 Token 对位表</span>
+    <span style="font-size:11px;color:#8b8b96">画板 00 深色区的完整版本：一个浅色 token 名对应且只对应一个深色值，加 d. 前缀；不新增、不合并、不拆分。本表是深色取值的唯一来源</span>
+    <span style="margin-left:auto;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">只换颜色 · 间距 / 圆角 / 字阶 / 控件高度 / 动效时长与浅色完全相同</span>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e">2.1 中性色阶 · 深色（补 d.strong；原第 10 档的 d.accent 已挪到 2.2 并改名 d.accent.base）</div>
+    <div style="display:grid;grid-template-columns:repeat(10,1fr);gap:4px">
+      <div><div style="height:44px;border-radius:4px;background:#17171c"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">d.canvas</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#17171c</div></div>
+      <div><div style="height:44px;border-radius:4px;background:#1d1d23"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">d.panel</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#1d1d23</div></div>
+      <div><div style="height:44px;border-radius:4px;background:#24242b"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">d.surface</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#24242b</div></div>
+      <div><div style="height:44px;border-radius:4px;background:#2c2c34"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">d.hover.solid</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#2c2c34</div></div>
+      <div><div style="height:44px;border-radius:4px;background:#303039"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">d.border.subtle</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#303039</div></div>
+      <div><div style="height:44px;border-radius:4px;background:#43434e"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">d.border</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#43434e</div></div>
+      <div><div style="height:44px;border-radius:4px;background:#7e7e8a"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">d.placeholder</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#7e7e8a</div></div>
+      <div><div style="height:44px;border-radius:4px;background:#9b9ba6"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">d.muted</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#9b9ba6</div></div>
+      <div><div style="height:44px;border-radius:4px;background:#d5d5dc"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">d.text</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#d5d5dc · 12.2:1</div></div>
+      <div><div style="height:44px;border-radius:4px;background:#f0f0f4;outline:1.5px dashed #5566d8;outline-offset:2px"></div><div style="margin-top:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">d.strong 新增</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">#f0f0f4 · 15.7:1</div></div>
+    </div>
+    <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">对位浅色 n.canvas → n.strong 十档，逐位一一对应；d.strong 对位 n.strong #1e1e26，在 d.canvas 上 15.7:1（要求 ≥ 13:1）</div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e">2.2 强调色 · 深色（补 5，共 6）</div>
+      <div style="border:1px solid #e2e2e7;border-radius:6px;overflow:hidden">
+        <div style="display:grid;grid-template-columns:132px 104px 84px 84px 1fr;align-items:center;height:26px;padding:0 8px;background:#f4f4f6;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e"><span>深色 token</span><span>对位浅色</span><span>浅色值</span><span>深色值</span><span>说明</span></div>
+        <div style="display:grid;grid-template-columns:132px 104px 84px 84px 1fr;align-items:center;height:34px;padding:0 8px;border-top:1px solid #e2e2e7;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px"><span style="color:#33333d">d.accent.base</span><span style="color:#62626e">accent.base</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#5566d8"></i>#5566d8</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#8b96ec"></i>#8b96ec</span><span style="color:#62626e">沿用原 d.accent，仅改名并移入本节</span></div>
+        <div style="display:grid;grid-template-columns:132px 104px 84px 84px 1fr;align-items:center;height:34px;padding:0 8px;border-top:1px solid #e2e2e7;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px"><span style="color:#33333d">d.accent.active</span><span style="color:#62626e">accent.active</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#3d4cb5"></i>#3d4cb5</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#a3adf3"></i>#a3adf3</span><span style="color:#62626e">方向相反：浅色变深，深色变亮</span></div>
+        <div style="display:grid;grid-template-columns:132px 104px 84px 84px 1fr;align-items:center;height:34px;padding:0 8px;border-top:1px solid #e2e2e7;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px"><span style="color:#33333d">d.accent.soft</span><span style="color:#62626e">accent.soft</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#ecedfa;border:1px solid #e2e2e7"></i>#ecedfa</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#2a2f4d"></i>#2a2f4d</span><span style="color:#62626e">低饱和深蓝，与 d.surface 1.16:1 可辨不刺眼</span></div>
+        <div style="display:grid;grid-template-columns:132px 104px 84px 84px 1fr;align-items:center;height:34px;padding:0 8px;border-top:1px solid #e2e2e7;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px"><span style="color:#33333d">d.accent.text</span><span style="color:#62626e">accent.text</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#4a59c9"></i>#4a59c9</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#9aa5f0"></i>#9aa5f0</span><span style="color:#62626e">canvas 7.7:1 · panel 7.2:1 · soft 底 5.7:1</span></div>
+        <div style="display:grid;grid-template-columns:132px 104px 84px 84px 1fr;align-items:center;height:34px;padding:0 8px;border-top:1px solid #e2e2e7;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px"><span style="color:#33333d">d.accent.on-accent</span><span style="color:#62626e">accent.on-accent</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#ffffff;border:1px solid #e2e2e7"></i>#ffffff</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#17171c"></i>#17171c</span><span style="color:#62626e">改深色文字：白字在 #8b96ec 上仅 2.8:1，深字 6.4:1</span></div>
+        <div style="display:grid;grid-template-columns:132px 104px 84px 84px 1fr;align-items:center;height:34px;padding:0 8px;border-top:1px solid #e2e2e7;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px"><span style="color:#33333d">d.border.on-accent</span><span style="color:#62626e">border.on-accent</span><span style="color:#8b8b96">白 .45</span><span style="color:#8b8b96">黑 .45</span><span style="color:#62626e">跟上一行翻向：rgba(23,23,28,.45)</span></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:6px;background:#17171c">
+        <span style="height:28px;display:flex;align-items:center;padding:0 10px;border-radius:4px;font-size:13px;color:#17171c;background:#8b96ec">primary</span>
+        <span style="height:28px;display:flex;align-items:center;padding:0 10px;border-radius:4px;font-size:13px;color:#17171c;background:#a3adf3">hover / active</span>
+        <span style="height:28px;display:flex;align-items:center;padding:0 10px;border-radius:4px;font-size:13px;color:#9aa5f0;background:#2a2f4d">selected · soft 底</span>
+        <span style="height:28px;display:flex;align-items:center;gap:6px;padding:0 10px;border-radius:4px;font-size:13px;color:#17171c;background:#8b96ec"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;border:1px solid rgba(23,23,28,.45);border-radius:3px;padding:0 4px;line-height:16px">Alt-A</span>kbd</span>
+        <span style="margin-left:auto;font-size:13px;color:#9aa5f0">链接文字</span>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e">2.3 语义色 · 深色（4 × 2 = 8，全为新增）· soft 换成低亮度深底，不是把浅底压暗</div>
+      <div style="border:1px solid #e2e2e7;border-radius:6px;overflow:hidden">
+        <div style="display:grid;grid-template-columns:172px 84px 84px 92px 1fr;align-items:center;height:26px;padding:0 8px;background:#f4f4f6;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e"><span>深色 token（对位同名浅色）</span><span>浅色值</span><span>深色值</span><span>d.canvas 对比</span><span>校验</span></div>
+        <div style="display:grid;grid-template-columns:172px 84px 84px 92px 1fr;align-items:center;height:30px;padding:0 8px;border-top:1px solid #e2e2e7;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px"><span style="color:#33333d">d.semantic.error</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#bc4e39"></i>#bc4e39</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#e8836a"></i>#e8836a</span><span style="color:#33333d">6.7:1</span><span style="color:#62626e">panel 6.3 · surface 5.7 ✓</span></div>
+        <div style="display:grid;grid-template-columns:172px 84px 84px 92px 1fr;align-items:center;height:30px;padding:0 8px;border-top:1px solid #e2e2e7;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px"><span style="color:#33333d">d.semantic.error.soft</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#fbeeea;border:1px solid #e2e2e7"></i>#fbeeea</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#4a2620"></i>#4a2620</span><span style="color:#33333d">1.36:1</span><span style="color:#62626e">与 surface 1.16 可辨 · 其上 error 文字 4.9 ✓</span></div>
+        <div style="display:grid;grid-template-columns:172px 84px 84px 92px 1fr;align-items:center;height:30px;padding:0 8px;border-top:1px solid #e2e2e7;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px"><span style="color:#33333d">d.semantic.warning</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#8a6f12"></i>#8a6f12</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#d8a83c"></i>#d8a83c</span><span style="color:#33333d">8.2:1</span><span style="color:#62626e">浅色深黄直接用会糊，显著提亮 · surface 7.0 ✓</span></div>
+        <div style="display:grid;grid-template-columns:172px 84px 84px 92px 1fr;align-items:center;height:30px;padding:0 8px;border-top:1px solid #e2e2e7;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px"><span style="color:#33333d">d.semantic.warning.soft</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#f7f2e2;border:1px solid #e2e2e7"></i>#f7f2e2</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#453718"></i>#453718</span><span style="color:#33333d">1.51:1</span><span style="color:#62626e">与 surface 1.29 · 其上 warning 文字 5.4 ✓</span></div>
+        <div style="display:grid;grid-template-columns:172px 84px 84px 92px 1fr;align-items:center;height:30px;padding:0 8px;border-top:1px solid #e2e2e7;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px"><span style="color:#33333d">d.semantic.success</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#477f40"></i>#477f40</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#6fbf63"></i>#6fbf63</span><span style="color:#33333d">7.9:1</span><span style="color:#62626e">6px 未读点足够亮 · surface 6.7 ✓</span></div>
+        <div style="display:grid;grid-template-columns:172px 84px 84px 92px 1fr;align-items:center;height:30px;padding:0 8px;border-top:1px solid #e2e2e7;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px"><span style="color:#33333d">d.semantic.success.soft</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#ecf3ea;border:1px solid #e2e2e7"></i>#ecf3ea</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#21361f"></i>#21361f</span><span style="color:#33333d">1.35:1</span><span style="color:#62626e">与 surface 1.16 · 其上 success 文字 5.8 ✓</span></div>
+        <div style="display:grid;grid-template-columns:172px 84px 84px 92px 1fr;align-items:center;height:30px;padding:0 8px;border-top:1px solid #e2e2e7;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px"><span style="color:#33333d">d.semantic.info</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#5566d8"></i>#5566d8</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#8b96ec"></i>#8b96ec</span><span style="color:#33333d">6.4:1</span><span style="color:#62626e">= d.accent.base，与浅色同构</span></div>
+        <div style="display:grid;grid-template-columns:172px 84px 84px 92px 1fr;align-items:center;height:30px;padding:0 8px;border-top:1px solid #e2e2e7;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px"><span style="color:#33333d">d.semantic.info.soft</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#ecedfa;border:1px solid #e2e2e7"></i>#ecedfa</span><span style="display:flex;align-items:center;gap:5px;color:#8b8b96"><i style="width:14px;height:14px;border-radius:3px;background:#2a2f4d"></i>#2a2f4d</span><span style="color:#33333d">1.35:1</span><span style="color:#62626e">= d.accent.soft，与浅色同构</span></div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:10px;border-radius:6px;background:#17171c">
+        <div style="border-radius:4px;background:#4a2620;padding:6px 8px"><div style="font-size:12px;color:#e8836a">工具调用失败</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#9b9ba6">error.soft 底</div></div>
+        <div style="border-radius:4px;background:#453718;padding:6px 8px"><div style="font-size:12px;color:#d8a83c">已取消 3 处</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#9b9ba6">warning.soft 底</div></div>
+        <div style="border-radius:4px;background:#21361f;padding:6px 8px"><div style="font-size:12px;color:#6fbf63">校验通过</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#9b9ba6">success.soft 底</div></div>
+        <div style="border-radius:4px;background:#2a2f4d;padding:6px 8px"><div style="font-size:12px;color:#8b96ec">已切换模型</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#9b9ba6">info.soft 底</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr 1.25fr;gap:24px;border-top:1px solid #e2e2e7;padding-top:14px">
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e">2.4 三级表面 · 深色（3）</div>
+      <div style="border-radius:6px;background:#17171c;padding:10px">
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#9b9ba6">d.surface.canvas #17171c</div>
+        <div style="margin-top:8px;border-radius:6px;background:#1d1d23;border:1px solid #303039;padding:8px">
+          <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#9b9ba6">d.surface.panel #1d1d23</div>
+          <div style="margin-top:8px;border-radius:6px;background:#2e2e37;border:1px solid #43434e;box-shadow:0 4px 12px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.08);padding:8px">
+            <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#d5d5dc">d.surface.popover #2e2e37</div>
+            <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#7e7e8a">比 panel 亮两档才浮得起来</div>
+          </div>
+        </div>
+      </div>
+      <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e;line-height:1.7">边框两级不新增：d.border.subtle #303039 / d.border #43434e，宽度同为 1px</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e">2.5 阴影 · 深色（1）· 选路线 B</div>
+      <div style="border-radius:6px;background:#17171c;padding:12px;display:flex;gap:10px;align-items:flex-start">
+        <div style="flex:1;border-radius:6px;background:#2e2e37;border:1px solid #43434e;box-shadow:0 4px 12px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.08);padding:8px">
+          <div style="font-size:12px;color:#d5d5dc">B 弱黑影 + 顶部 1px 提亮</div>
+          <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#9b9ba6;margin-top:2px">采用</div>
+        </div>
+        <div style="flex:1;border-radius:6px;background:#2e2e37;border:1px solid #43434e;box-shadow:0 6px 18px rgba(0,0,0,.48);padding:8px;opacity:.55">
+          <div style="font-size:12px;color:#d5d5dc">A 加重黑影</div>
+          <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#9b9ba6;margin-top:2px">不采用</div>
+        </div>
+      </div>
+      <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e;line-height:1.7">d.shadow.popover = 0 4 12 rgba(0,0,0,.28) + inset 0 1 0 rgba(255,255,255,.08)<br>理由：深底上加重黑影只是把周围变得更黑，边界依旧糊；顶部 1px 提亮直接给出「上边缘」，与浅色阴影同为一条 token，不改层次手法</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e">2.6 叠色 · 深色（3）· 叠黑翻成叠白，不透明度重新定</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="border-radius:6px;background:#f4f4f6;border:1px solid #e2e2e7;padding:10px;display:flex;flex-direction:column;gap:6px">
+          <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">浅色 · 叠黑</div>
+          <div style="display:flex;gap:6px">
+            <span style="width:28px;height:28px;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#33333d"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.2" y2="16.2"></line></svg></span>
+            <span style="width:28px;height:28px;border-radius:4px;background:rgba(30,30,38,.06);display:flex;align-items:center;justify-content:center;color:#33333d"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.2" y2="16.2"></line></svg></span>
+            <span style="width:28px;height:28px;border-radius:4px;background:rgba(30,30,38,.10);display:flex;align-items:center;justify-content:center;color:#33333d"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.2" y2="16.2"></line></svg></span>
+          </div>
+          <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">默认 · .06 · .10</div>
+        </div>
+        <div style="border-radius:6px;background:#1d1d23;border:1px solid #303039;padding:10px;display:flex;flex-direction:column;gap:6px">
+          <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#7e7e8a">深色 · 叠白</div>
+          <div style="display:flex;gap:6px">
+            <span style="width:28px;height:28px;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#d5d5dc"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.2" y2="16.2"></line></svg></span>
+            <span style="width:28px;height:28px;border-radius:4px;background:rgba(255,255,255,.05);display:flex;align-items:center;justify-content:center;color:#d5d5dc"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.2" y2="16.2"></line></svg></span>
+            <span style="width:28px;height:28px;border-radius:4px;background:rgba(255,255,255,.09);display:flex;align-items:center;justify-content:center;color:#d5d5dc"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.2" y2="16.2"></line></svg></span>
+          </div>
+          <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#9b9ba6">默认 · .05 · .09</div>
+        </div>
+      </div>
+      <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e;line-height:1.7">d.overlay.hover rgba(255,255,255,.05) · d.overlay.active rgba(255,255,255,.09) · d.overlay.selected = d.overlay.active。白叠在深底上感知更强，照抄 6% / 10% 会过亮；取 5% / 9% 后两侧反馈强度目测一致</div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:6px;border-top:1px solid #e2e2e7;padding-top:14px">
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e">2.7 跟随派生 · 确认不新增 token</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px 24px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e;line-height:1.7">
+      <div>focus.ring → d.accent.base #8b96ec；offset 1px 露出的底色在 d.panel / d.surface 上均可见（环底对比 ≥ 5.5:1）</div>
+      <div>kbd.border → d.border #43434e · spinner.color → d.accent.base · dot.unread → d.semantic.success #6fbf63</div>
+      <div>sweep.track → d.border.subtle #303039 · sweep.focus → d.accent.base；sweep.focusGradient 两端换成 d.accent.base 的全透明版 rgba(139,150,236,0)，不再硬编码 #5566d8 的 alpha 0</div>
+      <div>timeline.rail → d.border.subtle #303039 · timeline.node → d.placeholder #7e7e8a</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px;padding:10px 12px;border-radius:6px;background:#17171c">
+      <span style="height:28px;display:flex;align-items:center;padding:0 8px;border-radius:4px;font-size:13px;color:#d5d5dc;background:#1d1d23;outline:1.5px solid #8b96ec;outline-offset:1px">focus ring · panel</span>
+      <span style="height:28px;display:flex;align-items:center;padding:0 8px;border-radius:4px;font-size:13px;color:#d5d5dc;background:#24242b;outline:1.5px solid #8b96ec;outline-offset:1px">focus ring · surface</span>
+      <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#9b9ba6;border:1px solid #43434e;border-radius:3px;padding:0 4px;line-height:16px">Ctrl-Alt-A</span>
+      <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#9b9ba6"><i style="width:6px;height:6px;border-radius:50%;background:#6fbf63"></i>dot.unread 6px</span>
+      <span style="width:180px;height:2px;border-radius:2px;background:#303039;position:relative"><i style="position:absolute;left:0;top:0;width:64px;height:2px;border-radius:2px;background:linear-gradient(90deg,rgba(139,150,236,0),#8b96ec,rgba(139,150,236,0))"></i></span>
+      <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#7e7e8a">sweep</span>
+      <span style="display:flex;align-items:center;gap:8px;margin-left:auto"><i style="width:1px;height:26px;background:#303039"></i><i style="width:7px;height:7px;border-radius:50%;background:#7e7e8a"></i><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#7e7e8a">timeline rail / node</span></span>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:6px;border-top:1px solid #e2e2e7;padding-top:14px">
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e">2.8 代码高亮 · 深色（27 scope → 7 token，换 d. 对位值后重验，无一类需要改写）</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;overflow:hidden">
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 10px;border-bottom:1px solid #e2e2e7"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">powershell · 浅色</span></div>
+        <div style="padding:10px 12px;font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;line-height:1.6;color:#33333d;white-space:pre;overflow:hidden"><span style="color:#8b8b96"># scripts/validate.ps1 —— 规则 3：禁止样式字面量
+</span><span style="color:#4a59c9">function</span> <span style="color:#1e1e26">Assert-NoStyleLiteral</span> {
+  <span style="color:#4a59c9">param</span>([<span style="color:#8a6f12">string</span>]<span style="color:#33333d">$Root</span> = <span style="color:#477f40">"lib"</span>)
+  <span style="color:#33333d">$pattern</span> <span style="color:#62626e">=</span> <span style="color:#477f40">'Color\(0x|Colors\.'</span>
+  <span style="color:#4a59c9">if</span> (<span style="color:#33333d">$hits</span>) { <span style="color:#4a59c9">throw</span> <span style="color:#477f40">"发现 <span style="color:#8a6f12">$($hits.Count)</span> 处"</span> }
+}</div>
+      </div>
+      <div style="border:1px solid #303039;border-radius:6px;background:#17171c;overflow:hidden">
+        <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 10px;border-bottom:1px solid #303039"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#9b9ba6">powershell · 深色（代码底 d.surface）</span></div>
+        <div style="padding:10px 12px;font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;line-height:1.6;color:#d5d5dc;background:#24242b;white-space:pre;overflow:hidden"><span style="color:#7e7e8a"># scripts/validate.ps1 —— 规则 3：禁止样式字面量
+</span><span style="color:#9aa5f0">function</span> <span style="color:#f0f0f4">Assert-NoStyleLiteral</span> {
+  <span style="color:#9aa5f0">param</span>([<span style="color:#d8a83c">string</span>]<span style="color:#d5d5dc">$Root</span> = <span style="color:#6fbf63">"lib"</span>)
+  <span style="color:#d5d5dc">$pattern</span> <span style="color:#9b9ba6">=</span> <span style="color:#6fbf63">'Color\(0x|Colors\.'</span>
+  <span style="color:#9aa5f0">if</span> (<span style="color:#d5d5dc">$hits</span>) { <span style="color:#9aa5f0">throw</span> <span style="color:#6fbf63">"发现 <span style="color:#d8a83c">$($hits.Count)</span> 处"</span> }
+}</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px">
+      <div style="border-radius:4px;background:#24242b;padding:6px 8px"><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;color:#9aa5f0">function if throw</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#7e7e8a">accent.text → d.accent.text</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#7e7e8a">关键字 / 字面量 / 内建 · 6.6:1</div></div>
+      <div style="border-radius:4px;background:#24242b;padding:6px 8px"><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;color:#6fbf63">"lib"</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#7e7e8a">semantic.success → d.</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#7e7e8a">字符串 / 正则 · 6.7:1</div></div>
+      <div style="border-radius:4px;background:#24242b;padding:6px 8px"><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;color:#d8a83c">string 42</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#7e7e8a">semantic.warning → d.</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#7e7e8a">数字 / 类型 / 类名 · 7.0:1</div></div>
+      <div style="border-radius:4px;background:#24242b;padding:6px 8px"><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;color:#7e7e8a"># 注释</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#7e7e8a">n.placeholder → d.placeholder</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#7e7e8a">注释 · 3.75:1（同浅色档位）</div></div>
+      <div style="border-radius:4px;background:#24242b;padding:6px 8px"><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;color:#f0f0f4">Assert-No…</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#7e7e8a">n.strong → d.strong</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#7e7e8a">函数名 / 标题 · 13.4:1</div></div>
+      <div style="border-radius:4px;background:#24242b;padding:6px 8px"><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;color:#d5d5dc">$Root</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#7e7e8a">n.text → d.text</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#7e7e8a">属性 / 变量 / 参数 · 10.5:1</div></div>
+      <div style="border-radius:4px;background:#24242b;padding:6px 8px"><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;color:#9b9ba6">= | ,</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#7e7e8a">n.muted → d.muted</div><div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#7e7e8a">运算符 / 标点 / meta · 6.0:1</div></div>
+    </div>
+    <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">对比度基准为代码底 d.surface #24242b。warning（数字 / 类型）7.0、success（字符串）6.7，两类均通过，§ 2.3 的语义色本体不做任何改写</div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:6px;border-top:1px solid #e2e2e7;padding-top:14px">
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e">2.9 终端 ANSI · 深色（16 色 + 前景 / 背景 / 光标 / 选区 / 搜索命中，全部由 token 派生）</div>
+    <div style="display:grid;grid-template-columns:72px repeat(8,1fr);gap:4px;align-items:center">
+      <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">派生自</span>
+      <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">strong / 黑</span>
+      <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">error / 红</span>
+      <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">success / 绿</span>
+      <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">warning / 黄</span>
+      <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">accent.base / 蓝</span>
+      <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">accent.active / 紫</span>
+      <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">accent.text / 青</span>
+      <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">canvas / 白</span>
+
+      <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">浅色 normal</span>
+      <span style="height:26px;border-radius:3px;background:#1e1e26"></span>
+      <span style="height:26px;border-radius:3px;background:#bc4e39"></span>
+      <span style="height:26px;border-radius:3px;background:#477f40"></span>
+      <span style="height:26px;border-radius:3px;background:#8a6f12"></span>
+      <span style="height:26px;border-radius:3px;background:#5566d8"></span>
+      <span style="height:26px;border-radius:3px;background:#3d4cb5"></span>
+      <span style="height:26px;border-radius:3px;background:#4a59c9"></span>
+      <span style="height:26px;border-radius:3px;background:#fbfbfc;border:1px solid #e2e2e7;box-sizing:border-box"></span>
+
+      <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">浅色 bright</span>
+      <span style="height:18px;border-radius:3px;background:#62626e"></span>
+      <span style="height:18px;border-radius:3px;background:#bc4e39"></span>
+      <span style="height:18px;border-radius:3px;background:#477f40"></span>
+      <span style="height:18px;border-radius:3px;background:#8a6f12"></span>
+      <span style="height:18px;border-radius:3px;background:#5566d8"></span>
+      <span style="height:18px;border-radius:3px;background:#3d4cb5"></span>
+      <span style="height:18px;border-radius:3px;background:#4a59c9"></span>
+      <span style="height:18px;border-radius:3px;background:#fbfbfc;border:1px solid #e2e2e7;box-sizing:border-box"></span>
+
+      <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">深色 normal</span>
+      <span style="height:26px;border-radius:3px;background:#f0f0f4"></span>
+      <span style="height:26px;border-radius:3px;background:#e8836a"></span>
+      <span style="height:26px;border-radius:3px;background:#6fbf63"></span>
+      <span style="height:26px;border-radius:3px;background:#d8a83c"></span>
+      <span style="height:26px;border-radius:3px;background:#8b96ec"></span>
+      <span style="height:26px;border-radius:3px;background:#a3adf3"></span>
+      <span style="height:26px;border-radius:3px;background:#9aa5f0"></span>
+      <span style="height:26px;border-radius:3px;background:#17171c"></span>
+
+      <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d">深色 bright</span>
+      <span style="height:18px;border-radius:3px;background:#9b9ba6"></span>
+      <span style="height:18px;border-radius:3px;background:#e8836a"></span>
+      <span style="height:18px;border-radius:3px;background:#6fbf63"></span>
+      <span style="height:18px;border-radius:3px;background:#d8a83c"></span>
+      <span style="height:18px;border-radius:3px;background:#8b96ec"></span>
+      <span style="height:18px;border-radius:3px;background:#a3adf3"></span>
+      <span style="height:18px;border-radius:3px;background:#9aa5f0"></span>
+      <span style="height:18px;border-radius:3px;background:#17171c"></span>
+    </div>
+    <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:16px;align-items:start">
+      <div style="border-radius:6px;background:#1d1d23;padding:10px 12px;font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;line-height:1.6;color:#d5d5dc;white-space:pre">git --no-pager log -n 3 --graph<span style="background:#8b96ec;color:#17171c"> </span>
+* <span style="color:#d8a83c">e25e088</span> - 更新框架 <span style="color:#6fbf63">(2 hours ago)</span> <span style="color:#8b96ec">&lt;ClickPM&gt;</span>
+* <span style="color:#d8a83c">5e9924e</span> - <span style="background:#2a2f4d">原型设计（选区 = d.accent.soft）</span> <span style="color:#6fbf63">(21 hours ago)</span>
+* <span style="color:#d8a83c">bd6e4f5</span> - <span style="background:#453718;color:#f0f0f4">搜索命中</span> <span style="color:#6fbf63">(2 days ago)</span> <span style="color:#9b9ba6">bright black</span></div>
+      <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e;line-height:1.75">
+        <div>背景 = d.panel #1d1d23 · 前景 = d.text #d5d5dc</div>
+        <div>光标 = d.accent.base · 选区 = d.accent.soft</div>
+        <div>搜索命中 = d.semantic.warning.soft 底 + d.strong 字（当前命中改用 d.semantic.warning 底 + d.canvas 字）</div>
+        <div style="color:#8b8b96;margin-top:6px">bright black #9b9ba6 与 normal black #f0f0f4 在 d.panel 上分别 5.9:1 与 14.9:1，可辨；其余 bright 复用同色，与浅色规则一致</div>
+        <div style="color:#8b8b96">黑 / 白两位沿用「反差最大的墨 / 等于背景」的语义：浅色 n.strong / n.canvas，深色 d.strong / d.canvas，不是把浅色值照搬</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="border-top:1px solid #e2e2e7;padding-top:12px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;line-height:1.75">
+    覆盖检查：浅色 token 共 26 个需要深色对位（中性 10 + 强调 6 + 语义 8 + 表面 1 popover + 阴影 1），本表全部填满，无深色专有 token，无浅色 token 缺对位。<br>
+    本页只出规格不改实现；后续三张深色页面画板（90 工作台整屏 / 91 转录卡片合集 / 92 弹层与叠色）与画板 70「外观」小节按本表取值验收。
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1760}}"></script>
+</body>
+</html>

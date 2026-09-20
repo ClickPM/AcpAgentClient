@@ -74,7 +74,7 @@ class GfmTable extends StatelessWidget {
                 decoration: BoxDecoration(border: Border.all(color: t.Borders.subtle, width: t.Borders.width), borderRadius: t.Radii.card),
                 child: Table(
                   defaultColumnWidth: const IntrinsicColumnWidth(),
-                  border: const TableBorder(horizontalInside: BorderSide(color: t.Borders.subtle, width: t.Borders.width)),
+                  border: TableBorder(horizontalInside: BorderSide(color: t.Borders.subtle, width: t.Borders.width)),
                   children: rows,
                 ),
               ),

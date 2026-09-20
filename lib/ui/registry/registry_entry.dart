@@ -192,11 +192,11 @@ class RegistryEntryBody extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  const AcpIcon(AcpIcons.gitBranch, color: t.Neutral.placeholder, size: t.IconSizes.toolbar),
+                  AcpIcon(AcpIcons.gitBranch, color: t.Neutral.placeholder, size: t.IconSizes.toolbar),
                   const SizedBox(width: t.Spacing.s4),
                   Text(e.repository != null ? '源码仓库' : '网站', style: t.TextStyles.monoMeta),
                   const SizedBox(width: t.Spacing.s4),
-                  const AcpIcon(AcpIcons.externalLink, color: t.Neutral.placeholder, size: t.IconSizes.toolbar),
+                  AcpIcon(AcpIcons.externalLink, color: t.Neutral.placeholder, size: t.IconSizes.toolbar),
                 ],
               ),
             ),
@@ -269,7 +269,7 @@ class RegistryEntryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
         child: RegistryEntryBody(
           entry,
           actions: actions,
@@ -318,9 +318,9 @@ class InstallSteps extends StatelessWidget {
     final state = p.stateOf(step);
     final Widget icon = switch (state) {
       StepState.active => const Spinner(),
-      StepState.done => const AcpIcon(AcpIcons.check, color: t.Semantic.success, size: t.IconSizes.toolbar),
-      StepState.failed => const AcpIcon(AcpIcons.slashCircle, color: t.Semantic.error, size: t.IconSizes.toolbar),
-      StepState.pending => const AcpIcon(AcpIcons.dashedCircle, color: t.Neutral.placeholder, size: t.IconSizes.toolbar),
+      StepState.done => AcpIcon(AcpIcons.check, color: t.Semantic.success, size: t.IconSizes.toolbar),
+      StepState.failed => AcpIcon(AcpIcons.slashCircle, color: t.Semantic.error, size: t.IconSizes.toolbar),
+      StepState.pending => AcpIcon(AcpIcons.dashedCircle, color: t.Neutral.placeholder, size: t.IconSizes.toolbar),
     };
     final color = switch (state) {
       StepState.active || StepState.done => t.Neutral.text,
@@ -434,7 +434,7 @@ class ManagedNodePrompt extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                const AcpIcon(AcpIcons.alertTriangle, color: t.Semantic.warning),
+                AcpIcon(AcpIcons.alertTriangle, color: t.Semantic.warning),
                 const SizedBox(width: t.Spacing.s8),
                 Expanded(
                   child: Column(

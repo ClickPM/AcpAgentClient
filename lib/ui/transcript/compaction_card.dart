@@ -32,10 +32,10 @@ class _CompactionCardState extends State<CompactionCard> {
     final Widget icon = inProgress
         ? const Spinner()
         : failed
-            ? const AcpIcon(AcpIcons.x, color: t.Semantic.error, size: t.IconSizes.toolbar)
+            ? AcpIcon(AcpIcons.x, color: t.Semantic.error, size: t.IconSizes.toolbar)
             : c.status == 'completed'
-                ? const AcpIcon(AcpIcons.checkCircle, color: t.Semantic.success, size: t.IconSizes.toolbar)
-                : const AcpIcon(AcpIcons.dashedCircle, color: t.Neutral.placeholder, size: t.IconSizes.toolbar);
+                ? AcpIcon(AcpIcons.checkCircle, color: t.Semantic.success, size: t.IconSizes.toolbar)
+                : AcpIcon(AcpIcons.dashedCircle, color: t.Neutral.placeholder, size: t.IconSizes.toolbar);
     final summary = c.summaryText;
     final hasBody = summary.isNotEmpty || c.error != null;
     return TranscriptCard(
@@ -61,7 +61,7 @@ class _CompactionCardState extends State<CompactionCard> {
                     TextSpan(children: <InlineSpan>[
                       TextSpan(text: summary),
                       // 流式中的插入符：accent 竖线。
-                      if (inProgress) const TextSpan(text: '|', style: TextStyle(color: t.Accent.base)),
+                      if (inProgress) TextSpan(text: '|', style: TextStyle(color: t.Accent.base)),
                     ]),
                     style: t.TextStyles.body,
                   ),

@@ -2,7 +2,7 @@
 
 画板 70「外观」小节的字体切换里，除随包默认项之外的候选，字体文件放这个目录。
 **这个目录下的字体文件永不入库**（`.gitignore` 里只放行本文件），构建时由 `windows/CMakeLists.txt`
-的 install 规则拷到可执行文件旁的 `fonts/`，运行时由 `lib/app/font_prefs.dart` 注册进引擎。
+的 install 规则拷到可执行文件旁的 `fonts/`，运行时由 `lib/app/appearance_prefs.dart` 注册进引擎。
 
 ## 为什么不像 Geist / Noto Sans SC 那样进 `pubspec.yaml`
 
@@ -23,7 +23,7 @@
 本项目只用到 Regular（400）与 Medium（500）两档，放这两个就够；放全套也不会出错，只是包体变大。
 
 文件名不必改，探测按「小写后只留字母数字、再看是不是以某个主干开头」来匹配
-（`lib/app/font_prefs.dart` 的 `fileStems`）：
+（`lib/app/appearance_prefs.dart` 的 `fileStems`）：
 
 | 字体 | 认得的文件名形如 | 许可 | 官方下载 |
 |---|---|---|---|
@@ -34,8 +34,8 @@
 | Cascadia Mono | `CascadiaMono.ttf` | OFL 1.1 | <https://github.com/microsoft/cascadia-code/releases> |
 | 更纱黑体 Sarasa Mono SC | `Sarasa-Mono-SC-Regular.ttf` | OFL 1.1 | <https://github.com/be5invis/Sarasa-Gothic/releases> |
 
-要加新候选，先在 `lib/app/font_prefs.dart` 的 `fontCatalog` 里添一条（带 `fileStems` 与 `downloadUrl`），
-`test/app/font_prefs_test.dart` 会检查新条目有没有漏填、以及有没有破坏「西文轴与中文轴候选不重叠」这条不变量。
+要加新候选，先在 `lib/app/appearance_prefs.dart` 的 `fontCatalog` 里添一条（带 `fileStems` 与 `downloadUrl`），
+`test/app/appearance_prefs_test.dart` 会检查新条目有没有漏填、以及有没有破坏「西文轴与中文轴候选不重叠」这条不变量。
 
 ## 分发时要注意的两件事
 

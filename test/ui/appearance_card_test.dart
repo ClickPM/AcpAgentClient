@@ -5,7 +5,7 @@
 
 import 'dart:io';
 
-import 'package:acp_agent_client/app/font_prefs.dart';
+import 'package:acp_agent_client/app/appearance_prefs.dart';
 import 'package:acp_agent_client/projection/registry.dart';
 import 'package:acp_agent_client/theme/tokens.dart' as t;
 import 'package:acp_agent_client/ui/settings/settings_page.dart';
@@ -15,7 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// 不碰磁盘的 registry：本机「什么可选字体都没装」，这样候选的可用态是确定的。
 FontRegistry _emptyRegistry() => FontRegistry(loadDirs: const <Directory>[], probeDirs: const <Directory>[]);
 
-Future<void> _pump(WidgetTester tester, FontPrefsController fonts) => tester.pumpWidget(
+Future<void> _pump(WidgetTester tester, AppearanceController appearance) => tester.pumpWidget(
   Directionality(
     textDirection: TextDirection.ltr,
     child: MediaQuery(
@@ -24,7 +24,7 @@ Future<void> _pump(WidgetTester tester, FontPrefsController fonts) => tester.pum
         initialEntries: <OverlayEntry>[
           OverlayEntry(
             builder: (BuildContext context) =>
-                SettingsPage(agents: const <RegistryEntryData>[], dataDir: r'C:\data', fonts: fonts),
+                SettingsPage(agents: const <RegistryEntryData>[], dataDir: r'C:\data', appearance: appearance),
           ),
         ],
       ),
@@ -36,9 +36,9 @@ void main() {
   tearDown(t.Fonts.reset);
 
   testWidgets('四个轴各一行，默认显示随包字体', (WidgetTester tester) async {
-    final FontPrefsController fonts = FontPrefsController(registry: _emptyRegistry());
-    addTearDown(fonts.dispose);
-    await _pump(tester, fonts);
+    final AppearanceController appearance = AppearanceController(registry: _emptyRegistry());
+    addTearDown(appearance.dispose);
+    await _pump(tester, appearance);
 
     for (final FontAxis axis in FontAxis.values) {
       expect(find.text(axis.label), findsOneWidget, reason: '${axis.label} 这一行没画出来');
@@ -49,9 +49,9 @@ void main() {
   });
 
   testWidgets('界面中文的下拉里有 MiSans 与 HarmonyOS，且不含任何西文候选', (WidgetTester tester) async {
-    final FontPrefsController fonts = FontPrefsController(registry: _emptyRegistry());
-    addTearDown(fonts.dispose);
-    await _pump(tester, fonts);
+    final AppearanceController appearance = AppearanceController(registry: _emptyRegistry());
+    addTearDown(appearance.dispose);
+    await _pump(tester, appearance);
 
     // 点「界面中文」那一行的触发按钮：它显示当前值 Noto Sans SC 的 label。
     await tester.tap(find.text('Noto Sans SC 思源黑体').first);
@@ -65,24 +65,24 @@ void main() {
   });
 
   testWidgets('选中 MiSans 之后界面档的中文回退首项跟着换，代码档不受影响', (WidgetTester tester) async {
-    final FontPrefsController fonts = FontPrefsController(registry: _emptyRegistry());
-    addTearDown(fonts.dispose);
-    await _pump(tester, fonts);
+    final AppearanceController appearance = AppearanceController(registry: _emptyRegistry());
+    addTearDown(appearance.dispose);
+    await _pump(tester, appearance);
 
     await tester.tap(find.text('Noto Sans SC 思源黑体').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('MiSans 小米兰亭'));
     await tester.pumpAndSettle();
 
-    expect(fonts.prefs.resolved(FontAxis.uiCjk), 'MiSans');
+    expect(appearance.fonts.resolved(FontAxis.uiCjk), 'MiSans');
     expect(t.TextStyles.body.fontFamilyFallback!.first, 'MiSans');
     // 代码等宽中文是另一根轴，没动。
     expect(t.TextStyles.mono.fontFamilyFallback!.first, t.Fonts.defaultCjk);
   });
 
   testWidgets('本机没有的字体选中后给出回退提示与「去下载」', (WidgetTester tester) async {
-    final FontPrefsController fonts = FontPrefsController(registry: _emptyRegistry());
-    addTearDown(fonts.dispose);
+    final AppearanceController appearance = AppearanceController(registry: _emptyRegistry());
+    addTearDown(appearance.dispose);
     final List<String> opened = <String>[];
     await tester.pumpWidget(
       Directionality(
@@ -95,7 +95,7 @@ void main() {
                 builder: (BuildContext context) => SettingsPage(
                   agents: const <RegistryEntryData>[],
                   dataDir: r'C:\data',
-                  fonts: fonts,
+                  appearance: appearance,
                   onOpenUrl: opened.add,
                 ),
               ),
@@ -105,7 +105,7 @@ void main() {
       ),
     );
 
-    await fonts.setAxis(FontAxis.uiCjk, 'MiSans');
+    await appearance.setAxis(FontAxis.uiCjk, 'MiSans');
     await tester.pumpAndSettle();
 
     expect(find.textContaining('本机未找到这款字体'), findsOneWidget);

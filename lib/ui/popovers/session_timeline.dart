@@ -213,7 +213,7 @@ class _SessionTimelinePopoverState extends State<SessionTimelinePopover> {
   Widget _body() {
     return Stack(
       children: <Widget>[
-        const Positioned(
+        Positioned(
           left: 0,
           width: t.Timeline.railColumn,
           top: t.Controls.standard / 2,

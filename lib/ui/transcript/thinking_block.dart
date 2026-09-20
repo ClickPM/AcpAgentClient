@@ -36,7 +36,7 @@ class _ThinkingBlockState extends State<ThinkingBlock> {
   Widget build(BuildContext context) {
     final streaming = widget.streaming ?? !widget.entry.closed;
     final title = streaming ? 'Thinking...' : label(widget.entry.elapsed);
-    final leading = streaming ? const Spinner(size: t.IconSizes.base) : const AcpIcon(AcpIcons.lightbulb, color: t.Neutral.muted);
+    final leading = streaming ? const Spinner(size: t.IconSizes.base) : AcpIcon(AcpIcons.lightbulb, color: t.Neutral.muted);
     if (!_expanded) {
       return CardHeader(
         leading: leading,

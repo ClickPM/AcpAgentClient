@@ -186,7 +186,7 @@ class _ElicitationFormCardState extends State<ElicitationFormCard> {
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           CardHeader(
-            leading: const AcpIcon(AcpIcons.info, color: t.Accent.base),
+            leading: AcpIcon(AcpIcons.info, color: t.Accent.base),
             title: 'Input Requested by $who',
             titleStyle: CardText.cardTitle,
             trailing: <Widget>[Text(answered ? _statusLabel(e) : 'Waiting for input', style: CardText.secondary)],
@@ -199,14 +199,14 @@ class _ElicitationFormCardState extends State<ElicitationFormCard> {
               for (final f in _fields) _field(f, showRequired: _showValidation && _missing(f)),
               if (_showValidation && missing.isNotEmpty)
                 Container(
-                  decoration: const BoxDecoration(color: t.Semantic.errorSoft, borderRadius: t.Radii.control),
+                  decoration: BoxDecoration(color: t.Semantic.errorSoft, borderRadius: t.Radii.control),
                   padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12, vertical: t.Spacing.s8),
                   child: Text('有 ${missing.length} 个必填字段未填：${missing.map((f) => f.title).join('、')}', style: t.TextStyles.secondary.copyWith(color: t.Semantic.error)),
                 ),
             ],
           ),
           Container(
-            decoration: const BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+            decoration: BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
             padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12, vertical: t.Spacing.s8),
             child: Row(
               children: <Widget>[
@@ -407,7 +407,7 @@ class _Radio extends StatelessWidget {
       ),
       alignment: Alignment.center,
       child: selected
-          ? Container(width: t.Spacing.s4, height: t.Spacing.s4, decoration: const BoxDecoration(shape: BoxShape.circle, color: t.Accent.onAccent))
+          ? Container(width: t.Spacing.s4, height: t.Spacing.s4, decoration: BoxDecoration(shape: BoxShape.circle, color: t.Accent.onAccent))
           : null,
     );
   }
@@ -429,7 +429,7 @@ class _Check extends StatelessWidget {
         borderRadius: t.Radii.chip,
       ),
       alignment: Alignment.center,
-      child: selected ? const AcpIcon(AcpIcons.check, color: t.Accent.onAccent, size: t.IconSizes.toolbar, strokeWidth: t.IconSizes.stroke * 2) : null,
+      child: selected ? AcpIcon(AcpIcons.check, color: t.Accent.onAccent, size: t.IconSizes.toolbar, strokeWidth: t.IconSizes.stroke * 2) : null,
     );
   }
 }
@@ -454,7 +454,7 @@ class _Toggle extends StatelessWidget {
       alignment: on ? Alignment.centerRight : Alignment.centerLeft,
       child: AspectRatio(
         aspectRatio: 1,
-        child: Container(decoration: const BoxDecoration(shape: BoxShape.circle, color: t.Accent.onAccent)),
+        child: Container(decoration: BoxDecoration(shape: BoxShape.circle, color: t.Accent.onAccent)),
       ),
     );
   }

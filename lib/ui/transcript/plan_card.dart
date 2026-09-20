@@ -66,7 +66,7 @@ class _PlanCardState extends State<PlanCard> {
             onTap: () => setState(() => _collapsed = true),
           ),
           Container(
-            decoration: const BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+            decoration: BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
             padding: const EdgeInsets.symmetric(vertical: t.Spacing.s4),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -82,9 +82,9 @@ class _PlanCardState extends State<PlanCard> {
   Widget _itemRow(PlanItem i) {
     final done = i.status == PlanItemStatus.completed;
     final icon = switch (i.status) {
-      PlanItemStatus.completed => const AcpIcon(AcpIcons.checkCircle, color: t.Semantic.success, size: t.IconSizes.toolbar),
+      PlanItemStatus.completed => AcpIcon(AcpIcons.checkCircle, color: t.Semantic.success, size: t.IconSizes.toolbar),
       PlanItemStatus.inProgress => const Spinner(),
-      _ => const AcpIcon(AcpIcons.dashedCircle, color: t.Neutral.placeholder, size: t.IconSizes.toolbar),
+      _ => AcpIcon(AcpIcons.dashedCircle, color: t.Neutral.placeholder, size: t.IconSizes.toolbar),
     };
     final tone = switch (i.priority) {
       PlanPriority.high => ChipTone.warning,
@@ -117,7 +117,7 @@ class _PlanCardState extends State<PlanCard> {
     final current = p.current;
     return Container(
       height: t.Controls.input,
-      decoration: const BoxDecoration(color: t.Neutral.panel, borderRadius: t.Radii.card),
+      decoration: BoxDecoration(color: t.Neutral.panel, borderRadius: t.Radii.card),
       padding: t.Controls.padInput,
       child: Row(
         children: <Widget>[
@@ -157,12 +157,12 @@ class _PlanCardState extends State<PlanCard> {
         children: <Widget>[
           CardHeader(title: 'Plan', titleStyle: CardText.cardTitle, subtitleWidget: _planId(p, suffix: 'file')),
           Container(
-            decoration: const BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+            decoration: BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
             height: t.Controls.input,
             padding: t.Controls.padInput,
             child: Row(
               children: <Widget>[
-                const AcpIcon(AcpIcons.file, color: t.Neutral.muted),
+                AcpIcon(AcpIcons.file, color: t.Neutral.muted),
                 const SizedBox(width: t.Spacing.s8),
                 GestureDetector(
                   onTap: uri.isEmpty ? null : () => widget.onOpenFile?.call(uri),
@@ -197,7 +197,7 @@ class _PlanCardState extends State<PlanCard> {
   Widget _removed(PlanCardEntry p) {
     return Container(
       height: t.Controls.input,
-      decoration: const BoxDecoration(color: t.Neutral.panel, borderRadius: t.Radii.card),
+      decoration: BoxDecoration(color: t.Neutral.panel, borderRadius: t.Radii.card),
       padding: t.Controls.padInput,
       child: Row(
         children: <Widget>[

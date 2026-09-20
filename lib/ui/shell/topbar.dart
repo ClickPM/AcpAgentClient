@@ -65,7 +65,7 @@ class TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: t.Geometry.barHeight,
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
       // `StackFit.expand`：控件行要拿到与原来一样的紧约束（否则没有窗口控制的那几张画板里，
       // 行高塌成 24 再顶部对齐，纵向居中就变了）。
       child: Stack(

@@ -115,7 +115,7 @@ class _DiffCardState extends State<DiffCard> {
               children: <Widget>[
                 ToolStatusIcon(widget.entry.displayStatus),
                 const SizedBox(width: t.Spacing.s8),
-                const AcpIcon(AcpIcons.columns, color: t.Neutral.muted),
+                AcpIcon(AcpIcons.columns, color: t.Neutral.muted),
               ],
             ),
             title: '',
@@ -134,7 +134,7 @@ class _DiffCardState extends State<DiffCard> {
           ),
           if (_expanded)
             Container(
-              decoration: const BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+              decoration: BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
               padding: const EdgeInsets.symmetric(vertical: t.Spacing.s8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,

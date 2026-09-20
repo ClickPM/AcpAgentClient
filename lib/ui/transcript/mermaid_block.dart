@@ -64,7 +64,7 @@ class _MermaidBlockState extends State<MermaidBlock> {
           Container(
             height: t.Controls.standard,
             padding: t.Controls.padStandard,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: t.Neutral.panel,
               border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width)),
             ),
@@ -121,7 +121,7 @@ class _Segmented extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: t.Controls.compact,
-      decoration: const BoxDecoration(color: t.Neutral.surface, borderRadius: t.Radii.control),
+      decoration: BoxDecoration(color: t.Neutral.surface, borderRadius: t.Radii.control),
       padding: const EdgeInsets.all(t.Borders.width),
       child: Row(
         mainAxisSize: MainAxisSize.min,

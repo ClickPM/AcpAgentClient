@@ -299,7 +299,7 @@ class FilesPanel extends StatelessWidget {
           Container(
             height: t.Geometry.barHeight,
             padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s8),
-            decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
             alignment: Alignment.centerLeft,
             child: leading,
           ),
@@ -346,7 +346,7 @@ class FileTreeColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: t.Neutral.panel,
         border: Border(right: BorderSide(color: t.Borders.subtle, width: t.Borders.width)),
       ),
@@ -575,7 +575,7 @@ class FileViewerEmpty extends StatelessWidget {
               borderRadius: t.Radii.card,
             ),
             alignment: Alignment.center,
-            child: const AcpIcon(AcpIcons.file, color: t.Neutral.placeholder),
+            child: AcpIcon(AcpIcons.file, color: t.Neutral.placeholder),
           ),
           const SizedBox(height: t.Spacing.s8),
           Text('没有打开的文件', style: t.TextStyles.title),
@@ -602,7 +602,7 @@ class SegmentedToggle extends StatelessWidget {
     return Container(
       height: t.Controls.compact,
       padding: const EdgeInsets.all(t.Geometry.segmentedInset),
-      decoration: const BoxDecoration(color: t.Neutral.surface, borderRadius: t.Radii.control),
+      decoration: BoxDecoration(color: t.Neutral.surface, borderRadius: t.Radii.control),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
@@ -665,7 +665,7 @@ class FileViewer extends StatelessWidget {
           Container(
             height: t.Geometry.barHeight,
             padding: EdgeInsets.only(left: leading == null ? t.Spacing.s12 : t.Spacing.s8, right: t.Spacing.s8),
-            decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
             child: Row(
               children: <Widget>[
                 if (leading != null) ...<Widget>[leading!, const SizedBox(width: t.Spacing.s8)],
@@ -824,7 +824,7 @@ class _SourceViewState extends State<SourceView> {
   @override
   Widget build(BuildContext context) {
     // 换过字体就重算带 family 的那几样。放在 build 而不是监听器里：SourceView 拿不到
-    // FontPrefsController，而组合根换字体时本来就会重建整棵树，这里只是顺带对一次代数。
+    // AppearanceController，而组合根换字体时本来就会重建整棵树，这里只是顺带对一次代数。
     if (_fontGeneration != t.Fonts.generation) _prepare();
     return LayoutBuilder(
       builder: (context, constraints) {
