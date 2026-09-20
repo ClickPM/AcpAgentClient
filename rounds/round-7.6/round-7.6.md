@@ -1,6 +1,6 @@
 # Round 7.6 — 字体切换（四轴）
 
-> 状态：审查通过（2 轮，findings 已清零）；待所有者提供字体文件完成验收 10，以及裁定何时合并 `main`
+> 状态：审查通过（3 轮，findings 已清零）；已合入 `main` 的内容并复审通过，待推 `main`；验收 10 待所有者提供字体文件
 
 ## 目标
 
@@ -51,8 +51,8 @@
 | # | 检查 | 命令 / 期望 | 结果 |
 |---|---|---|---|
 | 1 | 上游钉版本 | `scripts/fetch-upstream.ps1 -Check` 9 条 OK | PASS |
-| 2 | 全量验证 | `scripts/validate.ps1` → `VALIDATE OK`，281 测试全过 | PASS |
-| 3 | 分析器零新增 | `flutter analyze` 13 条，与 `main` 基线逐条相同（4 gallery + 9 test，全是既有 info） | PASS |
+| 2 | 全量验证 | `scripts/validate.ps1` → `VALIDATE OK`，合并 `main` 后 318 测试全过 | PASS |
+| 3 | 分析器零新增 | `flutter analyze` 零 error / warning；14 条 info 与合并后的 `main` 基线逐条相同 | PASS |
 | 4 | 两组候选互不重叠 | `font_prefs_test` 的「西文两轴与中文两轴的 family 不得有交集」 | PASS |
 | 5 | 四轴互不干扰 | 换界面轴不动代码轴，反之亦然；kbd 跟等宽轴 | PASS |
 | 6 | Rust 往返与脏值 | `cargo test -p settings` 15 条，含空串 / 超长 / 控制字符 | PASS |
@@ -119,7 +119,24 @@ TextStyle」或「顶层 final TextStyle」——这类冻结不会报任何错�
   字段、不 `setState`，换字体时外层本就在重建，`_lineHeight` 仍是 `fontSize * height` 与现有 `ListView` 兼容；
   ③ 三个入口与 `_applyLocally` 都判了 `_disposed`，无漏掉的通知路径。
   规则 1 / 2 / 3 / 4 / 6 / 7 / 8 / 10 一并核过。
-- 结论：**PASS**（缺陷门禁清零，可合并 `main`）
+- 结论：**PASS**（缺陷门禁清零）
+
+### 第 3 轮（合并 `main` 之后的全量复审，2026-09-20）
+
+- 起因：与画板 43（会话时间线）并行开发，两轮都动了 `lib/theme/tokens.dart`。按「并行轮次合并」，
+  后合的一方（本轮）先把 `main` 合进来解冲突、重出生成物、再全量复审（同 R4 的第 4 轮）。
+- 合并提交 `1bf7eb8`；冲突只有 `ROUNDS.md` 进度表一处（保留 main 的「画板 43」正式行，
+  删掉本分支占位的 R7.5 行，R7.6 改为已完成）。
+- **真正的接点是 `TextStyles.labelTabular`**：画板 43 那轮加的，是 `static const TextStyle` 且引用
+  `Fonts.sans` —— 本轮把它改成了 getter，所以合并后编译不过（**由编译器挡住，不是静默漏过**）。
+  已并进 `FontStyles.build()`，字号 / 字重 / letter-spacing / `tabularFigures` / 颜色与 main 原定义
+  逐项一致，并加专测守住它跟着界面轴走。
+- 生成物无需重出：`main` 这段没动过 `rust/bridge/src/api.rs` 与 `lib/bridge/`，`.dc.html` 也没改。
+- 审查器与模型：cursor CLI `cursor-grok-4.6-high`；范围 `branch`（`main...HEAD`，含合并提交）；
+  产物 `.claude/reviews/20260920-112214-review.out.md`
+- findings：**0 条**。另确认画板 43 的 UI 没有带 family 的缓存（标题 / 编号 / 正文都在 `build` 现取，
+  State 只存 `_rows` / `_selected` / 焦点与滚动），弹层开着换字体也能跟上（`OverlayPortal` 随锚点重建）。
+- 结论：**PASS**（可合并 `main`）
 
 ## 失败处理
 
