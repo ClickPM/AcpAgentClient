@@ -83,7 +83,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 | 70 | 设置 | R5 | `lib/ui/settings/settings_page.dart`（2026-09-17 起是右栏的一个标签，与文件 / Agents 并列，不再占会话区） |
 | 80 | ACP 流量调试 | R3 | `lib/ui/traffic/traffic_page.dart`（数据源 `lib/projection/traffic.dart`） |
 
-前端其余目录（R0 定型）：`lib/app/`（组合根：R3 落 `workbench_controller.dart` 状态与动作、`workbench_screen.dart` widget 装配、`window_controls.dart` 平台通道、`headless_run.dart` 无头实跑；R4 加 `files_state.dart` 与 `local_terminals.dart`；2026-09-18 加 `clipboard_image.dart`（剪贴板图片，Windows 借 `powershell.exe` 读）；数据源选择 fixtures / bridge）、`lib/bridge/`（frb 生成物，入库）、`lib/projection/`（投影状态层，纯 Dart，无 widget 依赖）、`lib/theme/tokens.dart`、`lib/gallery/`（画板对照，debug 构建才编入）。
+前端其余目录（R0 定型）：`lib/app/`（组合根：R3 落 `workbench_controller.dart` 状态与动作、`workbench_screen.dart` widget 装配、`window_controls.dart` 平台通道、`headless_run.dart` 无头实跑；R4 加 `files_state.dart` 与 `local_terminals.dart`；2026-09-18 加 `clipboard_image.dart`（剪贴板图片，Windows 借 `powershell.exe` 读）；数据源选择 fixtures / bridge；R7.5（2026-09-20）把 `workbench_controller.dart` 拆成组合根 + 8 个对象：`shell_state` / `workspace_state` / `agents_state` / `auth_state` / `composer_state` 按画板分组管本地态，`thread_controller` / `turn_controller` 驱动协议，`session_index` 是本地索引镜像，`guarded` 是共用的通知与错误边界；依赖方向见 `rounds/round-7.5/round-7.5.md` 附录 B）、`lib/bridge/`（frb 生成物，入库）、`lib/projection/`（投影状态层，纯 Dart，无 widget 依赖）、`lib/theme/tokens.dart`、`lib/gallery/`（画板对照，debug 构建才编入）。
 
 ## 3. 各轮拆解
 
