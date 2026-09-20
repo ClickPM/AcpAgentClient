@@ -5,6 +5,7 @@
 
 import 'dart:async';
 
+import 'package:acp_agent_client/app/agents_state.dart';
 import 'package:acp_agent_client/app/core_bridge.dart';
 import 'package:acp_agent_client/app/shell_state.dart';
 import 'package:acp_agent_client/app/workbench_controller.dart';
@@ -134,7 +135,7 @@ void main() {
     final before = core.listCalls;
     core.emit(CoreEvent.registryProgress, <String, dynamic>{'agentId': 'amp-acp', 'kind': 'npx', 'step': 'resolve', 'detail': '@sourcegraph/amp-acp@0.9.0'});
     await Future<void>.delayed(Duration.zero);
-    final entry = c.registry.byId('amp-acp')!;
+    final entry = c.agents.registry.byId('amp-acp')!;
     expect(entry.isInstalling, isTrue);
     expect(entry.progress!.step, 'resolve');
     expect(entry.progress!.detail, '@sourcegraph/amp-acp@0.9.0');
@@ -148,14 +149,14 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     await Future<void>.delayed(Duration.zero);
     expect(core.listCalls, greaterThan(before), reason: 'done 之后要重读 registry_list');
-    expect(c.registry.byId('amp-acp')!.installed, isTrue);
-    expect(c.registry.byId('amp-acp')!.isInstalling, isFalse);
+    expect(c.agents.registry.byId('amp-acp')!.installed, isTrue);
+    expect(c.agents.registry.byId('amp-acp')!.isInstalling, isFalse);
 
     // 失败：条目进失败态并自动展开日志。
     core.emit(CoreEvent.registryProgress, <String, dynamic>{'agentId': 'amp-acp', 'kind': 'npx', 'step': 'failed', 'error': 'npm error E404'});
     await Future<void>.delayed(Duration.zero);
-    expect(c.registry.byId('amp-acp')!.isFailed, isTrue);
-    expect(c.registryShowLog, contains('amp-acp'));
+    expect(c.agents.registry.byId('amp-acp')!.isFailed, isTrue);
+    expect(c.agents.showLog, contains('amp-acp'));
     c.dispose();
   });
 
@@ -318,9 +319,9 @@ void main() {
   });
 
   test('设置面板：保存 custom 条目时 args / env 的切分；侧栏「设置」开右栏的设置标签', () async {
-    expect(WorkbenchController.splitArgs('--stdio --interactive'), <String>['--stdio', '--interactive']);
-    expect(WorkbenchController.splitArgs('"D:/a b/x.mjs" --flag  '), <String>['D:/a b/x.mjs', '--flag']);
-    expect(WorkbenchController.splitArgs(''), <String>[]);
+    expect(AgentsState.splitArgs('--stdio --interactive'), <String>['--stdio', '--interactive']);
+    expect(AgentsState.splitArgs('"D:/a b/x.mjs" --flag  '), <String>['D:/a b/x.mjs', '--flag']);
+    expect(AgentsState.splitArgs(''), <String>[]);
 
     final core = AuthCore();
     core.registry = <String, dynamic>{
@@ -347,16 +348,16 @@ void main() {
     expect(c.shell.rightTab, ShellTab.settings);
     expect(c.shell.rightPanelOpen, isTrue);
     expect(c.shell.activeNavTab, ShellTab.settings);
-    expect(c.installedEntries.map((e) => e.id), <String>['dsh']);
+    expect(c.agents.installedEntries.map((e) => e.id), <String>['dsh']);
 
-    c.editAgent('dsh');
-    expect(c.settingsEditingId, 'dsh');
-    expect(c.settingsEdit.command.text, 'dsh.cmd');
-    expect(c.settingsEdit.args.text, '--acp');
-    expect(c.settingsEdit.env.text, 'A=1');
-    c.settingsEdit.args.text = '--acp "--name=a b"';
-    c.settingsEdit.env.text = 'A=2 DSH_LOG=info';
-    await c.saveCustomAgent('dsh');
+    c.agents.editAgent('dsh');
+    expect(c.agents.editingId, 'dsh');
+    expect(c.agents.edit.command.text, 'dsh.cmd');
+    expect(c.agents.edit.args.text, '--acp');
+    expect(c.agents.edit.env.text, 'A=1');
+    c.agents.edit.args.text = '--acp "--name=a b"';
+    c.agents.edit.env.text = 'A=2 DSH_LOG=info';
+    await c.agents.saveCustomAgent('dsh');
     expect(saved.single.$1, 'dsh');
     expect(saved.single.$2, <String, dynamic>{
       'type': 'custom',
@@ -364,7 +365,7 @@ void main() {
       'args': <String>['--acp', '--name=a b'],
       'env': <String, String>{'A': '2', 'DSH_LOG': 'info'},
     });
-    expect(c.settingsEditingId, isNull);
+    expect(c.agents.editingId, isNull);
 
     await c.selectSession('x');
     expect(c.shell.rightTab, ShellTab.settings, reason: '选会话不动右栏那一侧的标签');
@@ -376,16 +377,16 @@ void main() {
     final c = await _start(core);
 
     // `agent_settings_get` 里内置条目自带 `name`，列表按它显示；普通 custom 条目仍退回 id。
-    await c.refreshAgents();
-    expect(c.installedAgents.map((AgentRef a) => '${a.id}|${a.name}').toList(), <String>['dsh|dsh', 'zed|Zed Agent']);
+    await c.agents.refreshAgents();
+    expect(c.agents.installed.map((AgentRef a) => '${a.id}|${a.name}').toList(), <String>['dsh|dsh', 'zed|Zed Agent']);
 
     // `registry_list` 的 `builtin` 透到投影层：设置页 / registry 卡据此不画「编辑」与 Remove。
-    await c.refreshRegistry();
-    final RegistryEntryData? zed = c.registry.byId('zed');
+    await c.agents.refreshRegistry();
+    final RegistryEntryData? zed = c.agents.registry.byId('zed');
     expect(zed, isNotNull);
     expect(zed!.builtin, isTrue);
     expect(zed.isCustom, isTrue);
-    expect(c.registry.byId('dsh')!.builtin, isFalse, reason: '普通 custom 条目照常可删');
+    expect(c.agents.registry.byId('dsh')!.builtin, isFalse, reason: '普通 custom 条目照常可删');
 
     c.dispose();
   });

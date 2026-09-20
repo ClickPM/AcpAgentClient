@@ -22,7 +22,6 @@ import '../projection/entries.dart';
 import '../projection/fixture_line.dart';
 import '../projection/fixture_replay.dart';
 import '../projection/pending.dart';
-import '../projection/registry.dart';
 import '../projection/session_store.dart';
 import '../projection/tool_calls.dart';
 import '../projection/traffic.dart';
@@ -30,7 +29,6 @@ import '../projection/wire.dart';
 import '../ui/popovers/inline_menus.dart';
 import '../ui/popovers/topbar_popovers.dart';
 import '../ui/registry/auth_page.dart';
-import '../ui/settings/settings_page.dart';
 import '../ui/shell/popover_anchor.dart';
 import '../ui/shell/shell_common.dart';
 import '../ui/shell/sidebar.dart';
@@ -39,6 +37,7 @@ import 'core_bridge.dart';
 import 'files_state.dart';
 import 'guarded.dart';
 import 'local_terminals.dart';
+import 'agents_state.dart';
 import 'paths.dart';
 import 'session_index.dart';
 import 'shell_state.dart';
@@ -58,6 +57,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       : _scheduler = scheduler ?? _scheduleOnFrame {
     shell.addListener(notifyListeners);
     workspace.addListener(notifyListeners);
+    agents.addListener(notifyListeners);
   }
 
   final DataSource source;
@@ -74,7 +74,6 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
 
   // ---- 本地态（协议之外）
   List<SidebarSession> sidebarSessions = const <SidebarSession>[];
-  List<AgentRef> installedAgents = const <AgentRef>[];
 
   String? agentId;
   String? sessionId;
@@ -159,15 +158,20 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     return null;
   }
 
-  // ---- registry 面板（画板 50 / 51，R5）
-  final RegistryState registry = RegistryState();
-  final TextEditingController registrySearch = TextEditingController();
-  final FocusNode registrySearchFocus = FocusNode();
-  String registryQuery = '';
-  RegistryFilter registryFilter = RegistryFilter.all;
-
-  /// 失败态展开了日志块的条目（「查看日志」切换）。
-  final Set<String> registryShowLog = <String>{};
+  // ---- 已装 agent 列表、registry 面板（画板 50 / 51）与设置面板（画板 70）（R7.5 拆出）
+  late final AgentsState agents = AgentsState(
+    bridge: bridge,
+    onRemoved: (id) {
+      if (agentId == id) {
+        agentId = null;
+        sessionId = null;
+      }
+      if (authAgentId == id) closeAuth();
+    },
+    onInstalledChanged: _selectDefaultAgent,
+    onRegistryChanged: _refreshSidebar,
+    onPaths: _applyPaths,
+  );
 
   /// 核心给的几个路径（画板 70）：`core_init` / `registry_list` 的 `paths`。
   String? dataDir;
@@ -187,17 +191,6 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
 
   /// 无会话阶段的 URL elicitation（挂起 / 已打开 / 已完成都留在页上，直到离开认证页）。
   final List<ElicitationEntry> authElicitations = <ElicitationEntry>[];
-
-  // ---- 设置面板（画板 70，R5；右栏标签）
-  String? settingsExpandedId;
-  String? settingsEditingId;
-  String? zedImportResult;
-  late final CustomEditFields settingsEdit = CustomEditFields(
-    command: TextEditingController(),
-    args: TextEditingController(),
-    env: TextEditingController(),
-    focus: FocusNode(),
-  );
 
   // ---- 输入控件
   final TextEditingController composer = TextEditingController();
@@ -244,7 +237,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     final c = connection;
     // 还没连上时退回已安装列表里的展示名（settings 条目的 `name` 或 registry 的展示名），
     // 不退回 id：启动后的新会话标题写 `New Codex Thread` 而不是 `New codex Thread`。
-    return c?.agentTitle ?? c?.agentName ?? _installedRef(agentId)?.name ?? agentId ?? 'Agent';
+    return c?.agentTitle ?? c?.agentName ?? agents.installedRef(agentId)?.name ?? agentId ?? 'Agent';
   }
 
   String get threadTitle {
@@ -398,7 +391,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
         final json = e.json;
         if (json != null) traffic.apply(json);
       }),
-      b.on(CoreEvent.registryProgress).listen(_onRegistryProgress),
+      b.on(CoreEvent.registryProgress).listen(agents.onRegistryProgress),
     ]);
     sessions.addListener(notifyListeners);
     sessions.pending.addListener(_onPendingChanged);
@@ -411,14 +404,14 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       // 本地索引先读：下面挑「当前 agent」要按索引里最近用过的那条来（`refreshRegistry` 末尾
       // 会用 registry 的图标把侧栏重投影一次，所以先读索引不会让会话项停在占位菱形上）。
       await index.refresh();
-      await refreshRegistry();
-      await refreshAgents();
+      await agents.refreshRegistry();
+      await agents.refreshAgents();
       await workspace.restoreLastProject();
       await shell.restoreUiState();
     });
     notifyListeners();
     // registry.json 的联网刷新（1 小时节流）放到后台：断网时 30 秒超时不能挡住启动。
-    unawaited(refreshRegistry(network: true));
+    unawaited(agents.refreshRegistry(network: true));
   }
 
   /// fixtures 数据源：把线上行喂进同一套投影层与流量面板，本地态给一份可用的假数据。
@@ -491,14 +484,12 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     files.dispose();
     terminals.dispose();
     for (final c in <TextEditingController>[
-      composer, sidebarSearch, rename, modelSearch, registrySearch,
-      settingsEdit.command, settingsEdit.args, settingsEdit.env,
+      composer, sidebarSearch, rename, modelSearch,
     ]) {
       c.dispose();
     }
     for (final f in <FocusNode>[
       composerFocus, sidebarSearchFocus, renameFocus, modelSearchFocus,
-      registrySearchFocus, settingsEdit.focus,
     ]) {
       f.dispose();
     }
@@ -508,11 +499,12 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     ]) {
       h.dispose();
     }
-    registry.dispose();
     shell.removeListener(notifyListeners);
     shell.dispose();
     workspace.removeListener(notifyListeners);
     workspace.dispose();
+    agents.removeListener(notifyListeners);
+    agents.dispose();
     super.dispose();
   }
 
@@ -521,55 +513,19 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
 
   // ---------------------------------------------------------------- 已装 agent、侧栏投影与 agent 能力
 
-  Future<void> refreshAgents() async {
-    final b = bridge;
-    if (b == null) return;
-    final settings = await b.agentSettingsGet();
-    final servers = settings['agent_servers'];
-    installedAgents = <AgentRef>[
-      if (servers is Map)
-        for (final entry in servers.entries)
-          // 名字：条目自带的 `name` 优先（R7 的内置 sidecar 用它显示 "Zed Agent"），其次 registry.json 的
-          // 展示名（R5），最后退回 settings 里的键；连上之后线程头再从 agentInfo 取（规则 2）。
-          AgentRef(
-            id: entry.key as String,
-            name: _agentDisplayName(entry.key as String, entry.value),
-            // logo 与侧栏 / 线程头同一条路：registry 缓存的 `icon.svg`（内置 sidecar 是随包带的那份）。
-            iconSvg: agentIconSvgOf(entry.key as String),
-          ),
-    ];
-    _selectDefaultAgent();
-  }
-
   /// 当前 agent 还没定（启动、或刚把选中的那个卸掉）时挑一个：本地索引里最近用过、且**还装着**的那个，
   /// 没有就第一个已安装的；一个都没装就留空（画板 01 状态 2）。
   /// 只挑不连——agent 进程等到第一条消息才拉起（[send]），所以开应用不会白拉一个进程、也不会在启动时弹认证。
+  /// 已装列表每次刷新完都会调到这里（`AgentsState.onInstalledChanged`）。
   void _selectDefaultAgent() {
     // 会话开着的时候当前 agent 归那条会话，列表刷新一概不许动它：`session/new` 之后那一发
     // `registry_list` / `agent_settings_get` 只要慢一步或回了空，就会把正在用的 agent 抹掉
     // （线程头回到 No Agent、发送打不出去）。卸载走 `removeAgent`，它自己会先清干净再刷。
     if (sessionId != null) return;
-    final installed = <String>{for (final a in installedAgents) a.id};
+    final installed = <String>{for (final a in agents.installed) a.id};
     final current = agentId;
     if (current != null && installed.contains(current)) return; // 已经选好且还装着：不动它
-    agentId = index.lastUsedAgentId(installed) ?? (installedAgents.isEmpty ? null : installedAgents.first.id);
-  }
-
-  /// 已安装列表里的这一条（展示名与图标从它来）。
-  AgentRef? _installedRef(String? id) {
-    if (id == null) return null;
-    for (final a in installedAgents) {
-      if (a.id == id) return a;
-    }
-    return null;
-  }
-
-  String _agentDisplayName(String id, Object? server) {
-    if (server is Map) {
-      final name = server['name'];
-      if (name is String && name.isNotEmpty) return name;
-    }
-    return registry.byId(id)?.name ?? id;
+    agentId = index.lastUsedAgentId(installed) ?? (agents.installed.isEmpty ? null : agents.installed.first.id);
   }
 
   /// 本地索引变了 / registry 变了（图标）：侧栏项重投影一次。不通知，调用方收尾时 `touch`。
@@ -600,20 +556,14 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
         updatedAt: DateTime.fromMillisecondsSinceEpoch((item['updatedAt'] as num?)?.toInt() ?? 0),
         messageCount: (item['messageCount'] as num?)?.toInt() ?? 0,
         canDelete: true,
-        iconSvg: agentIconSvgOf(owner ?? agentId),
+        iconSvg: agents.iconSvgOf(owner ?? agentId),
       ));
     }
     return out;
   }
 
-  /// agent 自己的 logo：registry 缓存的 `icon.svg` 原样内容，侧栏会话项与线程头的 agent 标记直接画它
-  /// （画板 50 / 51 / 70 的图标框用的是同一份）。registry 里没有这条 / 没缓存到图标时为 null，退回画板的单色占位。
-  /// 不按 agent 名判（规则 2）：id 查不到就是没有。
-  String? agentIconSvgOf(String? agent) =>
-      agent == null || agent.isEmpty ? null : registry.byId(agent)?.iconSvg;
-
   /// 线程头的 agent 标记。
-  String? get agentIconSvg => agentIconSvgOf(agentId);
+  String? get agentIconSvg => agents.iconSvgOf(agentId);
 
   // ---- agent 能力（R6）：一律读 `agentCapabilities`，不按 agent 名判（规则 2）。
   // 能力是 agent 级的，不是会话级的——侧栏里各条会话可能属于不同 agent，所以按 agentId 查。
@@ -737,7 +687,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       _adoptSession(agent, cwd, await b.sessionNew(agent, cwd));
     } finally {
       // 核心按 session/new 的结果回写了认证状态（已登录 / 需要认证），面板上的徽章跟着刷（画板 50 / 51 / 70）。
-      unawaited(refreshRegistry());
+      unawaited(agents.refreshRegistry());
     }
     await _saveIndex();
   }
@@ -1202,7 +1152,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       if (_startingSession) return;
       _startingSession = true;
       try {
-        await newSession(_installedRef(id) ?? AgentRef(id: id, name: id));
+        await newSession(agents.installedRef(id) ?? AgentRef(id: id, name: id));
       } finally {
         _startingSession = false;
       }
@@ -1694,108 +1644,13 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     await openAuth(id, retryCwd: workspace.project?.path, methodId: methodId);
   }
 
-  // ---------------------------------------------------------------- registry 面板（画板 50 / 51，R5）
+  // ---------------------------------------------------------------- 核心给的路径（画板 70）
 
-  /// 过滤 + 搜索之后的条目。
-  List<RegistryEntryData> get visibleRegistryEntries => registry.visible(registryFilter, registryQuery);
-
-  /// `registry_list`（`network` = 先联网刷新，1 小时节流，`force` 跳过）。失败不清列表，错误进 `registry.fetchError` 或 [lastError]。
-  Future<void> refreshRegistry({bool network = false, bool force = false}) async {
-    final b = bridge;
-    if (b == null) return;
-    await guard(() async {
-      final list = network ? await b.registryRefresh(force: force) : await b.registryList();
-      registry.applyList(list);
-      // 侧栏的 agent logo 是从 registry 查出来**烘进** [SidebarSession] 的，所以 registry 一变就要重投影一次：
-      // 首次启动时图标是这轮联网刷新才落盘的，不重投影侧栏会一直停在占位菱形上，直到下次刷新本地索引。
-      _refreshSidebar();
-      final paths = list['paths'];
-      if (paths is Map) {
-        dataDir = paths['dataDir'] as String? ?? dataDir;
-        logPath = paths['logPath'] as String? ?? logPath;
-        zedSettingsPath = paths['zedSettingsPath'] as String?;
-      }
-      // 展示名随 registry 来（画板 41 的新建会话弹层）。
-      await refreshAgents();
-    });
-    touch();
-  }
-
-  void _onRegistryProgress(CoreEventRecord e) {
-    final json = e.json;
-    if (json == null) return;
-    final id = registry.applyProgress(json);
-    final step = json['step'];
-    if (step == 'done' || step == 'failed' || step == 'cancelled') {
-      // 装完 / 失败 / 取消：安装记录与 settings 都变了，重读列表（不联网）。
-      unawaited(refreshRegistry());
-      if (id != null && step == 'failed') registryShowLog.add(id);
-    }
-    touch();
-  }
-
-  void setRegistryFilter(RegistryFilter filter) {
-    registryFilter = filter;
-    touch();
-  }
-
-  void setRegistryQuery(String query) {
-    registryQuery = query;
-    touch();
-  }
-
-  /// Install / 重试（失败态）。
-  Future<void> installAgent(String id) async {
-    final b = bridge;
-    if (b == null) return;
-    registryShowLog.remove(id);
-    await guard(() => b.registryInstall(id));
-    touch();
-  }
-
-  Future<void> cancelInstall(String id) async {
-    final b = bridge;
-    if (b == null) return;
-    await guard(() => b.registryCancelInstall(id));
-    touch();
-  }
-
-  void toggleInstallLog(String id) {
-    if (!registryShowLog.remove(id)) registryShowLog.add(id);
-    touch();
-  }
-
-  /// Remove（画板 50 / 51 / 70）：registry 型走 `registry_remove`（settings 条目 + `agents/<id>/`），custom 型只删 settings 条目。
-  Future<void> removeAgent(String id) async {
-    final b = bridge;
-    if (b == null) return;
-    await guard(() async {
-      final entry = registry.byId(id);
-      if (entry?.isCustom ?? false) {
-        await b.agentSettingsRemove(id);
-      } else {
-        await b.registryRemove(id);
-      }
-      if (agentId == id) {
-        agentId = null;
-        sessionId = null;
-      }
-      if (authAgentId == id) closeAuth();
-      if (settingsEditingId == id || settingsExpandedId == id) collapseSettingsEdit();
-      await refreshRegistry();
-    });
-    touch();
-  }
-
-  /// 受管 Node（画板 51 提示卡 / 画板 70 的 Node 运行时）。进度经 `registry/progress`（`agentId: null`）。
-  Future<void> downloadNode() async {
-    final b = bridge;
-    if (b == null) return;
-    await guard(() async {
-      await b.nodeDownload();
-      await refreshRegistry();
-    });
-    touch();
+  /// `registry_list` 回的 `paths`：`AgentsState.refreshRegistry` 每次刷新都经回调交到这里。
+  void _applyPaths(Map<Object?, Object?> paths) {
+    dataDir = paths['dataDir'] as String? ?? dataDir;
+    logPath = paths['logPath'] as String? ?? logPath;
+    zedSettingsPath = paths['zedSettingsPath'] as String?;
   }
 
   // ---------------------------------------------------------------- 认证页（画板 52，R5）
@@ -1807,7 +1662,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   String get authAgentName {
     final c = authConnection;
     final id = authAgentId ?? '';
-    return c?.agentTitle ?? c?.agentName ?? registry.byId(id)?.name ?? id;
+    return c?.agentTitle ?? c?.agentName ?? agents.registry.byId(id)?.name ?? id;
   }
 
   /// terminal 型认证的可见终端：核心的 `authenticating` 事件带 terminalId。
@@ -2001,109 +1856,6 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     } else {
       sessions.pending.cancelRequest(e.requestId, now: sessions.now);
     }
-    touch();
-  }
-
-  // ---------------------------------------------------------------- 设置面板（画板 70，R5；右栏标签）
-
-  /// 已安装的条目（registry 型 + custom 型），设置页的 agent 配置列表。
-  List<RegistryEntryData> get installedEntries => <RegistryEntryData>[
-        for (final e in registry.entries)
-          if (e.installed) e,
-      ];
-
-  /// 「编辑」：custom 型进行内编辑（cmd / args / env 填进输入框），registry 型只读展开拉起参数。
-  void editAgent(String id) {
-    final entry = registry.byId(id);
-    if (entry != null && entry.isCustom && entry.custom != null) {
-      settingsEditingId = id;
-      settingsExpandedId = null;
-      settingsEdit.command.text = entry.custom!.command;
-      settingsEdit.args.text = entry.custom!.argsText;
-      settingsEdit.env.text = entry.custom!.envText;
-    } else {
-      settingsExpandedId = settingsExpandedId == id ? null : id;
-      settingsEditingId = null;
-    }
-    touch();
-  }
-
-  void collapseSettingsEdit() {
-    settingsEditingId = null;
-    settingsExpandedId = null;
-    touch();
-  }
-
-  /// 「保存」：写回 `{type: custom, command, args, env}`（args 按空白分隔、双引号可包空格；env 是 `K=V` 空白分隔）。
-  Future<void> saveCustomAgent(String id) async {
-    final b = bridge;
-    if (b == null) return;
-    final command = settingsEdit.command.text.trim();
-    if (command.isEmpty) {
-      lastError = 'cmd 不能为空';
-      touch();
-      return;
-    }
-    final env = <String, String>{};
-    for (final token in splitArgs(settingsEdit.env.text)) {
-      final i = token.indexOf('=');
-      if (i <= 0) continue;
-      env[token.substring(0, i)] = token.substring(i + 1);
-    }
-    await guard(() async {
-      await b.agentSettingsSet(id, <String, dynamic>{
-        'type': 'custom',
-        'command': command,
-        'args': splitArgs(settingsEdit.args.text),
-        'env': env,
-      });
-      settingsEditingId = null;
-      await refreshRegistry();
-    });
-    touch();
-  }
-
-  /// 按空白切分，双引号里的空格保留（`"C:\a b\x.cmd" --flag`）。
-  static List<String> splitArgs(String text) {
-    final out = <String>[];
-    final buf = StringBuffer();
-    var quoted = false;
-    var has = false;
-    for (final ch in text.runes) {
-      final c = String.fromCharCode(ch);
-      if (c == '"') {
-        quoted = !quoted;
-        has = true;
-      } else if (!quoted && c.trim().isEmpty) {
-        if (has) out.add(buf.toString());
-        buf.clear();
-        has = false;
-      } else {
-        buf.write(c);
-        has = true;
-      }
-    }
-    if (has) out.add(buf.toString());
-    return out;
-  }
-
-  /// 「从 Zed 导入」：结果文案留在行下（画板 70 的注释位）。
-  Future<void> importZed() async {
-    final b = bridge;
-    if (b == null) return;
-    await guard(() async {
-      final result = await b.agentSettingsImportZed();
-      final report = result['report'];
-      if (report is Map) {
-        List<String> ids(Object? v) => v is List ? v.map((e) => e.toString()).toList() : const <String>[];
-        final imported = ids(report['imported']);
-        final skipped = ids(report['skipped']);
-        final invalid = ids(report['invalid']);
-        zedImportResult = '已导入 ${imported.length} 条${imported.isEmpty ? '' : '（${imported.join('、')}）'}，'
-            '跳过同名 ${skipped.length} 条${invalid.isEmpty ? '' : '，解不开 ${invalid.length} 条（${invalid.join('、')}）'}。';
-      }
-      await refreshRegistry();
-    });
     touch();
   }
 }

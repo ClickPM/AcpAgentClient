@@ -286,7 +286,7 @@ void main() {
     final c = WorkbenchController(source: DataSource.bridge, bridge: core);
     await c.start();
 
-    expect(c.installedAgents, isEmpty);
+    expect(c.agents.installed, isEmpty);
     expect(c.hasAgent, isFalse, reason: '画板 01 状态 2：线程头 No Agent、输入框禁用');
     expect(c.threadTitle, 'No Agent');
     expect(c.composerPlaceholder, '安装并选择一个 agent 后即可输入');

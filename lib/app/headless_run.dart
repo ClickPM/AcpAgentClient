@@ -83,7 +83,7 @@ Future<void> runR6({required String reportPath}) async {
     await c.start();
     final cwd = _env('ACP_R6_CWD');
     if (cwd != null) await c.workspace.openProject(_projectOf(cwd));
-    final agentId = _env('ACP_R6_AGENT') ?? (c.installedAgents.isEmpty ? null : c.installedAgents.first.id);
+    final agentId = _env('ACP_R6_AGENT') ?? (c.agents.installed.isEmpty ? null : c.agents.installed.first.id);
     if (agentId == null) throw StateError('settings.json 里没有 agent_servers，也没有给 ACP_R6_AGENT');
     if (c.workspace.project == null) throw StateError('没有项目目录：给 ACP_R6_CWD 或先打开一个项目');
 
@@ -405,17 +405,17 @@ Future<void> runR5({required String reportPath}) async {
     await c.start();
     final cwd = _env('ACP_R5_CWD');
     if (cwd != null) await c.workspace.openProject(_projectOf(cwd));
-    if (_env('ACP_R5_REFRESH') == '1') await c.refreshRegistry(network: true, force: true).timeout(timeout);
+    if (_env('ACP_R5_REFRESH') == '1') await c.agents.refreshRegistry(network: true, force: true).timeout(timeout);
     steps['registry'] = _registrySummary(c);
 
     // ---- 受管 Node（验收 3）
     if (_env('ACP_R5_NODE_DOWNLOAD') == '1') {
-      final before = c.registry.node;
-      await c.downloadNode().timeout(timeout);
+      final before = c.agents.registry.node;
+      await c.agents.downloadNode().timeout(timeout);
       steps['nodeDownload'] = <String, dynamic>{
         'before': <String, dynamic>{'system': before.system?.version, 'managed': before.managed?.version},
-        'after': <String, dynamic>{'system': c.registry.node.system?.version, 'managed': c.registry.node.managed?.version, 'managedPath': c.registry.node.managed?.path},
-        'error': c.lastError,
+        'after': <String, dynamic>{'system': c.agents.registry.node.system?.version, 'managed': c.agents.registry.node.managed?.version, 'managedPath': c.agents.registry.node.managed?.path},
+        'error': c.agents.lastError,
       };
     }
 
@@ -426,14 +426,14 @@ Future<void> runR5({required String reportPath}) async {
       final watch = _ProgressWatch(c, bridge, install, seen, cancelAt: _env('ACP_R5_CANCEL_AT'));
       watch.attach();
       final started = DateTime.now();
-      await c.installAgent(install);
+      await c.agents.install(install);
       final cancelAfter = _envInt('ACP_R5_CANCEL_AFTER', 0);
-      if (cancelAfter > 0) Timer(Duration(seconds: cancelAfter), () => c.cancelInstall(install));
+      if (cancelAfter > 0) Timer(Duration(seconds: cancelAfter), () => c.agents.cancelInstall(install));
       await watch.done.future.timeout(timeout);
       watch.detach();
       // 收尾事件之后组合根会（不等待地）重读列表；这里再读一次，`installed` 才是落盘后的状态。
-      await c.refreshRegistry();
-      final entry = c.registry.byId(install);
+      await c.agents.refreshRegistry();
+      final entry = c.agents.registry.byId(install);
       steps['install'] = <String, dynamic>{
         'agentId': install,
         'stepsSeen': seen,
@@ -442,7 +442,7 @@ Future<void> runR5({required String reportPath}) async {
         'installedVersion': entry?.installedVersion,
         'launch': entry?.launch == null ? null : <String, dynamic>{'command': entry!.launch!.command, 'args': entry.launch!.args},
         'failure': entry?.failure,
-        'error': c.lastError,
+        'error': c.agents.lastError,
       };
     }
 
@@ -478,7 +478,7 @@ Future<void> runR5({required String reportPath}) async {
           'terminalId': c.authTerminalId,
           'sessionId': c.sessionId,
           'authPageClosed': c.authAgentId == null,
-          'authStatus': c.registry.byId(agentId)?.authStatus.wire,
+          'authStatus': c.agents.registry.byId(agentId)?.authStatus.wire,
         };
       }
     }
@@ -496,14 +496,14 @@ Future<void> runR5({required String reportPath}) async {
 
     // ---- 从 Zed 导入（验收 4）
     if (_env('ACP_R5_IMPORT_ZED') == '1') {
-      final before = c.registry.entries.where((e) => e.installed).map((e) => e.id).toList();
-      await c.importZed().timeout(timeout);
+      final before = c.agents.registry.entries.where((e) => e.installed).map((e) => e.id).toList();
+      await c.agents.importZed().timeout(timeout);
       steps['importZed'] = <String, dynamic>{
         'zedSettingsPath': c.zedSettingsPath,
-        'result': c.zedImportResult,
+        'result': c.agents.zedImportResult,
         'installedBefore': before,
-        'installedAfter': c.registry.entries.where((e) => e.installed).map((e) => e.id).toList(),
-        'error': c.lastError,
+        'installedAfter': c.agents.registry.entries.where((e) => e.installed).map((e) => e.id).toList(),
+        'error': c.agents.lastError,
       };
     }
 
@@ -511,16 +511,16 @@ Future<void> runR5({required String reportPath}) async {
     if (_env('ACP_R5_REMOVE') == '1' && install != null) {
       final dir = '${c.dataDir}${Platform.pathSeparator}agents${Platform.pathSeparator}$install';
       final existedBefore = Directory(dir).existsSync();
-      await c.removeAgent(install).timeout(timeout);
+      await c.agents.remove(install).timeout(timeout);
       final settings = await bridge.agentSettingsGet();
       steps['remove'] = <String, dynamic>{
         'agentId': install,
         'dirExistedBefore': existedBefore,
         'dirExistsAfter': Directory(dir).existsSync(),
         'settingsHasEntry': (settings['agent_servers'] as Map?)?.containsKey(install) ?? false,
-        'installedNow': c.registry.byId(install)?.installed,
+        'installedNow': c.agents.registry.byId(install)?.installed,
         'otherDirs': Directory('${c.dataDir}').listSync().map((e) => e.path.split(Platform.pathSeparator).last).toList()..sort(),
-        'error': c.lastError,
+        'error': c.agents.lastError,
       };
     }
 
@@ -543,13 +543,13 @@ Future<void> runR5({required String reportPath}) async {
 }
 
 Map<String, dynamic> _registrySummary(WorkbenchController c) => <String, dynamic>{
-      'count': c.registry.entries.length,
-      'installed': c.registry.entries.where((e) => e.installed).map((e) => '${e.id}:${e.kind.wire}:${e.authStatus.wire}').toList(),
-      'fetchError': c.registry.fetchError,
-      'fetchedAt': c.registry.fetchedAt?.toIso8601String(),
-      'node': <String, dynamic>{'system': c.registry.node.system?.version, 'managed': c.registry.node.managed?.version, 'systemError': c.registry.node.systemError},
+      'count': c.agents.registry.entries.length,
+      'installed': c.agents.registry.entries.where((e) => e.installed).map((e) => '${e.id}:${e.kind.wire}:${e.authStatus.wire}').toList(),
+      'fetchError': c.agents.registry.fetchError,
+      'fetchedAt': c.agents.registry.fetchedAt?.toIso8601String(),
+      'node': <String, dynamic>{'system': c.agents.registry.node.system?.version, 'managed': c.agents.registry.node.managed?.version, 'systemError': c.agents.registry.node.systemError},
       'paths': <String, dynamic>{'dataDir': c.dataDir, 'logPath': c.logPath, 'zed': c.zedSettingsPath},
-      'sample': <String>[for (final e in c.registry.entries.take(6)) '${e.id} v${e.version} ${e.kind.wire}${e.supported ? '' : ' unsupported'}'],
+      'sample': <String>[for (final e in c.agents.registry.entries.take(6)) '${e.id} v${e.version} ${e.kind.wire}${e.supported ? '' : ' unsupported'}'],
     };
 
 /// 盯着一个条目的安装进度，收到终态就放行。
@@ -589,7 +589,7 @@ class _ProgressWatch {
     if (!_cancelSent && cancelAt != null && step == cancelAt) {
       _cancelSent = true;
       seen.add('(cancel sent at $step)');
-      unawaited(c.cancelInstall(agentId));
+      unawaited(c.agents.cancelInstall(agentId));
     }
     if (terminal && !done.isCompleted) done.complete();
   }
@@ -669,7 +669,7 @@ Future<void> runR3({required String reportPath}) async {
     await c.start();
     trace('controller started');
     steps['start'] = <String, dynamic>{
-      'agents': <String>[for (final a in c.installedAgents) a.id],
+      'agents': <String>[for (final a in c.agents.installed) a.id],
       'project': c.workspace.project?.path,
       'branchAreaVisible': c.workspace.branchAreaVisible,
       'branch': c.workspace.branch,
@@ -707,13 +707,13 @@ Future<void> runR3({required String reportPath}) async {
         'createdIsCurrent': created == newBranch,
         'afterSwitchBack': c.workspace.branch,
         'list': <String>[for (final b in c.workspace.branches) b.name],
-        'error': c.lastError,
+        'error': c.workspace.lastError,
       };
     }
 
     // ---- 新会话（验收 3）
     trace('newSession');
-    final agentId = _env('ACP_R3_AGENT') ?? (c.installedAgents.isEmpty ? null : c.installedAgents.first.id);
+    final agentId = _env('ACP_R3_AGENT') ?? (c.agents.installed.isEmpty ? null : c.agents.installed.first.id);
     if (agentId == null) throw StateError('settings.json 里没有 agent_servers，也没有给 ACP_R3_AGENT');
     await c.newSession(_agentOf(agentId));
     if (c.sessionId == null) throw StateError('新会话失败：${c.lastError}');

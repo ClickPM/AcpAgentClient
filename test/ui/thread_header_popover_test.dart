@@ -30,7 +30,7 @@ Future<WorkbenchController> _pumpShell(WidgetTester tester) async {
 
   final c = WorkbenchController(source: DataSource.bridge, bridge: FakeCore(), scheduler: WorkbenchController.scheduleOnMicrotask)
     ..workspace.project = const ProjectRef(path: 'D:/repo', name: 'repo')
-    ..installedAgents = const <AgentRef>[AgentRef(id: 'zed', name: 'Zed Agent')];
+    ..agents.installed = const <AgentRef>[AgentRef(id: 'zed', name: 'Zed Agent')];
   addTearDown(c.dispose);
 
   await tester.pumpWidget(MaterialApp(home: WorkbenchScreen(controller: c)));
