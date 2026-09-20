@@ -139,8 +139,8 @@ pub fn write_text_file(cwd: &Path, path: &Path, content: &str) -> Result<()> {
     write_atomic(path, content.as_bytes())
 }
 
-/// 临时文件 + rename：同目录写 `<name>.tmp-<pid>-<nanos>` 再原子替换；目标目录不存在时创建。
-/// （与 `rust/settings` 的同名函数一个口径；fs 不依赖 settings，各自一份。）
+/// 临时文件 + rename（规则 7）：同目录写 `<name>.tmp-<pid>-<nanos>` 再原子替换；目标目录不存在时创建。
+/// 工作区里唯一的一份：settings / registry 的落盘也走这里。
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     let dir = path.parent().ok_or_else(|| FsError::Io(format!("{} has no parent", path.display())))?;
     std::fs::create_dir_all(dir).map_err(|e| FsError::Io(format!("{}: {e}", dir.display())))?;

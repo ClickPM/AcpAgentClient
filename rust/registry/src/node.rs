@@ -34,12 +34,6 @@ pub struct NodeStatus {
     pub min_version: &'static str,
 }
 
-impl NodeStatus {
-    pub fn usable(&self) -> bool {
-        self.system.is_some() || self.managed.is_some()
-    }
-}
-
 /// 拉起 npx 型 agent / 跑 npm 用的一份 Node。
 #[derive(Debug, Clone)]
 pub struct NodeRuntime {

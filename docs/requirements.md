@@ -32,7 +32,7 @@
    - 五个 agent：`claude-agent-acp`、`codex-acp`、Cursor CLI ACP（仅文档）、`svkozak/pi-acp`、`ClickPM/dsh-acp-interactive`
    - `deepseek-ai/deepseek-harness`：**只作资产来源**（dsh 的图标复制成 `rust/acp-core/assets/dsh-icon.svg`，钉在 pins 里以便 `-Check` 覆盖），没有代码依赖（2026-09-18）
 
-   **界定：** 白名单约束的是「ACP 客户端逻辑、agent 状态模型、会话 UI」这类实现来源。语言级基础库与工具（Rust 侧 tokio、serde、serde_json、reqwest、sha2、portable-pty、notify、flutter_rust_bridge；Dart 侧 Flutter SDK 自带的 Material / Cupertino、flutter_rust_bridge、xterm、url_launcher、file_selector、flutter_svg（所有者裁定 2026-09-15）、R1.5 spike 裁定的 `markdown`（只用解析器，渲染层自写）、`re_highlight`、`flutter_math_fork`、`mermaid_flutter` + `mermaid_core`、`audioplayers`、`diffutil_dart`（即「一个 diff 库」；所有者裁定 2026-09-15 按推荐项，依据 `rounds/round-1.5/spike.md`；传递依赖不算引入）；构建期的 schema 代码生成器与 frb codegen）属于工具，不受白名单限制，清单之外的新增要在任务卡写明理由；任何实现了 ACP 客户端、agent 会话状态或会话 UI 的第三方库（例如 acp-components、acp-ui、pi-web）一律不引入，第三方 UI 组件库（shadcn_ui、GetWidget、fluent_ui 及同类）与状态管理库（riverpod、bloc、getx 及同类）同样不引入。
+   **界定：** 白名单约束的是「ACP 客户端逻辑、agent 状态模型、会话 UI」这类实现来源。语言级基础库与工具（Rust 侧 tokio、serde、serde_json、reqwest、sha2、portable-pty、notify、flutter_rust_bridge、base64（所有者裁定 2026-09-20）；Dart 侧 Flutter SDK 自带的 Material / Cupertino、flutter_rust_bridge、xterm、url_launcher、file_selector、flutter_svg（所有者裁定 2026-09-15）、R1.5 spike 裁定的 `markdown`（只用解析器，渲染层自写）、`re_highlight`、`flutter_math_fork`、`mermaid_flutter` + `mermaid_core`、`audioplayers`、`diffutil_dart`（即「一个 diff 库」；所有者裁定 2026-09-15 按推荐项，依据 `rounds/round-1.5/spike.md`；传递依赖不算引入）；构建期的 schema 代码生成器与 frb codegen）属于工具，不受白名单限制，清单之外的新增要在任务卡写明理由；任何实现了 ACP 客户端、agent 会话状态或会话 UI 的第三方库（例如 acp-components、acp-ui、pi-web）一律不引入，第三方 UI 组件库（shadcn_ui、GetWidget、fluent_ui 及同类）与状态管理库（riverpod、bloc、getx 及同类）同样不引入。
 9. **平台。** Windows 首发；macOS 随后；Linux 尽量。
 
 ## 不做

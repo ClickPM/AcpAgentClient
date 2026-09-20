@@ -7,6 +7,7 @@ name = "acp-core"
 version = "1.4.0"
 dependencies = [
  "agent-client-protocol",
+ "base64 0.22.1",
  "fs",
  "futures",
  "pty",
@@ -22,6 +23,7 @@ name = "acp-smoke"
 version = "1.4.0"
 dependencies = [
  "acp-core",
+ "base64 0.22.1",
  "serde_json",
  "tokio",
 ]
@@ -1882,6 +1884,7 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 name = "registry"
 version = "1.4.0"
 dependencies = [
+ "fs",
  "reqwest",
  "serde",
  "serde_json",
@@ -2228,6 +2231,7 @@ dependencies = [
 name = "settings"
 version = "1.4.0"
 dependencies = [
+ "fs",
  "serde",
  "serde_json",
 ]

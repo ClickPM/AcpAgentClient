@@ -1,4 +1,6 @@
 # R7.5 headless equivalence runner (fake-agent, isolated APPDATA + fresh project copy per run).
+# Since 2026-09-20 the headless drivers live behind lib/main_headless.dart: build the exe you pass as -Exe with
+#   flutter build windows --release -t lib/main_headless.dart
 #   powershell -File D:\cargo-target\AcpAgentClient\r75\run-report.ps1 -Kind r3|r5|r6 -Label <label> [-Exe <exe>]
 # Report -> D:\cargo-target\AcpAgentClient\r75\reports\<label>\<kind>.json ; prints "exit=<code> ok=<bool>".
 param(

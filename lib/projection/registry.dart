@@ -409,13 +409,3 @@ class RegistryState extends ChangeNotifier {
         'fetchError': fetchError,
       };
 }
-
-/// 字节数的人类可读形式（画板 51 的「12.4 / 20.1 MB」「2.1 MB/s」）。
-String formatBytes(num bytes, {int digits = 1}) {
-  if (bytes < 1024) return '$bytes B';
-  final kb = bytes / 1024;
-  if (kb < 1024) return '${kb.toStringAsFixed(digits)} KB';
-  final mb = kb / 1024;
-  if (mb < 1024) return '${mb.toStringAsFixed(digits)} MB';
-  return '${(mb / 1024).toStringAsFixed(digits)} GB';
-}

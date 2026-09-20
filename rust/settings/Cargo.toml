@@ -9,6 +9,8 @@ publish.workspace = true
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
+# 落盘一律「临时文件 + rename」（规则 7）：原语只在 fs 一份，这里不再各自复制。
+fs.workspace = true
 
 [lints]
 workspace = true

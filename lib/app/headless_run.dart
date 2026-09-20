@@ -1,6 +1,7 @@
 // R3 的无头实跑（验收 3 / 4 / 5 / 6 / 10）：`ACP_R3_REPORT=<报告文件>` 时不起窗口，直接驱动
 // [WorkbenchController]——也就是 UI 点下去会走的那条接线——对真实 agent 跑一遍完整流程，把每步结果写 JSON。
-// 和 R0 的 `ACP_SMOKE_REPORT` 是同一个口子的第二个模式：无头、写报告、退出码即结论。
+// 无头、写报告、退出码即结论。**入口是 lib/main_headless.dart（`flutter build -t`），不在产品的 main.dart 上**：
+// 这些是验收脚本，不随发布包编进去。
 //
 // 为什么走控制器而不是直接调桥：要验的就是「接线」本身（谁发 acp_respond、cancel 之后谁不再回、
 // Restore 的两组 id 有没有漏），直接调桥等于绕过被验对象。
@@ -26,6 +27,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
+
+import 'package:flutter/painting.dart';
 
 import '../projection/agent_state.dart';
 import '../projection/entries.dart';
@@ -37,6 +41,7 @@ import '../ui/popovers/composer_popovers.dart';
 import '../ui/popovers/topbar_popovers.dart';
 import '../ui/registry/auth_page.dart';
 import '../ui/terminal/local_terminal.dart';
+import 'clipboard_image.dart';
 import 'core_bridge.dart';
 import 'workbench_controller.dart';
 
@@ -299,11 +304,7 @@ Future<void> runR6({required String reportPath}) async {
     report['shutdownError'] = e.toString();
   }
   controller?.dispose();
-  final file = File(reportPath);
-  file.parent.createSync(recursive: true);
-  file.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(report));
-  stderr.writeln('[r6] report → $reportPath (ok=${report['ok']})');
-  exit(exitCode);
+  _finish(reportPath, report, exitCode, 'r6');
 }
 
 /// 能力声明（矩阵与 ≡ 菜单裁剪的依据；不按 agent 名判，规则 2）。
@@ -532,14 +533,7 @@ Future<void> runR5({required String reportPath}) async {
     report['stack'] = st.toString();
     report['lastError'] = controller?.session.lastError;
   }
-  try {
-    final file = File(reportPath);
-    await file.parent.create(recursive: true);
-    await file.writeAsString(const JsonEncoder.withIndent('  ').convert(report));
-  } on Object catch (_) {
-    exitCode = 1;
-  }
-  exit(exitCode);
+  _finish(reportPath, report, exitCode, 'r5');
 }
 
 Map<String, dynamic> _registrySummary(WorkbenchController c) => <String, dynamic>{
@@ -1010,14 +1004,7 @@ Future<void> runR3({required String reportPath}) async {
     report['stack'] = st.toString();
     report['lastError'] = controller?.session.lastError;
   }
-  try {
-    final file = File(reportPath);
-    await file.parent.create(recursive: true);
-    await file.writeAsString(const JsonEncoder.withIndent('  ').convert(report));
-  } on Object catch (_) {
-    exitCode = 1;
-  }
-  exit(exitCode);
+  _finish(reportPath, report, exitCode, 'r3');
 }
 
 Map<String, dynamic> _turnSummary(WorkbenchController c, String prompt) {
@@ -1038,6 +1025,54 @@ Map<String, dynamic> _turnSummary(WorkbenchController c, String prompt) {
     // 最后一条 agent 消息的开头：一轮没发工具调用时，看这里就知道 agent 说了什么（如凭据错误）。
     'lastAgentMessage': _lastAgentMessage(store),
   };
+}
+
+/// 各模式共用的收尾：写报告（目录不存在就建）、退出码即结论；报告写不出去也算失败。
+Never _finish(String reportPath, Map<String, dynamic> report, int exitCode, String tag) {
+  try {
+    final file = File(reportPath);
+    file.parent.createSync(recursive: true);
+    file.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(report));
+    stderr.writeln('[$tag] report → $reportPath (ok=${report['ok']})');
+  } on Object catch (_) {
+    exitCode = 1;
+  }
+  exit(exitCode);
+}
+
+const String clipboardProbeEnv = 'ACP_CLIPBOARD_PROBE';
+
+String? clipboardProbePathFromEnvironment() => _env(clipboardProbeEnv);
+
+/// 剪贴板探针（规则 9 的 Windows 实测口子）：读一次剪贴板（走 runner 的 `readClipboardImages`），每张图记来源 /
+/// mimeType / 字节数；PNG 另解一遍记尺寸与左上角像素，验位图那条路的 BGRA → PNG 没把通道或行序弄反。
+Future<void> runClipboardProbe({required String reportPath}) async {
+  final report = <String, dynamic>{'ok': false};
+  var exitCode = 1;
+  try {
+    final result = await readClipboardImages();
+    final images = <Map<String, dynamic>>[];
+    for (final image in result.images) {
+      final entry = <String, dynamic>{'mimeType': image.mimeType, 'path': image.path, 'bytes': image.bytes.length};
+      if (image.mimeType == 'image/png') {
+        final decoded = await decodeImageFromList(image.bytes);
+        final rgba = await decoded.toByteData(format: ui.ImageByteFormat.rawRgba);
+        entry['width'] = decoded.width;
+        entry['height'] = decoded.height;
+        entry['topLeftRgba'] = rgba?.buffer.asUint8List(rgba.offsetInBytes, 4).toList();
+        decoded.dispose();
+      }
+      images.add(entry);
+    }
+    report['images'] = images;
+    report['skippedTooLarge'] = result.skippedTooLarge;
+    report['ok'] = true;
+    exitCode = 0;
+  } catch (e, st) {
+    report['error'] = e.toString();
+    report['stack'] = st.toString();
+  }
+  _finish(reportPath, report, exitCode, 'clipboard');
 }
 
 String? _lastAgentMessage(SessionStore store) {

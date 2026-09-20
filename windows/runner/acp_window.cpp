@@ -10,6 +10,8 @@
 #include <cstdlib>
 #include <memory>
 
+#include "acp_clipboard.h"
+
 namespace {
 
 // 缩放热区宽度，**逻辑**像素（无边框窗口没有可拖的系统边框，这里自己留出来）。
@@ -177,6 +179,9 @@ void AcpWindowRegisterChannel(flutter::FlutterEngine* engine, HWND window) {
             ::SendMessage(window, WM_NCLBUTTONDOWN, HTCAPTION, 0);
           }
           result->Success();
+        } else if (method == "readClipboardImages") {
+          // 剪贴板图片（acp_clipboard.h）：Dart 侧的 Ctrl+V 不再拉 powershell 读剪贴板。
+          result->Success(AcpClipboardReadImages());
         } else {
           result->NotImplemented();
         }

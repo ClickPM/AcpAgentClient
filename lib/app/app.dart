@@ -1,5 +1,5 @@
 // 组合根：默认接 Rust 核心（bridge），`--dart-define=DATA_SOURCE=fixtures` 时回放 test/fixtures（gallery 与开发用）。
-// R0 的 SmokeScreen 已被会话工作台壳取代；无头自检仍走 `ACP_SMOKE_REPORT`（lib/main.dart → lib/app/smoke.dart）。
+// 无头自检走 `ACP_SMOKE_REPORT`（lib/main.dart → lib/app/smoke.dart）；R3 / R5 / R6 的无头验收驱动在 lib/main_headless.dart。
 
 import 'dart:ui' show AppExitResponse;
 

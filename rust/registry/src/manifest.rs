@@ -74,7 +74,7 @@ impl InstallManifest {
     pub fn save(&self, dirs: &RegistryDirs) -> Result<()> {
         let path = Self::path(dirs, &self.id);
         let text = serde_json::to_string_pretty(self)?;
-        settings::write_atomic(&path, text.as_bytes())?;
+        fs::write_atomic(&path, text.as_bytes())?;
         Ok(())
     }
 

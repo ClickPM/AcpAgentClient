@@ -11,14 +11,13 @@ import 'card_chrome.dart';
 import 'icons.dart';
 
 /// 16px 圆环：轨道 subtle、进度 accent，从 12 点起顺时针。
-class UsageRing extends StatelessWidget {
-  const UsageRing({super.key, required this.fraction, this.size = t.IconSizes.base});
+class _UsageRing extends StatelessWidget {
+  const _UsageRing({required this.fraction});
 
   final double fraction;
-  final double size;
 
   @override
-  Widget build(BuildContext context) => CustomPaint(size: Size.square(size), painter: _RingPainter(fraction));
+  Widget build(BuildContext context) => CustomPaint(size: const Size.square(t.IconSizes.base), painter: _RingPainter(fraction));
 }
 
 class _RingPainter extends CustomPainter {
@@ -68,7 +67,7 @@ class UsageIndicator extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            UsageRing(fraction: u?.fraction ?? 0),
+            _UsageRing(fraction: u?.fraction ?? 0),
             const SizedBox(width: t.Spacing.s4),
             Text(u == null ? '—' : '${u.percent}%', style: CardText.secondary),
           ],

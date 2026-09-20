@@ -6,7 +6,7 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -35,6 +35,17 @@ impl fmt::Display for SettingsError {
 
 impl std::error::Error for SettingsError {}
 
+/// 落盘原语在 `fs`（临时文件 + rename，规则 7）；它的 io 错误只取内层文案归 [SettingsError::Io]，
+/// 不把 `fs: io:` 的 Display 前缀再套一层（对外仍是 `settings: io: <inner>`，与迁移前一致）。
+impl From<fs::FsError> for SettingsError {
+    fn from(e: fs::FsError) -> Self {
+        match e {
+            fs::FsError::Io(inner) => SettingsError::Io(inner),
+            other => SettingsError::Io(other.to_string()),
+        }
+    }
+}
+
 pub type Result<T> = std::result::Result<T, SettingsError>;
 
 /// `agent_servers` 的一条，与钉版本 Zed `crates/settings_content/src/agent.rs` 的 `CustomAgentServerSettings` 同形：
@@ -62,10 +73,6 @@ pub enum AgentServer {
 }
 
 impl AgentServer {
-    pub fn is_registry(&self) -> bool {
-        matches!(self, AgentServer::Registry { .. })
-    }
-
     /// 两型共有的 `env`。
     pub fn env(&self) -> &BTreeMap<String, String> {
         match self {
@@ -184,10 +191,10 @@ impl SettingsStore {
         }
     }
 
-    /// 临时文件 + rename（规则 7）：先写同目录的 `settings.json.tmp-<pid>-<nanos>`，再原子替换。
+    /// 临时文件 + rename（规则 7，`fs::write_atomic`）：先写同目录的 `settings.json.tmp-<pid>-<nanos>`，再原子替换。
     pub fn save(&self, settings: &Settings) -> Result<()> {
         let text = serde_json::to_string_pretty(settings).map_err(|e| SettingsError::Json(e.to_string()))?;
-        write_atomic(&self.path, text.as_bytes())
+        Ok(fs::write_atomic(&self.path, text.as_bytes())?)
     }
 
     pub fn get(&self, agent_id: &str) -> Result<Option<AgentServer>> {
@@ -225,25 +232,6 @@ impl SettingsStore {
         }
         Ok(settings)
     }
-}
-
-/// 临时文件 + rename。目标目录不存在时创建（数据目录由核心保证存在，这里兜底）。
-pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
-    let dir = path.parent().ok_or_else(|| SettingsError::Io(format!("{} has no parent", path.display())))?;
-    std::fs::create_dir_all(dir).map_err(|e| SettingsError::Io(format!("{}: {e}", dir.display())))?;
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let file_name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    let tmp = dir.join(format!("{file_name}.tmp-{}-{nanos}", std::process::id()));
-    let io = |e: std::io::Error| SettingsError::Io(format!("{}: {e}", tmp.display()));
-    std::fs::write(&tmp, bytes).map_err(io)?;
-    if let Err(e) = std::fs::rename(&tmp, path) {
-        let _ = std::fs::remove_file(&tmp);
-        return Err(SettingsError::Io(format!("rename {} -> {}: {e}", tmp.display(), path.display())));
-    }
-    Ok(())
 }
 
 #[cfg(test)]

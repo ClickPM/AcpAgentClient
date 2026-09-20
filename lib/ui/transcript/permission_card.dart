@@ -94,7 +94,7 @@ class _PermissionCardState extends State<PermissionCard> {
   void _openScope() {
     _scopeMenu.show(
       // OverlayPortal 每帧重建 overlay child，builder 直接读当前状态。
-      (_) => PermissionScopeMenu(options: _options, selectedId: _scope?.optionId, onPick: _pickScope),
+      (_) => _PermissionScopeMenu(options: _options, selectedId: _scope?.optionId, onPick: _pickScope),
       targetAnchor: Alignment.bottomRight,
       followerAnchor: Alignment.topRight,
       onDismiss: () {
@@ -237,8 +237,8 @@ class _PermissionCardState extends State<PermissionCard> {
 
 /// 范围下拉：每项 = 名称 + kind（mono meta）；选中项 surface 底 + accent 对勾。
 /// 由 [PermissionCard] 挂到 Overlay 上；公开只为画板对照页能单独摆一份静态样张。
-class PermissionScopeMenu extends StatelessWidget {
-  const PermissionScopeMenu({super.key, required this.options, required this.selectedId, required this.onPick});
+class _PermissionScopeMenu extends StatelessWidget {
+  const _PermissionScopeMenu({required this.options, required this.selectedId, required this.onPick});
 
   final List<PermissionOptionWire> options;
   final String? selectedId;

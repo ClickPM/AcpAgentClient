@@ -222,7 +222,7 @@ class AuthMethodPicker extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Padding(padding: const EdgeInsets.only(top: t.Spacing.s4), child: RadioDot(selected: selected)),
+              Padding(padding: const EdgeInsets.only(top: t.Spacing.s4), child: _RadioDot(selected: selected)),
               const SizedBox(width: t.Spacing.s8),
               Expanded(
                 child: Column(
@@ -250,8 +250,8 @@ class AuthMethodPicker extends StatelessWidget {
 }
 
 /// 单选圆（画板 52）：14 圆环，选中时 accent 边 + 6 圆点。
-class RadioDot extends StatelessWidget {
-  const RadioDot({super.key, required this.selected});
+class _RadioDot extends StatelessWidget {
+  const _RadioDot({required this.selected});
 
   final bool selected;
 
