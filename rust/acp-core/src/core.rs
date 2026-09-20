@@ -124,6 +124,19 @@ impl Core {
         // 事件先过一遍日志（`logs/acp-<日期>.log`，docs/design.md § 10），再到桥的 sink。
         let logging = Arc::new(LoggingSink::new(sink, data_dir.join("logs")));
         let log_path = logging.log_path().to_path_buf();
+        // 每次起核心写一行版本与构建信息（R8）。sidecar 那半段是装机排障的第一问：随包了没有。
+        logging.banner(&format!(
+            "core   {} {} ({}, {}/{}) data={} sidecar={}",
+            crate::capabilities::CLIENT_NAME,
+            env!("CARGO_PKG_VERSION"),
+            if cfg!(debug_assertions) { "debug" } else { "release" },
+            std::env::consts::OS,
+            std::env::consts::ARCH,
+            data_dir.display(),
+            crate::builtin::sidecar_path()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| "none".to_owned()),
+        ));
         let sink: Arc<dyn EventSink> = logging;
         // SDK 的 dispatch 链在 debug 构建里每条入站消息要约 0.5 MiB 栈（Zed 实测），worker 栈给足。
         let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -723,6 +736,33 @@ mod tests {
         assert_eq!(p1["pong"], "a");
         assert_eq!(p1["sequence"], 1);
         assert_eq!(p2["sequence"], 2);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn startup_banner_records_version_and_paths() {
+        // R8：画板 70 没有版本位，版本与构建信息只进日志（docs/design.md § 10）。
+        let sink = Arc::new(RecordingSink::default());
+        let dir = std::env::temp_dir().join(format!("acp-core-banner-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let core = Core::new(&dir, sink).expect("core");
+        let log = core.log_path().to_path_buf();
+        // 写盘在独立线程上：放掉 core 让 sender 析构、线程收尾，再读。
+        drop(core);
+        let mut text = String::new();
+        for _ in 0..40 {
+            if let Ok(s) = std::fs::read_to_string(&log)
+                && s.contains(crate::capabilities::CLIENT_NAME)
+            {
+                text = s;
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        let first = text.lines().next().unwrap_or_default();
+        assert!(first.contains(env!("CARGO_PKG_VERSION")), "no version in banner: {first}");
+        assert!(first.contains(&dir.display().to_string()), "no data dir in banner: {first}");
+        assert!(first.contains("sidecar="), "no sidecar field in banner: {first}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

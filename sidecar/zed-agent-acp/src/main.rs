@@ -55,7 +55,13 @@ fn main() -> ExitCode {
 
     match args.first().map(String::as_str) {
         Some("--version") => {
-            println!("zed-agent-acp {}", env!("CARGO_PKG_VERSION"));
+            // 版本跟 zed 钉版本走、不跟应用走（R8，见 Cargo.toml 的 version 注释），所以这里把
+            // 钉的 commit 一并打出来：光一个 1.21.0 说不清包的是哪一版 zed。
+            println!(
+                "zed-agent-acp {} (zed @ {})",
+                env!("CARGO_PKG_VERSION"),
+                env!("ZED_PINNED_COMMIT")
+            );
             ExitCode::SUCCESS
         }
         Some("--help") | Some("-h") => {

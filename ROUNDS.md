@@ -29,7 +29,7 @@
 | R6 | 会话生命周期（list / load / resume / close / delete）、modes 回退、五 agent 全通矩阵收口 | 41（会话菜单与删除确认）、04 复核 | pi-acp + 全部五个 | R4、R5 | M |
 | R7 | zed-agent-acp sidecar | （无新画板；41 新建会话列表出现 Zed Agent） | Zed 内置 agent | R3；建议在 R6 后 | XL |
 | R7.5 | 组合根拆分：`lib/app/workbench_controller.dart`（2645 行单类）拆成组合根 + 8 个对象，行为零变化，`lib/ui` / `lib/theme` / `lib/projection` 零 diff | —（无画板） | fake-agent（无头等价）+ dsh、claude-agent-acp 各一次真跑 | R7、画板 43、R7.6 已合入 main（5a001bf） | L |
-| R8 | 打包与发布：Windows zip + 安装器、macOS、LICENSE、干净机验收 | 01 状态 2（首次启动） | 全部 | R6、R7 | M |
+| R8 | 打包与发布：sidecar 版本解耦、Windows zip + 安装器、产物自动化验收（macOS 挪到后续一轮） | 01 状态 2（首次启动） | 全部 | R6、R7 | M |
 
 体量只是相对量（S < M < L < XL），不是工时承诺。R7 只依赖 R1 与 R3，若 Zed 构建环境先就绪可提前，但冷编译 30–60 分钟且与主程序无耦合，默认放在 R6 之后。
 
@@ -349,23 +349,29 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 
 **目标**：Windows 免安装 zip 与安装器，sidecar 随包；macOS 构建；LICENSE 与派生文件清单；在只有系统 Node 的干净 Windows 上，从 registry 安装到发出第一条 prompt 不看文档（`docs/requirements.md` 验收视角）。
 
-**交付物**
+**2026-09-20 起按所有者指示拆两步做**：**R8 Windows 端**（本轮，任务卡 `rounds/round-08/round-08.md`）＝ 版本解耦 + Windows 打包与产物验收；**macOS / Linux 留给后续一轮**（`flutter build macos`、原生 traffic lights、sidecar install 规则）。
 
-- `scripts/build.ps1` 扩到打包：zip + 安装器（Inno Setup 或 MSIX，裁定）；版本号与构建信息进 70 的数据目录块旁（若设计稿没有就只进日志）。
-- macOS：`flutter build macos`、原生 traffic lights 替代自绘窗口控制、sidecar install 规则；Linux 尽量。
-- `LICENSE`（GPL-3.0-or-later）+ `NOTICE`（Zed 派生文件清单：路径、来源、commit，由 validate 的头注释扫描生成）。
-- README 的「状态」与「本地开发」更新。
+**交付物（Windows 端）**
+
+- **sidecar 版本与应用解耦**（本轮新增，起因是发一次应用版本要白等一刻钟的重链）：`sidecar/zed-agent-acp/Cargo.toml` 的 `version` 改为跟 **zed 钉版本**走（`pins/upstream.json` 的 zed 条目新增 `version` 字段），`scripts/validate.ps1` 加「版本门」核对四个数，落 CLAUDE.md **规则 11**；`--version` 输出带钉的 zed commit（`build.rs` 注入 `ZED_PINNED_COMMIT`）。
+- `scripts/package.ps1`（**没有**扩进 `build.ps1`，见任务卡「偏离」）：zip（含 / 不含 sidecar）+ Inno Setup 安装器 → `dist/`；`packaging/windows/acp-agent-client.iss` 是 per-user、不签名的安装器脚本。
+- `scripts/verify-package.ps1`：打包产物的自动化验收（空 `%APPDATA%` 上无头往返、随包 sidecar `--version` / `--selftest`、安装器静默装 → 跑 → 静默卸）。
+- 版本号与构建信息：画板 70 没有版本位，按规则 3 **只进日志** —— 起核心时写一行 `core  AcpAgentClient <版本> (release, windows/x86_64) data=… sidecar=…`（`rust/acp-core/src/{log.rs,core.rs}`，落 `docs/design.md` § 10）。
+- `LICENSE`（GPL-3.0-or-later）+ `NOTICE`（Zed 派生文件清单）已随 v1.0.0 落地；本轮把 `NOTICE` 与头注释扫描的**双向**一致核对加进 validate，并让两份文件随包分发。
+- README 的「状态」与「构建与运行」更新（加打包段与版本号两处的说明）。
 
 **验收要点**
 
-1. 干净 Windows VM（只装系统 Node）：解压 / 安装 → 首次启动 01 状态 2 → Agents 面板安装 claude-agent-acp → 认证 → 第一条 prompt；全程不看文档，步骤与耗时记任务卡。
+1. ~~干净 Windows VM~~ → 所有者裁定 2026-09-20「只做自动化」：`verify-package.ps1` 在**全新空数据目录**上跑通 zip 与安装器两条路（真·干净 VM 不列为待办）。
 2. zip 与安装器体积、含 sidecar 与不含 sidecar 两个数字。
-3. macOS：dsh 与 claude-agent-acp 各一轮；窗口控制用原生。
-4. `validate.ps1` 全绿；`NOTICE` 与头注释扫描一致。
+3. ~~macOS~~ → 挪到后续一轮。
+4. `validate.ps1` 全绿；`NOTICE` 与头注释扫描一致（本轮起由 validate 双向核对）。
+5. 版本解耦成立：抬应用版本后 `build-sidecar.ps1` 判 fresh、不重链（数字记任务卡）。
 
-**裁定（开工前）**：安装器形态（Inno Setup 免签 / MSIX 需签名）；是否同时发 macOS。
+**裁定（2026-09-20，所有者）**：sidecar 版本**跟 zed 钉版本走**；干净机验收**只做自动化**；安装器 **Inno Setup · per-user**（免 UAC、不签名）；本轮只做 Windows 端。
 
-**契约变更**：无。
+**契约变更**：无（CLAUDE.md 加规则 11 是开发约定，不是线上契约）。
+
 
 ## 4. 五 agent 全通矩阵（R6 收口）
 
@@ -442,4 +448,4 @@ R6 的逐格证据（报告 JSON 路径、能力声明、重放 digest 比对、
 | R7.6 | 已完成 | `font-switching`（worktree `AcpAgentClient-fonts`） | —（设计稿待补，见下） | — | 3 轮 / cursor CLI `cursor-grok-4.6-high`（第 1 轮全量 `main...HEAD`：3 条 high 1 / P2 2，全部采纳整改；第 2 轮全量复审：**0 条**；第 3 轮合并 `main`（画板 43）之后再全量：**0 条**） | 字体切换四轴（界面西文 / 界面中文 / 代码等宽西文 / 代码等宽中文），所有者裁定 2026-09-20「字体属聚合物 + 随包直选 + 两组互不重叠的下拉」；任务卡 `rounds/round-7.6/round-7.6.md`；validate 全绿（281 测试）；第 1 轮审查抓到 high 1 条：`CardText` 等 14 个 `static final` 样式缓存会把 family 冻在首次访问那一刻，导致「全局生效」原本是假的（自测只断言 `TextStyles.*` 故假通过），已改 getter 并加扫源码的回归测试；**画板 70 的「外观」小节属实现先行、设计稿待补**；随包字体文件需所有者本人下载后放 `assets/fonts/optional/`（协议的点击同意不可由工具绕过），在此之前验收 9 待完成 |
 | Thread → Session 收敛 | 已完成 | `claude/thread-to-session-unify-fb9f63` | —（设计稿待补，见 BACKLOG） | — | —（所有者指定直接合并，未走独立审查） | UI 文案与前端 Dart 符号从 `Thread` 统一收敛为 `Session`（中文「会话」）：默认会话标题 `New <agent> Thread` → `New <agent> Session`、`+` 弹层 `Threads` → `Sessions`；`ThreadHeader` / `NewThreadEmpty` / `ThreadMenuPopover` / `ThreadHeaderRunning` → `SessionHeader` / `NewSessionEmpty` / `SessionMenuPopover` / `SessionHeaderRunning`（`lib/ui/shell/thread_header.dart` → `session_header.dart`）、`threadTitle` → `sessionTitle`、`threadMenuAnchor` → `sessionMenuAnchor`、`WorkbenchColumn.threadHeader` → `sessionHeader`、`+` 加入的转录 URI `acp-thread:` → `acp-session:`；注释与文档里的「线程头 / 线程区」改「会话头 / 会话区」。起因是协议层与状态层本就是 `session/*`、中文文案本就是「会话」，只有临摹 Zed 原型留下的几处英文还写着 `Thread`。零布局 / 零 token 值改动（`tokens.dart` 只动一行注释），31 文件 +166 -165；validate 13 项全绿、`flutter test` 319 项通过、`flutter analyze` 0 error 0 warning。Zed 上游的 `ThreadEvent` / `ThreadStore` / `threads.db` / `acp_thread.rs` 不在收敛范围。**画板 00 / 01 / 02 / 03 / 06 / 31 / 40 / 50 / 60 / 61 仍是旧文案，属实现先行**，注记记 BACKLOG「设计稿补注记（Thread → Session 收敛）」；**未构建 / 未审查（所有者指定）** |
 | R7.5 | 已完成，2026-09-20 合入 main（`05a2e4a`，随 v1.3.0 发布）；验收 8 真跑与验收 9 手测待所有者 | `claude/r7-5-composition-root-refactor-7600bf`（独立 worktree，基线 `f62520f`；`round-7.5` 收口时 fast-forward 到它） | —（无画板阶段） | — | 3 轮 / cursor CLI `cursor-grok-4.6-high-fast`（第 1 轮全量 `main...HEAD` 到第 6 步：**0 条**；第 2 轮全量到第 9 步：**0 条**；第 3 轮 `fd5b7a9..HEAD` 合并 main 之后：**0 条**；第 4 轮合 main@32d372f 后按所有者指示本会话自审：合并本身 0 条，main 那两个直改提交 1 条 P3 记 BACKLOG） | 任务卡 `rounds/round-7.5/round-7.5.md`；9 步各一个提交，每步 validate 全绿 + 三份 fake-agent 无头报告与基线逐步骤等价（比对脚本随基线入库）；拆完组合根 356 行、`lib/app` 九个新文件（thread 848 / shell 348 / turn 345 / composer 327 / agents 317 / auth 288 / workspace 196 / index 144 / guarded 50）；validate 加行数门与依赖方向门（13 → 15 项）；阶段 B 只量不动（一次 batch 壳级 build = 1，不触发，数字记 BACKLOG）；不修 BACKLOG 缺陷，17 条相关条目已各补新家，缺陷轮开 R7.7。main 的后续 11 个提交（Thread → Session 收敛 `44d256d`、画板 07 深色模式 `1420556`、v1.2.0 `7c9c592`）已于 2026-09-20 按所有者指示合进本分支（合并提交 `4e17300`，解冲突脚本 `rounds/round-7.5/merge-main-7c9c592.py`；validate 15 项全绿、三份无头报告与 main@7c9c592 的构建等价、第 3 轮审查 **0 条**；同日再合 main@32d372f 的两个 main 直改提交，无冲突，合并提交 `97ebfe8`，自审 1 条 P3 记 BACKLOG）；`ThreadController` 已按裁定改名 `SessionController`（2026-09-20） |
-| R8 | 未开始 | `round-08` | — | — | — | 前置 R7 已完成；打包时注意 sidecar 体积（release 176.7 MB） |
+| R8（Windows 端） | 已完成，待审查与合并 | `round-08` | —（无画板阶段） | — | 待填 | 任务卡 `rounds/round-08/round-08.md`；9 项验收全有证据：sidecar 版本解耦（改 version 重链 14 m 16 s → 抬应用版本 1.51 s fresh）、版本门（含负面测试）、三件产物（zip 110.3 / 46.7 MB、安装器 79.0 MB）、`verify-package.ps1` 四条全 PASS、日志 banner、NOTICE 双向核对、validate 16 项全绿；偏离：打包是独立的 `package.ps1` 而非扩 `build.ps1`（理由记任务卡）；macOS / Linux 挪到后续一轮 |

@@ -96,7 +96,9 @@ try {
         if ($bad) { throw ("_meta lines with literal keys (use acp_core::meta_keys):`n" + (($bad | ForEach-Object { "$($_.Path):$($_.LineNumber): $($_.Line.Trim())" }) -join "`n")) }
     }
 
-    Step "Zed 派生文件头注释 (规则 5)" {
+    Step "Zed 派生文件头注释与 NOTICE 一致 (规则 5)" {
+        # 头注释扫描（规则 5）+ R8 验收 4：扫出来的每个派生文件都要在 NOTICE 第 1 节里列着，
+        # NOTICE 里列的源码文件也都要真的存在且带头注释 —— 两边任一方向漏掉都算过期。
         $pins = Get-Content (Join-Path $root "pins/upstream.json") -Raw -Encoding UTF8 | ConvertFrom-Json
         $zed = ($pins.upstream | Where-Object { $_.name -eq "zed" }).commit
         $files = @()
@@ -111,12 +113,59 @@ try {
             $mentions = $body -match 'zed-industries/zed' -or $body -match 'Derived from'
             if ($head -match 'Derived from zed-industries/zed (\S+) @ ([0-9a-f]{7,40})') {
                 if ($zed -notlike ($Matches[2] + "*")) { throw "$($f.FullName): derived-from commit $($Matches[2]) != pinned zed $zed" }
-                $derived += "$($f.FullName) <- $($Matches[1])"
+                $rel = $f.FullName.Substring($root.Length).TrimStart('\', '/') -replace '\\', '/'
+                $derived += $rel
             } elseif ($mentions) {
                 throw "$($f.FullName) mentions Zed sources but lacks the 'Derived from zed-industries/zed <path> @ <commit>' header"
             }
         }
-        Write-Host ("derived files: " + $derived.Count)
+        $noticePath = Join-Path $root "NOTICE"
+        if (-not (Test-Path $noticePath)) { throw "NOTICE is missing (GPL redistribution: 见 README「许可证」)" }
+        $notice = Get-Content $noticePath -Raw -Encoding UTF8
+        if ($notice -notmatch [regex]::Escape($zed)) { throw "NOTICE does not name the pinned zed commit $zed" }
+        $missing = $derived | Where-Object { $notice -notmatch [regex]::Escape($_) }
+        if ($missing) { throw ("derived files missing from NOTICE:`n" + ($missing -join "`n")) }
+        # NOTICE 第 1 节的「<本仓库路径> <- <zed 路径>」行反向核对。
+        $listed = [regex]::Matches($notice, '(?m)^\s{2}(\S+)\s+<-\s+(\S+)\s*$') | ForEach-Object { $_.Groups[1].Value }
+        $stale = @()
+        foreach ($p in $listed) {
+            if (-not (Test-Path (Join-Path $root $p))) { $stale += "$p (listed in NOTICE, not on disk)" }
+            elseif ($p -match '\.(rs|dart)$' -and $derived -notcontains $p) { $stale += "$p (listed in NOTICE, but has no 'Derived from' header)" }
+        }
+        if ($stale) { throw ("NOTICE is stale:`n" + ($stale -join "`n")) }
+        Write-Host ("derived files: " + $derived.Count + "; NOTICE entries: " + $listed.Count)
+    }
+
+    Step "版本门：应用两处一致、sidecar 跟 zed 钉版本 (R8)" {
+        # 发版要改的**应用**版本只有两处：pubspec.yaml 与 rust/Cargo.toml 的 [workspace.package]。
+        # sidecar 不在其列（所有者裁定 2026-09-20）：它的版本跟 pins 里的 zed 走，改一次要全量重链约 15 分钟，
+        # 而发应用版本根本不动 sidecar 的源码。三方（pins / vendor 里的 zed manifest / sidecar manifest）必须一致。
+        $pubspec = Get-Content (Join-Path $root "pubspec.yaml") -Raw -Encoding UTF8
+        if ($pubspec -notmatch '(?m)^version:\s*(\d+\.\d+\.\d+)\+(\d+)\s*$') { throw 'pubspec.yaml has no version: X.Y.Z+N line' }
+        $appVersion = $Matches[1]
+        $rustToml = Get-Content (Join-Path $root "rust/Cargo.toml") -Raw -Encoding UTF8
+        if ($rustToml -notmatch '(?ms)\[workspace\.package\].*?^version\s*=\s*"([^"]+)"') { throw "rust/Cargo.toml has no [workspace.package] version" }
+        if ($Matches[1] -ne $appVersion) { throw "app version mismatch: pubspec.yaml $appVersion vs rust/Cargo.toml $($Matches[1])" }
+
+        $pins = Get-Content (Join-Path $root "pins/upstream.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+        $zedPin = $pins.upstream | Where-Object { $_.name -eq "zed" }
+        if (-not $zedPin.version) { throw 'pins/upstream.json: the zed entry has no version field' }
+        $sidecarVersion = "(no sidecar)"
+        $sidecarToml = Join-Path $root "sidecar/zed-agent-acp/Cargo.toml"
+        if (Test-Path $sidecarToml) {
+            $sidecar = Get-Content $sidecarToml -Raw -Encoding UTF8
+            if ($sidecar -notmatch '(?ms)^\[package\].*?^version\s*=\s*"([^"]+)"') { throw "sidecar Cargo.toml has no [package] version" }
+            $sidecarVersion = $Matches[1]
+            if ($sidecarVersion -ne $zedPin.version) { throw "sidecar version $sidecarVersion != pinned zed version $($zedPin.version) (改 zed 钉版本时一起改；发应用版本时别动它)" }
+            if ($sidecarVersion -eq $appVersion) { throw "sidecar version equals the app version ($appVersion) -- 版本解耦被改回去了？sidecar 跟 zed 钉版本走（R8）" }
+            $zedManifest = Join-Path $root "vendor/upstream/zed/crates/zed/Cargo.toml"
+            if (Test-Path $zedManifest) {
+                $zedToml = Get-Content $zedManifest -Raw -Encoding UTF8
+                if ($zedToml -notmatch '(?m)^version\s*=\s*"([^"]+)"') { throw "vendor zed manifest has no version" }
+                if ($Matches[1] -ne $zedPin.version) { throw "pins zed version $($zedPin.version) != vendor/upstream/zed $($Matches[1])" }
+            }
+        }
+        Write-Host ("app " + $appVersion + "; sidecar " + $sidecarVersion + " (zed pin)")
     }
 
     Step "pubspec.yaml 依赖 ⊆ 白名单 (规则 1)" {

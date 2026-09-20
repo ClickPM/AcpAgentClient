@@ -27,6 +27,13 @@ impl LoggingSink {
     pub fn log_path(&self) -> &Path {
         &self.writer.path
     }
+
+    /// 启动横幅：版本与构建信息（R8 交付物）。ROUNDS 原定它进画板 70 的数据目录块旁，但画板 70
+    /// 没有版本位，设计稿没有的不画（CLAUDE.md 规则 3），所以只进这里 —— 装机报障时第一眼要看的
+    /// 「哪个版本、哪种构建、sidecar 随没随包」全在这一行。
+    pub fn banner(&self, text: &str) {
+        self.writer.line(text);
+    }
 }
 
 impl EventSink for LoggingSink {
