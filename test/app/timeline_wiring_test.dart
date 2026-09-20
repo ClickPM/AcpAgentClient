@@ -11,6 +11,7 @@ import 'package:acp_agent_client/ui/transcript/icons.dart';
 import 'package:acp_agent_client/ui/transcript/transcript_list.dart';
 import 'package:acp_agent_client/ui/transcript/user_message.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../gallery_harness.dart';
@@ -46,6 +47,12 @@ void _converse(SessionStore store, int turns) {
   }
 }
 
+/// 最近一次 [_pumpShell] 用的假核心（断言「有没有真发出去 prompt」用）。
+late FakeCore _core;
+
+Future<(WorkbenchController, SessionStore)> _pumpShellWithCore(WidgetTester tester, {int turns = 8}) =>
+    _pumpShell(tester, turns: turns);
+
 Future<(WorkbenchController, SessionStore)> _pumpShell(WidgetTester tester, {int turns = 8, bool withSession = true}) async {
   tester.view.physicalSize = const Size(1200, 800);
   tester.view.devicePixelRatio = 1;
@@ -54,6 +61,7 @@ Future<(WorkbenchController, SessionStore)> _pumpShell(WidgetTester tester, {int
   await tester.runAsync(precacheIcons);
 
   final core = FakeCore();
+  _core = core;
   final c = WorkbenchController(source: DataSource.bridge, bridge: core, scheduler: WorkbenchController.scheduleOnMicrotask)
     ..agentId = _agent;
   addTearDown(c.dispose);
@@ -131,6 +139,48 @@ void main() {
     await tester.tapAt(tester.getCenter(_list));
     await _settle(tester);
     expect(tester.widgetList<UserMessage>(find.byType(UserMessage)).where((w) => w.focused), isEmpty);
+  });
+
+  // 发布前审查 P2（2026-09-20，cursor）：弹层原来用 `HardwareKeyboard` 全局处理器接键、不抢输入框焦点，
+  // 而那条路**挡不住焦点链**（全局处理器跑完，同一下按键还会无条件发给焦点链）。于是弹层开着时那一下
+  // Enter 照样被输入框当成「发送」，把没写完的草稿发了出去。改成弹层自己拿焦点。
+  testWidgets('刚打开还没高亮时按 Enter：不发草稿，也不跳', (tester) async {
+    final (c, _) = await _pumpShellWithCore(tester, turns: 3);
+    // 真实路径是「用户正打着字 → 输入框有焦点 → 点 history 开弹层」：按钮是 Hoverable / GestureDetector，
+    // 点它不夺焦点，所以开着弹层时焦点仍在输入框上。测试里必须把这一步做出来，否则焦点链是空的、复现不出来。
+    c.composer.text = '还没写完的草稿';
+    c.composerFocus.requestFocus();
+    await tester.pump();
+    expect(c.composerFocus.hasFocus, isTrue, reason: '这条测试的前提');
+    await _openTimeline(tester);
+    expect(c.composerFocus.hasFocus, isFalse, reason: '弹层开着时键盘归它（关掉会还回去，见下一条）');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await _settle(tester);
+
+    expect(_core.prompts, isEmpty, reason: '这一下 Enter 必须被弹层吃掉，不能落到输入框');
+    expect(c.composer.text, '还没写完的草稿', reason: '草稿原样留着');
+    expect(find.byType(SessionTimelinePopover), findsOneWidget, reason: '没有高亮就什么也不做，弹层照常开着');
+
+    // 同一个根因的另一半：方向键也不该串到输入框里去移动光标。
+    c.composer.selection = const TextSelection.collapsed(offset: 3);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await _settle(tester);
+    expect(c.composer.selection.baseOffset, 3, reason: '光标不该被方向键挪走');
+  });
+
+  testWidgets('弹层关掉后焦点还回输入框（用户能接着打字）', (tester) async {
+    final (c, _) = await _pumpShellWithCore(tester, turns: 3);
+    c.composerFocus.requestFocus();
+    await tester.pump();
+    await _openTimeline(tester);
+    expect(c.composerFocus.hasFocus, isFalse, reason: '开着时键盘归弹层');
+
+    await tester.tapAt(tester.getCenter(_list));
+    await _settle(tester);
+
+    expect(find.byType(SessionTimelinePopover), findsNothing);
+    expect(c.composerFocus.hasFocus, isTrue, reason: '关掉要把焦点还回去，不然得再点一下才能打字');
   });
 
   testWidgets('点弹层之外关掉它，按钮的选中容器跟着撤', (tester) async {

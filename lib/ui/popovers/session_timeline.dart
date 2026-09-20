@@ -72,16 +72,32 @@ class SessionTimelinePopover extends StatefulWidget {
 
 class _SessionTimelinePopoverState extends State<SessionTimelinePopover> {
   final ScrollController _scroll = ScrollController();
+
+  /// 弹层开着时键盘焦点归它。
+  ///
+  /// **不能像 `EscapeDismissible` 那样走 `HardwareKeyboard` 的全局处理器**：那条路**挡不住焦点链** ——
+  /// `KeyEventManager` 先跑全部全局处理器，随后**无条件**再把同一下按键发给焦点链，两个结果只是或起来
+  /// 回给平台（flutter/lib/src/services/hardware_keyboard.dart 的 `handleRawKeyMessage`）。于是弹层开着时
+  /// 那一下 Enter 照样落到输入框的 `Focus` 上被当成「发送」，把没写完的草稿发出去（发布前审查 P2，2026-09-20；
+  /// 审查给的「Enter 也返回 true」按这个分发顺序是修不掉的）。方向键同理，会连带移动输入框里的光标。
+  /// Esc 仍由 `EscapeDismissible` 的全局处理器管，它不与输入框争这个键。
+  final FocusNode _focus = FocusNode(debugLabel: 'session-timeline');
+
+  /// 打开前握着焦点的那个节点（多半是输入框）：关掉时还回去，免得用户得再点一下才能接着打字。
+  FocusNode? _restoreFocusTo;
   late List<TimelineRow> _rows = timelineRows(widget.turns);
   late int _selected = widget.initialSelection;
 
   @override
   void initState() {
     super.initState();
-    // 上下键与 Enter 走全局按键处理器而不是 `Focus`：弹层里没有输入框，autofocus 会把焦点从输入框抢走，
-    // 关掉之后用户得再点一下才能继续打字。理由与 `EscapeDismissible` 那一条相同（弹层是临时表面，
-    // 开着的时候吃掉方向键是对的），登记与注销跟着这一层挂载 / 卸载走。
-    HardwareKeyboard.instance.addHandler(_onKey);
+    _restoreFocusTo = FocusManager.instance.primaryFocus;
+    // 显式抢焦点，不靠 `autofocus`：弹层挂在 `OverlayPortal` 的 overlay 子树里、自成一个焦点域，
+    // 而 `autofocus` 只在**所在域自己拿到焦点时**才兑现 —— 输入框的焦点在另一个域里，这个域一直没被选中，
+    // 于是 autofocus 永远不生效，输入框照样握着键盘（实测）。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focus.requestFocus();
+    });
     if (widget.scrollToBottomOnOpen) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_scroll.hasClients) return;
@@ -105,33 +121,41 @@ class _SessionTimelinePopoverState extends State<SessionTimelinePopover> {
 
   @override
   void dispose() {
-    HardwareKeyboard.instance.removeHandler(_onKey);
+    final restore = _restoreFocusTo;
+    _focus.dispose();
     _scroll.dispose();
+    // 焦点还回去要等这一帧收完：这会儿 `_focus` 刚被拆掉，焦点管理器还在重新挑主焦点。
+    if (restore != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (restore.context != null) restore.requestFocus();
+      });
+    }
     super.dispose();
   }
 
-  bool _onKey(KeyEvent event) {
-    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return false;
-    if (_rows.isEmpty) return false;
+  /// 这四个键**只要弹层开着就一律吃掉**，哪怕这一下什么也不做（没有高亮时 Enter 就是什么也不做）：
+  /// 放行等于把它交回给下面的输入框，而那边 Enter 是「发送」。
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return KeyEventResult.ignored;
     switch (event.logicalKey) {
       case LogicalKeyboardKey.arrowDown:
         _move(1);
-        return true;
+        return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowUp:
         _move(-1);
-        return true;
+        return KeyEventResult.handled;
       case LogicalKeyboardKey.enter:
       case LogicalKeyboardKey.numpadEnter:
-        if (_selected < 0 || _selected >= _rows.length) return false;
-        widget.onJump?.call(_rows[_selected]);
-        return true;
+        if (_selected >= 0 && _selected < _rows.length) widget.onJump?.call(_rows[_selected]);
+        return KeyEventResult.handled;
       default:
-        return false;
+        return KeyEventResult.ignored;
     }
   }
 
   /// 打开那一下没有高亮，所以第一次按下键从第一行起、按上键从最后一行起；之后夹在两端不回绕。
   void _move(int delta) {
+    if (_rows.isEmpty) return;
     final next = _selected < 0
         ? (delta > 0 ? 0 : _rows.length - 1)
         : (_selected + delta).clamp(0, _rows.length - 1);
@@ -142,6 +166,15 @@ class _SessionTimelinePopoverState extends State<SessionTimelinePopover> {
   @override
   Widget build(BuildContext context) {
     final maxHeight = widget.maxHeight ?? MediaQuery.sizeOf(context).height * t.Timeline.maxHeightFactor;
+    return Focus(
+      focusNode: _focus,
+      autofocus: true,
+      onKeyEvent: _onKey,
+      child: _popover(maxHeight),
+    );
+  }
+
+  Widget _popover(double maxHeight) {
     return Popover(
       radius: t.Radii.card,
       padding: const EdgeInsets.all(t.Spacing.s4),

@@ -190,13 +190,13 @@ void main() {
     expect(rail.bottom, moreOrLessEquals(lastRow.center.dy, epsilon: 1));
   });
 
-  testWidgets('弹层卸载后不再吃方向键（全局按键处理器要注销）', (tester) async {
+  testWidgets('弹层卸载后不再吃方向键（焦点节点随它一起没了）', (tester) async {
     final jumped = <TimelineRow>[];
     await pumpTimeline(tester, turns: sample(), onJump: jumped.add);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
 
-    // 没崩、也没有回调：处理器已经随卸载摘掉了。
+    // 没崩、也没有回调：拿着键的那个 Focus 已经随弹层一起卸载了。
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pump();
