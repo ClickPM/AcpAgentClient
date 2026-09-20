@@ -25,6 +25,7 @@ AcpAgentClient/
 ├── docs/                                  background / requirements / research / design / acp-projection / review-workflow
 ├── design/                                设计稿与简报：design/round-NN/{input/（交给 Claude Design 的简报与附件）, canvas.json, NN-<画板>.dc.html, NN-<画板>.png}
 │                                          + design/README.md 画板索引（编号 / 名称 / .dc.html / PNG / 画布 URL）
+│                                          + design/DIVERGENCE.md 画板与实现的偏离清单（这几处以实现为准，不要求补稿）
 │                                          + design/brand/（应用图标 app-icon.svg 与标记来源；不是画板，见 design/brand/README.md）
 ├── rounds/                                README（目录约定）/ TEMPLATE（任务卡模板）/ BACKLOG
 │                                          + rounds/round-NN/{round-NN.md, BLOCKED.md}
@@ -75,14 +76,14 @@ AcpAgentClient/
 - **审查边界**：**严禁以审查代替设计**，审查是缺陷门禁，不负责长出方案；findings 若指向设计缺陷，停下回任务卡 / 所有者层面重定方案。**非严重阻塞性 findings 严禁新增机制类修复**（新队列 / 新协议 / 新抽象 / 新配置 / 新导出面）：只允许最小改动（改判断、改文案、删代码）或写明理由记 BACKLOG；机制类修复仅限严重阻塞性 bug / 漏洞。
 - **回落只认硬失败**（`cursor-agent` 未安装 / 未登录 / 启动失败 / 限流 / 后台进程已死而 `.out` 仍空），「等得久」「改动小」不是理由；回落原因写进任务卡。回落 = 主会话用 Agent 工具委派一个只读子代理，提示词是「读 `.claude/cursor-review-prompt.md`，把 `{{RANGE}}` 当作 `<范围>`、`{{NOTE}}` 当作 `<要点>` 执行，只输出结论不改文件」；范围口径不变（前两轮 `main...HEAD`，第 3 轮起 `<上一轮已审提交>..HEAD`）。
 - 同一验收项针对性整改后连续 2 次仍不过 → 写 `rounds/round-NN/BLOCKED.md` 停下呼人，禁止放宽验收（rounds/README.md）。
-- 分支：每轮在 `round-NN` 分支开发，审查通过后合并 `main`；纯文档与微修可直接 `main`。R7 合并后（2026-09-17 起）所有者手测报障的修复也直接在 `main` 上做：每批是否构建、是否走独立审查由所有者逐批指示，不走的在提交说明里写明「未构建 / 未审查（所有者指定）」；走审查的按同一套缺陷门禁（发布前审查 → 整改 → 复审）。这一段的汇总在 `ROUNDS.md` § 7「main 直改」行；设计稿因此滞后的项记 `rounds/BACKLOG.md`「设计稿补注记」条目，下个设计轮补稿并重出 PNG。
+- 分支：每轮在 `round-NN` 分支开发，审查通过后合并 `main`；纯文档与微修可直接 `main`。R7 合并后（2026-09-17 起）所有者手测报障的修复也直接在 `main` 上做：每批是否构建、是否走独立审查由所有者逐批指示，不走的在提交说明里写明「未构建 / 未审查（所有者指定）」；走审查的按同一套缺陷门禁（发布前审查 → 整改 → 复审）。这一段的汇总在 `ROUNDS.md` § 7「main 直改」行；设计稿因此滞后的项记 [`design/DIVERGENCE.md`](design/DIVERGENCE.md)（规则 3，**不要求补稿**），不再进 `rounds/BACKLOG.md`。
 - 跨轮次发现的问题写 `rounds/BACKLOG.md`，不当场顺手改。
 
 ## 硬性规则
 
 1. **依赖白名单。** 实现层只允许来自：官方协议仓库（规范 + `schema/v1`）、官方 `rust-sdk`、官方 `registry`、`zed-industries/zed`、五个 agent（claude-agent-acp、codex-acp、Cursor CLI ACP 文档、pi-acp、dsh-acp-interactive）。**任何实现了 ACP 客户端、agent 会话状态或会话 UI 的第三方库一律不引入**（acp-components、acp-ui、pi-web 等已被裁定排除）。通用库允许清单：Rust 侧 tokio、serde、serde_json、reqwest、sha2、portable-pty、notify、flutter_rust_bridge；Dart 侧 Flutter SDK 自带的 Material / Cupertino、flutter_rust_bridge、xterm、url_launcher、file_selector、flutter_svg（内联图标与 registry `icon.svg`，所有者裁定 2026-09-15）、以及 R1.5 spike 裁定的六项（所有者裁定 2026-09-15 按推荐项，依据 `rounds/round-1.5/spike.md`）：`markdown`（只用解析器，渲染层按画板自写）、`re_highlight`（代码高亮）、`flutter_math_fork`（数学公式）、`mermaid_flutter` + `mermaid_core`（Mermaid）、`audioplayers`（音频块）、`diffutil_dart`（即「一个 diff 库」）。传递依赖不算引入（`flutter_math_fork` 带来的 `provider` 不得在我们的代码里 import），`scripts/validate.ps1` 只核对 `pubspec.yaml` 的直接依赖；为工具链兼容而加的 `dependency_overrides` 要在 pubspec 注释里写明原因与解除条件（首例 `objective_c` 9.4.1，见「本地开发」）。清单之外新增通用库要在任务卡写明理由；**不引第三方 UI 组件库与状态管理库**（shadcn_ui / GetWidget / fluent_ui、riverpod / bloc / getx 及同类），组件全部从画板手写，状态用 SDK 自带的 `ChangeNotifier` / `Stream`。界定有疑问时按 `docs/requirements.md` 第 8 条，仍有疑问问所有者。
 2. **严格 ACP 投影。** 前端只消费 ACP 线上消息的原样 JSON（契约见 `docs/design.md` § 3）；不自造第二套协议；前端不做任何 agent 特判；`_meta` 只允许 `docs/design.md` § 4 列出的键，增键先改文档再进所有者裁定。
-3. **设计稿是功能边界。** 设计稿（`design/` 里入库的 PNG 与索引）没有的功能不做；样式唯一来源是 `lib/theme/tokens.dart`，widget 文件里不写样式字面量；接后端只换数据源，不改布局、widget 树结构与 token，接线轮里 `tokens.dart` 与画板 widget 文件应零 diff。扩边界的唯一正确顺序是「先改设计稿（更新 PNG 与索引）、再进轮次」。
+3. **设计稿是功能边界。** 设计稿（`design/` 里入库的 PNG 与索引）没有的功能不做；样式唯一来源是 `lib/theme/tokens.dart`，widget 文件里不写样式字面量；接后端只换数据源，不改布局、widget 树结构与 token，接线轮里 `tokens.dart` 与画板 widget 文件应零 diff。扩边界的唯一正确顺序是「先改设计稿（更新 PNG 与索引）、再进轮次」。**实现与画板不一致时记 [`design/DIVERGENCE.md`](design/DIVERGENCE.md)**（所有者裁定 2026-09-20）：功能超越设计稿（画板没画、实现先做了）、画板画错或自相矛盾、实现有意少做或做不到，都在那份清单里追加一行「画板画的是什么 → 实现是什么（为什么）·（轮次, 日期）」，**不要求回补设计稿**；列进去的那几处以实现为准、PNG 不再是它们的验收基准，看画板之前先看这份清单。这一条不放开扩边界：新长出设计稿上没有的功能仍要先裁定再进轮次，DIVERGENCE 只收已经发生的既成事实。
 4. **钉版本。** `pins/upstream.json` 是上游唯一事实来源，`vendor/upstream/` 永不入库；改版本先改 pins，再改 `docs/research.md` 对应段，再 fetch。禁止在 `vendor/upstream/` 里改代码：要改就复制出来（规则 5）。
 5. **gpui 不进主进程；复用要标来源。** 主进程（Flutter 宿主进程及其加载的 `rust/` cdylib）不得依赖任何含 gpui 的 crate；需要 gpui 的东西只能放 `sidecar/`。复用 Zed 代码的三种方式（直接链接 crate / 复制后改写 / 参考转写）都要在文件头标注 `// Derived from zed-industries/zed <path> @ <commit> (GPL-3.0-or-later)`。
 6. **Rust 禁 `unsafe`。** 需要时问所有者，不自行放行。

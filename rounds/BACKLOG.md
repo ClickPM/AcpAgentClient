@@ -1,137 +1,375 @@
 # Backlog
 
 跨轮次发现的问题与想法都记这里，不当场顺手改；新功能类条目须经所有者裁定才可进轮次。
-格式：`- [ ] <发现轮次> <一句话> (发现日期)`
 
-## 功能（需所有者裁定后才可进轮次）
+**本文只留未关闭条目。** 已处理的连同结论原样移到 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md)；
+实现与画板不一致的地方（实现先行 / 画板画错 / 实现有意少做）收在 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)，
+按所有者裁定 2026-09-20 **不要求补设计稿**，本文不再重备一份（CLAUDE.md 规则 3）。
 
-- [ ] 立项 registry 的 `uvx` 分发类型：Zed 也未实现，首期不做；要做需引入 `uv` 的检测与下载 (2026-09-11)
-- [x] 立项 是否声明 `plan` 与 `session.compaction` 两个 unstable 客户端能力 → 所有者裁定 2026-09-11：**都声明**，已写进 `docs/design.md` § 4 (2026-09-11)
-- [ ] 立项 Gemini CLI 作为一等 agent：Zed 目前靠合成 terminal auth 方法过渡，等官方 auth methods 落地再议 (2026-09-11)
-- [x] round-design 子代理卡（画板 24）依赖 `_meta.claudeCode.subagent`，与规则 2「无 agent 特判」及 `docs/design.md` § 4 的 `_meta` 键清单有张力 → 所有者裁定 2026-09-15：`docs/design.md` § 4 增「入站 `_meta` 识别键」（`claudeCode.*` 三键 + `dsh_subagent`），投影层按键存在分组、不按 agent 名 (2026-09-14)
-- [x] round-design 文件树的 git 状态徽章（原型里的 `M`）不在任何文档里 → 所有者裁定 2026-09-15：保留，`git status --porcelain` 子进程得出，非 git 目录不显示；已写 `docs/design.md` § 9 (2026-09-14)
-- [ ] round-design 设置页的外观设置：**字体切换已于 R7.6 落地**（四轴，2026-09-20 所有者裁定）、**深色主题已于 2026-09-20 落地**（画板 07，切换按钮在侧栏标题条右端），**字号仍未做**；字号要先改设计稿 (2026-09-14，2026-09-20 更新)
-- [ ] **等宽里的中文宽度不是 2:1，终端面板遇到中文就错位**。等宽渲染按字符格子走，中文必须正好是拉丁的两倍宽；随包的 Noto Sans SC 汉字是全角 1em，而 Geist Mono 的 advance 约 0.6em，2×0.6 ≠ 1。**这是 R7.6 之前就存在的问题，不是字体切换引入的**。R7.6 给了出路（代码等宽中文轴可选更纱黑体 Sarasa Mono SC，它专门做了 2:1 对齐），但默认组合仍然错位。根治要么换默认的等宽 CJK 字体，要么在终端渲染层按 cell 宽度矫正 —— 都超出「加个开关」的范围，需所有者裁定 (2026-09-20)
-- [ ] 系统已装字体的**全量枚举**下拉。现在只认候选表里那几款（按文件名探测），用户装了别的字体只能手写进 `settings.json`。枚举要在 Rust 侧扫字体目录 + 解析 TTF 的 name 表拿 family 名（文件名 ≠ family 名），得新引 `ttf-parser` 之类，撞规则 1，R7.6 因此没做 (2026-09-20)
-- [ ] **「关于 / 致谢」界面**。MiSans 与 HarmonyOS Sans 的协议都要求在软件里显著注明使用了该字体，随包分发给别人之前必须有这个去处；只在本机自用时不涉及。设计稿里没有这块，要先改设计稿 (2026-09-20)
-- [ ] **设计稿补注记（R7.6）**：画板 70 缺「外观」小节的样张 —— 四行下拉（界面西文 / 界面中文 / 代码等宽西文 / 代码等宽中文），每行是「标签 + 当前值 + 下拉按钮」，本机没有该字体时这一行 muted 并多一个「去下载」按钮、注里写明回退到哪款。下个设计轮补稿并重出 PNG (2026-09-20)
-- [x] round-design 深色主题：本轮只在 `00-tokens` 出深色色阶，页面画板不出深色；何时出深色页面待裁定 (2026-09-14) → 2026-09-20 出画板 07「深色 Token 对位表」并按它落地实现；**深色页面画板（90 / 91 / 92）仍未出**，见下面那条
-- [ ] **设计稿补注记（画板 07）**：画板 07 是规格表，**切换按钮本身没画** —— 位置与形态是所有者 2026-09-20 指图定的（侧栏标题条右端，ghost 图标按钮 24 见方，浅色出月亮、深色出太阳，tooltip `Switch to dark/light mode`；月亮与太阳两个图标也不来自任何画板，按其余图标的路子画的 24 视口单线）。同一条还缺：画板 70「外观」小节里主题这一行，以及画板 07 自己写明的三张深色页面画板 **90 工作台整屏 / 91 转录卡片合集 / 92 弹层与叠色** —— 没有它们就没有深色的整屏验收基准，现在只逐 token 对过表。下个设计轮补稿并重出 PNG (2026-09-20)
-- [ ] **设计稿补注记（画板 07）**：外来 SVG（registry 的 `icon.svg` 与内置条目随包带的那两张）在深色下取什么色，画板 07 没写。实现 2026-09-20 定为 `Neutral.strong`（浅色 `n.strong` ↔ 深色 `d.strong`，与应用标记同一档），落在 `tokens.dart` 的 `SvgTint.mark`。下个设计轮在画板 07 补一行并重出 PNG (2026-09-20)
-- [ ] 画板 07 深色模式：**`const` 构造的自写 widget 在换主题后不重建**（R7.5 合并 main@32d372f 时按所有者指示自审发现，2026-09-20）。主题切换只靠 `lib/app/app.dart` 的 `ListenableBuilder` 整树重建、`t.Theming.apply` 只换颜色表；`Element.updateChild` 对 `identical` 的常量实例直接复用旧 element、不再 build，于是在 build 里读颜色 token 的 const widget 冻在切换前的颜色，直到那个 element 被重建（`0c95a84` 修的 `AppLogo` 就是这一类，但不止它一处）。探针证实：`const ToneChip` 与非 const 的孪生同树，`Theming.apply(dark)` 后重建父级，前者仍是浅色 `successSoft`。元素常驻的调用点：`lib/ui/registry/registry_entry.dart` 7 处 `ToneChip` + 2 处 `_Diamond`、`lib/ui/settings/settings_page.dart` 2 处 `ToneChip`、`lib/ui/transcript/tool_call_card.dart` `ToneChip('Canceled')`、`lib/ui/transcript/elicitation_form_card.dart` `ToneChip('Recommended')`、`card_chrome.dart` / `plan_card.dart` / `shell/composer.dart` / `turn_state.dart` 的 `Chevron`、`lib/ui/files/files_panel.dart` 的 `FileViewerEmpty`（弹层里的 `MenuDivider` / `MenuGroupLabel` / `_TimelineEmpty` 每次打开都新建，看不出来）。修法待裁定：逐处去 const（与 `AppLogo` 同一做法；`dart fix` 会把它们收回去，要加 ignore），或换主题时给 `home` 换 `ValueKey(theme)` 整树重建（丢滚动位置 / 焦点等瞬时态）。P3，视觉，不丢数据；R7.5 不动 `lib/ui`（验收 1），留给 main 直改 (2026-09-20)
-- [ ] 主题的「跟随系统」档。现在只有浅色 / 深色两档（所有者 2026-09-20 要的是一个切换按钮）。跟随系统要读 `MediaQuery.platformBrightness` 并在系统切换时跟着走，按钮也得变成三态或挪进设置页；画板 07 与画板 70 都没有这一档，要先改设计稿 (2026-09-20)
-- [x] 拆解 画板 41 / 04 的项目切换与分支切换 / 新建：文档里没有「项目」与 git 概念 → 所有者裁定 2026-09-15：项目 = 目录 = `session/new` 的 cwd，最近项目存本地 `projects.json`；git 走 CLI 子进程；已写 `docs/design.md` § 2 / § 3 / § 9 / § 10（R3） (2026-09-15)
-- [x] 拆解 画板 40 `+` 弹层的 Symbols 与 Selection 需要 LSP 与编辑器选区，与 `docs/requirements.md`「不做」冲突 → 所有者裁定 2026-09-15：从画板 40 删除，PNG 已重渲染 (2026-09-15)
-- [x] 拆解 画板 30 / 40 的 `Rules · 1 global rule` 文档没定义语义 → 所有者裁定 2026-09-15：项目根规则文件计数 + 在文件面板打开；已写 `docs/design.md` § 9（R3） (2026-09-15)
-- [x] 拆解 画板 42 `/` 菜单的分组在 `AvailableCommand` 里没有字段来源 → 所有者裁定 2026-09-15：单组渲染；画板 42 已去掉分组标题与来源标签，PNG 已重渲染；已写 `docs/design.md` § 3 (2026-09-15)
-- [x] 拆解 画板 01–04 / 50 / 60 / 61 的自绘窗口控制意味着无边框窗口 → 所有者裁定 2026-09-15：Windows runner 自写平台通道，不引 `window_manager` 类库；macOS 用原生 traffic lights；已写 `docs/design.md` § 9（R3 / R8） (2026-09-15)
-- [x] 拆解 画板 61 的本地交互 shell 不在 `docs/design.md` § 3 → 所有者裁定 2026-09-15：新增 `terminal_open / write / resize / close` 四个桥命令，复用 `rust/pty`；已写 § 3（R4） (2026-09-15)
-- [x] 拆解 画板 10 / 11 的 Restore Checkpoint 与 Regenerate：协议没有回滚 → 所有者裁定 2026-09-15：照原型「本地截断 + 同会话重发」，agent 侧上下文不回退作为已知限制，不在 UI 加提示；已写 `docs/design.md` § 3（R2） (2026-09-15)
-- [x] main 直改 会话大纲（所有者 2026-09-18 提出，参照 pi 桌面版右侧的会话树）→ 所有者 2026-09-20 裁定：**不做右栏标签**（当时记的推荐项），做成会话头 reload 与 ≡ 之间的 history 按钮 + 弹层，先出画板 43「会话时间线弹层」（简报 `design/round-design/input/revision-03.md`）再实现，编号从 01 起。已在 `session-timeline` 分支落地：派生层 `lib/projection/timeline.dart`（按顶层用户消息切轮，不按 `TurnEntry`）、弹层 `lib/ui/popovers/session_timeline.dart`、跳转在 `workbench_screen.dart`（行键 `GlobalObjectKey` + 多帧估位纠正）。当时记下的四个待定项按画板 43 定死：编号从 01、A 行取最后一条 agent 文本的首行并去掉行首 Markdown 标记、不做跟随滚动高亮、正在跑的那轮只画编号行 (2026-09-18)
+## 怎么读这份表
 
-## 工程
+按「谁会撞上、撞上有多疼」分档（所有者 2026-09-20 要的**产品 + 技术双视角**）。每条三行：
 
-- [ ] 两次外观改动并发落盘时后发可能先至。`AppearanceController._edit` 现在会等读盘（[start]）落定再算新值（发布前审查 high 的整改），但两次改动本身不排队：快速连点主题按钮、或连着换两个字体轴，两次 `appearanceSet` 会并发跑到 Rust 侧，各自 read-modify-write `settings.json`，理论上旧快照可能最后落地。界面不受影响（内存里是对的），下次启动才看得出来。**R7.6 就已经这样**（`setAxis` 同理），不是深色模式引入的；真要修是给落盘串一条链，属机制类修复，按 CLAUDE.md 的审查边界记这里 (2026-09-20)
-- [ ] 终端「当前搜索命中」的前景色在深色下对比不够。画板 07 § 2.9 要的是「命中 = warning.soft 底 + strong 字，**当前**命中 = warning 底 + canvas 字」，但 `xterm` 4.0.0 的 `TerminalTheme` 只有一个 `searchHitForeground`，两种命中共用；实现取了前者（`t.Neutral.strong`），于是深色下当前命中是 #f0f0f4 压在 #d8a83c 上。终端搜索目前没有入口，看不见；真要修得给 xterm 提 PR 或自己画命中层 (2026-09-20)
-- [ ] 终端 ANSI 的青从 `Semantic.info` 改成了 `Accent.text`（2026-09-20，落画板 07 § 2.9 的列头）。改之前蓝与青是同一个色值，终端里两种前景分不开；画板 07 的浅色行写的就是 `#4a59c9` = `accent.text`，所以这是把实现对回画板，不是改画板。**浅色下的终端配色因此也变了**，所有者手测时留意一下 (2026-09-20)
+- **标题**是一句话说清这是什么问题；
+- **产品**是用户会撞上什么、看到什么；
+- **技术**是在哪、为什么、最小修法或为什么没修，末尾括号里是发现时的轮次与日期。
 
-- [x] 立项 sidecar 与运行中的 Zed 争用 `threads.db`：R7 实测后裁定「只读共用 / 隔离目录」，未发现 Zed 现成的数据目录覆盖变量 (2026-09-11) → R7 实测 2026-09-17：**共用会伤到 Zed** —— 与两个正在跑的 Zed 进程同时写 `%LOCALAPPDATA%/Zed/threads/threads.db` 时，Zed 日志出现两条 `Sqlite call failed with code 5 … database is locked`（来自 `crates/agent/src/agent.rs` 的线程保存路径），sidecar 侧无报错。覆盖变量确实没有，但 `paths::set_custom_data_dir` 有公开 API：sidecar 加了 `--user-data-dir`（数据隔离）与 `--zed-settings`（配置照旧共用）两个开关，主程序默认传 `<数据目录>/zed-agent` + Zed 的 settings.json。按推荐项落地，已写 `docs/design.md` § 8，**待所有者确认**；代价是两边会话列表不互通
-- [x] 立项 前端 Dart 类型来源二选一 → 所有者裁定 2026-09-15：手写薄封装 `lib/projection/wire.dart`，不做构建期生成；合规性由 Rust 侧 fixtures 反序列化测试兜底；已写 `docs/design.md` § 2 与 `docs/acp-projection.md` § 11 (2026-09-11)
-- [x] 立项 Markdown 渲染库选型：官方 `flutter_markdown` 已停维；R1.5 spike 比较 `package:markdown` 自写渲染 / `markdown_widget` / `gpt_markdown`（流式追加、GFM、代码高亮、CJK、选择复制），所有者裁定后进规则 1 白名单；spike 前不得引入 (2026-09-12) → spike 完成 2026-09-15（`rounds/round-1.5/spike.md` § 0，2 轮审查收口）：推荐 `package:markdown` 7.3.1 解析 + 自写渲染，备选 `flutter_markdown_plus`；代码高亮推荐 `re_highlight` 0.0.3；所有者裁定 2026-09-15 按推荐项，已写进 CLAUDE.md 规则 1 / `docs/requirements.md` § 8 / `docs/design.md` § 9 / `validate.ps1` 白名单
-- [x] 拆解 R1.5 spike 范围扩到画板 15 Mermaid（Dart 无成熟渲染器：WebView / 只做源码态并改画板 / 自写子集三选一）、16 数学公式、32 audio 播放、13 / 60 代码高亮与 21 的 diff 库，一并裁定进白名单 (2026-09-15) → spike 完成 2026-09-15（同上）：Mermaid 推荐第四条路 `mermaid_flutter` + `mermaid_core` 0.3.0（纯 Dart，画板 15 不用改），公式 `flutter_math_fork` 0.7.4（附带裁定 `provider` 传递依赖），音频 `audioplayers` 6.8.1（附带 `objective_c` 9.4.1 override），diff `diffutil_dart` 5.0.0；所有者裁定 2026-09-15 按推荐项，已写进 CLAUDE.md 规则 1 / `docs/requirements.md` § 8 / `docs/design.md` § 9 / `validate.ps1` 白名单
-- [x] 拆解 图标与 registry `icon.svg` 的渲染 → 所有者裁定 2026-09-15：`flutter_svg` 进规则 1 通用库清单（CLAUDE.md 与 `docs/requirements.md` § 8 已加） (2026-09-15)
-- [x] 拆解 `CARGO_TARGET_DIR` 位置 → 所有者裁定 2026-09-15：`D:\cargo-target\AcpAgentClient`，已写 CLAUDE.md「本地开发」 (2026-09-15)
-- [ ] 立项 若 R0 在中文用户名路径下 `flutter build windows` 因 cargokit 路径失败，`CARGO_TARGET_DIR` 指 ASCII 路径仍不够时评估形态 B（独立 `acp-host.exe`），见 `docs/research.md` § 9.3 (2026-09-12)
-- [x] R1 `notice` 会话更新我们编译不出、收到即静默丢弃 → 所有者裁定 2026-09-11 取「不改 feature 集，计数 + 告警 + 落 `acp/traffic`」→ R1 复议 2026-09-15：dsh 1.3.0 真跑三轮（编辑 / 计划 / 表单）没有发过 `notice`，用 `test/fake-agent/fake-agent.mjs` 注入一条：核心 `droppedUpdates` +1、`acp/agent_state: update_dropped` 带 serde 错误文本、原文在 `acp/traffic`，进程与回合都不受影响；**裁定维持**，不改 feature 集；见 `docs/acp-projection.md` § 8.1 与 `rounds/round-01/round-01.md` (2026-09-15)
-- [ ] 截图验收：逐一验证并截图 Zed Agent 的 20 项 ACP 投影交互卡片样式 (2026-09-14)
-- [ ] R0 cargokit 只认 `rustup run stable`（它的 `toolchain` 选项只有 stable / beta / nightly），`rust-toolchain.toml` 钉的 1.98.1 只约束 `validate.ps1` 里的 cargo；本机 stable 升级后 Flutter 构建会用新版。要么给 cargokit 打补丁读 rust-toolchain.toml，要么接受漂移并在 validate 里比对两者版本 (2026-09-15)
-- [x] R0 Windows 开发者模式未开启：Flutter 给 pub 插件建符号链接需要它。R0 的 Rust 核心改走 runner CMake 直接 apply_cargokit 绕过 → 所有者 2026-09-15 当天已开启并验证（`flutter pub get` 对插件工程通过），R3 无障碍 (2026-09-15)
-- [ ] R0 macOS 构建（R8）要把 cargokit 挂进 Xcode（runner 级脚本阶段或 podspec），与 Windows 的 runner CMake 方式对应；frb 模板的 rust_builder 插件路径已不用 (2026-09-15)
-- [x] R0 gallery 里画板的内联单线图标目前用 CustomPainter 手描路径（`Radius.elliptical` / `Offset` 几何字面量），`Assert-NoStyleLiteral` 因此没扫这两种写法；R2 起画板图标改用 `flutter_svg` 内联设计稿的 SVG 字符串后，把 `Radius.elliptical(` / `Offset(` 纳入扫描（审查 P3，2026-09-15）→ R2 完成 2026-09-15：画板 10–34 的 34 个图标全部是 `lib/ui/transcript/icons.dart` 的内联 SVG（flutter_svg），00 样板页的三个图标改用同一套，`validate.ps1` 已把 `Radius.elliptical(` / `Offset(` 纳入扫描
-- [ ] R1 dsh-acp-interactive 1.3.0 的 `--setup` 在 Windows TTY 上**看不见提示**：`secretQuestion` 在 `readline.question()` 返回后立刻 `muted = true`，而 Node 在 Windows 上对 TTY 的写是异步的（`process.stderr` 文档：TTY 在 Windows 异步），readline terminal 模式的提示由多次 `write` 组成，第一段之后的都在 muted 之后才被处理而被吞掉；`TERM=dumb`（非 terminal 模式，单次写）或管道 stdin 都正常。本项目实测（`rounds/round-01/round-01.md` 验收 1）：pty 里 readline 活着、盲打密钥 + 回车能保存并自动重试 `session/new` 成功，只是用户看不到 "Enter DeepSeek API key:"。是上游（所有者自己的项目）的缺陷，客户端不做 agent 特判（规则 2）；R3 认证页出来前请上游修（把提示写完再 muted，或非 terminal 模式）(2026-09-15)
-- [x] R1 portable-pty 0.9 固定以 `PSEUDOCONSOLE_INHERIT_CURSOR` 建 ConPTY，Windows 11 26200 的 conhost 会先发 `CSI 6 n` 并阻塞子进程直到收到光标位置应答；`rust/pty` 只答启动那一次，之后的 DSR 留给渲染器。R4 接 xterm.dart 时确认它不会重复应答第一次（重复的 `CSI 1;1 R` 会当键盘输入进子进程），或统一由 pty 层应答 (2026-09-15) → R4 处理 2026-09-16：实测**会重复应答且有害**——本地 PowerShell 会话里 xterm.dart 对那条探询再答一次，PSReadLine 解析应答时把相邻的按键一起吞掉（敲 `echo` 丢了 `e`）。改成 pty 层答完就把启动探询从输出流里抠掉（`rust/pty` 读线程先攒最多 256 字节），渲染器看不到就不会再答；之后的 DSR 仍留给渲染器。agent 终端卡是只读视图本来不接 `onOutput`
-- [ ] R1 Windows 上结束 agent 进程树用 `taskkill /F /T`（Job Object 需要 unsafe，规则 6）；`.cmd` 包装（npx / npm 全局 bin）被 `taskkill /T` 一并杀掉 node 子进程已实测，但 `agent_disconnect` 的正常路径只关 stdin、等 3 s 再杀，agent 不响应 stdin EOF 时会多等 3 s；R5 做 registry 安装时复核 (2026-09-15)
-- [ ] R0 `prototype/assets/fixtures.js` 的 `elicitation/create` 缺必填字段 `message`，被 Rust 侧 fixtures 测试抓出；`test/fixtures/` 已补，原型不改（原型不维护） (2026-09-15)
-- [x] R2 `rust/acp-core/tests/fixtures.rs` 的方法表没有 `elicitation/complete` 与 `$/cancel_request`，这两条 ACP 通知因此进不了 `test/fixtures/`（画板 28 完成态在 gallery 里用 Dart 侧 `PendingQueue.completeElicitation` 构造）；R3 接线时补方法表（`CompleteElicitationNotification` / `CancelNotification`），再把两条收进 fixtures (2026-09-15) → R3 完成 2026-09-15：`$/cancel_request` 的类型是 `CancelRequestNotification`（`CancelNotification` 是 `session/cancel` 的），两条通知与一条被撤回的请求已进 `16-elicitation.jsonl`，画板 28 完成态改为 fixtures 驱动
-- [ ] R2 画板 27 的 Other 文本框占位文案「留空表示用上面的选项」不在 elicitation 的 `requestedSchema` 里（规则 2 不自造文案，widget 里没有）；要么改设计稿删掉占位，要么裁定「string 字段无 default 时的通用占位」进 `docs/design.md` (2026-09-15)
-- [ ] R2 画板 33 第四态写作 `status: error`，协议 `CompactionStatus` 的值是 `failed`（widget 显示协议原值）；画板 34 initialized 行列的是客户端能力（fs / terminal / elicitation / plan / compaction），widget 列 `agentCapabilities` 顶层键；两处建议下个设计轮改字 (2026-09-15)
-- [ ] R2 画板 15 的图形态是纯竖链，`mermaid_flutter` 的 elk 布局把带回边的图排成两列（spike § 5 已记）；若所有者要求与画板一致，只能换布局引擎或改画板 (2026-09-15)
-- [ ] R2 画板 31 `max_turn_requests` 结束行的「18 次请求」协议里没有来源（`PromptResponse` 只有 usage）；widget 省略该段，要保留得改设计稿 (2026-09-15)
-- [x] R2 widget 里的 7 个局部几何常量（画板 32 预览高 220、音频进度条 3、画板 25 下拉宽 330、画板 30 弹层宽 266、终端回滚 2000 行、spinner 周期 motion.base×5、开关轨道 28×16）不是 token 也不是样式字面量扫描项，任务卡「偏离」段逐个记了；是否进 `tokens.dart` 由所有者定 (2026-09-15) → 所有者裁定 2026-09-15：进 `tokens.dart` 的 `Geometry` 组；R3 已落（提交 37ecfd5），widget 只换引用
-- [ ] R3 画板 40 模型行的 provider 图标与 `Latest` 徽章在协议里没有来源（`SessionConfigSelectOption` 只有 value / name / description）；本轮图标位用中性占位、徽章省略。与画板 31「18 次请求」同类，归下个设计轮改稿或裁定一个来源 (2026-09-15)
-- [ ] R3 画板 41 分支弹层：画板上输入 `feat/tokens` 时两条本地分支仍列着，但 ROUNDS § 3 R3 要求「搜索」。本轮取搜索语义（命中为空时只剩 Create 行），gallery 出了两张样张；要按画板就得改设计稿说明搜索只作用于新建 (2026-09-15)
-- [ ] R3 输入框正文是纯文本（`EditableText`），`@mention` / `/command` 不做行内彩色芯片；芯片只在已发送的用户气泡里（画板 11）。要在输入框里出芯片需要富文本输入控件，先记着 (2026-09-15)
-- [x] R3 requestScope 的 `elicitation/create`（无 `sessionId`）在本轮没有 UI 落点：`docs/design.md` § 3 说它落认证页（画板 52），画板 52 归 R5。现在它只进 `PendingQueue.requestScope`，用户看不到也回不了，agent 会一直等。R5 接画板 52 时一并解决 (2026-09-15) → R5 完成 2026-09-16：落认证页，取消 / 收起 / 从另一入口重开时挂起的逐条回 `cancel`（`rounds/round-05/round-05.md` 第 1 轮 high 1）
-- [ ] R3 画板 80 上没有「返回工作台」的控件：本轮从画板 34 的「打开流量面板」进、点侧栏任一会话返回。下个设计轮补一个返回入口，或裁定现状 (2026-09-15)
-- [x] R3 新建会话弹层里的 agent 名用的是 `settings.json` 的键（`dsh-acp-interactive`）：协议里没有「展示名」，连上之后会话头才从 `initialize.agentInfo` 取。R5 的 registry 会带来展示名与 logo，届时回填 (2026-09-15) → 已回填：R7 起显示名优先取条目的 `name`（registry 型取 registry 名，内置条目取合成条目的 `name`），2026-09-17 弹层每条画各 agent 自己的 logo（registry 缓存的 `icon.svg` / 内置条目随包带的 `iconSvg`）
-- [ ] R3 `Ctrl-Alt-A` 的权限「范围下拉」没实测到：dsh 只给 `allow_once` / `reject_once`，下拉里没有第二个同向选项。R6 五 agent 全通时用给 `allow_always` 的 agent 补 (2026-09-15)
-- [ ] R3 `computer-use` 的 `request_access` 只认 Start 菜单里的应用，认不出自己构建的 `acp_agent_client.exe`，GUI 点击类验收（窗口拖拽、`file_selector` 对话框）没有自动化通道。要么做 `integration_test` + `flutter drive`，要么每轮留给所有者手测 (2026-09-15)
-- [ ] R3 画板逐张对照拦不住「位移类」偏差：右侧那组按钮没贴右这件事在 `build/gallery/01a` 与 `18` 里都画出来了，偏移量却随窗口宽度与文本长度变，肉眼比对时看不出「它本该更靠右」。本轮给三处补了数值断言（`test/ui/shell_alignment_test.dart`），但这是逐点补；是否给画板对照加一层几何不变量（贴左 / 贴右 / 等距）的通用断言，待裁定 (2026-09-16)
-- [ ] R3 设计源里两个连续的 `margin-left:auto` 会把余量均分（画板 03 标签条的关闭键因此停在半路，2026-09-16 已改源并重渲 PNG）。其余画板没逐个扫过是否有同样写法；下个设计轮顺带核一遍 (2026-09-16)
-- [x] R3 左右侧栏不能自定义宽度（所有者手测 2026-09-16）→ 所有者裁定 2026-09-16 按「我改设计源、和分割线一起做」：画板 04 加分栏把手样张、01–03 加注脚，`docs/design.md` § 9 / § 10 写明范围与落盘；R3 整改分支已落（`ui-state.json` + `ui_state_get/set`） (2026-09-16)
-- [x] R3 画板 03 右栏的面板内头行（R4 的文件面板标题行）本轮随分割线一起抬到 36：R4 实现文件面板时按新 PNG 来，别再取 `Controls.input` (2026-09-16) → R4 已按 03 的新源：查看器头行 `Geometry.barHeight`（36），树列头行仍是画板给的 28（`Geometry.panelHeaderHeight`）
-- [ ] R3 窗口没有最小尺寸：三栏都顶到下限要 220 + 360 + 360 = 940，窗口比这窄时 `AppShell._fit` 压不动了只能裁切。要么在 Windows runner 上设 `WM_GETMINMAXINFO`，要么窄窗时自动折叠侧栏；两条都得先改设计稿 (2026-09-16)
-- [ ] R5 画板 51 npx 安装第二步写的是「写入 agents.json」，数据目录里没有这个文件（`docs/design.md` § 10）：实际写的是 settings.json 的 registry 条目 + `agents/<id>/install.json`，实现显示「写入 settings.json」；下个设计轮改字 (2026-09-16)
-- [ ] R5 画板 51「需要认证」条目的描述写死了「ChatGPT 登录」，规则 2 不按 agent 特判，实现显示「需要先完成认证」；画板 52 的方法名（Sign in with ChatGPT / Codex CLI）也是 codex 专属样例，实现按 `authMethods` 原名列出；下个设计轮把样例换成通用措辞或注明是样例 (2026-09-16)
-- [ ] R5 画板 50 的未安装行没有分发方式芯片、画板 51 的未安装卡有；实现统一按 51。两张画板下个设计轮对齐一下 (2026-09-16)
-- [ ] R5 画板 70 头注写「registry 型只读」但每行都有「编辑」键；实现里 registry 型点「编辑」只读展开拉起参数。设计稿要么去掉 registry 行的「编辑」、要么改成「查看」 (2026-09-16)
-- [ ] R5 `logs/acp-<日期>.log` 的日期按 UTC（不引 chrono）；跨日的两小时里文件名与本地日期对不上。要本地日期得裁定引 chrono 或自写时区读取 (2026-09-16)
-- [ ] R5 registry 型 agent 的更新：registry.json 里版本升了，已安装的条目仍是旧版本（`install.json` 记的），面板上只显示 registry 的最新版本、没有「有新版本」提示与升级动作（Zed 有 `new_version_available`）。要做先改设计稿加一个升级态 (2026-09-16)
-- [ ] R5 codex-acp 的 `api-key` 方法带 `_meta["api-key"]`（客户端可在 `authenticate` 的 `_meta` 里直接递密钥）与 `gateway` 方法（需客户端声明 `auth._meta.gateway`）：两者都要新增 `_meta` 键（规则 2 / `docs/design.md` § 4），本轮只走环境变量 `OPENAI_API_KEY` / `CODEX_API_KEY`（agent 自己从 env 读）；要做先裁定 (2026-09-16)
-- [ ] R5 `docs/design.md` § 2 的「Node 与下载」行原定直接 git 依赖 Zed `node_runtime` 等 crate，R5 改为参考转写（理由见 `rounds/round-05/round-05.md` 偏离 1），待所有者确认后把 § 2 那一行改成定稿措辞 (2026-09-16)
-- [ ] R5 npx 安装在提交点之前取消 / 失败（`npm install` 阶段）时 `agents/<id>/` 留着半个 npm 目录：没有 `install.json` 所以列表是「未安装」、下一次安装会覆盖，只是占磁盘；binary 型的 staging 目录已会清掉。要一致的话在 `registry_install` 的收尾里对未提交的失败也调 `install::remove` (2026-09-16)
-- [ ] R5 无头实跑以 `exit()` 结束进程时不走 `agent_disconnect`，Cursor 的 `cursor-agent.cmd`（cmd.exe 包装）随进程一起没了、它拉的 `dist-package → **R7.5 拆分后的新家**：组合根 `shutdown` (2026-09-20)
-ode.exe` 却留成孤儿（实测 PID 42768，手动 `taskkill /T`）。R4 验收 4「应用退出时子进程全部回收」要把桌面应用的关闭路径（`AcpApp.dispose` / Windows runner 的 `WM_CLOSE`）与无头口子都接到 `agent_disconnect`（`taskkill /F /T`） (2026-09-16)
-- [ ] R4 `rust/fs/src/lib.rs` 的 R3 用例 `junctions_are_not_followed_out_of_the_workspace` 在 `mklink /J` 失败时 `eprintln` + `return`，断言一行不跑也算绿（R4 第 3 轮审查顺带指出，同文件新用例已改成 `assert!`）：下次碰这个文件时同样改成建不出链接就红 (2026-09-16)
-- [ ] R4 `lib/app/workbench_controller.dart` `closeTab`：右栏标签条上「文件 + 终端」并存时，关掉最后一个面板标签会把整栏收起（`rightTab = null` 且 `activeTerminalId` 仍空 → `rightPanelOpen == false`），本地 shell 继续在后台跑、侧栏再点「终端」能找回。最小修复：`closeTab` 发现 `openTabs` 空了但 `terminals.tabs` 非空时把 `activeTerminalId` 设成最后一个终端。R4 第 4 轮审查 P2，所有者裁定 2026-09-16 非阻断记 BACKLOG (2026-09-16) → **R7.5 拆分后的新家**：`ShellState.closeTab` (2026-09-20)
-- [ ] R4 `lib/app/files_state.dart` `setProject`：换项目时 `fs_unwatch(previous)` 不等、`fsWatch(path).listen` 在两次 await 之后才挂，快速 A→B→A 会让 Dart 订到 B 的流而字段是 A、核心 `watchers` 表里 A / B 都在（B 的活到 `core_shutdown`）。最小修复：每次 await 之后若 `root != path` 或已 dispose 就直接 return 不再 listen。R4 第 4 轮审查 P2，所有者裁定 2026-09-16 非阻断记 BACKLOG (2026-09-16)
-- [ ] R6 会话头 ≡ 的语义在画板 03（右栏展开的选中态）与画板 41（会话菜单）之间冲突。所有者裁定 2026-09-16：**≡ 保持右栏开关，会话菜单要入口先改设计稿**。R6 已把菜单的动作接通并做了单测（`resumeSession` / `closeSession` / `deleteSession` + 能力裁剪），产品 UI 里 **Delete 有入口（侧栏删除图标，画板 04）、Resume / Close 没有**。下个设计轮给会话菜单定一个入口（改画板 41 / 03），再接上 `SessionMenuPopover` (2026-09-16)
-- [x] R6 `session/load` 重放不带回轮边界，所以载回来的历史上画板 10 / 11 的 Restore Checkpoint 与 Regenerate 不可用（按 `TurnEntry` 截断）。所有者裁定 2026-09-16 记已知限制、不在本地补一份轮边界（已落 `docs/design.md` § 3）。**2026-09-18 所有者报障后修掉**：不补轮边界（裁定照旧），改成按**那条用户气泡**定位截断点（`SessionStore.restoreTo` 收气泡 id，紧挨在前的轮边界一起截掉），载回来的历史照样能 ↺ / Regenerate (2026-09-16，2026-09-18 已修)
-- [ ] R6 claude-agent-acp 0.76.0 的 `session/load` 不重放 `available_commands_update`（pi-acp / codex-acp / cursor / dsh 都会），所以重开应用载回它的会话后 `/` 菜单是空的，直到下一轮对话。不做 agent 特判（规则 2），照原样呈现；要补只能等 agent 侧改 (2026-09-16)
-- [ ] R6 `session/delete` 只在「该 agent 已连上且声明了 delete」时发；没连的 agent 不为了删一条本地记录去拉进程，那一下只删本地索引，agent 侧留着（侧栏本来也不显示 agent 侧独有的会话，所以看不出岔开）。要两边严格一致得在删除时按需连一次 agent，代价是一次子进程启动 (2026-09-16) → **R7.5 拆分后的新家**：`SessionController.deleteSession`（产品取舍，等裁定） (2026-09-20)
-- [ ] R6 `session/load` 在「原先内存里就有转录 + 重放到一半断了」时会留下半份转录（清空已经生效、重放没跑完）。一条都没重放的失败已经不清空了；这一半的情况要完全无损得给 `resetForReplay` 加快照与回滚，本轮按最小改动没做 (2026-09-16)
-- [ ] R7 sidecar 没带 `languages` crate（它唯一地依赖 `pet`，`pet` 打开 `msvc_spectre_libs` 的 `error` 特性，本机 VS 2022 BuildTools 没装「Spectre 缓解库」组件，build.rs 直接 panic）。代价：sidecar 里 `LanguageRegistry` 为空，Zed agent 靠语法树的工具（`read_file` 的 outline 模式、跳转类工具）退化成纯文本；编辑、终端、grep、权限不受影响。装上那个 VS 组件后取消 `sidecar/zed-agent-acp/Cargo.toml` 里那一行注释即可恢复 (2026-09-17)
-- [ ] R7 sidecar 不走 `NativeAgentConnection::prompt` 而是直接消费 `Thread::send` 的事件流（理由见 `sidecar/zed-agent-acp/src/session.rs` 文件头），于是 Zed 的斜杠命令分流（`/compact`、MCP prompt、skill 调用）没有接上：`available_commands_update` 照常投影（前端 `/` 菜单能看到 `compact`），但发出去只是一条普通消息。要接上得把那段分流逻辑复制出来（`agent.rs` 的 `Command::parse` 一大段），或等上游把 `handle_thread_events` 公开 (2026-09-17)
-- [ ] R7 Zed 的子代理（`ThreadEvent::SubagentSpawned`）是**另一条会话**，事件不经过本轮的流；画板 24 的子代理卡只认 `docs/design.md` § 4 清单里的 `_meta` 键，而清单里没有 Zed 的键，所以 sidecar 只记日志、不投影。要做得先给 § 4 加键并进所有者裁定 (2026-09-17)
-- [ ] R7 上下文压缩（`ThreadEvent::ContextCompaction*`）投影不出去：画板 33 走 unstable 的 `compaction_update`，而 zed 钉版本的 `agent-client-protocol` 2.0.0 的 `unstable` 伞里没有 `unstable_session_compaction`（2.1.0 才有），单独改特性集会撞规则 10。等 zed 升 acp 版本后再复议 (2026-09-17)
-- [ ] R7 sidecar 的 release channel 解析成 `dev`（`ZED_RELEASE_CHANNEL` 没设，`release_channel` 的编译期缺省），所以它的 `db/` 落在 `0-dev` 下。数据已经隔离，这项只影响目录名；要对齐得在 sidecar 的 build.rs 里显式设一个 channel (2026-09-17)
-- [ ] R7 debug 构建的 sidecar 是 276 MB（release 见任务卡）。R8 打包要给出含 / 不含 sidecar 两个体积数字时，注意 zed 那套依赖（wasmtime、tree-sitter、alacritty）是大头 (2026-09-17)
-- [ ] R7 上游 `ThreadStore::spawn_reload`（`vendor/upstream/zed/crates/agent/src/thread_store.rs`）在连库或读表失败时是**静默 return**（`let Ok(..) else { return }`），任务照常完成、`threads` 保持原样 —— 对刚建好的 store 就是空的。于是「读 `threads.db` 失败」和「真的一条会话都没有」在外面长得一模一样。sidecar 侧只能靠「强制重扫 + 空表再重扫一次」滤掉偶发失败（`list_sessions`），拿不到真正的错误。要根治得等上游把错误露出来（或我们自己绕开 `ThreadStore` 直接查库，代价是复制一份 schema 知识）(2026-09-17)
-- [ ] 弹层「上方放不下就翻到下方」还没做。`maxHeight` + 内部滚动那一半**已于 2026-09-18 落地**（`lib/theme/tokens.dart` 的 `Geometry.menuMaxHeight` + `MenuPopover` 的 `ConstrainedBox` + `SingleChildScrollView`），所以模型列表长到 20+ 时不再顶出屏幕外、条目也选得中；剩下的是「触发控件上方的可用高度比封顶还小」时翻到下方的规则，画板 40 没画这种情况，属于扩边界，先改设计稿 (2026-09-17，2026-09-18 更新)
-- [ ] 终端里组字期间看不到「正在组的字」：Flutter 在 `WM_IME_SETCONTEXT` 里剥掉了 `ISC_SHOWUICOMPOSITIONWINDOW`（组字串约定由应用自己画），而 xterm 的 `composingText` 只有它自带的 `CustomTextEdit` 能喂——我们走的是`hardwareKeyboardOnly` + 自建的 `TerminalIme`（见 `lib/ui/terminal/terminal_ime.dart`），喂不进去。现在靠输入法候选框显示拼音（候选框位置已跟着光标走），上屏正常。要在光标处画出组字串得自己叠一层浮层，属于扩边界，先改设计稿 (2026-09-17)
-- [ ] terminal auth 的可见终端（画板 52，`lib/ui/registry/auth_page.dart`）没有接 `TerminalIme`：那里要敲的是密钥 / 选项号这类 ASCII，暂时不接；哪天认证流程要输中文再说 (2026-09-17)
-- [ ] `lastError` 在产品 UI 上没有出口（只有 `debugPrint` 与无头实跑读它）：新建会话失败（缺项目 / 桥报错）、删除会话失败这类只在 `lastError` 落一句话的路径，用户看到的是「点了没反应」。现在靠输入框占位文案兜住了「没选项目」这一条（`composerPlaceholder`），其余仍是静默。其中**「这一轮发出去失败」已于 2026-09-18 有了出口**：`session/prompt` 回 JSON-RPC error 时原因落在 `TurnEntry.error` 上、由画板 31 的结束行显示，不再只进 `lastError`。其余路径（新建会话失败、删除会话失败、附件超限）仍要一处壳级的错误提示位——属于扩边界，先改设计稿 (2026-09-17) → **R7.5 拆分后的新家**：组合根聚合九个对象的 `lastError` + 壳级提示位（画板先画） (2026-09-20)
-- [ ] 内置 dsh 条目（`rust/acp-core/src/builtin.rs` 的 `dsh_launch`）三路分流只认**进程** PATH：没装全局 dsh 时回落 `npx`，而 `npx` 同样按进程 PATH 找，所以「只有受管 Node、没有系统 Node」的机器上这条会拉起失败——受管 Node 的 PATH 前插只给 registry 型 npx agent（`rust/registry/src/node.rs` 的 `env_overrides`）。要修得让内置条目也走 `NodeRuntime`（机制类改动，等所有者裁定）。1572214 发布前审查发现 (2026-09-17)
-- [ ] `lib/app/workbench_screen.dart` `_body()`：`staggered` 为真返回裸 `content`、为假返回 `MotionEnter(...)`，同一槽位上 widget 类型变了，发出第一条消息（`entries` 由空变非空）时整棵中栏子树被拆建并多播一次 200ms 入场——画板 05 A 组只把入场定义在「新建 / 切换会话、重载完成」，第一条消息不在其中。跨过这条边界时转录本来就是新的，没有滚动位置或展开态可丢，所以放行。最小修复是两支都包 `MotionEnter`、`staggered` 时传无动画时长，把错开下推给 `NewSessionEmpty`。发布前审查 P3 (2026-09-18)
-- [ ] 设计稿补注记：画板 01 状态 1 中间那个大图标位画的是占位菱形，实现已于 2026-09-18 按所有者裁定改成「有 `icon.svg` 就画各 agent 自己的 logo」（与画板 41「agent 图标位是单色占位，实现里换各 agent 自己的 logo」同口径）。这次是先改实现、设计稿没跟——下个设计轮给画板 01 补上同样的注记并重出 PNG，把规则 3 的顺序补回来 (2026-09-18)
-- [ ] `lib/app/workbench_controller.dart` `send()` 的懒开会话守卫：`store` 是 `sessionId == null ? null : sessions.maybe(sessionId!)`，所以选中的会话只是**载不回**转录（agent 不支持 `loadSession` / `_ensureConnected` 抛错被 `_guard` 吞掉 / 拿不到 cwd）时 `store` 也是 null，发送会开一条新会话把选中的那条静默顶掉、侧栏高亮跟着跳走。发布前审查 P2。**两轮针对性整改都被复审报回**：改判 `sessionId == null` 让「agent 不支持 loadSession」那类旧会话按发送零响应（那恰是 R3 既定语义要开新会话）；补成 `store == null && (sessionId == null || !canLoadSessionOf(id))` 又把 `newSession` 已写好的认证 / 缺 Node / 没选目录报错覆盖成一句不相干的话，且「本次还没连上、能力未知」时仍会顶掉。所有者裁定 2026-09-18 回退到出厂行为、单独一轮做。做的时候要一次把四种状态分清：无 sessionId / 有 store / 已 initialized 且不支持 loadSession / 载回失败或能力未知，且别覆盖 `newSession` 的 `lastError` (2026-09-18) → **R7.5 拆分后的新家**：`turn.send` ↔ `session` 的边（给 `session` 加四态查询） (2026-09-20)
-- [ ] `lib/ui/shell/motion.dart`：`_controller` 与 `_enter` 是 `late final`，`didUpdateWidget` 只比 `epoch`，所以 `duration` / `delay` 只在首次 build 生效；同一元素被复用而这两个入参变了时动画按旧参数跑。另：两者同时为 `Duration.zero` 时 `delay / (delay + duration)` 是 NaN，`Interval` 断言会炸。当前所有调用点传的都是常量（`t.Motion.*`），两条都只是潜伏项，所以放行。最小修复是 `didUpdateWidget` 里比这两个入参并同步 `_controller.duration`。发布前审查 P3 (2026-09-18)
-- [ ] 设计稿补注记：输入框的图片粘贴（Ctrl/Cmd+V）与输入行之上的附件芯片条 + 悬浮预览是 2026-09-18 所有者当场要求先改实现的（对齐 Zed 的交互，`docs/design.md` § 9 已记）；画板 01–03 / 40 都还没画这一条。下个设计轮补上芯片条与预览的样张并重出 PNG，把规则 3 的顺序补回来 (2026-09-18)
-- [ ] 剪贴板图片只落了 Windows（`lib/app/clipboard_image.dart` 借 `powershell.exe` 读 `System.Windows.Forms.Clipboard`，位图与文件列表两条路都实测过）；macOS / Linux 上 `readClipboardImages` 直接回空，Ctrl+V 只贴文本。要做得各写一条本机路径（`osascript` / `pbpaste`、`wl-paste` / `xclip`），或裁定引一个剪贴板包（规则 1 清单外）。另：每次粘贴要拉一次 powershell（几百毫秒），剪贴板里是文本时已经提前 return 不拉 (2026-09-18)
-- [ ] 用户消息的编辑重发（画板 11 的 Regenerate）只带回文本：`UserMessage.plainText` 不认 `image` / `audio` 块，`onRegenerate` 也只传一个 `String`，所以带图的消息一编辑就把图丢了（Restore Checkpoint 走原样 JSON，不受影响）。图片粘贴落地后这条更容易撞上。要修得让编辑态保留非文本块并随重发原样带回 (2026-09-18) → **R7.5 拆分后的新家**：`TurnController.restore` (2026-09-20)
-- [ ] `lib/app/clipboard_image.dart`：`Process.run(...).timeout(15s)` 只让 Dart 侧的 Future 提前失败，`powershell.exe` 还在跑——`finally` 里删临时目录会撞上它正在写 `clipboard.png`（Windows 文件占用），删除抛异常被 catch 掉，于是一份截图 PNG 永久留在 `%TEMP%`、外加一个孤儿 powershell。触发条件是剪贴板被别的进程锁住让 `Clipboard.GetImage()` 卡住。要修得换 `Process.start` + 超时 `kill`（机制类改动），发布前审查 P3 按最小改动原则没做 (2026-09-18)
-- [ ] `lib/app/workbench_screen.dart` `_addImage()`（`+` → Image 选文件）没有大小门：`clipboardImageSizeLimit`（20 MB）只管剪贴板那条路，文件选择器挑一张 60 MB 的 PNG 会在 UI isolate 上同步 base64 出约 80 MB 的字符串并整块塞进 `session/prompt`。要修得在这条路上复用同一常量判一次并置 `lastError`——但 `workbench_screen` 现在一处都不写 `lastError`，加了就是新的分层，发布前审查 P3 按最小改动原则没做 (2026-09-18) → **R7.5 拆分后的新家**：`ComposerState.addImage` 做门、记 `composer.lastError` (2026-09-20)
-- [ ] `lib/app/clipboard_image.dart` 的剪贴板**文件列表**那条路只有单张大小门（20 MB），没有张数门：`GetFileDropList()` 给的是资源管理器里选中的全部文件，在图片文件夹里 Ctrl+A / Ctrl+C 再 Ctrl+V 会把每张都收下，每张在内存里还存三份（`ClipboardImage.bytes` + base64 字符串约 1.33 倍 + 芯片解回来的 `_bytes`），100 张 5 MB 的照片约 1.5 GB，随后整块进一条 `session/prompt`。最小修复是循环里加一句张数上限并计入已有的 `skippedTooLarge` 提示，但**上限取几张是产品取舍**，等所有者定。发布前审查第 2 轮 P3 (2026-09-18)
-- [ ] `lib/app/clipboard_image.dart` 的 `length == 0` 守卫挡不住**截断的 PNG**：`$img.Save(path, Png)` 是先建文件再由 GDI+ 编码写入，磁盘写满是在已经写出若干字节之后才失败，落盘的是非空但截断的 PNG——既不等于 0 也不超 20 MB，照旧读进去、发出一枚解不开的 `image` 块（与 0 字节那档同类，只是稀有）。要判得准得读 PNG 尾部的 IEND 块或真解一次码，属机制类。发布前审查第 3 轮 P3 (2026-09-18)
-- [ ] 设计稿补注记：画板 31 只画了五种协议 `stopReason` 的结束行，没有「这一轮压根没走到结束值」这一态。2026-09-18 实测 dsh 回 `-32602 model does not declare image input` / `-32603 turn failed: DeepSeek API error (HTTP 404)` 时，界面上只有一个 `?` 徽章加一个耗时，用户看不出发生了什么，于是先改实现：结束行多一档「失败」徽章（error 色）+ 错误原文，允许折行到 3 行（转录里的文字还不能选中，被 ellipsis 截掉就彻底看不到了）。下个设计轮给画板 31 补这一态的样张并重出 PNG，把规则 3 的顺序补回来 (2026-09-18)
-- [ ] 设计稿补注记：画板 40 / 41 / 42 的弹层都按「条目有几行就多高」画的，没有「条目多到出屏」这一态。2026-09-18 所有者手测发现模型列表长到 20+ 时弹层顶出窗口、下面的条目既看不见也选不中，于是先改实现：弹层内容区封顶 `Geometry.menuMaxHeight`（320）并在内部滚动，键盘上下键把高亮移出视口时自动露出，搜索框（有的话）钉在滚动区之外不跟着滚。下个设计轮给这三张补封顶滚动这一态的样张并重出 PNG，把规则 3 的顺序补回来 (2026-09-18)
-- [ ] 两层临时表面同时开着时一次 Esc 会把两层一起关掉：`HardwareKeyboard` 把事件发给**所有**已登记的 handler（`handled = handler(event) || handled`，不是第一个返回 true 就停），所以输入框里 `@` 菜单开着时再点 `+` 打开画板 40 的弹层（点在输入框区域内，内联菜单不会被「点外面」关掉），此时挂着两个 `EscapeDismissible`，按一下 Esc 两个 `onDismiss` 都跑。期望是逐层关闭。要逐层得给这些表面排个栈（机制类改动），发布前审查 P3 按最小改动原则没做 (2026-09-18)
-- [ ] `lib/app/workbench_controller.dart` 的 `_updateMentionMenu` 在 await `fsListDir` / `fsSearch` 之后**无条件**写回 `_mentionFiles` / `_mentionDirs`，没有过期判据：敲下 `@` 后结果还没回来时 `inlineMenuOpen` 仍是 false，于是「点外面关」与 `closeInlineMenu()` 都是空操作（两者第一行都早退），几十到几百毫秒后 fs 结果回来，菜单在用户已经点走 / 按过 Esc 之后自己弹出来。目录大或在网络盘上时窗口足够宽。函数本身不在本次范围内，但 2026-09-18 新增的「点外面关」让这条路径变得常见。最小修复是 await 之后加一句「光标处的 token 还是原来那个才写回」。发布前审查 P3 (2026-09-18) → **R7.5 拆分后的新家**：`ComposerState._updateMentionMenu` (2026-09-20)
-- [ ] 设计稿补注记：画板 05 B 组「带等待期的替换」的触发只写了会话头的 reload 图标，但**新建会话**（会话头 `+` 选 agent、`send()` 现开一条）同样要拉进程 + `initialize` + `session/new`，等待时长一样不可预知。2026-09-18 所有者手测报回「选完 agent 界面一动不动、比较生硬」，于是先改实现：`reloading` 改名 `waitingForAgent`，两个触发共用 B 组那一套（转录降到 `opacity.pending` 且不可交互 + 会话头那只 spinner，不新增任何元素）。下个设计轮把 B 组的触发行补成两条并重出 PNG，把规则 3 的顺序补回来 (2026-09-18) → **R7.5 拆分后的新家**：`SessionController.waitingForAgent` (2026-09-20)
-- [ ] 设计稿补注记：壳上 14 个入口的悬停提示（`lib/ui/shell/tooltip.dart`，所有者 2026-09-18 直接要求）是设计稿之外的增补：画板 00 没有 tooltip 这一组 token（底色 / 边框 / 圆角 / 字样借的是弹层与 secondary 那几档，出现延迟取 `motion.fast × 4`，几何值收在 `Geometry.tooltip*`），画板 01–04 / 40 也没画提示条这一态。下个设计轮给画板 00 补 tooltip 一组 token、给壳画板补一张提示条样张并重出 PNG，把规则 3 的顺序补回来。发布前审查 P3 (2026-09-18)
-- [ ] 第三条「等 agent」的路径还没有等待态：侧栏点一条内存里没有转录的会话（`selectSession` → `_ensureLoaded` → `session/load` 重放整段历史）。`sessionId` 当帧就切过去了，而转录要等重放回来，这期间画的是画板 01 的**新会话空态**——看起来像「这条会话是空的」，不是「正在载」。所有者手测只报了新建会话那条，这条一并记下。要修就是同一个 `waitingForAgent` 套在 `_ensureLoaded` 的 `_guard` 上，但画板 05 A 组把「侧栏点另一条会话」定义成瞬时替换、没画等待期，属扩边界，先改设计稿 (2026-09-18) → **R7.5 拆分后的新家**：`SessionController._ensureLoaded`（`waitingForAgent` 套上去；画板 05 A 组先补等待期） (2026-09-20)
-- [ ] 设计稿补注记：画板 40 把会话配置画成「模型 / 思考强度 / 模式三个固定下拉 + 未知分类一个面板 + boolean 一个面板」，而 2026-09-18 所有者裁定改成**固定档序平铺**（`mode → model → model_config → thought_level → 其余`，档内保持数组顺序，一条 configOption 一格，boolean 就地开关）。依据是实测五个 agent 里四个在旧渲染下丢格：dsh 的 `permission`（category `_permission`）、codex 的 `collaboration_mode`、claude 的 `agent`（无 category）与 `fast`（`model_config` + boolean）、cursor 的 `fast`（`model_config`）——其中 `model_config` 更糟，既没有固定位又被挡在「未知分类」之外。实现已改（`workbench_controller.composerOptions`），画板 40 的那两块与画板 01 / 03 / 42 输入框里的下拉顺序还没重出 PNG，gallery 的 `_composerOptions` 暂时按 PNG 的三格口径渲染、与真输入框不同；下个设计轮重出后把 gallery 改回走控制器的档序，把规则 3 的顺序补回来 (2026-09-18) → **R7.5 拆分后的新家**：`TurnController.composerOptions` (2026-09-20)
-- [ ] agent 进程换过一轮之后（崩溃、或会话头的「重载 agent」），**内存里其它会话**拿的还是旧进程的 sessionId：`_ensureLoaded` 只在「内存里没有转录」时才 `session/load`，切过去直接发消息会撞 agent 的 `-32602 unknown session`。2026-09-18 所有者报障（dsh-acp-interactive）的那条路径里，「新建会话顺手重连」这一半已经修掉（`newSession` 改走 `_ensureConnected`），重载 / 崩溃这一半还在——只是现在要用户主动重载或进程真的死掉才会撞上。要修得给每条连接记一个代次，把代次之前载进来的会话标成待重载（`selectSession` 时自动 `session/load` 回来），属机制类改动，等单独一轮 (2026-09-18) → **R7.5 拆分后的新家**：`SessionController`（代次记在 `_sessionAgent` 旁） (2026-09-20)
-- [ ] 载回来的会话在下一轮对话后**丢标题**：`session/load` 不重放标题（`session_info` 回不来），所以 `store.title` 是 null，而 `_saveIndex` 写的是 `s.title ?? sessionTitle` —— 那就是占位串「New <agent> Session」，Rust 侧 `upsert_session` 是整行替换（`rust/settings/src/index.rs`），于是索引里原来那条有意义的标题被占位串盖掉、侧栏跟着变成「New … Session」。会话头也一样只显示占位串（这正是 2026-09-18 排查 Regenerate 死键时认出「这条会话是载回来的」的线索）。最小修复是 `_saveIndex` 里退回索引里已有的标题（`s.title ?? <索引标题> ?? sessionTitle`），要新加一个按 id 取索引标题的小助手；发现于修 Restore 截断点那次，按「不当场顺手改」记这里 (2026-09-18) → **R7.5 拆分后的新家**：`SessionIndex.upsert`（退回索引里已有的标题） (2026-09-20)
-- [ ] `lib/app/workbench_controller.dart` `_runTurn` 收轮那次 `_saveIndex()` 写的是**当前选中**的会话（`store`）而不是刚跑完那一轮的会话（`s`）：另一条会话在后台跑完时（2026-09-18 起新建会话不再重连、可以并跑），被改写的是前台那条的索引（它自己的值原样写回，无害），后台那条的 `messageCount` 要等它下一轮才刷新，侧栏「N 条消息」在此期间是旧的。侧栏改按用户最后发消息时间排序（2026-09-18）之后不影响顺序——时间在发出时就打好、收轮只沿用。最小修复：`_saveIndex` 收一个 `SessionStore` 参数，`_runTurn` 传 `s`；发现于改侧栏排序那次，按「不当场顺手改」记这里 (2026-09-18) → **R7.5 拆分后的新家**：`turn._runTurn` → `session.saveIndex()`（改成把刚跑完的 `SessionStore` 传给 `index.upsert`） (2026-09-20)
-- [ ] 设计稿补注记：画板 25 三个按钮上的快捷键标签（Allow `Alt-Shift-A` / Deny `Alt-Shift-X` / 范围下拉 `Ctrl-Alt-A`）从 R2 起就只是画在按钮上的 `Kbd` 装饰，全应用没有任何对应的按键处理；2026-09-18 所有者裁定去掉标签、按钮按内容收窄，不做快捷键。同一次把范围下拉从卡片自己的 `Stack` 改成走 `PopoverAnchor` 浮在 Overlay 上——之前转录里下一张卡绘制顺序更晚，会把展开的菜单压住（所有者手测截图）。画板 25 的三张样张仍画着这三个标签，下个设计轮去掉并重出 PNG，把规则 3 的顺序补回来；上面 R3 那条「`Ctrl-Alt-A` 范围下拉没实测到」指的就是这个下拉控件，照旧。未构建 / 未审查（所有者指定）(2026-09-18)
-- [ ] 侧栏按当前 workspace 过滤（0945c42）之后，被换项目**放下**的会话若正挂着权限 / elicitation 请求，界面上没有任何痕迹：侧栏不列它、会话区是空态，agent 一直等到用户切回那个目录再点开它。这是过滤本身的后果，不是缺陷；要提示得先改设计稿（例如项目切换器上的徽章），记下待裁定 (2026-09-18) → **R7.5 拆分后的新家**：`SessionController.enterWorkspace` + 项目切换器徽章（画板 41 先画） (2026-09-20)
-- [ ] `session/list` 校对（`_reconcile`）按 cwd **原串**比，侧栏过滤按归一后的路径比（分隔符 / 尾斜杠 / Windows 大小写）：只差写法的条目侧栏列着、校对跳过（不会被误标「agent 侧没有了」，也不补标题）。无害，两处口径统一时一并改 (2026-09-18) → **R7.5 拆分后的新家**：`SessionController.reconcileSessions` + `WorkspaceState.normalizeCwd` (2026-09-20)
-- [ ] 认证页成功后的自动重试 `_createSession(agent, retryCwd)` 用的是发起时的 cwd：认证期间换了项目，回来的会话挂在旧目录、侧栏（当前 workspace）里找不到。`openProject` 的等待期守卫（合并复审 2026-09-18）管不到认证页这条路（认证期间 `waitingForAgent` 不为真）。要修得让 `_createSession` 按当前 `project` 判一次「还该不该挂成当前会话」，属机制类，等单独一轮 (2026-09-18) → **R7.5 拆分后的新家**：`AuthState.onAuthenticated` → `SessionController.createSession`（按当前 `workspace.project` 判一次） (2026-09-20)
-- [x] 立项 `lib/app/workbench_controller.dart` 是 2642 行的单一 `ChangeNotifier`（103 个公有方法、19 段、83 处 `_touch()` 全落一个 notifier，screen 用一个 `ListenableBuilder` 包整个壳）；本文件里 17 条未关闭项与它有关、8 条逻辑缺陷全出在共享 `agentId` / `sessionId` / `store` 的约 1050 行里。2026-09-18 cursor 代码质量分析判为「事实上的上帝对象」，主会话核对为「膨胀的编排层 + 合租的 UI 子状态」（协议状态不在它手里）。拆分计划已写成单独一轮 `rounds/round-7.5/round-7.5.md`（组合根 + 8 个对象、行为零变化、改名表与依赖方向图、9 步实施），六项裁定门待所有者拍板；拆完后那 17 条各自的新家见任务卡「与 BACKLOG 的关系」。2026-09-20 按 main 新合并的 16 个提交（画板 43 / R7.6 / v1.0.0）复核：控制器只多了 `timelineAnchor` 3 行、17 条一条未关，计划骨架不变，基线改 `5a001bf`、分支 `round-7.5` 已拉出，后续缺陷轮改叫 R7.7（R7.6 已被字体切换占用） (2026-09-18，2026-09-20 复核) → **已完成（R7.5，2026-09-20）**：组合根 + 8 个对象落地（`lib/app/` 九个新文件，组合根剩 356 行），行为零变化（validate 全绿、三份 fake-agent 无头报告逐步骤与基线等价）；17 条相关条目各自的新家已补在各条末尾，缺陷本身归 R7.7。
-- [ ] R7.5 `GuardedNotifier` mixin（`lib/app/guarded.dart`）只收编了组合根与八个子对象；`FilesState` / `LocalTerminals` / `AppearanceController` 各自那份 `_disposed` 挡板与错误边界原样留着（本轮「不动」范围），下一轮统一混入 (2026-09-20)
-- [ ] R7.5 两个只改了引用路径的既有文件超过 validate 行数门的 900：`lib/app/headless_run.dart` 1186 行（R3 / R5 / R6 三个无头模式的驱动，不是产品代码）与 `lib/app/workbench_screen.dart` 946 行（画板 43 之后就是这个数，任务卡「2026-09-20 复核」记为观察项）；`scripts/validate.ps1` 里分别放宽到 1300 / 1000 并写明理由，门按原始行计（与 `wc -l` 同口径）。要不要拆（headless 按三个模式拆三个文件；screen 把滚动 / 跟随 / 跳转三套多帧纠正逻辑拆出去）等裁定 (2026-09-20)
-- [ ] R7.5 headless 报告里 `report['lastError']`（异常收尾时那一份）现在读的是 `session.lastError`：拆分后没有全局 `lastError`，异常路径的兜底只记会话那一段的错误；做壳级聚合（上面 `lastError` 无出口那条）时一并改成聚合值 (2026-09-20)
-- [ ] R7.5 阶段 B（按区域订阅）只量未动：探针（`debugOnRebuildDirtyWidget` 数 `AppShell` 的 build，flutter_tester debug 口径）——290 条 `session/update` 挂在 batcher 里一次放行 → 根通知 1 次、壳级 build **1 次**（首帧 229 ms，含 290 条转录的首次构建）；40 条流式分块逐帧到达 → 40 次通知、每帧壳级 build 1 次、约 37 ms/帧。裁定门第 4 项的阈值是「一次 batch 的壳级 build > 1 次且 > 16 ms」，次数正好是 1，不触发；但每帧一次整壳重建（侧栏 + 顶栏 + 右栏 + 转录容器）在流式输出时的 37 ms/帧是 debug 测试机口径，release 真机要另量；要做的话 screen 改成按区域 `Listenable.merge([...])` 订阅并补一条重建计数的 widget 测试（任务卡验收 10） (2026-09-20)
-- [ ] **设计稿补注记（Thread → Session 收敛）**：UI 文案与前端 Dart 符号已于 2026-09-20 从 `Thread` 统一收敛为 `Session`（中文「会话」）——默认会话标题 `New <agent> Thread` → `New <agent> Session`、`+` 弹层的 `Threads` → `Sessions`；widget `ThreadHeader` / `NewThreadEmpty` / `ThreadMenuPopover` → `SessionHeader` / `NewSessionEmpty` / `SessionMenuPopover`（文件 `lib/ui/shell/thread_header.dart` → `session_header.dart`）、控制器 `threadTitle` → `sessionTitle`、`threadMenuAnchor` → `sessionMenuAnchor`，注释里的「线程头 / 线程区」一并改为「会话头 / 会话区」。理由是协议层与状态层本就是 `session/*`（`sessionId`、`session/new`、`SessionStore`、`sessions.json`）、中文文案本就是「会话」，只有早期临摹 Zed 原型留下的这几处英文还写着 `Thread`。**这次是先改实现、设计稿没跟**：画板 00（`New Thread` 字样样张）、01 / 02 / 03 / 06 / 31 / 50 / 60 / 61（`New <agent> Thread` 标题）与画板 40（`+` 弹层的 `Threads` 行）仍是旧文案，下个设计轮改文案并重出 PNG，把规则 3 的顺序补回来。**不在收敛范围**：Zed 上游的 `ThreadEvent` / `ThreadStore` / `threads.db` / `acp_thread.rs` 是上游原生概念（硬性护栏），照旧 (2026-09-20)
-- [ ] main 直改 行内 HTML **只认了 `<br>`**（`lib/ui/transcript/markdown_body.dart` 的 `HtmlLineBreakSyntax`，2026-09-20 修 pi 表格那次）：package:markdown 的 `InlineHtmlSyntax` 对所有标签都是「原样放行、不建节点」，所以 `<sub>` / `<sup>` / `<kbd>` / `<span>` / `<img …>` / `<!-- 注释 -->` 仍会逐字显示在正文里。成对标签要自己做配对与嵌套（未闭合、跨块、与强调语法的优先级），是机制类改动，按最小改动原则没做；真撞上了再单独一轮，并连「允许哪些标签、内容怎么转义」一起定 (2026-09-20)
+| 档 | 条数 | 这档是什么 |
+|---|---|---|
+| **P0 真缺陷** | 14 | 会丢内容、作用到错对象、吃光资源、静默失败。撞上就是事故，排进最近的轮次。 |
+| **P1 看得见的粗糙** | 20 | 用户看得见的不一致、缺等待态、行为不符直觉。能用，膈应；攒批做。 |
+| **P2 功能缺口** | 11 | 该有没有的能力。**全部需所有者裁定才能进轮次**，多数还要先改设计稿。 |
+| P3 设计稿欠账 | — | **已整体释放**到 `design/DIVERGENCE.md`，见下面的占位小节 |
+| **P4 平台与分发** | 7 | macOS / Linux、构建链、sidecar 打包。跟 R8 走。 |
+| **P5 内部工程与验收** | 14 | 用户无感：测试、行数门、文档措辞、验收自动化。有空就做。 |
+| **X 卡在上游 / 协议** | 6 | 我们动不了，等 agent 侧或 zed 升版本。只盯着，不排期。 |
+| | **72** | |
+
+**新增条目**：挑一档追在该档末尾，照同样的三行格式写。不新开档位；一条只进一档。
+**关闭条目**：整条（三行）剪到 `BACKLOG-CLOSED.md` 对应位置，并把 `- [ ]` 改成 `- [x]`。
+
+## P0 · 真缺陷（14）
+
+### 附件与剪贴板（5）
+
+- [ ] **编辑带图的消息会把图弄丢**
+  - **产品**：用户改一句话重发，原来贴的图就没了，界面上没有任何提示。图片粘贴落地后更容易撞上。
+  - **技术**：用户消息的编辑重发（画板 11 的 Regenerate）只带回文本：`UserMessage.plainText` 不认 `image` / `audio` 块，`onRegenerate` 也只传一个 `String`，所以带图的消息一编辑就把图丢了（Restore Checkpoint 走原样 JSON，不受影响）。图片粘贴落地后这条更容易撞上。要修得让编辑态保留非文本块并随重发原样带回 (2026-09-18) → **R7.5 拆分后的新家**：`TurnController.restore` (2026-09-20)
+
+- [ ] **剪贴板读取超时后留下孤儿进程和临时 PNG**
+  - **产品**：剪贴板被别的程序占住时粘贴一次，后台留一个 powershell 进程和一张永远删不掉的截图。
+  - **技术**：`lib/app/clipboard_image.dart`：`Process.run(...).timeout(15s)` 只让 Dart 侧的 Future 提前失败，`powershell.exe` 还在跑——`finally` 里删临时目录会撞上它正在写 `clipboard.png`（Windows 文件占用），删除抛异常被 catch 掉，于是一份截图 PNG 永久留在 `%TEMP%`、外加一个孤儿 powershell。触发条件是剪贴板被别的进程锁住让 `Clipboard.GetImage()` 卡住。要修得换 `Process.start` + 超时 `kill`（机制类改动），发布前审查 P3 按最小改动原则没做 (2026-09-18)
+
+- [ ] **从文件选择器加图没有大小门**
+  - **产品**：挑一张几十 MB 的 PNG，界面当场卡住，然后整块塞进一条消息发出去。剪贴板那条路有 20 MB 门，这条没有。
+  - **技术**：`lib/app/workbench_screen.dart` `_addImage()`（`+` → Image 选文件）没有大小门：`clipboardImageSizeLimit`（20 MB）只管剪贴板那条路，文件选择器挑一张 60 MB 的 PNG 会在 UI isolate 上同步 base64 出约 80 MB 的字符串并整块塞进 `session/prompt`。要修得在这条路上复用同一常量判一次并置 `lastError`——但 `workbench_screen` 现在一处都不写 `lastError`，加了就是新的分层，发布前审查 P3 按最小改动原则没做 (2026-09-18) → **R7.5 拆分后的新家**：`ComposerState.addImage` 做门、记 `composer.lastError` (2026-09-20)
+
+- [ ] **剪贴板文件列表没有张数门**
+  - **产品**：在图片文件夹里全选复制再粘贴，一百张照片会全部收下、吃掉一两个 G 内存，然后一条消息发出去。上限取几张是产品取舍，等裁定。
+  - **技术**：`lib/app/clipboard_image.dart` 的剪贴板**文件列表**那条路只有单张大小门（20 MB），没有张数门：`GetFileDropList()` 给的是资源管理器里选中的全部文件，在图片文件夹里 Ctrl+A / Ctrl+C 再 Ctrl+V 会把每张都收下，每张在内存里还存三份（`ClipboardImage.bytes` + base64 字符串约 1.33 倍 + 芯片解回来的 `_bytes`），100 张 5 MB 的照片约 1.5 GB，随后整块进一条 `session/prompt`。最小修复是循环里加一句张数上限并计入已有的 `skippedTooLarge` 提示，但**上限取几张是产品取舍**，等所有者定。发布前审查第 2 轮 P3 (2026-09-18)
+
+- [ ] **写盘截断的 PNG 会被当成正常图片发出去**
+  - **产品**：磁盘写满时粘贴，发出去的是一张解不开的图，两边都不报错。稀有但会发生。
+  - **技术**：`lib/app/clipboard_image.dart` 的 `length == 0` 守卫挡不住**截断的 PNG**：`$img.Save(path, Png)` 是先建文件再由 GDI+ 编码写入，磁盘写满是在已经写出若干字节之后才失败，落盘的是非空但截断的 PNG——既不等于 0 也不超 20 MB，照旧读进去、发出一枚解不开的 `image` 块（与 0 字节那档同类，只是稀有）。要判得准得读 PNG 尾部的 IEND 块或真解一次码，属机制类。发布前审查第 3 轮 P3 (2026-09-18)
+
+### 会话身份与生命周期（5）
+
+- [ ] **发消息可能把选中的会话静默顶掉**
+  - **产品**：点开一条旧会话直接发消息，有时会新开一条把它顶掉，侧栏高亮跟着跳走，用户不知道发生了什么。
+  - **技术**：`lib/app/workbench_controller.dart` `send()` 的懒开会话守卫：`store` 是 `sessionId == null ? null : sessions.maybe(sessionId!)`，所以选中的会话只是**载不回**转录（agent 不支持 `loadSession` / `_ensureConnected` 抛错被 `_guard` 吞掉 / 拿不到 cwd）时 `store` 也是 null，发送会开一条新会话把选中的那条静默顶掉、侧栏高亮跟着跳走。发布前审查 P2。**两轮针对性整改都被复审报回**：改判 `sessionId == null` 让「agent 不支持 loadSession」那类旧会话按发送零响应（那恰是 R3 既定语义要开新会话）；补成 `store == null && (sessionId == null || !canLoadSessionOf(id))` 又把 `newSession` 已写好的认证 / 缺 Node / 没选目录报错覆盖成一句不相干的话，且「本次还没连上、能力未知」时仍会顶掉。所有者裁定 2026-09-18 回退到出厂行为、单独一轮做。做的时候要一次把四种状态分清：无 sessionId / 有 store / 已 initialized 且不支持 loadSession / 载回失败或能力未知，且别覆盖 `newSession` 的 `lastError` (2026-09-18) → **R7.5 拆分后的新家**：`turn.send` ↔ `session` 的边（给 `session` 加四态查询） (2026-09-20)
+
+- [ ] **重载或崩溃之后，别的会话发不出去**
+  - **产品**：重载过 agent 再切到另一条会话发消息，撞 unknown session，只能重开应用。
+  - **技术**：agent 进程换过一轮之后（崩溃、或会话头的「重载 agent」），**内存里其它会话**拿的还是旧进程的 sessionId：`_ensureLoaded` 只在「内存里没有转录」时才 `session/load`，切过去直接发消息会撞 agent 的 `-32602 unknown session`。2026-09-18 所有者报障（dsh-acp-interactive）的那条路径里，「新建会话顺手重连」这一半已经修掉（`newSession` 改走 `_ensureConnected`），重载 / 崩溃这一半还在——只是现在要用户主动重载或进程真的死掉才会撞上。要修得给每条连接记一个代次，把代次之前载进来的会话标成待重载（`selectSession` 时自动 `session/load` 回来），属机制类改动，等单独一轮 (2026-09-18) → **R7.5 拆分后的新家**：`SessionController`（代次记在 `_sessionAgent` 旁） (2026-09-20)
+
+- [ ] **载回来的会话下一轮之后丢标题**
+  - **产品**：重开应用点进旧会话再聊一句，侧栏那条就变成「New … Session」，原来的标题没了；会话头也一样。
+  - **技术**：载回来的会话在下一轮对话后**丢标题**：`session/load` 不重放标题（`session_info` 回不来），所以 `store.title` 是 null，而 `_saveIndex` 写的是 `s.title ?? sessionTitle` —— 那就是占位串「New <agent> Session」，Rust 侧 `upsert_session` 是整行替换（`rust/settings/src/index.rs`），于是索引里原来那条有意义的标题被占位串盖掉、侧栏跟着变成「New … Session」。会话头也一样只显示占位串（这正是 2026-09-18 排查 Regenerate 死键时认出「这条会话是载回来的」的线索）。最小修复是 `_saveIndex` 里退回索引里已有的标题（`s.title ?? <索引标题> ?? sessionTitle`），要新加一个按 id 取索引标题的小助手；发现于修 Restore 截断点那次，按「不当场顺手改」记这里 (2026-09-18) → **R7.5 拆分后的新家**：`SessionIndex.upsert`（退回索引里已有的标题） (2026-09-20)
+
+- [ ] **认证完成后建出来的会话挂到旧目录**
+  - **产品**：认证期间换了项目，认证成功后建出来的会话在当前项目的侧栏里找不到。
+  - **技术**：认证页成功后的自动重试 `_createSession(agent, retryCwd)` 用的是发起时的 cwd：认证期间换了项目，回来的会话挂在旧目录、侧栏（当前 workspace）里找不到。`openProject` 的等待期守卫（合并复审 2026-09-18）管不到认证页这条路（认证期间 `waitingForAgent` 不为真）。要修得让 `_createSession` 按当前 `project` 判一次「还该不该挂成当前会话」，属机制类，等单独一轮 (2026-09-18) → **R7.5 拆分后的新家**：`AuthState.onAuthenticated` → `SessionController.createSession`（按当前 `workspace.project` 判一次） (2026-09-20)
+
+- [ ] **载会话中途失败会留半份转录**
+  - **产品**：载到一半断了，屏幕上留着残缺的历史，看起来像对话本身就长这样。
+  - **技术**：R6 `session/load` 在「原先内存里就有转录 + 重放到一半断了」时会留下半份转录（清空已经生效、重放没跑完）。一条都没重放的失败已经不清空了；这一半的情况要完全无损得给 `resetForReplay` 加快照与回滚，本轮按最小改动没做 (2026-09-16)
+
+### 资源与静默失败（3）
+
+- [ ] **退出时 agent 的子进程没回收**
+  - **产品**：关掉应用，Cursor 拉起的 node.exe 还在用户机器上跑着（实测 PID 42768，要手动杀）。
+  - **技术**：R5 无头实跑以 `exit()` 结束进程时不走 `agent_disconnect`，Cursor 的 `cursor-agent.cmd`（cmd.exe 包装）随进程一起没了、它拉的 `dist-package/node.exe` 却留成孤儿（实测 PID 42768，手动 `taskkill /T`）。R4 验收 4「应用退出时子进程全部回收」要把桌面应用的关闭路径（`AcpApp.dispose` / Windows runner 的 `WM_CLOSE`）与无头口子都接到 `agent_disconnect`（`taskkill /F /T`） (2026-09-16) → **R7.5 拆分后的新家**：组合根 `shutdown` (2026-09-20)
+
+- [ ] **快速换项目会订到错目录的文件流**
+  - **产品**：连着切几次项目，文件面板显示的可能是上一个项目的变化；旧的监听一直挂到进程结束。
+  - **技术**：R4 `lib/app/files_state.dart` `setProject`：换项目时 `fs_unwatch(previous)` 不等、`fsWatch(path).listen` 在两次 await 之后才挂，快速 A→B→A 会让 Dart 订到 B 的流而字段是 A、核心 `watchers` 表里 A / B 都在（B 的活到 `core_shutdown`）。最小修复：每次 await 之后若 `root != path` 或已 dispose 就直接 return 不再 listen。R4 第 4 轮审查 P2，所有者裁定 2026-09-16 非阻断记 BACKLOG (2026-09-16)
+
+- [ ] **失败没有出口，用户看到的是「点了没反应」**
+  - **产品**：新建会话失败、删除失败、附件超限，界面上什么都不说，只有日志里有一句。「没选项目」和「这一轮发失败」已各自有出口，其余仍是静默。
+  - **技术**：`lastError` 在产品 UI 上没有出口（只有 `debugPrint` 与无头实跑读它）：新建会话失败（缺项目 / 桥报错）、删除会话失败这类只在 `lastError` 落一句话的路径，用户看到的是「点了没反应」。现在靠输入框占位文案兜住了「没选项目」这一条（`composerPlaceholder`），其余仍是静默。其中**「这一轮发出去失败」已于 2026-09-18 有了出口**：`session/prompt` 回 JSON-RPC error 时原因落在 `TurnEntry.error` 上、由画板 31 的结束行显示，不再只进 `lastError`。其余路径（新建会话失败、删除会话失败、附件超限）仍要一处壳级的错误提示位——属于扩边界，先改设计稿 (2026-09-17) → **R7.5 拆分后的新家**：组合根聚合九个对象的 `lastError` + 壳级提示位（画板先画） (2026-09-20)
+
+### 显示（1）
+
+- [ ] **终端里的中文会错位**
+  - **产品**：终端面板一出现中文，字符网格就错开，表格和对齐全乱。R7.6 之前就存在，不是字体切换引入的。
+  - **技术**：**等宽里的中文宽度不是 2:1，终端面板遇到中文就错位**。等宽渲染按字符格子走，中文必须正好是拉丁的两倍宽；随包的 Noto Sans SC 汉字是全角 1em，而 Geist Mono 的 advance 约 0.6em，2×0.6 ≠ 1。**这是 R7.6 之前就存在的问题，不是字体切换引入的**。R7.6 给了出路（代码等宽中文轴可选更纱黑体 Sarasa Mono SC，它专门做了 2:1 对齐），但默认组合仍然错位。根治要么换默认的等宽 CJK 字体，要么在终端渲染层按 cell 宽度矫正 —— 都超出「加个开关」的范围，需所有者裁定 (2026-09-20)
+
+## P1 · 看得见的粗糙（20）
+
+### 主题与渲染（3）
+
+- [ ] **const 构造的组件换主题后不重建**
+  - **产品**：切深色 / 浅色之后，一部分徽章、箭头、空态还是切换前的颜色。
+  - **技术**：画板 07 深色模式：**`const` 构造的自写 widget 在换主题后不重建**（R7.5 合并 main@32d372f 时按所有者指示自审发现，2026-09-20）。主题切换只靠 `lib/app/app.dart` 的 `ListenableBuilder` 整树重建、`t.Theming.apply` 只换颜色表；`Element.updateChild` 对 `identical` 的常量实例直接复用旧 element、不再 build，于是在 build 里读颜色 token 的 const widget 冻在切换前的颜色，直到那个 element 被重建（`0c95a84` 修的 `AppLogo` 就是这一类，但不止它一处）。探针证实：`const ToneChip` 与非 const 的孪生同树，`Theming.apply(dark)` 后重建父级，前者仍是浅色 `successSoft`。元素常驻的调用点：`lib/ui/registry/registry_entry.dart` 7 处 `ToneChip` + 2 处 `_Diamond`、`lib/ui/settings/settings_page.dart` 2 处 `ToneChip`、`lib/ui/transcript/tool_call_card.dart` `ToneChip('Canceled')`、`lib/ui/transcript/elicitation_form_card.dart` `ToneChip('Recommended')`、`card_chrome.dart` / `plan_card.dart` / `shell/composer.dart` / `turn_state.dart` 的 `Chevron`、`lib/ui/files/files_panel.dart` 的 `FileViewerEmpty`（弹层里的 `MenuDivider` / `MenuGroupLabel` / `_TimelineEmpty` 每次打开都新建，看不出来）。修法待裁定：逐处去 const（与 `AppLogo` 同一做法；`dart fix` 会把它们收回去，要加 ignore），或换主题时给 `home` 换 `ValueKey(theme)` 整树重建（丢滚动位置 / 焦点等瞬时态）。P3，视觉，不丢数据；R7.5 不动 `lib/ui`（验收 1），留给 main 直改 (2026-09-20)
+
+- [ ] **转录正文换主题 / 换字体后不跟着变**
+  - **产品**：浅色切深色再切回来，整段对话正文（表格、行内代码的深色底、正文字色）还留在深色，reload 会话才好。所有者手测 2026-09-20 报障，当场裁定先不修。
+  - **技术**：main 直改 转录正文换主题 / 换字体后不重建：`lib/ui/transcript/markdown_body.dart` 的 `_MarkdownBodyState` 把解析出的块 widget 实例缓存在 `_blocks`（注释写明是有意的：父级重建时子树不重建，recognizer 才不会随父级 build 反复登记），`build()` 每次返回同一批实例，而 `didUpdateWidget` 只比 `data` / `onLink` / `mermaidFontFamily` / `baseStyle`——换主题这四个都没变，于是 `Element.updateChild` 见 `child.widget == newWidget` 直接复用旧 element、不再 build，里面读 `Theming.colors` 的那些 getter 根本没被重新执行；`_rebuild()` 里 `final base = widget.baseStyle ?? t.TextStyles.body` 还把字阶颜色一起烘了进去。影响 7 个调用点（`assistant_text` / `content_blocks` / `plan_card` / `subagent_card` / `thinking_block` / 文件面板的 md 预览），reload 会话就好是因为转录整棵重建、element 是新的。**换字体大概率同样表现**（`Fonts.apply` 与 `Theming.apply` 走同一个 `rebuildStyles()`），未实测。修法仓库里现成有一份同形的：`lib/ui/files/files_panel.dart` 的 `SourceView` 在 `build()` 开头比 `t.Fonts.generation` 代数、过期就重算，`MarkdownBody` 照抄一句即可，不是机制类改动；要验的一点是 `_rebuild()` 会 `disposeAll()` recognizer，在 build 里调需确认不会 dispose 掉正在被指针跟踪的那个。与上面「`const` 构造的自写 widget 换主题后不重建」同一根因（同一 widget 实例 → element 不重建），但不是 const 引起的，两处各修各的。所有者手测报障、当场裁定先不修 (2026-09-20)
+
+- [ ] **行内 HTML 只认 `<br>`**
+  - **产品**：消息里的 `<sub>` / `<sup>` / `<kbd>` / `<span>` / HTML 注释会原样一个字一个字显示在正文里。
+  - **技术**：main 直改 行内 HTML **只认了 `<br>`**（`lib/ui/transcript/markdown_body.dart` 的 `HtmlLineBreakSyntax`，2026-09-20 修 pi 表格那次）：package:markdown 的 `InlineHtmlSyntax` 对所有标签都是「原样放行、不建节点」，所以 `<sub>` / `<sup>` / `<kbd>` / `<span>` / `<img …>` / `<!-- 注释 -->` 仍会逐字显示在正文里。成对标签要自己做配对与嵌套（未闭合、跨块、与强调语法的优先级），是机制类改动，按最小改动原则没做；真撞上了再单独一轮，并连「允许哪些标签、内容怎么转义」一起定 (2026-09-20)
+
+### 壳与交互（7）
+
+- [ ] **窗口没有最小尺寸**
+  - **产品**：把窗口拖得够窄，三栏直接被裁切，没有折叠也没有提示。
+  - **技术**：R3 窗口没有最小尺寸：三栏都顶到下限要 220 + 360 + 360 = 940，窗口比这窄时 `AppShell._fit` 压不动了只能裁切。要么在 Windows runner 上设 `WM_GETMINMAXINFO`，要么窄窗时自动折叠侧栏；两条都得先改设计稿 (2026-09-16)
+
+- [ ] **关掉最后一个面板标签会把整栏收起**
+  - **产品**：终端还在后台跑着，右栏却整个消失了，要从侧栏重新点「终端」才找得回。
+  - **技术**：R4 `lib/app/workbench_controller.dart` `closeTab`：右栏标签条上「文件 + 终端」并存时，关掉最后一个面板标签会把整栏收起（`rightTab = null` 且 `activeTerminalId` 仍空 → `rightPanelOpen == false`），本地 shell 继续在后台跑、侧栏再点「终端」能找回。最小修复：`closeTab` 发现 `openTabs` 空了但 `terminals.tabs` 非空时把 `activeTerminalId` 设成最后一个终端。R4 第 4 轮审查 P2，所有者裁定 2026-09-16 非阻断记 BACKLOG (2026-09-16) → **R7.5 拆分后的新家**：`ShellState.closeTab` (2026-09-20)
+
+- [ ] **会话菜单的 Resume / Close 没有入口**
+  - **产品**：两个动作已经接通也有单测，但产品界面上点不到（Delete 有入口）。
+  - **技术**：R6 会话头 ≡ 的语义在画板 03（右栏展开的选中态）与画板 41（会话菜单）之间冲突。所有者裁定 2026-09-16：**≡ 保持右栏开关，会话菜单要入口先改设计稿**。R6 已把菜单的动作接通并做了单测（`resumeSession` / `closeSession` / `deleteSession` + 能力裁剪），产品 UI 里 **Delete 有入口（侧栏删除图标，画板 04）、Resume / Close 没有**。下个设计轮给会话菜单定一个入口（改画板 41 / 03），再接上 `SessionMenuPopover` (2026-09-16)
+
+- [ ] **弹层上方放不下时不会翻到下方**
+  - **产品**：贴着屏幕上沿的下拉，条目会顶出窗口。封顶滚动那一半已经做了，翻转还没有。
+  - **技术**：弹层「上方放不下就翻到下方」还没做。`maxHeight` + 内部滚动那一半**已于 2026-09-18 落地**（`lib/theme/tokens.dart` 的 `Geometry.menuMaxHeight` + `MenuPopover` 的 `ConstrainedBox` + `SingleChildScrollView`），所以模型列表长到 20+ 时不再顶出屏幕外、条目也选得中；剩下的是「触发控件上方的可用高度比封顶还小」时翻到下方的规则，画板 40 没画这种情况，属于扩边界，先改设计稿 (2026-09-17，2026-09-18 更新)
+
+- [ ] **发第一条消息时多播一次入场动画**
+  - **产品**：刚发出第一句，整个中栏会重新淡入一遍。
+  - **技术**：`lib/app/workbench_screen.dart` `_body()`：`staggered` 为真返回裸 `content`、为假返回 `MotionEnter(...)`，同一槽位上 widget 类型变了，发出第一条消息（`entries` 由空变非空）时整棵中栏子树被拆建并多播一次 200ms 入场——画板 05 A 组只把入场定义在「新建 / 切换会话、重载完成」，第一条消息不在其中。跨过这条边界时转录本来就是新的，没有滚动位置或展开态可丢，所以放行。最小修复是两支都包 `MotionEnter`、`staggered` 时传无动画时长，把错开下推给 `NewSessionEmpty`。发布前审查 P3 (2026-09-18)
+
+- [ ] **两层弹层叠着时一次 Esc 全关掉**
+  - **产品**：`@` 菜单和 `+` 弹层同时开着，按一下 Esc 两层一起消失，而不是逐层关。
+  - **技术**：两层临时表面同时开着时一次 Esc 会把两层一起关掉：`HardwareKeyboard` 把事件发给**所有**已登记的 handler（`handled = handler(event) || handled`，不是第一个返回 true 就停），所以输入框里 `@` 菜单开着时再点 `+` 打开画板 40 的弹层（点在输入框区域内，内联菜单不会被「点外面」关掉），此时挂着两个 `EscapeDismissible`，按一下 Esc 两个 `onDismiss` 都跑。期望是逐层关闭。要逐层得给这些表面排个栈（机制类改动），发布前审查 P3 按最小改动原则没做 (2026-09-18)
+
+- [ ] **@ 菜单会在用户点走之后自己弹出来**
+  - **产品**：敲 `@` 之后马上点别处或按 Esc，几百毫秒后菜单自己冒出来；目录大或在网络盘上窗口更宽。
+  - **技术**：`lib/app/workbench_controller.dart` 的 `_updateMentionMenu` 在 await `fsListDir` / `fsSearch` 之后**无条件**写回 `_mentionFiles` / `_mentionDirs`，没有过期判据：敲下 `@` 后结果还没回来时 `inlineMenuOpen` 仍是 false，于是「点外面关」与 `closeInlineMenu()` 都是空操作（两者第一行都早退），几十到几百毫秒后 fs 结果回来，菜单在用户已经点走 / 按过 Esc 之后自己弹出来。目录大或在网络盘上时窗口足够宽。函数本身不在本次范围内，但 2026-09-18 新增的「点外面关」让这条路径变得常见。最小修复是 await 之后加一句「光标处的 token 还是原来那个才写回」。发布前审查 P3 (2026-09-18) → **R7.5 拆分后的新家**：`ComposerState._updateMentionMenu` (2026-09-20)
+
+### 等待与反馈（2）
+
+- [ ] **终端里看不到正在组的字**
+  - **产品**：在终端打中文时光标处不显示拼音串，只能看输入法候选框（位置已跟着光标走），上屏正常。
+  - **技术**：终端里组字期间看不到「正在组的字」：Flutter 在 `WM_IME_SETCONTEXT` 里剥掉了 `ISC_SHOWUICOMPOSITIONWINDOW`（组字串约定由应用自己画），而 xterm 的 `composingText` 只有它自带的 `CustomTextEdit` 能喂——我们走的是`hardwareKeyboardOnly` + 自建的 `TerminalIme`（见 `lib/ui/terminal/terminal_ime.dart`），喂不进去。现在靠输入法候选框显示拼音（候选框位置已跟着光标走），上屏正常。要在光标处画出组字串得自己叠一层浮层，属于扩边界，先改设计稿 (2026-09-17)
+
+- [ ] **点开旧会话时没有「正在载」**
+  - **产品**：侧栏点一条没载过的会话，屏幕上先是新会话空态，看起来像「这条是空的」而不是「正在载」。
+  - **技术**：第三条「等 agent」的路径还没有等待态：侧栏点一条内存里没有转录的会话（`selectSession` → `_ensureLoaded` → `session/load` 重放整段历史）。`sessionId` 当帧就切过去了，而转录要等重放回来，这期间画的是画板 01 的**新会话空态**——看起来像「这条会话是空的」，不是「正在载」。所有者手测只报了新建会话那条，这条一并记下。要修就是同一个 `waitingForAgent` 套在 `_ensureLoaded` 的 `_guard` 上，但画板 05 A 组把「侧栏点另一条会话」定义成瞬时替换、没画等待期，属扩边界，先改设计稿 (2026-09-18) → **R7.5 拆分后的新家**：`SessionController._ensureLoaded`（`waitingForAgent` 套上去；画板 05 A 组先补等待期） (2026-09-20)
+
+### 数据一致性（5）
+
+- [ ] **连着改两次外观可能丢一次**
+  - **产品**：快速连点主题按钮或连换两个字体轴，界面是对的，下次启动可能回到旧值。
+  - **技术**：两次外观改动并发落盘时后发可能先至。`AppearanceController._edit` 现在会等读盘（[start]）落定再算新值（发布前审查 high 的整改），但两次改动本身不排队：快速连点主题按钮、或连着换两个字体轴，两次 `appearanceSet` 会并发跑到 Rust 侧，各自 read-modify-write `settings.json`，理论上旧快照可能最后落地。界面不受影响（内存里是对的），下次启动才看得出来。**R7.6 就已经这样**（`setAxis` 同理），不是深色模式引入的；真要修是给落盘串一条链，属机制类修复，按 CLAUDE.md 的审查边界记这里 (2026-09-20)
+
+- [ ] **删会话时 agent 侧可能留着**
+  - **产品**：删掉一条「agent 没连上」的会话，本地没了、agent 那边还在。侧栏本来也不显示 agent 侧独有的会话，所以看不出岔开。
+  - **技术**：R6 `session/delete` 只在「该 agent 已连上且声明了 delete」时发；没连的 agent 不为了删一条本地记录去拉进程，那一下只删本地索引，agent 侧留着（侧栏本来也不显示 agent 侧独有的会话，所以看不出岔开）。要两边严格一致得在删除时按需连一次 agent，代价是一次子进程启动 (2026-09-16) → **R7.5 拆分后的新家**：`SessionController.deleteSession`（产品取舍，等裁定） (2026-09-20)
+
+- [ ] **后台跑完的那轮，侧栏消息数不刷新**
+  - **产品**：另一条会话在后台跑完，侧栏上它的「N 条消息」要等它下一轮才更新。排序不受影响。
+  - **技术**：`lib/app/workbench_controller.dart` `_runTurn` 收轮那次 `_saveIndex()` 写的是**当前选中**的会话（`store`）而不是刚跑完那一轮的会话（`s`）：另一条会话在后台跑完时（2026-09-18 起新建会话不再重连、可以并跑），被改写的是前台那条的索引（它自己的值原样写回，无害），后台那条的 `messageCount` 要等它下一轮才刷新，侧栏「N 条消息」在此期间是旧的。侧栏改按用户最后发消息时间排序（2026-09-18）之后不影响顺序——时间在发出时就打好、收轮只沿用。最小修复：`_saveIndex` 收一个 `SessionStore` 参数，`_runTurn` 传 `s`；发现于改侧栏排序那次，按「不当场顺手改」记这里 (2026-09-18) → **R7.5 拆分后的新家**：`turn._runTurn` → `session.saveIndex()`（改成把刚跑完的 `SessionStore` 传给 `index.upsert`） (2026-09-20)
+
+- [ ] **换项目放下的会话挂着请求，界面上没痕迹**
+  - **产品**：切走的项目里有会话正等着授权或表单，侧栏不列它、会话区是空态，agent 一直等到用户切回那个目录。
+  - **技术**：侧栏按当前 workspace 过滤（0945c42）之后，被换项目**放下**的会话若正挂着权限 / elicitation 请求，界面上没有任何痕迹：侧栏不列它、会话区是空态，agent 一直等到用户切回那个目录再点开它。这是过滤本身的后果，不是缺陷；要提示得先改设计稿（例如项目切换器上的徽章），记下待裁定 (2026-09-18) → **R7.5 拆分后的新家**：`SessionController.enterWorkspace` + 项目切换器徽章（画板 41 先画） (2026-09-20)
+
+- [ ] **cwd 写法不同的会话，校对会跳过**
+  - **产品**：只差分隔符 / 尾斜杠 / 大小写写法的会话，侧栏列着但不参与校对，标题也不补。无害。
+  - **技术**：`session/list` 校对（`_reconcile`）按 cwd **原串**比，侧栏过滤按归一后的路径比（分隔符 / 尾斜杠 / Windows 大小写）：只差写法的条目侧栏列着、校对跳过（不会被误标「agent 侧没有了」，也不补标题）。无害，两处口径统一时一并改 (2026-09-18) → **R7.5 拆分后的新家**：`SessionController.reconcileSessions` + `WorkspaceState.normalizeCwd` (2026-09-20)
+
+### 进程与资源（3）
+
+- [ ] **退出时要多等 3 秒**
+  - **产品**：agent 不响应 stdin EOF 时，关闭应用要多卡 3 秒才真的退出。
+  - **技术**：R1 Windows 上结束 agent 进程树用 `taskkill /F /T`（Job Object 需要 unsafe，规则 6）；`.cmd` 包装（npx / npm 全局 bin）被 `taskkill /T` 一并杀掉 node 子进程已实测，但 `agent_disconnect` 的正常路径只关 stdin、等 3 s 再杀，agent 不响应 stdin EOF 时会多等 3 s；R5 做 registry 安装时复核 (2026-09-15)
+
+- [ ] **npx 安装失败留半个目录**
+  - **产品**：安装中途取消或失败，磁盘上留着半个 npm 目录，列表仍显示「未安装」，下次安装会覆盖。
+  - **技术**：R5 npx 安装在提交点之前取消 / 失败（`npm install` 阶段）时 `agents/<id>/` 留着半个 npm 目录：没有 `install.json` 所以列表是「未安装」、下一次安装会覆盖，只是占磁盘；binary 型的 staging 目录已会清掉。要一致的话在 `registry_install` 的收尾里对未提交的失败也调 `install::remove` (2026-09-16)
+
+- [ ] **只有受管 Node 的机器上，内置 dsh 起不来**
+  - **产品**：没装系统 Node、只有应用自己下的那份 Node 时，点内置 dsh 拉不起来。
+  - **技术**：内置 dsh 条目（`rust/acp-core/src/builtin.rs` 的 `dsh_launch`）三路分流只认**进程** PATH：没装全局 dsh 时回落 `npx`，而 `npx` 同样按进程 PATH 找，所以「只有受管 Node、没有系统 Node」的机器上这条会拉起失败——受管 Node 的 PATH 前插只给 registry 型 npx agent（`rust/registry/src/node.rs` 的 `env_overrides`）。要修得让内置条目也走 `NodeRuntime`（机制类改动，等所有者裁定）。1572214 发布前审查发现 (2026-09-17)
+
+## P2 · 功能缺口（11）
+
+### 外观（3）
+
+- [ ] **设置页还没有字号**
+  - **产品**：字体能换、字号不能，界面字太小或太大只能忍着。
+  - **技术**：round-design 设置页的外观设置：**字体切换已于 R7.6 落地**（四轴，2026-09-20 所有者裁定）、**深色主题已于 2026-09-20 落地**（画板 07，切换按钮在侧栏标题条右端），**字号仍未做**；字号要先改设计稿 (2026-09-14，2026-09-20 更新)
+
+- [ ] **字体下拉只列候选表里那几款**
+  - **产品**：用户装了别的字体在下拉里看不到，只能手写进 `settings.json`。
+  - **技术**：系统已装字体的**全量枚举**下拉。现在只认候选表里那几款（按文件名探测），用户装了别的字体只能手写进 `settings.json`。枚举要在 Rust 侧扫字体目录 + 解析 TTF 的 name 表拿 family 名（文件名 ≠ family 名），得新引 `ttf-parser` 之类，撞规则 1，R7.6 因此没做 (2026-09-20)
+
+- [ ] **主题没有「跟随系统」**
+  - **产品**：系统切深色，应用不跟；现在只有浅色 / 深色两档一个切换按钮。
+  - **技术**：主题的「跟随系统」档。现在只有浅色 / 深色两档（所有者 2026-09-20 要的是一个切换按钮）。跟随系统要读 `MediaQuery.platformBrightness` 并在系统切换时跟着走，按钮也得变成三态或挪进设置页；画板 07 与画板 70 都没有这一档，要先改设计稿 (2026-09-20)
+
+### 合规与分发（1）
+
+- [ ] **没有「关于 / 致谢」界面**
+  - **产品**：**随包分发给别人之前的硬前置**：MiSans 与 HarmonyOS Sans 的协议都要求在软件里显著注明使用了该字体。只在本机自用时不涉及。
+  - **技术**：**「关于 / 致谢」界面**。MiSans 与 HarmonyOS Sans 的协议都要求在软件里显著注明使用了该字体，随包分发给别人之前必须有这个去处；只在本机自用时不涉及。设计稿里没有这块，要先改设计稿 (2026-09-20)
+
+### agent 接入（4）
+
+- [ ] **registry 的 uvx 分发类型没做**
+  - **产品**：registry 里 uvx 分发的 agent 装不了（Zed 也没做）。
+  - **技术**：立项 registry 的 `uvx` 分发类型：Zed 也未实现，首期不做；要做需引入 `uv` 的检测与下载 (2026-09-11)
+
+- [ ] **装好的 agent 没有升级入口**
+  - **产品**：registry 里版本升了，面板上既不提示也没地方点升级，装着的还是旧版。
+  - **技术**：R5 registry 型 agent 的更新：registry.json 里版本升了，已安装的条目仍是旧版本（`install.json` 记的），面板上只显示 registry 的最新版本、没有「有新版本」提示与升级动作（Zed 有 `new_version_available`）。要做先改设计稿加一个升级态 (2026-09-16)
+
+- [ ] **codex 的 api-key / gateway 两种认证没接**
+  - **产品**：codex 只能靠环境变量给密钥，界面上给不了。
+  - **技术**：R5 codex-acp 的 `api-key` 方法带 `_meta["api-key"]`（客户端可在 `authenticate` 的 `_meta` 里直接递密钥）与 `gateway` 方法（需客户端声明 `auth._meta.gateway`）：两者都要新增 `_meta` 键（规则 2 / `docs/design.md` § 4），本轮只走环境变量 `OPENAI_API_KEY` / `CODEX_API_KEY`（agent 自己从 env 读）；要做先裁定 (2026-09-16)
+
+- [ ] **Zed agent 的斜杠命令发出去只是普通消息**
+  - **产品**：`/` 菜单里看得到 `compact`，点了没有压缩效果；MCP prompt 与 skill 调用同理。
+  - **技术**：R7 sidecar 不走 `NativeAgentConnection::prompt` 而是直接消费 `Thread::send` 的事件流（理由见 `sidecar/zed-agent-acp/src/session.rs` 文件头），于是 Zed 的斜杠命令分流（`/compact`、MCP prompt、skill 调用）没有接上：`available_commands_update` 照常投影（前端 `/` 菜单能看到 `compact`），但发出去只是一条普通消息。要接上得把那段分流逻辑复制出来（`agent.rs` 的 `Command::parse` 一大段），或等上游把 `handle_thread_events` 公开 (2026-09-17)
+
+### 投影与输入（3）
+
+- [ ] **Zed agent 的子代理不投影**
+  - **产品**：Zed agent 开的子代理在界面上完全看不见，只进日志。
+  - **技术**：R7 Zed 的子代理（`ThreadEvent::SubagentSpawned`）是**另一条会话**，事件不经过本轮的流；画板 24 的子代理卡只认 `docs/design.md` § 4 清单里的 `_meta` 键，而清单里没有 Zed 的键，所以 sidecar 只记日志、不投影。要做得先给 § 4 加键并进所有者裁定 (2026-09-17)
+
+- [ ] **输入框里的 @ / 命令不显示成芯片**
+  - **产品**：输入时是纯文本，只有发出去之后的用户气泡里才有彩色芯片。
+  - **技术**：R3 输入框正文是纯文本（`EditableText`），`@mention` / `/command` 不做行内彩色芯片；芯片只在已发送的用户气泡里（画板 11）。要在输入框里出芯片需要富文本输入控件，先记着 (2026-09-15)
+
+- [ ] **认证页的终端不能打中文**
+  - **产品**：认证要输中文时打不进去。目前那里只需要敲密钥和选项号这类 ASCII。
+  - **技术**：terminal auth 的可见终端（画板 52，`lib/ui/registry/auth_page.dart`）没有接 `TerminalIme`：那里要敲的是密钥 / 选项号这类 ASCII，暂时不接；哪天认证流程要输中文再说 (2026-09-17)
+
+## P3 · 设计稿欠账 —— 已整体释放
+
+所有者裁定 2026-09-20：**不要求补设计稿**。原先这一档的 23 条连同结论搬到
+[`design/DIVERGENCE.md`](../design/DIVERGENCE.md)，按「实现已超越画板 / 画板画错 / 实现有意少做」
+分三节记着，那几处以实现为准、PNG 不再是它们的验收基准。档位留空占位，不重排编号。
+
+## P4 · 平台与分发（7）
+
+### 跨平台（2）
+
+- [ ] **macOS 构建还没把 cargokit 挂进 Xcode**
+  - **产品**：macOS 版现在构建不出来。
+  - **技术**：R0 macOS 构建（R8）要把 cargokit 挂进 Xcode（runner 级脚本阶段或 podspec），与 Windows 的 runner CMake 方式对应；frb 模板的 rust_builder 插件路径已不用 (2026-09-15)
+
+- [ ] **剪贴板图片只落了 Windows**
+  - **产品**：macOS / Linux 上 Ctrl+V 只贴文本，图片粘不进去。另：每次粘贴要拉一次 powershell（几百毫秒），剪贴板里是文本时已提前 return。
+  - **技术**：剪贴板图片只落了 Windows（`lib/app/clipboard_image.dart` 借 `powershell.exe` 读 `System.Windows.Forms.Clipboard`，位图与文件列表两条路都实测过）；macOS / Linux 上 `readClipboardImages` 直接回空，Ctrl+V 只贴文本。要做得各写一条本机路径（`osascript` / `pbpaste`、`wl-paste` / `xclip`），或裁定引一个剪贴板包（规则 1 清单外）。另：每次粘贴要拉一次 powershell（几百毫秒），剪贴板里是文本时已经提前 return 不拉 (2026-09-18)
+
+### 构建链（3）
+
+- [ ] **中文路径构建失败时的兜底形态还没评估**
+  - **产品**：工作副本路径含中文 / 空格时构建可能失败，兜底方案（独立 acp-host.exe）没定；现在靠 `build.ps1` 的目录联接兜住。
+  - **技术**：立项 若 R0 在中文用户名路径下 `flutter build windows` 因 cargokit 路径失败，`CARGO_TARGET_DIR` 指 ASCII 路径仍不够时评估形态 B（独立 `acp-host.exe`），见 `docs/research.md` § 9.3 (2026-09-12)
+
+- [ ] **Flutter 构建用的 Rust 版本会漂移**
+  - **产品**：本机 stable 升级后 Flutter 构建悄悄换了编译器版本；`rust-toolchain.toml` 钉的只管 `validate.ps1` 里的 cargo。
+  - **技术**：R0 cargokit 只认 `rustup run stable`（它的 `toolchain` 选项只有 stable / beta / nightly），`rust-toolchain.toml` 钉的 1.98.1 只约束 `validate.ps1` 里的 cargo；本机 stable 升级后 Flutter 构建会用新版。要么给 cargokit 打补丁读 rust-toolchain.toml，要么接受漂移并在 validate 里比对两者版本 (2026-09-15)
+
+- [ ] **sidecar 缺 languages crate，Zed agent 的语法工具退化**
+  - **产品**：Zed agent 的 `read_file` outline 模式与跳转类工具退化成纯文本；编辑、终端、grep、权限不受影响。装上 VS 的「Spectre 缓解库」组件即可恢复。
+  - **技术**：R7 sidecar 没带 `languages` crate（它唯一地依赖 `pet`，`pet` 打开 `msvc_spectre_libs` 的 `error` 特性，本机 VS 2022 BuildTools 没装「Spectre 缓解库」组件，build.rs 直接 panic）。代价：sidecar 里 `LanguageRegistry` 为空，Zed agent 靠语法树的工具（`read_file` 的 outline 模式、跳转类工具）退化成纯文本；编辑、终端、grep、权限不受影响。装上那个 VS 组件后取消 `sidecar/zed-agent-acp/Cargo.toml` 里那一行注释即可恢复 (2026-09-17)
+
+### sidecar 打包（2）
+
+- [ ] **sidecar 的数据目录落在 0-dev 下**
+  - **产品**：只影响目录名，数据已经隔离。
+  - **技术**：R7 sidecar 的 release channel 解析成 `dev`（`ZED_RELEASE_CHANNEL` 没设，`release_channel` 的编译期缺省），所以它的 `db/` 落在 `0-dev` 下。数据已经隔离，这项只影响目录名；要对齐得在 sidecar 的 build.rs 里显式设一个 channel (2026-09-17)
+
+- [ ] **sidecar 体积是打包时的大头**
+  - **产品**：装包体积主要由 sidecar 决定（zed 那套 wasmtime / tree-sitter / alacritty 依赖）；R8 要给出含 / 不含两个数字。
+  - **技术**：R7 debug 构建的 sidecar 是 276 MB（release 见任务卡）。R8 打包要给出含 / 不含 sidecar 两个体积数字时，注意 zed 那套依赖（wasmtime、tree-sitter、alacritty）是大头 (2026-09-17)
+
+## P5 · 内部工程与验收（14）
+
+### R7.5 收尾（4）
+
+- [ ] **还有三个对象没混入 GuardedNotifier**
+  - **产品**：用户无感。`FilesState` / `LocalTerminals` / `AppearanceController` 各自那份挡板与错误边界还原样留着。
+  - **技术**：R7.5 `GuardedNotifier` mixin（`lib/app/guarded.dart`）只收编了组合根与八个子对象；`FilesState` / `LocalTerminals` / `AppearanceController` 各自那份 `_disposed` 挡板与错误边界原样留着（本轮「不动」范围），下一轮统一混入 (2026-09-20)
+
+- [ ] **两个文件超行数门，靠放宽阈值过的**
+  - **产品**：用户无感。`headless_run.dart` 1186 行、`workbench_screen.dart` 946 行，validate 里分别放宽到 1300 / 1000。
+  - **技术**：R7.5 两个只改了引用路径的既有文件超过 validate 行数门的 900：`lib/app/headless_run.dart` 1186 行（R3 / R5 / R6 三个无头模式的驱动，不是产品代码）与 `lib/app/workbench_screen.dart` 946 行（画板 43 之后就是这个数，任务卡「2026-09-20 复核」记为观察项）；`scripts/validate.ps1` 里分别放宽到 1300 / 1000 并写明理由，门按原始行计（与 `wc -l` 同口径）。要不要拆（headless 按三个模式拆三个文件；screen 把滚动 / 跟随 / 跳转三套多帧纠正逻辑拆出去）等裁定 (2026-09-20)
+
+- [ ] **headless 报告的 lastError 只是会话那一段**
+  - **产品**：用户无感。影响无头自检报告的口径，做壳级聚合时一并改。
+  - **技术**：R7.5 headless 报告里 `report['lastError']`（异常收尾时那一份）现在读的是 `session.lastError`：拆分后没有全局 `lastError`，异常路径的兜底只记会话那一段的错误；做壳级聚合（上面 `lastError` 无出口那条）时一并改成聚合值 (2026-09-20)
+
+- [ ] **按区域订阅只量了没动**
+  - **产品**：用户无感（release 真机未量）。流式输出时每帧整壳重建，debug 测试机口径约 37 ms/帧，没触发裁定门的阈值。
+  - **技术**：R7.5 阶段 B（按区域订阅）只量未动：探针（`debugOnRebuildDirtyWidget` 数 `AppShell` 的 build，flutter_tester debug 口径）——290 条 `session/update` 挂在 batcher 里一次放行 → 根通知 1 次、壳级 build **1 次**（首帧 229 ms，含 290 条转录的首次构建）；40 条流式分块逐帧到达 → 40 次通知、每帧壳级 build 1 次、约 37 ms/帧。裁定门第 4 项的阈值是「一次 batch 的壳级 build > 1 次且 > 16 ms」，次数正好是 1，不触发；但每帧一次整壳重建（侧栏 + 顶栏 + 右栏 + 转录容器）在流式输出时的 37 ms/帧是 debug 测试机口径，release 真机要另量；要做的话 screen 改成按区域 `Listenable.merge([...])` 订阅并补一条重建计数的 widget 测试（任务卡验收 10） (2026-09-20)
+
+### 验收与自动化（4）
+
+- [ ] **20 项 ACP 投影卡片还没逐一截图验收**
+  - **产品**：用户无感；是验收覆盖面的窟窿。
+  - **技术**：截图验收：逐一验证并截图 Zed Agent 的 20 项 ACP 投影交互卡片样式 (2026-09-14)
+
+- [ ] **权限范围下拉没在真 agent 上实测**
+  - **产品**：用户无感。dsh 只给 allow_once / reject_once，下拉里没有第二个同向选项，要找个给 allow_always 的 agent 补。
+  - **技术**：R3 `Ctrl-Alt-A` 的权限「范围下拉」没实测到：dsh 只给 `allow_once` / `reject_once`，下拉里没有第二个同向选项。R6 五 agent 全通时用给 `allow_always` 的 agent 补 (2026-09-15)
+
+- [ ] **GUI 点击类验收没有自动化通道**
+  - **产品**：用户无感。窗口拖拽、文件对话框这类只能靠所有者手测。
+  - **技术**：R3 `computer-use` 的 `request_access` 只认 Start 菜单里的应用，认不出自己构建的 `acp_agent_client.exe`，GUI 点击类验收（窗口拖拽、`file_selector` 对话框）没有自动化通道。要么做 `integration_test` + `flutter drive`，要么每轮留给所有者手测 (2026-09-15)
+
+- [ ] **画板对照拦不住位移类偏差**
+  - **产品**：漏出去的是用户看得见的错位（按钮没贴右那次）。现在靠逐点数值断言补，是否加一层几何不变量断言待裁定。
+  - **技术**：R3 画板逐张对照拦不住「位移类」偏差：右侧那组按钮没贴右这件事在 `build/gallery/01a` 与 `18` 里都画出来了，偏移量却随窗口宽度与文本长度变，肉眼比对时看不出「它本该更靠右」。本轮给三处补了数值断言（`test/ui/shell_alignment_test.dart`），但这是逐点补；是否给画板对照加一层几何不变量（贴左 / 贴右 / 等距）的通用断言，待裁定 (2026-09-16)
+
+### 测试与代码健康（3）
+
+- [ ] **原型 fixtures 缺字段（已决定不改）**
+  - **产品**：用户无感。**这条其实已经没有待办了**——原型不维护、不作功能边界，`test/fixtures/` 已补。
+  - **技术**：R0 `prototype/assets/fixtures.js` 的 `elicitation/create` 缺必填字段 `message`，被 Rust 侧 fixtures 测试抓出；`test/fixtures/` 已补，原型不改（原型不维护） (2026-09-15)
+
+- [ ] **rust/fs 有个用例失败也算绿**
+  - **产品**：用户无感。`mklink /J` 建不出链接时断言一行不跑也算通过。
+  - **技术**：R4 `rust/fs/src/lib.rs` 的 R3 用例 `junctions_are_not_followed_out_of_the_workspace` 在 `mklink /J` 失败时 `eprintln` + `return`，断言一行不跑也算绿（R4 第 3 轮审查顺带指出，同文件新用例已改成 `assert!`）：下次碰这个文件时同样改成建不出链接就红 (2026-09-16)
+
+- [ ] **motion 的两个潜伏项**
+  - **产品**：用户无感。当前调用点传的都是常量，触发不到；真触发会是动画按旧参数跑，或 `Interval` 断言炸。
+  - **技术**：`lib/ui/shell/motion.dart`：`_controller` 与 `_enter` 是 `late final`，`didUpdateWidget` 只比 `epoch`，所以 `duration` / `delay` 只在首次 build 生效；同一元素被复用而这两个入参变了时动画按旧参数跑。另：两者同时为 `Duration.zero` 时 `delay / (delay + duration)` 是 NaN，`Interval` 断言会炸。当前所有调用点传的都是常量（`t.Motion.*`），两条都只是潜伏项，所以放行。最小修复是 `didUpdateWidget` 里比这两个入参并同步 `_controller.duration`。发布前审查 P3 (2026-09-18)
+
+### 文档与记录（3）
+
+- [ ] **终端 ANSI 青色改过（变更记录）**
+  - **产品**：浅色下的终端配色也跟着变了，手测时留意。**这条是记录，不是待办。**
+  - **技术**：终端 ANSI 的青从 `Semantic.info` 改成了 `Accent.text`（2026-09-20，落画板 07 § 2.9 的列头）。改之前蓝与青是同一个色值，终端里两种前景分不开；画板 07 的浅色行写的就是 `#4a59c9` = `accent.text`，所以这是把实现对回画板，不是改画板。**浅色下的终端配色因此也变了**，所有者手测时留意一下 (2026-09-20)
+
+- [ ] **日志文件名按 UTC**
+  - **产品**：用户无感。跨日的两小时里排障时文件名与本地日期对不上。
+  - **技术**：R5 `logs/acp-<日期>.log` 的日期按 UTC（不引 chrono）；跨日的两小时里文件名与本地日期对不上。要本地日期得裁定引 chrono 或自写时区读取 (2026-09-16)
+
+- [ ] **docs/design.md § 2 的措辞待确认**
+  - **产品**：用户无感。文档写的是 git 依赖，实际是参考转写，等所有者确认后改成定稿措辞。
+  - **技术**：R5 `docs/design.md` § 2 的「Node 与下载」行原定直接 git 依赖 Zed `node_runtime` 等 crate，R5 改为参考转写（理由见 `rounds/round-05/round-05.md` 偏离 1），待所有者确认后把 § 2 那一行改成定稿措辞 (2026-09-16)
+
+## X · 卡在上游 / 协议（6）
+
+- [ ] **Gemini CLI 还不能作为一等 agent**
+  - **产品**：接不进来。Zed 目前靠合成 terminal auth 方法过渡，等官方 auth methods 落地。
+  - **技术**：立项 Gemini CLI 作为一等 agent：Zed 目前靠合成 terminal auth 方法过渡，等官方 auth methods 落地再议 (2026-09-11)
+
+- [ ] **终端当前搜索命中在深色下对比不够**
+  - **产品**：现在看不见——终端搜索根本还没有入口。`xterm` 只给一个 `searchHitForeground`，两种命中共用。
+  - **技术**：终端「当前搜索命中」的前景色在深色下对比不够。画板 07 § 2.9 要的是「命中 = warning.soft 底 + strong 字，**当前**命中 = warning 底 + canvas 字」，但 `xterm` 4.0.0 的 `TerminalTheme` 只有一个 `searchHitForeground`，两种命中共用；实现取了前者（`t.Neutral.strong`），于是深色下当前命中是 #f0f0f4 压在 #d8a83c 上。终端搜索目前没有入口，看不见；真要修得给 xterm 提 PR 或自己画命中层 (2026-09-20)
+
+- [ ] **dsh 的 --setup 在 Windows 上看不见提示**
+  - **产品**：盲打密钥 + 回车能存上并自动重试成功，但用户看不到「Enter DeepSeek API key:」。上游缺陷（所有者自己的项目），客户端不做 agent 特判。
+  - **技术**：R1 dsh-acp-interactive 1.3.0 的 `--setup` 在 Windows TTY 上**看不见提示**：`secretQuestion` 在 `readline.question()` 返回后立刻 `muted = true`，而 Node 在 Windows 上对 TTY 的写是异步的（`process.stderr` 文档：TTY 在 Windows 异步），readline terminal 模式的提示由多次 `write` 组成，第一段之后的都在 muted 之后才被处理而被吞掉；`TERM=dumb`（非 terminal 模式，单次写）或管道 stdin 都正常。本项目实测（`rounds/round-01/round-01.md` 验收 1）：pty 里 readline 活着、盲打密钥 + 回车能保存并自动重试 `session/new` 成功，只是用户看不到 "Enter DeepSeek API key:"。是上游（所有者自己的项目）的缺陷，客户端不做 agent 特判（规则 2）；R3 认证页出来前请上游修（把提示写完再 muted，或非 terminal 模式）(2026-09-15)
+
+- [ ] **claude-agent-acp 载回会话后 / 菜单是空的**
+  - **产品**：重开应用点进 claude 的旧会话，`/` 菜单空着，直到下一轮对话。其余四个 agent 都会重放。
+  - **技术**：R6 claude-agent-acp 0.76.0 的 `session/load` 不重放 `available_commands_update`（pi-acp / codex-acp / cursor / dsh 都会），所以重开应用载回它的会话后 `/` 菜单是空的，直到下一轮对话。不做 agent 特判（规则 2），照原样呈现；要补只能等 agent 侧改 (2026-09-16)
+
+- [ ] **Zed agent 的上下文压缩投影不出去**
+  - **产品**：压缩过程界面上看不到。zed 钉版本的 acp 2.0.0 没有这个 unstable 伞，单独改特性集会撞规则 10。
+  - **技术**：R7 上下文压缩（`ThreadEvent::ContextCompaction*`）投影不出去：画板 33 走 unstable 的 `compaction_update`，而 zed 钉版本的 `agent-client-protocol` 2.0.0 的 `unstable` 伞里没有 `unstable_session_compaction`（2.1.0 才有），单独改特性集会撞规则 10。等 zed 升 acp 版本后再复议 (2026-09-17)
+
+- [ ] **读 threads.db 失败和真的没有会话长得一样**
+  - **产品**：Zed agent 的会话列表为空时，分不清是读库出错还是本来就空。上游是静默 return。
+  - **技术**：R7 上游 `ThreadStore::spawn_reload`（`vendor/upstream/zed/crates/agent/src/thread_store.rs`）在连库或读表失败时是**静默 return**（`let Ok(..) else { return }`），任务照常完成、`threads` 保持原样 —— 对刚建好的 store 就是空的。于是「读 `threads.db` 失败」和「真的一条会话都没有」在外面长得一模一样。sidecar 侧只能靠「强制重扫 + 空表再重扫一次」滤掉偶发失败（`list_sessions`），拿不到真正的错误。要根治得等上游把错误露出来（或我们自己绕开 `ThreadStore` 直接查库，代价是复制一份 schema 知识）(2026-09-17)
