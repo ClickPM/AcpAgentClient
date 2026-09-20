@@ -44,7 +44,9 @@ const int clipboardImageSizeLimit = 20 * 1024 * 1024;
 /// 不给像素，这里按同一个数判成「太大」，不先编码再量。256 MB = 8192×8192 的 32 位位图，8K 整屏（133 MB）也在内。
 const int clipboardBitmapBytesLimit = 256 * 1024 * 1024;
 
-/// 读一次剪贴板里的图片。`skippedTooLarge` = 有图但超过 [clipboardImageSizeLimit] 被跳过了。
+/// 读一次剪贴板里的图片。`skippedTooLarge` = 有图但因为太大被跳过了 —— 两道门共用这个旗标：
+/// 编码后的 PNG / 磁盘上的文件超 [clipboardImageSizeLimit]，或位图的像素缓冲超 [clipboardBitmapBytesLimit]。
+/// 两道门的数不一样，所以提示文案不能写死某一个数（调用方 `ComposerState.pasteImageFromClipboard`）。
 /// 没有 runner（flutter_tester、非 Windows）或剪贴板读不到时回空：粘贴文本那一下已经由输入框自己做完了，
 /// 这里只是没捞到图，不该把粘贴这件事搞砸。
 Future<({List<ClipboardImage> images, bool skippedTooLarge})> readClipboardImages() async {
@@ -76,11 +78,13 @@ Future<({List<ClipboardImage> images, bool skippedTooLarge})> readClipboardImage
         final width = item['width'];
         final height = item['height'];
         if (width is! int || height is! int) continue;
-        final bgra = item['bgra'];
-        if (width * height * 4 > clipboardBitmapBytesLimit || bgra is! Uint8List) {
+        if (width * height * 4 > clipboardBitmapBytesLimit) {
+          // runner 超过同一个数时只回尺寸、不给像素，所以这里判的是「它已经放弃了」。
           skipped = true;
           continue;
         }
+        final bgra = item['bgra'];
+        if (bgra is! Uint8List) continue; // 形状不对（不该发生）：不是尺寸问题，别报成「太大」
         final png = await encodePngFromBgra(width, height, bgra);
         if (png == null) continue;
         if (png.length > clipboardImageSizeLimit) {

@@ -81,7 +81,10 @@ validate 全绿、独立审查清零后合 `main`。第 6 项（桥的四层手�
     1. [P2] `encodePngFromBgra` 在拿到 frame 之前抛错会漏 `ImmutableBuffer` / `ImageDescriptor` / `Codec` → 四个 native 对象改成可空局部变量，`try` 从第一个对象建成前就开始、`finally` 逆序释放建成的那几个；编不出来回 null 而不是抛（否则外层 `catch` 会把整次粘贴收成空）。
     2. [P2] 位图在编码前没有大小门：超大 `CF_BITMAP` 让 runner 按 width×height×4 分配，`bad_alloc` 穿过 MethodChannel 回调会 terminate 整个进程（旧的 PowerShell 是独立进程，炸了只丢这一次粘贴）→ C++ 加 `kMaxBitmapBytes`（256 MB，8K 整屏 133 MB 在内）：超过只回尺寸不给像素；`AcpClipboardReadImages` 整体 `try / catch (std::exception)` 回空列表；Dart 侧按同一个数（`clipboardBitmapBytesLimit`）判成 `skippedTooLarge`，不先编码再量。加 mock 通道用例覆盖「只回尺寸」这条路。
     3. [P2] `From<fs::FsError>` 吃的是 Display 全文：settings 对外变成 `settings: io: fs: io: <inner>`，registry 从 `Settings` 变体变成 `Io("fs: io: …")` → 两处改成只取 `FsError::Io` 的内层文案；registry 落 `Io` 变体（`CoreError::code()` 对 `Settings` / `Io` 都是 `registry`，没有行为差别，文案从 `settings: io: <inner>` 变 `io: <inner>`）。
-  - **第 2 轮**：待填（整改后 validate 15 项全 PASS / 346 测试、两份 release 重建 + smoke + 三份剪贴板探针全部复跑通过，数字与整改前逐项一致：位图 201 B、文件列表 224 B、纯文本空；`skippedTooLarge` 三份都是 false，说明新加的大小门没有误伤正常尺寸）
+  - **第 2 轮**（2026-09-20 18:23，全量 `main...HEAD` 到 `a61981f`，产物 `.claude/reviews/20260920-182321-review.out.md`）：2 条（high 0 / P2 1 / P3 1），全部采纳整改。第 1 轮那 3 条的整改本身经复核成立（`item` 在 `std::move` 之后不再用、`catch` 里 `items.clear()` 清的是未完成的这一次、settings 对外仍是 `settings: io: <inner>`）。
+    1. [P2] 第 1 轮 finding 2 的整改把**两道门共用了一个 `skippedTooLarge` 旗标**，而 `ComposerState` 的提示文案写死 `clipboardImageSizeLimit`（20 MB）：一张 9000×9000 的位图（像素 324 MB，但 PNG 可能只有几百字节）会被报成「图片超过 20 MB」→ 文案改成不写死数字的「图片太大，没有加进输入框」（两道门的数不一样，写死任一个都会谎报）；顺带把「runner 少给 `bgra`」从尺寸门里分出来静默跳过（形状不对不是尺寸问题）。旗标本身保留：静默丢图比文案不精确更糟。
+    2. [P3] `rounds/BACKLOG.md` 那条剪贴板条目的句尾还写着「每次粘贴要拉一次 powershell（几百毫秒）」→ 改成「剪贴板里是文本时提前 return，不去读位图」。
+  - **第 3 轮**：待填（范围 `a61981f..HEAD`，只审整改 diff）
 - 结论：待填
 
 ## 失败处理

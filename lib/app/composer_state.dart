@@ -299,7 +299,8 @@ class ComposerState extends ChangeNotifier with GuardedNotifier {
       if (!_canPromptImage()) return; // 不支持图片的 agent：连剪贴板都不用读
       final result = await readClipboardImages();
       if (result.skippedTooLarge) {
-        lastError = '图片超过 ${clipboardImageSizeLimit ~/ (1024 * 1024)} MB，没有加进输入框';
+        // 不写死 MB 数：剪贴板里的图有两道门（编码后 20 MB / 位图像素 256 MB），共用这一个旗标。
+        lastError = '图片太大，没有加进输入框';
         touch();
       }
       if (result.images.isEmpty) return;
