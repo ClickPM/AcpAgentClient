@@ -346,6 +346,44 @@ void main() {
       expect(core.appearance, <String, dynamic>{'ui_font_family': 'Inter', 'theme': 'dark'});
     });
 
+    test('启动时读设置失败：改动前再读一次，读到了就照常合并落盘（复审 high，2026-09-20）', () async {
+      // `AcpApp.initState` 里 `_appearance.start()` 排在 `_controller.start()` 前面、两个都不 await，
+      // 所以启动那一趟 GET 可能早于 `core_init`，桥回 not_initialized。
+      final FakeCore core = FakeCore()
+        ..appearance = <String, dynamic>{'ui_font_family': 'Inter'}
+        ..appearanceGetFailures = 1;
+      final AppearanceController c = AppearanceController(
+        bridge: core,
+        registry: FontRegistry(loadDirs: const <Directory>[], probeDirs: const <Directory>[]),
+      );
+      addTearDown(c.dispose);
+
+      await c.start();
+      expect(c.fonts.resolved(FontAxis.uiLatin), t.Fonts.defaultSans, reason: '这一趟没读到，界面先回缺省');
+
+      await c.toggleTheme();
+
+      expect(c.fonts.resolved(FontAxis.uiLatin), 'Inter', reason: '改动前补读一次，把盘上的捡回来');
+      expect(core.appearance, <String, dynamic>{'ui_font_family': 'Inter', 'theme': 'dark'});
+    });
+
+    test('一直读不到设置：只改内存不落盘，不拿空快照整段覆盖（复审 high，2026-09-20）', () async {
+      final FakeCore core = FakeCore()
+        ..appearance = <String, dynamic>{'ui_font_family': 'Inter'}
+        ..appearanceGetFailures = -1; // 一直失败
+      final AppearanceController c = AppearanceController(
+        bridge: core,
+        registry: FontRegistry(loadDirs: const <Directory>[], probeDirs: const <Directory>[]),
+      );
+      addTearDown(c.dispose);
+
+      await c.start();
+      await c.toggleTheme();
+
+      expect(c.theme, t.AppTheme.dark, reason: '界面上这次改动照常生效');
+      expect(core.appearance, <String, dynamic>{'ui_font_family': 'Inter'}, reason: '盘上一个字都不许动');
+    });
+
     test('字体与主题一起改时两边都生效（别写成 `||` 短路）', () async {
       final AppearanceController c = AppearanceController(
         registry: FontRegistry(loadDirs: const <Directory>[], probeDirs: const <Directory>[]),

@@ -486,6 +486,13 @@ class AppearanceController extends ChangeNotifier {
   /// 字体目录，这个窗口是真的（发布前审查 high，2026-09-20）。
   Future<void>? _hydration;
 
+  /// 读设置**成功过**没有。没成功过就绝不能落盘：`appearance` 段是整段替换的，把一份
+  /// 「读失败 → 全缺省」的快照写回去，等于把盘上已有的设置抹掉（复审 high，2026-09-20）。
+  ///
+  /// 文件不存在不算失败 —— Rust 侧 `appearance()` 读不到文件时回的是空外观，GET 正常返回 `{}`，
+  /// 那种情况下盘上本来就没东西可丢。只有桥真的报错（核心还没 `core_init`、IPC 挂了）才是 false。
+  bool _readSettingsOk = false;
+
   @override
   void dispose() {
     _disposed = true;
@@ -507,7 +514,7 @@ class AppearanceController extends ChangeNotifier {
     try {
       await hydration;
     } on Object {
-      // 读盘失败照样继续：`_prefs` 停在缺省值上，用户这一次改动照常生效并落盘。
+      // 读盘失败不挡后续操作：`_prefs` 停在缺省值上，[_edit] 会再读一次，仍读不到就只改内存。
     }
   }
 
@@ -517,22 +524,29 @@ class AppearanceController extends ChangeNotifier {
     } on Object catch (e) {
       debugPrint('appearance: 字体扫描失败，全部回默认: $e');
     }
-    AppearancePrefs loaded = const AppearancePrefs();
-    final CoreCommands? bridge = this.bridge;
-    if (bridge != null) {
-      try {
-        loaded = AppearancePrefs.fromJson(await bridge.appearanceGet());
-      } on Object catch (e) {
-        debugPrint('appearance: 读设置失败，回默认: $e');
-      }
-    }
+    final AppearancePrefs? loaded = await _readSettings();
     if (_disposed) return;
-    _applyLocally(loaded, notify: false);
+    _applyLocally(loaded ?? const AppearancePrefs(), notify: false);
     // 扫描结果（哪些可选字体本机有）本身就是设置页要用的状态，**与「字体选择有没有变」无关**。
     // 没存过设置时 `Fonts.apply` 返回 false，若沿用 `_applyLocally` 的「变了才通知」，
     // 设置页就会一直停在扫描之前的「本机未找到」——所有者手测 2026-09-20 报的正是这个。
     // 启动只发这一次，代价可以忽略。
     notifyListeners();
+  }
+
+  /// 读一次盘。读到就返回（并记下 [_readSettingsOk]），读不动回 null —— 这跟「读到一份空设置」
+  /// 是两回事，调用方必须分开处理。没有桥（gallery / 单测）也回 null，那时本来就不落盘。
+  Future<AppearancePrefs?> _readSettings() async {
+    final CoreCommands? bridge = this.bridge;
+    if (bridge == null) return null;
+    try {
+      final AppearancePrefs loaded = AppearancePrefs.fromJson(await bridge.appearanceGet());
+      _readSettingsOk = true;
+      return loaded;
+    } on Object catch (e) {
+      debugPrint('appearance: 读设置失败，回默认: $e');
+      return null;
+    }
   }
 
   /// 改一个字体轴：立即生效 + 落盘。
@@ -558,11 +572,24 @@ class AppearanceController extends ChangeNotifier {
   Future<void> _edit(AppearancePrefs Function(AppearancePrefs current) change) async {
     await _awaitHydration();
     if (_disposed) return;
+    final CoreCommands? bridge = this.bridge;
+    // 启动那一趟没读到（最常见的是核心还没 `core_init` 完 —— `AcpApp.initState` 里
+    // `_appearance.start()` 排在 `_controller.start()` 前面，两个都不 await）就再读一次：
+    // 多半只是早了几毫秒，这一下就能拿到盘上的真值。
+    if (bridge != null && !_readSettingsOk) {
+      final AppearancePrefs? retried = await _readSettings();
+      if (_disposed) return;
+      if (retried != null) _applyLocally(retried, notify: true);
+    }
     final AppearancePrefs next = change(_prefs);
     if (next == _prefs) return;
     _applyLocally(next, notify: true);
-    final CoreCommands? bridge = this.bridge;
     if (bridge == null) return;
+    if (!_readSettingsOk) {
+      // 从没读到过盘上的设置，就不知道会覆盖掉什么。界面上这次改动照常生效，只是不落盘。
+      debugPrint('appearance: 一直读不到设置，这次只改内存不落盘（怕整段覆盖抹掉已有设置）');
+      return;
+    }
     try {
       // `appearance` 段整段替换，所以每次都把全量给过去。
       await bridge.appearanceSet(next.toJson());

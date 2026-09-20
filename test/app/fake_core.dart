@@ -27,10 +27,17 @@ class FakeCore implements CoreCommands {
   /// 堵住读外观这一步（不设就立刻返回）：用来复现「读盘还没回来就改设置」那一下。
   Completer<void>? appearanceGetGate;
 
+  /// 让读外观先失败几次（复现「核心还没 core_init 完」）：每失败一次减一，负数表示一直失败。
+  int appearanceGetFailures = 0;
+
   @override
   Future<JsonMap> appearanceGet() async {
     final Completer<void>? gate = appearanceGetGate;
     if (gate != null) await gate.future;
+    if (appearanceGetFailures != 0) {
+      if (appearanceGetFailures > 0) appearanceGetFailures--;
+      throw StateError('not_initialized: call core_init(data_dir) first');
+    }
     return appearance;
   }
 
