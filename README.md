@@ -13,6 +13,7 @@ Agent 一律经 [Agent Client Protocol（ACP）](https://agentclientprotocol.com
 - **2026-09-20 发布 v1.0.0**：源码 release，同日补上 `LICENSE`（GPL-3.0-or-later 全文）与 `NOTICE`（Zed 派生文件清单、上游钉版本、随包字体与图标的许可证）。
 - **2026-09-20 发布 v1.1.0**：v1.0.0 之后的两项功能——画板 43「会话时间线」（线程头 history 开弹层，按轮列出 query 与回答首行，点一行跳到转录里对应那条）与**字体切换四轴**（界面 / 代码各分中西文；随包三款之外的候选不入库，放 `assets/fonts/optional/`（构建时随包）或 `%APPDATA%/AcpAgentClient/fonts/`（运行时）后自动点亮，见 `assets/fonts/optional/README.md`）。同样只发源码。
 - **2026-09-20 发布 v1.2.0**：v1.1.0 之后的一项功能与两项修订——画板 07「深色模式」（`lib/theme/tokens.dart` 拆浅 / 深两套取值，切换按钮在侧栏标题条右端，主题与字体切换同存在设置的 `appearance` 段）、UI 文案与前端 Dart 符号从 `Thread` 收敛为 `Session`（中文「会话」），以及字体扫描结果不通知 UI 的修复。同样只发源码。
+- **2026-09-20 发布 v1.3.0**：v1.2.0 之后的一项重构与两项修订——R7.5 组合根拆分（`lib/app/workbench_controller.dart` 2645 行的单类拆成组合根 + 8 个对象，行为零变化：契约零 diff、测试只改路径、三份 fake-agent 无头报告逐步骤与基线等价；validate 新增 `lib/app` 行数门与依赖方向门）、markdown 渲染器认行内 HTML 的 `<br>`（表格单元格里的换行）、深色下 agent 图标与应用标记看不见的修复（外来 SVG 的 `currentColor` 随主题取色）。同样只发源码。
 - **R8（打包与发布）未开始**：Windows zip / 安装器、macOS 构建、干净机验收。许可证文件已随 v1.0.0 落地，R8 只剩打包本身。
 
 ## 文档
