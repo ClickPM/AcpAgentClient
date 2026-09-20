@@ -14338,7 +14338,7 @@ dependencies = [
 
 [[package]]
 name = "zed-agent-acp"
-version = "0.0.1"
+version = "1.0.0"
 dependencies = [
  "acp_thread",
  "agent",
