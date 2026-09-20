@@ -43,7 +43,7 @@
 - `assets/fonts/optional/README.md`（新）：放法、许可、体积与「必须注明」的约束。
 
 **测试**
-- `test/app/font_prefs_test.dart`（新，15 条）、`test/ui/appearance_card_test.dart`（新，5 条）。
+- `test/app/font_prefs_test.dart`（新，19 条）、`test/ui/appearance_card_test.dart`（新，5 条）。
 - `test/app/fake_core.dart`：补 `appearanceGet` / `appearanceSet`。
 
 ## 验收
@@ -51,15 +51,15 @@
 | # | 检查 | 命令 / 期望 | 结果 |
 |---|---|---|---|
 | 1 | 上游钉版本 | `scripts/fetch-upstream.ps1 -Check` 9 条 OK | PASS |
-| 2 | 全量验证 | `scripts/validate.ps1` → `VALIDATE OK`，277 测试全过 | PASS |
-| 3 | 分析器无新增 error / warning | `flutter analyze` 只剩 5 条 test 里的既有 info | PASS |
+| 2 | 全量验证 | `scripts/validate.ps1` → `VALIDATE OK`，281 测试全过 | PASS |
+| 3 | 分析器零新增 | `flutter analyze` 13 条，与 `main` 基线逐条相同（4 gallery + 9 test，全是既有 info） | PASS |
 | 4 | 两组候选互不重叠 | `font_prefs_test` 的「西文两轴与中文两轴的 family 不得有交集」 | PASS |
 | 5 | 四轴互不干扰 | 换界面轴不动代码轴，反之亦然；kbd 跟等宽轴 | PASS |
 | 6 | Rust 往返与脏值 | `cargo test -p settings` 15 条，含空串 / 超长 / 控制字符 | PASS |
 | 7 | 未知顶层键不被抹掉 | `unknown_top_level_keys_survive_a_save` | PASS |
 | 8 | 无字体文件也能构建 | 仓库内零可选字体文件，validate 全绿 | PASS |
-| 10 | 派生字阶不被冻住 | `CardText.*` / `mermaidTokenTheme` 跟着 `Fonts.apply` 走；扫源码禁止新的一次求值样式缓存 | PASS（审查第 1 轮整改） |
-| 9 | **随包字体真机渲染** | 放入 MiSans / HarmonyOS 后 `build.ps1` 出包、设置里切换肉眼确认 | **待所有者**（缺字体文件，见下） |
+| 9 | 派生字阶不被冻住 | `CardText.*` / `mermaidTokenTheme` 跟着 `Fonts.apply` 走；扫源码禁止新的一次求值样式缓存 | PASS（审查第 1 轮整改） |
+| 10 | **随包字体真机渲染** | 放入 MiSans / HarmonyOS 后 `build.ps1` 出包、设置里切换肉眼确认 | **待所有者**（缺字体文件，见下） |
 
 ## 禁止
 
@@ -140,7 +140,7 @@ TextStyle」或「顶层 final TextStyle」——这类冻结不会报任何错�
 **踩的坑**：`\\u` 经 Bash 工具塌成 `\u` 撞上 Python 转义两次（CLAUDE.md 记过），改用 raw 字符串与 Write 工具；
 `dart fix --apply` 会顺带动无关文件，用 `--code=` 限定到单条 lint 才干净。
 
-### 还差什么（阻塞验收 9）
+### 还差什么（阻塞验收 10）
 
 仓库里**没有任何可选字体文件**，所以 MiSans / HarmonyOS Sans 目前在设置里显示「本机未找到」。
 这两款的下载页都是点击同意协议后由 JS 动态取地址（MiSans 下载页指向 zip/ttf 的 `<a href>` 实测为 0 个），
