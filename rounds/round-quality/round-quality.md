@@ -58,7 +58,7 @@ validate 全绿、独立审查清零后合 `main`。第 6 项（桥的四层手�
 | # | 检查 | 命令 / 期望 | 结果 |
 |---|---|---|---|
 | 1 | 上游钉版本 | `scripts/fetch-upstream.ps1 -Check` 9 条 OK | PASS（2026-09-20，联接到主副本） |
-| 2 | 全量验证 | `scripts/validate.ps1` → `VALIDATE OK` | PASS：15 项全 PASS，`flutter test` 343 项通过（main 基线 334 + 本轮新增 3 条剪贴板用例 + 其它） |
+| 2 | 全量验证 | `scripts/validate.ps1` → `VALIDATE OK` | PASS（整改后重跑）：15 项全 PASS，`flutter test` 346 项通过（整改前 343，+3 是第 1 轮 finding 2 带来的 mock 通道用例） |
 | 3 | analyzer 零 warning、info 不多于 main 基线（14） | `flutter analyze` | PASS：14 条 info，与 main 基线逐条相同（全在 gallery / test），0 warning。中途曾多一条 `unnecessary_import`（`dart:typed_data`，foundation 已导出），已删 |
 | 4 | Rust 侧 `--locked` | `cargo test / clippy -D warnings --locked` 全过 | PASS（Cargo.lock 只多 4 行：acp-core / acp-smoke → base64 0.22.1 的边） |
 | 5 | 发布包不再带验收驱动 | `flutter build windows --release` 的 exe 在 `ACP_R3_REPORT` 下照常起窗口而不是进无头；`-t lib/main_headless.dart` 那份才进 | PASS：product 构建在 `ACP_R3_REPORT` 下 6 s 后仍活着且有主窗口（`alive=True mainWindow=13110254 reportWritten=False`）；headless 构建在同一变量下进 R3 模式，`ACP_R3_AGENT=no-such-agent` 使其 exit=1 并写出报告（`ok:false`，error「新会话失败…」）。AOT 快照 `data/app.so`：product 15,041,416 B，headless 15,270,792 B（多出的 229,376 B 就是三个驱动 + 探针） |
@@ -73,7 +73,16 @@ validate 全绿、独立审查清零后合 `main`。第 6 项（桥的四层手�
 
 ## 代码审查
 
-待填。
+- 审查方式：cursor-review.ps1（默认档）
+- 审查器与模型：cursor CLI `cursor-grok-4.6-high-fast`
+- 审查范围与基准提交：第 1 轮 branch `main...HEAD`（`8e9fb5a`）；第 2 轮 branch `main...HEAD`（整改后全量）；第 3 轮起 since `<上一轮已审提交>..HEAD`
+- findings 处理：
+  - **第 1 轮**（2026-09-20 18:08–18:13，产物 `.claude/reviews/20260920-180826-review.out.md`）：3 条（high 0 / P2 3 / P3 0），全部采纳整改：
+    1. [P2] `encodePngFromBgra` 在拿到 frame 之前抛错会漏 `ImmutableBuffer` / `ImageDescriptor` / `Codec` → 四个 native 对象改成可空局部变量，`try` 从第一个对象建成前就开始、`finally` 逆序释放建成的那几个；编不出来回 null 而不是抛（否则外层 `catch` 会把整次粘贴收成空）。
+    2. [P2] 位图在编码前没有大小门：超大 `CF_BITMAP` 让 runner 按 width×height×4 分配，`bad_alloc` 穿过 MethodChannel 回调会 terminate 整个进程（旧的 PowerShell 是独立进程，炸了只丢这一次粘贴）→ C++ 加 `kMaxBitmapBytes`（256 MB，8K 整屏 133 MB 在内）：超过只回尺寸不给像素；`AcpClipboardReadImages` 整体 `try / catch (std::exception)` 回空列表；Dart 侧按同一个数（`clipboardBitmapBytesLimit`）判成 `skippedTooLarge`，不先编码再量。加 mock 通道用例覆盖「只回尺寸」这条路。
+    3. [P2] `From<fs::FsError>` 吃的是 Display 全文：settings 对外变成 `settings: io: fs: io: <inner>`，registry 从 `Settings` 变体变成 `Io("fs: io: …")` → 两处改成只取 `FsError::Io` 的内层文案；registry 落 `Io` 变体（`CoreError::code()` 对 `Settings` / `Io` 都是 `registry`，没有行为差别，文案从 `settings: io: <inner>` 变 `io: <inner>`）。
+  - **第 2 轮**：待填（整改后 validate 15 项全 PASS / 346 测试、两份 release 重建 + smoke + 三份剪贴板探针全部复跑通过，数字与整改前逐项一致：位图 201 B、文件列表 224 B、纯文本空；`skippedTooLarge` 三份都是 false，说明新加的大小门没有误伤正常尺寸）
+- 结论：待填
 
 ## 失败处理
 
@@ -88,7 +97,7 @@ validate 全绿、独立审查清零后合 `main`。第 6 项（桥的四层手�
 **Windows 实测（规则 9）**：脚本随卡入库（`build-and-test.ps1` 起两份构建 + smoke + 探针；`clip-test.ps1` 用
 `System.Windows.Forms.Clipboard` 放位图 / 文件列表 / 纯文本，再跑 headless 构建的 `ACP_CLIPBOARD_PROBE`）。跑法：
 
-    powershell -NoProfile -File rounds\round-qualityuild-and-test.ps1      # 路径写死在脚本头，换机器改两行
+    powershell -NoProfile -File rounds\round-quality\build-and-test.ps1      # 路径写死在脚本头，换机器改两行
 
 四份报告在 `D:\cargo-target\AcpAgentClient\quality\run\probe-*.json` 与 `smoke-report.json`（不入库），关键值已抄进验收表。
 剪贴板的 Ctrl+V 产品路径（`ComposerState.pasteImageFromClipboard` → `readClipboardImages` → 芯片）本轮没有改，只换了

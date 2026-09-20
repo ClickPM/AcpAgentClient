@@ -35,10 +35,14 @@ impl fmt::Display for SettingsError {
 
 impl std::error::Error for SettingsError {}
 
-/// 落盘原语在 `fs`（临时文件 + rename，规则 7）；它的 io 错误原样归 [SettingsError::Io]。
+/// 落盘原语在 `fs`（临时文件 + rename，规则 7）；它的 io 错误只取内层文案归 [SettingsError::Io]，
+/// 不把 `fs: io:` 的 Display 前缀再套一层（对外仍是 `settings: io: <inner>`，与迁移前一致）。
 impl From<fs::FsError> for SettingsError {
     fn from(e: fs::FsError) -> Self {
-        SettingsError::Io(e.to_string())
+        match e {
+            fs::FsError::Io(inner) => SettingsError::Io(inner),
+            other => SettingsError::Io(other.to_string()),
+        }
     }
 }
 

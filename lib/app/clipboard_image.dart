@@ -40,6 +40,10 @@ const Map<String, String> imageMimeTypes = <String, String>{
 /// 撑到桥接与 agent 都难受，超了的直接跳过并回报（调用方写进错误条）。位图按编码后的 PNG 算。
 const int clipboardImageSizeLimit = 20 * 1024 * 1024;
 
+/// 位图**像素缓冲**的上限（BGRA 原始字节，编码前），与 runner 的 `kMaxBitmapBytes` 是同一个数：runner 超过它只回尺寸
+/// 不给像素，这里按同一个数判成「太大」，不先编码再量。256 MB = 8192×8192 的 32 位位图，8K 整屏（133 MB）也在内。
+const int clipboardBitmapBytesLimit = 256 * 1024 * 1024;
+
 /// 读一次剪贴板里的图片。`skippedTooLarge` = 有图但超过 [clipboardImageSizeLimit] 被跳过了。
 /// 没有 runner（flutter_tester、非 Windows）或剪贴板读不到时回空：粘贴文本那一下已经由输入框自己做完了，
 /// 这里只是没捞到图，不该把粘贴这件事搞砸。
@@ -71,8 +75,12 @@ Future<({List<ClipboardImage> images, bool skippedTooLarge})> readClipboardImage
       } else {
         final width = item['width'];
         final height = item['height'];
+        if (width is! int || height is! int) continue;
         final bgra = item['bgra'];
-        if (width is! int || height is! int || bgra is! Uint8List) continue;
+        if (width * height * 4 > clipboardBitmapBytesLimit || bgra is! Uint8List) {
+          skipped = true;
+          continue;
+        }
         final png = await encodePngFromBgra(width, height, bgra);
         if (png == null) continue;
         if (png.length > clipboardImageSizeLimit) {
@@ -91,21 +99,29 @@ Future<({List<ClipboardImage> images, bool skippedTooLarge})> readClipboardImage
   }
 }
 
-/// 自上而下的 BGRA 像素 → PNG（dart:ui 自带的编码器，不引图像库）。像素数与尺寸对不上时回 null。
+/// 自上而下的 BGRA 像素 → PNG（dart:ui 自带的编码器，不引图像库）。像素数与尺寸对不上、或引擎编不出来时回 null，
+/// 不抛：四个 native 对象各自建成多少就释放多少（任一步抛错都不能把前面的留在引擎里）。
 Future<Uint8List?> encodePngFromBgra(int width, int height, Uint8List bgra) async {
   if (width <= 0 || height <= 0 || bgra.length != width * height * 4) return null;
-  final buffer = await ui.ImmutableBuffer.fromUint8List(bgra);
-  final descriptor = ui.ImageDescriptor.raw(buffer, width: width, height: height, pixelFormat: ui.PixelFormat.bgra8888);
-  final codec = await descriptor.instantiateCodec();
-  final frame = await codec.getNextFrame();
+  ui.ImmutableBuffer? buffer;
+  ui.ImageDescriptor? descriptor;
+  ui.Codec? codec;
+  ui.Image? image;
   try {
-    final data = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+    buffer = await ui.ImmutableBuffer.fromUint8List(bgra);
+    descriptor = ui.ImageDescriptor.raw(buffer, width: width, height: height, pixelFormat: ui.PixelFormat.bgra8888);
+    codec = await descriptor.instantiateCodec();
+    image = (await codec.getNextFrame()).image;
+    final data = await image.toByteData(format: ui.ImageByteFormat.png);
     return data?.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+  } catch (e) {
+    debugPrint('[clipboard] png encode failed: $e');
+    return null;
   } finally {
-    frame.image.dispose();
-    codec.dispose();
-    descriptor.dispose();
-    buffer.dispose();
+    image?.dispose();
+    codec?.dispose();
+    descriptor?.dispose();
+    buffer?.dispose();
   }
 }
 
