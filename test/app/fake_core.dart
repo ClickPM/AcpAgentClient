@@ -21,11 +21,18 @@ class FakeCore implements CoreCommands {
   @override
   Future<JsonMap> uiStateSet(JsonMap patch) async => uiState = <String, dynamic>{...uiState, ...patch};
 
-  /// 外观（四个字体轴）：整段替换，不合并——前端一次给全四个轴。
+  /// 外观（四个字体轴 + 主题）：整段替换，不合并——前端一次给全。
   JsonMap appearance = <String, dynamic>{};
 
+  /// 堵住读外观这一步（不设就立刻返回）：用来复现「读盘还没回来就改设置」那一下。
+  Completer<void>? appearanceGetGate;
+
   @override
-  Future<JsonMap> appearanceGet() async => appearance;
+  Future<JsonMap> appearanceGet() async {
+    final Completer<void>? gate = appearanceGetGate;
+    if (gate != null) await gate.future;
+    return appearance;
+  }
 
   @override
   Future<JsonMap> appearanceSet(JsonMap patch) async => appearance = <String, dynamic>{...patch};

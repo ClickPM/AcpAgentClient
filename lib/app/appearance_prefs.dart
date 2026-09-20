@@ -478,6 +478,14 @@ class AppearanceController extends ChangeNotifier {
   /// 而且那时候也没人再需要这次结果了。
   bool _disposed = false;
 
+  /// [start] 这一趟读盘的完成信号（没跑过 [start] 的 gallery / 单测里是 null）。
+  ///
+  /// 改设置前必须先等它：读盘回来之前 `_prefs` 还是空的，拿它算出来的全量快照里
+  /// 四个字体轴都是缺省，而 `appearance` 段在 Rust 侧是**整段替换**的（`set_appearance`），
+  /// 于是盘上已存的字体设置会被这次写盘抹掉。切换按钮首帧就能点、而 `start()` 要先扫一遍
+  /// 字体目录，这个窗口是真的（发布前审查 high，2026-09-20）。
+  Future<void>? _hydration;
+
   @override
   void dispose() {
     _disposed = true;
@@ -485,7 +493,25 @@ class AppearanceController extends ChangeNotifier {
   }
 
   /// 启动：先扫字体文件，再读设置并生效。任何一步失败都只是回到缺省外观，不挡启动。
-  Future<void> start() async {
+  Future<void> start() {
+    final Future<void> hydration = _hydrate();
+    _hydration = hydration;
+    return hydration;
+  }
+
+  /// 等这一趟读盘走完。`start()` 自己已经把每一步的失败都降级成缺省值了，
+  /// 这里再兜一层只是不让它挡住后续操作。
+  Future<void> _awaitHydration() async {
+    final Future<void>? hydration = _hydration;
+    if (hydration == null) return;
+    try {
+      await hydration;
+    } on Object {
+      // 读盘失败照样继续：`_prefs` 停在缺省值上，用户这一次改动照常生效并落盘。
+    }
+  }
+
+  Future<void> _hydrate() async {
     try {
       await registry.discoverAndLoad();
     } on Object catch (e) {
@@ -511,25 +537,34 @@ class AppearanceController extends ChangeNotifier {
 
   /// 改一个字体轴：立即生效 + 落盘。
   Future<void> setAxis(FontAxis axis, String? family) =>
-      _update(_prefs.withFonts(_prefs.fonts.withAxis(axis, family)));
+      _edit((AppearancePrefs p) => p.withFonts(p.fonts.withAxis(axis, family)));
 
   /// 换主题（浅色 ↔ 深色）。
-  Future<void> setTheme(t.AppTheme mode) => _update(_prefs.withTheme(mode));
+  Future<void> setTheme(t.AppTheme mode) => _edit((AppearancePrefs p) => p.withTheme(mode));
 
   /// 侧栏标题条那个按钮：在两档之间来回切。
-  Future<void> toggleTheme() => setTheme(theme == t.AppTheme.dark ? t.AppTheme.light : t.AppTheme.dark);
+  Future<void> toggleTheme() => _edit(
+    (AppearancePrefs p) => p.withTheme(p.resolvedTheme == t.AppTheme.dark ? t.AppTheme.light : t.AppTheme.dark),
+  );
 
   /// 整段外观回缺省（四个字体轴 + 主题）。
-  Future<void> resetAll() => _update(const AppearancePrefs());
+  Future<void> resetAll() => _edit((AppearancePrefs _) => const AppearancePrefs());
 
-  /// 改一次外观：立即生效 + 落盘。`appearance` 段整段替换，所以每次都把全量给过去。
+  /// 改一次外观：等读盘落定 → 算出新的全量 → 立即生效 + 落盘。
   /// 落盘失败不回滚（界面已经变了，下次启动回到旧值即可），只报错。
-  Future<void> _update(AppearancePrefs next) async {
-    if (_disposed || next == _prefs) return;
+  ///
+  /// 新值由 `change` 从**当时**的 `_prefs` 算出来，不是调用点先算好再传进来：等读盘的那一下
+  /// `_prefs` 还会变（[_hydrate] 会把盘上的灌进来），先算好就等于拿空快照去整段覆盖。
+  Future<void> _edit(AppearancePrefs Function(AppearancePrefs current) change) async {
+    await _awaitHydration();
+    if (_disposed) return;
+    final AppearancePrefs next = change(_prefs);
+    if (next == _prefs) return;
     _applyLocally(next, notify: true);
     final CoreCommands? bridge = this.bridge;
     if (bridge == null) return;
     try {
+      // `appearance` 段整段替换，所以每次都把全量给过去。
       await bridge.appearanceSet(next.toJson());
     } on Object catch (e) {
       debugPrint('appearance: 存设置失败: $e');

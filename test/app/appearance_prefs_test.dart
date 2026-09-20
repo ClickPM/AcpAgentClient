@@ -1,6 +1,7 @@
 // 外观偏好：字体（画板 70「外观」）的候选表不变量、四轴解析与落盘形状、tokens 的运行时生效、可选字体探测；
 // 主题（画板 07「深色 Token 对位表」）的两套取值、落盘形状与切换。
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:acp_agent_client/app/appearance_prefs.dart';
@@ -11,6 +12,8 @@ import 'package:acp_agent_client/ui/transcript/mermaid_block.dart';
 import 'package:acp_agent_client/ui/transcript/terminal_card.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'fake_core.dart';
 
 void main() {
   // Fonts / Theming 都是全局可变状态：每个用例跑完必须复位，否则会污染后面的用例与别的测试文件。
@@ -316,6 +319,31 @@ void main() {
       await c.toggleTheme();
       expect(notified, 2);
       expect(t.Neutral.canvas, t.Theming.lightColors.canvas);
+    });
+
+    test('读盘还没回来就点切换：不抹掉盘上已存的字体轴（发布前审查 high，2026-09-20）', () async {
+      // 切换按钮首帧就能点，而 `start()` 要先扫一遍字体目录再读设置。这个窗口里 `_prefs` 还是空的，
+      // 拿它算出来的全量快照四个字体轴都是缺省，而 `appearance` 段在 Rust 侧是**整段替换**的。
+      final FakeCore core = FakeCore()..appearance = <String, dynamic>{'ui_font_family': 'Inter'};
+      final Completer<void> gate = Completer<void>();
+      core.appearanceGetGate = gate;
+      final AppearanceController c = AppearanceController(
+        bridge: core,
+        registry: FontRegistry(loadDirs: const <Directory>[], probeDirs: const <Directory>[]),
+      );
+      addTearDown(c.dispose);
+
+      final Future<void> starting = c.start();
+      final Future<void> toggling = c.toggleTheme();
+      expect(core.appearance, <String, dynamic>{'ui_font_family': 'Inter'}, reason: '读盘没回来之前不该写盘');
+
+      gate.complete();
+      await starting;
+      await toggling;
+
+      expect(c.theme, t.AppTheme.dark, reason: '用户那一下不能被读盘结果盖掉');
+      expect(c.fonts.resolved(FontAxis.uiLatin), 'Inter', reason: '盘上已存的字体轴要留着');
+      expect(core.appearance, <String, dynamic>{'ui_font_family': 'Inter', 'theme': 'dark'});
     });
 
     test('字体与主题一起改时两边都生效（别写成 `||` 短路）', () async {

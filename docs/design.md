@@ -187,7 +187,7 @@ Windows：`%APPDATA%/AcpAgentClient/{settings.json, sessions.json, projects.json
 
 `settings.json` 顶层还保留 **`extra`**（`#[serde(flatten)]`）：这份文件是用户可手写的，而写盘是整份覆盖，没有 `extra` 的话用户加的任何未知顶层键都会被静默抹掉（规则 7）。
 
-字体文件的三个来源（前端 `lib/app/font_prefs.dart`）：可执行文件旁的 `fonts/`（随安装包，install 规则见 `windows/CMakeLists.txt`）、数据目录的 `fonts/`（用户自己丢的）、系统字体目录。前两处启动时用 `FontLoader` 注册，系统目录只探测不注册（Windows 上装进系统的字体由平台按家族名直接解析）。**可选字体一律不进 `pubspec.yaml`**：MiSans 与 HarmonyOS Sans 的协议禁止「在独立基础上」再分发字体文件（不能入库），而 `pubspec.yaml` 声明了却没有文件会让 `flutter build` 直接失败。
+字体文件的三个来源（前端 `lib/app/appearance_prefs.dart`）：可执行文件旁的 `fonts/`（随安装包，install 规则见 `windows/CMakeLists.txt`）、数据目录的 `fonts/`（用户自己丢的）、系统字体目录。前两处启动时用 `FontLoader` 注册，系统目录只探测不注册（Windows 上装进系统的字体由平台按家族名直接解析）。**可选字体一律不进 `pubspec.yaml`**：MiSans 与 HarmonyOS Sans 的协议禁止「在独立基础上」再分发字体文件（不能入库），而 `pubspec.yaml` 声明了却没有文件会让 `flutter build` 直接失败。
 
 ## 11. 阶段草案（已取代）
 
