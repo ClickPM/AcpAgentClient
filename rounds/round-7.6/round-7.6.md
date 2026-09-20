@@ -1,6 +1,6 @@
 # Round 7.6 — 字体切换（四轴）
 
-> 状态：进行中（第 1 轮审查 3 条已整改，待复审）
+> 状态：审查通过（2 轮，findings 已清零）；待所有者提供字体文件完成验收 10，以及裁定何时合并 `main`
 
 ## 目标
 
@@ -107,10 +107,19 @@ TextStyle」或「顶层 final TextStyle」——这类冻结不会报任何错�
 
 - 结论：整改后待复审
 
-### 第 2 轮（复审）
+### 第 2 轮（复审，2026-09-20）
 
-- 审查方式：`cursor-review.ps1`（默认档）；范围仍为全量 `branch`（CLAUDE.md：前两轮都用全量）
-- 结论：待填
+- 审查方式：`cursor-review.ps1`（默认档，后台）
+- 审查器与模型：cursor CLI `cursor-grok-4.6-high`
+- 审查范围与基准提交：`branch`（`main...HEAD`，3 个提交 / 42 文件；CLAUDE.md：前两轮都用全量）；
+  产物 `.claude/reviews/20260920-105329-review.out.md`
+- findings：**0 条**。三条整改逐一确认成立且无新缺陷：① getter 化无自递归（`buttonPrimary` /
+  `codeError` 只单向再调一次兄弟 getter），`TextStyle.==` 是值比较、不会让 `RenderParagraph` 多余 layout，
+  `MermaidTheme` 实现值相等、按 `(source, theme)` 记忆的场景不会整图重解析；② `_prepare()` 只改本 State
+  字段、不 `setState`，换字体时外层本就在重建，`_lineHeight` 仍是 `fontSize * height` 与现有 `ListView` 兼容；
+  ③ 三个入口与 `_applyLocally` 都判了 `_disposed`，无漏掉的通知路径。
+  规则 1 / 2 / 3 / 4 / 6 / 7 / 8 / 10 一并核过。
+- 结论：**PASS**（缺陷门禁清零，可合并 `main`）
 
 ## 失败处理
 
