@@ -98,8 +98,8 @@ const String _session = 'sess_1';
 (WorkbenchController, FakeCore, MessageEntry) _scenario({bool running = true}) {
   final core = FakeCore();
   final c = WorkbenchController(source: DataSource.bridge, bridge: core)
-    ..thread.agentId = _agent
-    ..thread.sessionId = _session;
+    ..session.agentId = _agent
+    ..session.sessionId = _session;
   final store = c.sessions.session(_session, agentId: _agent);
   store.startTurn(<ContentBlockWire>[
     const ContentBlockWire(<String, dynamic>{'type': 'text', 'text': '原始提示'}),
@@ -165,8 +165,8 @@ void main() {
   test('session/load 重放回来的历史（一条轮边界都没有）也能 Restore / Regenerate（所有者报障 2026-09-18）', () async {
     final core = FakeCore();
     final c = WorkbenchController(source: DataSource.bridge, bridge: core)
-      ..thread.agentId = _agent
-      ..thread.sessionId = _session;
+      ..session.agentId = _agent
+      ..session.sessionId = _session;
     final store = c.sessions.session(_session, agentId: _agent);
     // 重放的形状：只有 agent 发来的 update，客户端一次 startTurn 都没做过。
     for (final u in <JsonMap>[
@@ -193,8 +193,8 @@ void main() {
   test('重放回来的历史按 ↺ 原样重发：用那条气泡自己的块', () async {
     final core = FakeCore();
     final c = WorkbenchController(source: DataSource.bridge, bridge: core)
-      ..thread.agentId = _agent
-      ..thread.sessionId = _session;
+      ..session.agentId = _agent
+      ..session.sessionId = _session;
     final store = c.sessions.session(_session, agentId: _agent);
     store.applyUpdateJson(<String, dynamic>{
       'sessionUpdate': 'user_message_chunk',
@@ -239,8 +239,8 @@ void main() {
   test('回合进行中点 Restore：先 cancel 并等在途的 session/prompt 结束，再截断重发（审查 finding high）', () async {
     final core = SlowCore();
     final c = WorkbenchController(source: DataSource.bridge, bridge: core)
-      ..thread.agentId = _agent
-      ..thread.sessionId = _session;
+      ..session.agentId = _agent
+      ..session.sessionId = _session;
     final store = c.sessions.session(_session, agentId: _agent);
     c.composer.editor.text = '第一轮';
     final sending = c.turn.send();
@@ -264,8 +264,8 @@ void main() {
   test('session/prompt 失败也要收轮，否则会话头一直转 spinner（审查第 2 轮 finding P2）', () async {
     final core = FailingCore();
     final c = WorkbenchController(source: DataSource.bridge, bridge: core)
-      ..thread.agentId = _agent
-      ..thread.sessionId = _session;
+      ..session.agentId = _agent
+      ..session.sessionId = _session;
     final store = c.sessions.session(_session, agentId: _agent);
     c.composer.editor.text = '会失败的一轮';
 
@@ -287,9 +287,9 @@ void main() {
     await c.start();
 
     expect(c.agents.installed, isEmpty);
-    expect(c.thread.hasAgent, isFalse, reason: '画板 01 状态 2：会话头 No Agent、输入框禁用');
-    expect(c.thread.sessionTitle, 'No Agent');
-    expect(c.thread.composerPlaceholder, '安装并选择一个 agent 后即可输入');
+    expect(c.session.hasAgent, isFalse, reason: '画板 01 状态 2：会话头 No Agent、输入框禁用');
+    expect(c.session.sessionTitle, 'No Agent');
+    expect(c.session.composerPlaceholder, '安装并选择一个 agent 后即可输入');
     expect(c.shell.rightTab, isNull);
 
     c.shell.openTab(ShellTab.agents);
@@ -303,17 +303,17 @@ void main() {
     final c = WorkbenchController(source: DataSource.bridge, bridge: core);
     await c.start();
 
-    expect(c.thread.hasAgent, isTrue, reason: '状态 2 只在一个 agent 都没装时出现');
-    expect(c.thread.agentId, 'zed', reason: '本地索引里最近用过、且还装着的那个');
-    expect(c.thread.hasSession, isFalse, reason: '启动不拉 agent 进程');
-    expect(c.thread.sessionTitle, 'New Zed Agent Session', reason: '展示名从已安装列表来，不是裸 id');
-    expect(c.thread.canCompose, isTrue);
-    expect(c.thread.composerPlaceholder, 'Message to Zed Agent , @ to include context , / for commands');
+    expect(c.session.hasAgent, isTrue, reason: '状态 2 只在一个 agent 都没装时出现');
+    expect(c.session.agentId, 'zed', reason: '本地索引里最近用过、且还装着的那个');
+    expect(c.session.hasSession, isFalse, reason: '启动不拉 agent 进程');
+    expect(c.session.sessionTitle, 'New Zed Agent Session', reason: '展示名从已安装列表来，不是裸 id');
+    expect(c.session.canCompose, isTrue);
+    expect(c.session.composerPlaceholder, 'Message to Zed Agent , @ to include context , / for commands');
 
     c.composer.editor.text = '第一条';
     await c.turn.send();
 
-    expect(c.thread.sessionId, 'sess_fake', reason: '第一条消息把会话现开出来');
+    expect(c.session.sessionId, 'sess_fake', reason: '第一条消息把会话现开出来');
     expect(core.prompts.single.length, 1);
     expect((core.prompts.single.single as JsonMap)['text'], '第一条');
     c.dispose();
@@ -324,14 +324,14 @@ void main() {
     final c = WorkbenchController(source: DataSource.bridge, bridge: core);
     await c.start();
 
-    expect(c.thread.hasAgent, isTrue);
+    expect(c.session.hasAgent, isTrue);
     expect(c.workspace.project, isNull);
-    expect(c.thread.canCompose, isFalse);
-    expect(c.thread.composerPlaceholder, '先选一个项目目录，新会话的 cwd 从它来');
+    expect(c.session.canCompose, isFalse);
+    expect(c.session.composerPlaceholder, '先选一个项目目录，新会话的 cwd 从它来');
 
     c.composer.editor.text = '发不出去';
     await c.turn.send();
-    expect(c.thread.sessionId, isNull);
+    expect(c.session.sessionId, isNull);
     expect(core.prompts, isEmpty);
     expect(c.composer.editor.text, '发不出去', reason: '没发出去就不能把输入清掉');
     c.dispose();
@@ -349,22 +349,22 @@ void main() {
     final c = WorkbenchController(source: DataSource.bridge, bridge: core);
     await c.start();
     expect(c.workspace.project?.path, r'D:\proj');
-    expect(c.thread.sidebarSessions.map((s) => s.id), unorderedEquals(<String>['older', 'recent']), reason: '别的目录下的会话不露出来');
+    expect(c.session.sidebarSessions.map((s) => s.id), unorderedEquals(<String>['older', 'recent']), reason: '别的目录下的会话不露出来');
 
-    c.thread.sessionId = 'recent';
+    c.session.sessionId = 'recent';
     // 同一个目录换种写法（分隔符 / 尾斜杠）：还是这个 workspace，会话与侧栏都不动。
     await c.workspace.openProject(const ProjectRef(path: 'D:/proj/', name: 'proj'));
-    expect(c.thread.sessionId, 'recent');
-    expect(c.thread.sidebarSessions.map((s) => s.id), unorderedEquals(<String>['older', 'recent']));
+    expect(c.session.sessionId, 'recent');
+    expect(c.session.sidebarSessions.map((s) => s.id), unorderedEquals(<String>['older', 'recent']));
 
     await c.workspace.openProject(const ProjectRef(path: r'D:\other', name: 'other'));
-    expect(c.thread.sidebarSessions.map((s) => s.id), <String>['other']);
-    expect(c.thread.sessionId, isNull, reason: '正开着的会话属于旧目录：会话区回到空态，下一条消息在新目录里现开');
-    expect(c.thread.canCompose, isTrue, reason: '空态下照样能发：agent 与项目都在');
+    expect(c.session.sidebarSessions.map((s) => s.id), <String>['other']);
+    expect(c.session.sessionId, isNull, reason: '正开着的会话属于旧目录：会话区回到空态，下一条消息在新目录里现开');
+    expect(c.session.canCompose, isTrue, reason: '空态下照样能发：agent 与项目都在');
 
     await c.workspace.openProject(const ProjectRef(path: r'D:\proj', name: 'proj'));
-    expect(c.thread.sidebarSessions.map((s) => s.id), unorderedEquals(<String>['older', 'recent']));
-    expect(c.thread.sessionId, isNull, reason: '切回来不替用户自动选会话');
+    expect(c.session.sidebarSessions.map((s) => s.id), unorderedEquals(<String>['older', 'recent']));
+    expect(c.session.sessionId, isNull, reason: '切回来不替用户自动选会话');
     c.dispose();
   });
 
@@ -372,12 +372,12 @@ void main() {
     final core = _InstalledCore();
     final c = WorkbenchController(source: DataSource.bridge, bridge: core);
     await c.start();
-    c.thread.startRename('recent');
-    expect(c.thread.renamingSessionId, 'recent');
+    c.session.startRename('recent');
+    expect(c.session.renamingSessionId, 'recent');
     await c.workspace.openProject(const ProjectRef(path: r'D:\other', name: 'other'));
-    expect(c.thread.renamingSessionId, isNull, reason: '那一行随侧栏一起没了，改名态不能悬着');
+    expect(c.session.renamingSessionId, isNull, reason: '那一行随侧栏一起没了，改名态不能悬着');
     await c.workspace.openProject(const ProjectRef(path: r'D:\proj', name: 'proj'));
-    expect(c.thread.renamingSessionId, isNull);
+    expect(c.session.renamingSessionId, isNull);
     c.dispose();
   });
 
@@ -385,18 +385,18 @@ void main() {
     final core = _GatedNewCore();
     final c = WorkbenchController(source: DataSource.bridge, bridge: core);
     await c.start();
-    final creating = c.thread.newSession(const AgentRef(id: 'zed', name: 'Zed Agent'));
-    expect(c.thread.waitingForAgent, isTrue);
+    final creating = c.session.newSession(const AgentRef(id: 'zed', name: 'Zed Agent'));
+    expect(c.session.waitingForAgent, isTrue);
     await c.workspace.openProject(const ProjectRef(path: r'D:\other', name: 'other'));
     expect(c.workspace.project?.path, r'D:\proj', reason: '等待期里不换项目：不然回来的会话挂在旧目录、侧栏里找不到');
     core.gate.complete(<String, dynamic>{'sessionId': 'fresh'});
     await creating;
-    expect(c.thread.waitingForAgent, isFalse);
-    expect(c.thread.sessionId, 'fresh');
-    expect(c.thread.sidebarSessions.map((s) => s.id), contains('fresh'));
+    expect(c.session.waitingForAgent, isFalse);
+    expect(c.session.sessionId, 'fresh');
+    expect(c.session.sidebarSessions.map((s) => s.id), contains('fresh'));
     await c.workspace.openProject(const ProjectRef(path: r'D:\other', name: 'other'));
     expect(c.workspace.project?.path, r'D:\other');
-    expect(c.thread.sessionId, isNull);
+    expect(c.session.sessionId, isNull);
     c.dispose();
   });
 

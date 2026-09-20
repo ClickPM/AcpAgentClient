@@ -1,4 +1,4 @@
-// 当前线程与会话生命周期（R7.5 从 workbench_controller.dart 拆出）：当前 agent / 会话与派生态（画板 01 的两个空态、
+// 当前会话与会话生命周期（R7.5 从 workbench_controller.dart 拆出）：当前 agent / 会话与派生态（画板 01 的两个空态、
 // 会话头标题、输入框可用性、画板 34 的状态条）、agent 能力（R6）、侧栏列表与搜索（画板 04）、画板 06 的活动指示、
 // 新建 / 重载 / 点选 / `session/load` / resume / close / delete / `session/list` 校对（R6）、改名与删除确认（画板 41）、
 // 本地索引的写回。协议状态仍在 `lib/projection/`（规则 2），这里只是「唯一知道桥的人」里管会话的那一段。
@@ -26,8 +26,8 @@ import 'guarded.dart';
 import 'session_index.dart';
 import 'workspace_state.dart';
 
-class ThreadController extends ChangeNotifier with GuardedNotifier {
-  ThreadController({
+class SessionController extends ChangeNotifier with GuardedNotifier {
+  SessionController({
     required this.bridge,
     required this.sessions,
     required this.batcher,

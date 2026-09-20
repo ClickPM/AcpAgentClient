@@ -67,7 +67,7 @@ void main() {
 
     await tester.tap(_trash);
     await tester.pump();
-    expect(c.thread.confirmingDeleteId, _session);
+    expect(c.session.confirmingDeleteId, _session);
     expect(find.byType(DeleteSessionConfirm), findsOneWidget);
 
     // 蒙层吃掉命中测试 → 行 onExit → 重建。弹层必须还在（旧实现在这一帧被销毁）。
@@ -87,10 +87,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     expect(core.sessionIndex, isEmpty);
-    expect(c.thread.sidebarSessions, isEmpty);
+    expect(c.session.sidebarSessions, isEmpty);
     expect(find.byType(SidebarSessionRow), findsNothing);
     expect(find.byType(DeleteSessionConfirm), findsNothing);
-    expect(c.thread.confirmingDeleteId, isNull);
+    expect(c.session.confirmingDeleteId, isNull);
   });
 
   testWidgets('点弹层之外：弹层关掉，「正在确认」也清掉（行不卡在悬浮态）', (tester) async {
@@ -107,7 +107,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.byType(DeleteSessionConfirm), findsNothing);
-    expect(c.thread.confirmingDeleteId, isNull, reason: '不清掉这一行会一直停在悬浮态');
+    expect(c.session.confirmingDeleteId, isNull, reason: '不清掉这一行会一直停在悬浮态');
     expect(core.sessionIndex, hasLength(1), reason: '点外面只是关弹层，不能顺手删了');
     expect(_trash, findsNothing, reason: '鼠标已经不在行上，行内动作要收回去');
   });

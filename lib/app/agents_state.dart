@@ -1,6 +1,6 @@
 // 已装 agent 列表、registry 面板（画板 50 / 51，R5）与设置面板（画板 70，R5；右栏标签）（R7.5 从 workbench_controller.dart 拆出）。
 // 会话不归它管：卸载正在用的 agent、registry 变化后侧栏 logo 重投影、已装列表变化后挑「当前 agent」都经回调
-// 交给线程控制器；核心给的三个路径（画板 70）经 [onPaths] 回到组合根。
+// 交给会话控制器；核心给的三个路径（画板 70）经 [onPaths] 回到组合根。
 //
 // 不做 agent 特判（规则 2）：agent 名一律来自 settings.json 的键或 `initialize` 的 `agentInfo`。
 
@@ -25,13 +25,13 @@ class AgentsState extends ChangeNotifier with GuardedNotifier {
 
   final CoreCommands? bridge;
 
-  /// 卸载了一个 agent（settings 条目已删）：线程控制器放下它、认证页若开着它的就收起。
+  /// 卸载了一个 agent（settings 条目已删）：会话控制器放下它、认证页若开着它的就收起。
   final void Function(String id) _onRemoved;
 
-  /// 已装列表刷新完：线程控制器按它挑「当前 agent」（原 `_selectDefaultAgent`）。
+  /// 已装列表刷新完：会话控制器按它挑「当前 agent」（原 `_selectDefaultAgent`）。
   final void Function() _onInstalledChanged;
 
-  /// registry 列表刷新完：侧栏的 agent logo 是从 registry 查出来烘进侧栏项的，线程控制器重投影一次。
+  /// registry 列表刷新完：侧栏的 agent logo 是从 registry 查出来烘进侧栏项的，会话控制器重投影一次。
   final void Function() _onRegistryChanged;
 
   /// `registry_list` 回的 `paths`（dataDir / logPath / zedSettingsPath，画板 70）：组合根记着。

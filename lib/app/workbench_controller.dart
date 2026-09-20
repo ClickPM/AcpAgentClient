@@ -3,9 +3,9 @@
 //
 // 本文件只剩接线与生命周期：投影层三件（sessions / batcher / traffic）、文件与终端面板、八个子对象的构造与回调接线、
 // `start()` 的启动顺序、六路核心事件的订阅与分发、批量刷新的调度、dispose / shutdown。状态与动作按画板分组在同目录的
-// `*State`（shell / workspace / agents / auth / composer）与协议驱动的两个 `*Controller`（thread / turn）里，`SessionIndex`
+// `*State`（shell / workspace / agents / auth / composer）与协议驱动的两个 `*Controller`（session / turn）里，`SessionIndex`
 // 是本地索引的内存镜像；依赖方向见 rounds/round-7.5/round-7.5.md 附录 B——子对象之间只有单向依赖，反向一律走这里接的回调，
-// 没有子对象 import 本文件。screen / headless / test 直接访问子对象（`c.thread.send()` 这样），这里不留转发门面。
+// 没有子对象 import 本文件。screen / headless / test 直接访问子对象（`c.session.send()` 这样），这里不留转发门面。
 //
 // 数据源两种（ROUNDS § 3 R3）：
 //   bridge（默认）——真核心；fixtures（`--dart-define=DATA_SOURCE=fixtures`）——回放 `test/fixtures/`，
@@ -43,7 +43,7 @@ import 'local_terminals.dart';
 import 'paths.dart';
 import 'session_index.dart';
 import 'shell_state.dart';
-import 'thread_controller.dart';
+import 'session_controller.dart';
 import 'turn_controller.dart';
 import 'workspace_state.dart';
 
@@ -60,7 +60,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   WorkbenchController({required this.source, this.bridge, FlushScheduler? scheduler})
       : _scheduler = scheduler ?? _scheduleOnFrame {
     // 阶段 A：子对象的通知全部转发到根。在构造函数里接而不是 start() 里：不 start 也能用（单测这么用）。
-    for (final child in <ChangeNotifier>[shell, workspace, agents, auth, composer, turn, thread]) {
+    for (final child in <ChangeNotifier>[shell, workspace, agents, auth, composer, turn, session]) {
       child.addListener(notifyListeners);
     }
   }
@@ -91,61 +91,61 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     cwd: () => workspace.project?.path,
     onWorkbenchShown: () {
       // 从流量页回到工作台，当前那条会话就又在眼前了：它的绿点一并撤掉（画板 06 的清除条件）。
-      final id = thread.sessionId;
-      if (id != null) thread.clearUnread(id);
+      final id = session.sessionId;
+      if (id != null) session.clearUnread(id);
     },
   );
 
-  /// 项目与分支：当前项目 / 最近项目 / 分支区 / Rules 计数。等待期里不换项目；换了项目由线程放下别的目录的会话。
+  /// 项目与分支：当前项目 / 最近项目 / 分支区 / Rules 计数。等待期里不换项目；换了项目由会话控制器放下别的目录的会话。
   late final WorkspaceState workspace = WorkspaceState(
     bridge: bridge,
     files: files,
-    busy: () => thread.waitingForAgent,
-    onProjectChanged: () => thread.enterWorkspace(),
+    busy: () => session.waitingForAgent,
+    onProjectChanged: () => session.enterWorkspace(),
   );
 
-  /// 本地会话索引 `sessions.json` 的内存镜像（不是 notifier）：条目一变，线程重投影侧栏。
-  late final SessionIndex index = SessionIndex(bridge: bridge, onChanged: () => thread.refreshSidebar());
+  /// 本地会话索引 `sessions.json` 的内存镜像（不是 notifier）：条目一变，会话控制器重投影侧栏。
+  late final SessionIndex index = SessionIndex(bridge: bridge, onChanged: () => session.refreshSidebar());
 
   /// 已装 agent 列表、registry 面板（画板 50 / 51）与设置面板（画板 70）。
   late final AgentsState agents = AgentsState(
     bridge: bridge,
     onRemoved: (id) {
-      thread.dropAgent(id);
+      session.dropAgent(id);
       auth.closeIfAgent(id);
     },
-    onInstalledChanged: () => thread.ensureAgentSelected(),
-    onRegistryChanged: () => thread.refreshSidebar(),
+    onInstalledChanged: () => session.ensureAgentSelected(),
+    onRegistryChanged: () => session.refreshSidebar(),
     onPaths: _applyPaths,
   );
 
-  /// 认证页（画板 52）的状态机。认证成功后的自动重试新会话交回线程。
+  /// 认证页（画板 52）的状态机。认证成功后的自动重试新会话交回会话控制器。
   late final AuthState auth = AuthState(
     bridge: bridge,
     sessions: sessions,
     cwd: () => workspace.project?.path,
     registryName: (id) => agents.registry.byId(id)?.name,
-    currentAgentId: () => thread.agentId ?? thread.connection?.agentId,
+    currentAgentId: () => session.agentId ?? session.connection?.agentId,
     openAgentsTab: () => shell.openTab(ShellTab.agents),
     ensureAgentsTab: () {
       if (shell.rightTab != ShellTab.agents) shell.openTab(ShellTab.agents);
     },
     showWorkbench: () => shell.page = MainPage.workbench,
-    onAuthenticated: (agent, cwd, session) =>
-        session == null ? thread.createSession(agent, cwd) : thread.adoptAuthSession(agent, cwd, session),
+    onAuthenticated: (agent, cwd, adopted) =>
+        adopted == null ? session.createSession(agent, cwd) : session.adoptAuthSession(agent, cwd, adopted),
   );
 
   /// 输入框（画板 40 / 42）：正文与附件、`@` `/` 内联菜单、`+` 四项、配置格与三个弹层锚点。
   late final ComposerState composer = ComposerState(
     bridge: bridge,
-    store: () => thread.store,
+    store: () => session.store,
     cwd: () => workspace.project?.path,
-    canCompose: () => thread.canCompose,
-    canPromptImage: () => thread.canPromptImage,
+    canCompose: () => session.canCompose,
+    canPromptImage: () => session.canPromptImage,
   );
 
-  /// 当前线程与会话生命周期（画板 01 / 04 / 06 / 41 / 43 与 R6 的整套会话动作）。
-  late final ThreadController thread = ThreadController(
+  /// 当前会话与会话生命周期（画板 01 / 04 / 06 / 41 / 43 与 R6 的整套会话动作）。
+  late final SessionController session = SessionController(
     bridge: bridge,
     sessions: sessions,
     batcher: batcher,
@@ -158,8 +158,8 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     openAuth: (agent, cwd) => auth.open(agent, retryCwd: cwd),
   );
 
-  /// 一轮对话：发送 / 取消 / 回应 / Restore、会话配置、停止方块、本地转录文本。轮读线程，线程不知道有轮。
-  late final TurnController turn = TurnController(bridge: bridge, thread: thread, composer: composer);
+  /// 一轮对话：发送 / 取消 / 回应 / Restore、会话配置、停止方块、本地转录文本。轮读会话控制器，会话控制器不知道有轮。
+  late final TurnController turn = TurnController(bridge: bridge, session: session, composer: composer);
 
   /// agent 终端（`acp/terminal_output` source = agent / auth）的分块 UTF-8 解码：跨块的多字节字符不能逐块 `utf8.decode`。
   final Map<String, ChunkedUtf8> _agentTerminalText = <String, ChunkedUtf8>{};
@@ -183,10 +183,10 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     _subs.addAll(<StreamSubscription<CoreEventRecord>>[
       b.on(CoreEvent.sessionUpdate).listen((e) {
         final sid = e.json?['sessionId'];
-        if (sid is String) thread.noteUpdateArrival(sid);
+        if (sid is String) session.noteUpdateArrival(sid);
         _enqueue(e, (json) {
           sessions.applySessionUpdateEnvelope(json);
-          shell.followLocations(json, sessionId: thread.sessionId);
+          shell.followLocations(json, sessionId: session.sessionId);
         });
       }),
       b.on(CoreEvent.clientRequest).listen((e) => _enqueue(e, (json) => sessions.applyClientRequestEnvelope(json))),
@@ -245,12 +245,12 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       }
     }
     sessions.addListener(notifyListeners);
-    thread.agentId = agent;
-    thread.sessionId = replayer.lastSessionId;
-    final sessionId = thread.sessionId;
+    session.agentId = agent;
+    session.sessionId = replayer.lastSessionId;
+    final sessionId = session.sessionId;
     final cwd = sessionId == null ? null : sessions.maybe(sessionId)?.cwd;
     if (cwd != null) workspace.project = ProjectRef(path: cwd, name: cwd.split(RegExp(r'[\\/]')).last);
-    thread.sidebarSessions = <SidebarSession>[
+    session.sidebarSessions = <SidebarSession>[
       if (sessionId != null)
         SidebarSession(
           id: sessionId,
@@ -288,7 +288,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     terminals.removeListener(notifyListeners);
     files.dispose();
     terminals.dispose();
-    for (final child in <ChangeNotifier>[shell, workspace, agents, auth, composer, turn, thread]) {
+    for (final child in <ChangeNotifier>[shell, workspace, agents, auth, composer, turn, session]) {
       child.removeListener(notifyListeners);
       child.dispose();
     }

@@ -1,7 +1,7 @@
 // 一轮对话（R7.5 从 workbench_controller.dart 拆出）：发送 / 取消 / 权限与 elicitation 回应 / Restore 与 Regenerate（画板 11）、
 // 会话配置（画板 40 的下拉与开关、modes 回退）、agent 终端的停止方块（画板 23）、`+` 的 Sessions 用的本地转录文本。
-// 读当前线程（store / agentId / 关闭态、现开会话、索引写回、画板 06 的绿点）走 [thread]，取输入框正文与附件走 [composer]；
-// 线程不知道有轮（任务卡附录 B 唯一保留的「协议对象之间」的依赖，方向固定：轮读线程）。
+// 读当前会话（store / agentId / 关闭态、现开会话、索引写回、画板 06 的绿点）走 [session]，取输入框正文与附件走 [composer]；
+// 会话控制器不知道有轮（任务卡附录 B 唯一保留的「协议对象之间」的依赖，方向固定：轮读会话控制器）。
 
 import 'dart:async';
 
@@ -14,15 +14,15 @@ import '../projection/wire.dart';
 import 'composer_state.dart';
 import 'core_bridge.dart';
 import 'guarded.dart';
-import 'thread_controller.dart';
+import 'session_controller.dart';
 
 class TurnController extends ChangeNotifier with GuardedNotifier {
-  TurnController({required this.bridge, required this.thread, required this.composer});
+  TurnController({required this.bridge, required this.session, required this.composer});
 
   final CoreCommands? bridge;
 
-  /// 当前线程（组合根持有）。
-  final ThreadController thread;
+  /// 当前会话（组合根持有）。
+  final SessionController session;
 
   /// 输入框（组合根持有）：正文、附件块、配置格的弹层锚点。
   final ComposerState composer;
@@ -32,7 +32,7 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
   /// `session/close` 之后这条会话是**只读**的：所有会往它发命令的入口共用这一道门
   /// （prompt / Restore / Regenerate / 三个下拉；审查第 2 轮 P2：第 1 轮只挡住了 `send()`）。
   bool _blockedByClose() {
-    if (!thread.sessionClosed) return false;
+    if (!session.sessionClosed) return false;
     lastError = '这个会话已经关闭；用 ≡ 菜单的 Resume 挂回来，或新建一个会话';
     touch();
     return true;
@@ -43,7 +43,7 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
 
   Future<void> send() async {
     final b = bridge;
-    final id = thread.agentId;
+    final id = session.agentId;
     if (b == null || id == null) return;
     if (composer.editor.text.trim().isEmpty && composer.pendingBlocks.isEmpty) return; // 空输入不开会话
     // 启动后的画板 01 状态 1：agent 已选、会话还没开（进程也没拉）。第一条消息把它开出来，
@@ -53,18 +53,18 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     // 新缺陷（改 `sessionId` 判据 → 不支持 loadSession 的 agent 按发送零响应；加能力判据 →
     // 覆盖掉 `newSession` 安排好的认证 / 缺 Node 报错，且能力未知时仍会顶掉），
     // 所有者裁定 2026-09-18：回退到出厂行为，记 `rounds/BACKLOG.md` 等单独一轮做。
-    if (thread.store == null) {
+    if (session.store == null) {
       if (_startingSession) return;
       _startingSession = true;
       try {
-        await thread.newSession(thread.agentRefOf(id));
+        await session.newSession(session.agentRefOf(id));
       } finally {
         _startingSession = false;
       }
     }
     // 静默 return 是有意的：走到这里说明 `newSession` 失败了，而它的每条失败路径都已经把
-    // 真实原因写进线程的 `lastError`（认证 / 缺 Node / 没选项目目录）并安排好认证页，这里再写一句会盖掉它。
-    final s = thread.store;
+    // 真实原因写进会话控制器的 `lastError`（认证 / 缺 Node / 没选项目目录）并安排好认证页，这里再写一句会盖掉它。
+    final s = session.store;
     if (s == null) return;
     if (_blockedByClose()) return;
     // 快照要取在开会话之后：拉起进程 + `initialize` + `session/new` 要几百毫秒到数秒，
@@ -73,9 +73,9 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     if (blocks.isEmpty) return;
     composer.clearForSend();
     // 又开了一轮：上一轮留下的绿点立即撤（画板 06 D「运行中 · 绿点：无（有则立即撤）」）。
-    thread.clearUnread(s.sessionId);
+    session.clearUnread(s.sessionId);
     s.startTurn(<ContentBlockWire>[for (final b in blocks) ContentBlockWire(b)]);
-    unawaited(thread.stampPromptSent());
+    unawaited(session.stampPromptSent());
     await _runTurn(b, id, s, blocks);
   }
 
@@ -93,8 +93,8 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
           stopReason: stopReason,
           usage: result['usage'] is Map ? (result['usage'] as Map).cast<String, dynamic>() : null,
         );
-        thread.markDone(s.sessionId, stopReason);
-        await thread.saveIndex(); // 只刷消息计数：`updatedAt` 沿用发消息时打的那个（见 `SessionIndex.upsert`）
+        session.markDone(s.sessionId, stopReason);
+        await session.saveIndex(); // 只刷消息计数：`updatedAt` 沿用发消息时打的那个（见 `SessionIndex.upsert`）
       } catch (e) {
         // 失败也必须收轮：不收的话 `currentTurn` 一直挂着，会话头永远转 spinner、发送位永远是停止键，
         // 之后的 Restore 还会拿新连接去操作一个 agent 侧已不存在的 sessionId（审查第 2 轮 finding P2，2026-09-15）。
@@ -126,9 +126,9 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
   }
 
   Future<void> cancel() async {
-    final s = thread.store;
+    final s = session.store;
     final b = bridge;
-    final id = thread.agentId;
+    final id = session.agentId;
     if (s == null || b == null || id == null) return;
     // 停止方块也是往会话发命令的入口：`closeSession` 里的 `s.cancel()` 不收轮（`isRunning` 还是 true），
     // 作曲器禁用态下 Stop 仍会渲染，点下去就把 `session/cancel` 打到已经释放掉的会话上（审查第 3 轮 P2）。
@@ -146,9 +146,9 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
   }
 
   Future<void> answerPermission(String requestId, String optionId) async {
-    final s = thread.store;
+    final s = session.store;
     final b = bridge;
-    final id = thread.agentId;
+    final id = session.agentId;
     if (s == null) return;
     final payload = s.answerPermission(requestId, optionId);
     if (payload == null || b == null || id == null) return;
@@ -156,9 +156,9 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
   }
 
   Future<void> answerElicitation(String requestId, String action, JsonMap? content) async {
-    final s = thread.store;
+    final s = session.store;
     final b = bridge;
-    final id = thread.agentId;
+    final id = session.agentId;
     if (s == null) return;
     final payload = s.answerElicitation(requestId, action, content: content);
     if (payload == null || b == null || id == null) return;
@@ -171,7 +171,7 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
   /// **截断范围内仍挂起的请求必须回应**，否则 agent 一直等着：permission 回 cancelled outcome、
   /// elicitation 回 cancelled action（`RestoreResult` 的两组 id）。
   Future<void> restore(MessageEntry message, {String? newText}) async {
-    final s = thread.store;
+    final s = session.store;
     if (s == null) return;
     // 关掉的会话不能 Restore / Regenerate：`restoreTo` 会先把本地转录截断，随后的 `session/prompt`
     // 必然失败，本地就少了一截而 agent 侧还是关闭前那份（审查第 2 轮 P2）。
@@ -192,21 +192,21 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     ];
     if (blocks.isEmpty) return;
     final b = bridge;
-    final id = thread.agentId;
+    final id = session.agentId;
     if (b == null || id == null) {
       touch();
       return;
     }
-    thread.clearUnread(s.sessionId);
+    session.clearUnread(s.sessionId);
     s.startTurn(<ContentBlockWire>[for (final x in blocks) ContentBlockWire(x)]);
-    unawaited(thread.stampPromptSent());
+    unawaited(session.stampPromptSent());
     await _runTurn(b, id, s, blocks);
   }
 
   /// 把被截断的挂起请求逐条回应（顺序无所谓，但一条都不能漏）。
   Future<void> _respondCancelled(RestoreResult result) async {
     final b = bridge;
-    final id = thread.agentId;
+    final id = session.agentId;
     if (b == null || id == null) return;
     for (final requestId in result.cancelledRequestIds) {
       await guard(() => b.acpRespond(id, requestId, PendingQueue.cancelledOutcome));
@@ -220,9 +220,9 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
 
   Future<void> setConfigOption(String configId, JsonMap value) async {
     composer.hideConfigPopovers();
-    final s = thread.store;
+    final s = session.store;
     final b = bridge;
-    final id = thread.agentId;
+    final id = session.agentId;
     if (s == null || b == null || id == null) return;
     if (_blockedByClose()) return;
     await guard(() async {
@@ -242,9 +242,9 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
   /// 所以本地同步 `currentModeId`（agent 自己改模式时会另发 `current_mode_update`）。
   Future<void> setMode(String modeId) async {
     composer.hideConfigPopovers();
-    final s = thread.store;
+    final s = session.store;
     final b = bridge;
-    final id = thread.agentId;
+    final id = session.agentId;
     if (s == null || b == null || id == null) return;
     if (_blockedByClose()) return;
     await guard(() async {
@@ -258,12 +258,12 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
       setConfigOption(configId, <String, dynamic>{'type': 'boolean', 'value': value});
 
   ConfigOptionWire? optionOf(String category) {
-    for (final o in thread.store?.configOptions ?? const <ConfigOptionWire>[]) {
+    for (final o in session.store?.configOptions ?? const <ConfigOptionWire>[]) {
       if (o.category == category) return o;
     }
     // modes 回退（R6）：只发 modes / `current_mode_update`、不发 configOptions 的 agent，
     // 模式下拉用 `SessionStore.modeFallbackOption` 合成的那条；两者都有时上面的循环已经命中，走不到这里。
-    if (category == 'mode') return thread.store?.modeFallbackOption;
+    if (category == 'mode') return session.store?.modeFallbackOption;
     return null;
   }
 
@@ -276,12 +276,12 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
   static const List<String> _categoryOrder = <String>['mode', 'model', 'model_config', 'thought_level'];
 
   List<ConfigOptionWire> get composerOptions {
-    final all = thread.store?.configOptions ?? const <ConfigOptionWire>[];
+    final all = session.store?.configOptions ?? const <ConfigOptionWire>[];
     final ordered = <ConfigOptionWire>[];
     for (final category in _categoryOrder) {
       // modes 回退（R6）：没有 `category == 'mode'` 的 configOption 时才合成，排在 mode 档的头一格。
       if (category == 'mode') {
-        final fallback = thread.store?.modeFallbackOption;
+        final fallback = session.store?.modeFallbackOption;
         if (fallback != null) ordered.add(fallback);
       }
       for (final o in all) {
@@ -304,7 +304,7 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
 
   /// 挂起队列的首项（画板 26 的停靠条）。
   TranscriptEntry? get firstPending {
-    final s = thread.store;
+    final s = session.store;
     if (s == null) return null;
     final list = s.pending.forSession(s.sessionId);
     return list.isEmpty ? null : list.first;
@@ -328,12 +328,12 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
       }
       return;
     }
-    thread.store?.markTerminalKilled(terminalId);
+    session.store?.markTerminalKilled(terminalId);
   }
 
   /// 本地转录文本（`+` 的 Sessions）：把当前会话的消息拼成一份 embedded resource。
   String transcriptText() {
-    final s = thread.store;
+    final s = session.store;
     if (s == null) return '';
     final buffer = StringBuffer();
     for (final e in s.entries) {

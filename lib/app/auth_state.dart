@@ -1,6 +1,6 @@
 // 认证页（画板 52，R5）的整个状态机（R7.5 从 workbench_controller.dart 拆出）：右栏 Agents 标签里、对应 agent 的一页。
 // 三个入口（`session/new` 回 `-32000`、画板 51 的登录键、画板 34 的登录键）都到 [open]；requestScope 的 URL elicitation
-// 落在本页（docs/design.md § 5 第 5 条）。认证成功后的「自动重试新会话」是线程控制器的事，经 [onAuthenticated] 交回去；
+// 落在本页（docs/design.md § 5 第 5 条）。认证成功后的「自动重试新会话」是会话控制器的事，经 [onAuthenticated] 交回去；
 // 右栏标签、当前项目目录、registry 展示名、当前 agent 都经回调向组合根要。
 
 import 'dart:async';
@@ -40,7 +40,7 @@ class AuthState extends ChangeNotifier with GuardedNotifier {
   /// registry.json 里的展示名（没连上时会话头 / 认证页的标题退到它）。
   final String? Function(String id) _registryName;
 
-  /// 当前线程的 agent（画板 34 状态条的登录键从它进）。
+  /// 当前会话的 agent（画板 34 状态条的登录键从它进）。
   final String? Function() _currentAgentId;
 
   /// 右栏切到 Agents 标签（认证页就在那一页上）。
@@ -52,7 +52,7 @@ class AuthState extends ChangeNotifier with GuardedNotifier {
   /// 认证成功后回到工作台页（只换页，不通知；本页随后的 `touch` 会带上）。
   final void Function() _showWorkbench;
 
-  /// 认证成功：`session` 非空时（terminal 型认证由核心顺手开好的会话）线程控制器直接采用它；
+  /// 认证成功：`session` 非空时（terminal 型认证由核心顺手开好的会话）会话控制器直接采用它；
   /// 否则在这个 cwd 上开一条新会话（docs/design.md § 5 第 5 条的自动重试）。
   final Future<void> Function(String agent, String cwd, JsonMap? session) _onAuthenticated;
 

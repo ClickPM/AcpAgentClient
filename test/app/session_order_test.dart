@@ -62,8 +62,8 @@ void main() {
     final core = _GatedCore();
     final c = WorkbenchController(source: DataSource.bridge, bridge: core, scheduler: WorkbenchController.scheduleOnMicrotask)
       ..workspace.project = const ProjectRef(path: 'D:/repo', name: 'repo');
-    await c.thread.newSession(const AgentRef(id: 'a', name: 'a'));
-    final sid = c.thread.sessionId!;
+    await c.session.newSession(const AgentRef(id: 'a', name: 'a'));
+    final sid = c.session.sessionId!;
     expect(_updatedAtOf(core, sid), 0, reason: '刚建的会话控制器不传 updatedAt（核心打创建时间；假核心记 0）');
 
     // 发第一条：session/prompt 挂着不回，索引里已经打上发消息的时间。
@@ -83,8 +83,8 @@ void main() {
     expect(core.sessionIndex.single['messageCount'], 1);
 
     // 改名不动时间。
-    c.thread.startRename(sid);
-    await c.thread.commitRename('改了名');
+    c.session.startRename(sid);
+    await c.session.commitRename('改了名');
     expect(core.sessionIndex.single['title'], '改了名');
     expect(_updatedAtOf(core, sid), t1, reason: '改名不是发消息');
 
@@ -102,8 +102,8 @@ void main() {
     final core = _LaggyIndexCore();
     final c = WorkbenchController(source: DataSource.bridge, bridge: core, scheduler: WorkbenchController.scheduleOnMicrotask)
       ..workspace.project = const ProjectRef(path: 'D:/repo', name: 'repo');
-    await c.thread.newSession(const AgentRef(id: 'a', name: 'a'));
-    final sid = c.thread.sessionId!;
+    await c.session.newSession(const AgentRef(id: 'a', name: 'a'));
+    final sid = c.session.sessionId!;
 
     final hold = core.holdNextUpsert = Completer<void>();
     final before = DateTime.now().millisecondsSinceEpoch;

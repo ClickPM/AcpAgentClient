@@ -63,11 +63,11 @@ Future<(WorkbenchController, SessionStore)> _pumpShell(WidgetTester tester, {int
   final core = FakeCore();
   _core = core;
   final c = WorkbenchController(source: DataSource.bridge, bridge: core, scheduler: WorkbenchController.scheduleOnMicrotask)
-    ..thread.agentId = _agent;
+    ..session.agentId = _agent;
   addTearDown(c.dispose);
   late SessionStore store;
   if (withSession) {
-    c.thread.sessionId = _session;
+    c.session.sessionId = _session;
     store = c.sessions.session(_session, agentId: _agent);
     _converse(store, turns);
   } else {
@@ -214,25 +214,25 @@ void main() {
   testWidgets('Esc 关掉弹层：它是唯一放行的键，靠 EscapeDismissible 的全局处理器', (tester) async {
     final (c, _) = await _pumpShellWithCore(tester, turns: 3);
     await _openTimeline(tester);
-    expect(c.thread.timelineAnchor.isShowing, isTrue);
+    expect(c.session.timelineAnchor.isShowing, isTrue);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await _settle(tester);
 
-    expect(c.thread.timelineAnchor.isShowing, isFalse);
+    expect(c.session.timelineAnchor.isShowing, isFalse);
     expect(find.byType(SessionTimelinePopover), findsNothing);
   });
 
   testWidgets('点弹层之外关掉它，按钮的选中容器跟着撤', (tester) async {
     final (c, _) = await _pumpShell(tester, turns: 3);
     await _openTimeline(tester);
-    expect(c.thread.timelineAnchor.isShowing, isTrue);
+    expect(c.session.timelineAnchor.isShowing, isTrue);
 
     // 点转录区中间：那一下先落到弹层的透明遮罩上。
     await tester.tapAt(tester.getCenter(_list));
     await _settle(tester);
 
-    expect(c.thread.timelineAnchor.isShowing, isFalse);
+    expect(c.session.timelineAnchor.isShowing, isFalse);
     expect(find.byType(SessionTimelinePopover), findsNothing);
   });
 }

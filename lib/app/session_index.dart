@@ -1,6 +1,6 @@
 // 本地会话索引 `sessions.json` 的内存镜像（R7.5 从 workbench_controller.dart 拆出）：原始条目（cwd 等字段接线要用）
 // 与三条桥命令（list / upsert / remove）的接线。**不是 notifier**：谁写谁负责让侧栏重投影——每次条目变化都经
-// [onChanged] 通知线程控制器（侧栏项与 sessionId → agentId 的登记都在那边从条目算出来），它自己不通知 UI。
+// [onChanged] 通知会话控制器（侧栏项与 sessionId → agentId 的登记都在那边从条目算出来），它自己不通知 UI。
 
 import '../projection/entries.dart';
 import '../projection/session_store.dart';
@@ -19,7 +19,7 @@ class SessionIndex {
   List<JsonMap> entries = const <JsonMap>[];
 
   /// 每条会话最近一次发消息时打的 `updatedAt`（[upsert] 的 promptSent 那次）。[entries] 只在那条
-  /// 命令**回来**之后才带上新时间，而它是不 await 的（见线程控制器的 `stampPromptSent`）；核心又是每条命令各起一个任务
+  /// 命令**回来**之后才带上新时间，而它是不 await 的（见会话控制器的 `stampPromptSent`）；核心又是每条命令各起一个任务
   /// （`rust/bridge/src/api.rs` 的 `on_core`），不保证先发的先回——一轮跑得比索引写回来还快时，收轮那次
   /// [upsert] 从 [entries] 读到的还是发消息之前的旧时间、把刚打的盖回去（概率很低，但顺序不该靠运气）。
   /// 这里记一份本地的，[updatedAtOf] 取两者里大的（合并复审 2026-09-18）。
@@ -46,7 +46,7 @@ class SessionIndex {
   /// （所有者裁定 2026-09-18）：只在 `session/prompt` 发出时打新时间（[promptSent]），收轮、改名、补标题都沿用
   /// 索引里已有的值——按收轮时间打的话，一条早发出去、晚跑完的会话会在收轮时跳到刚发过消息的那条前面。
   /// 索引里还没有这条（刚 `session/new`）时不传，核心打当前时间：新会话按创建时间排最上面。
-  /// [agentFallback] / [titleFallback]：store 上没有时用的 agentId 与标题（线程控制器给当前 agent 与会话头标题）。
+  /// [agentFallback] / [titleFallback]：store 上没有时用的 agentId 与标题（会话控制器给当前 agent 与会话头标题）。
   Future<void> upsert(
     SessionStore s, {
     required String agentFallback,

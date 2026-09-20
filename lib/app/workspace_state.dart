@@ -1,6 +1,6 @@
 // 项目与分支（R7.5 从 workbench_controller.dart 拆出）：当前项目与最近项目（画板 41 的项目切换器）、分支区
 // （画板 04 的分支切换器）、Rules 计数（画板 30 / 40）、`workspace_open` 的接线与两组输入控件。
-// 会话不归它管：换项目对会话的影响（侧栏重投影、放下别的目录的会话）由组合根经 [onProjectChanged] 接到线程控制器，
+// 会话不归它管：换项目对会话的影响（侧栏重投影、放下别的目录的会话）由组合根经 [onProjectChanged] 接到会话控制器，
 // 等待期守卫经 [busy] 读。
 
 import 'dart:io';
@@ -29,10 +29,10 @@ class WorkspaceState extends ChangeNotifier with GuardedNotifier {
   /// 文件面板（画板 60）：换项目要重建它的树。持有者是组合根，这里只用。
   final FilesState files;
 
-  /// 等待期（`session/new` / 重载在途）里不换项目：判据在线程控制器那边（`waitingForAgent`）。
+  /// 等待期（`session/new` / 重载在途）里不换项目：判据在会话控制器那边（`waitingForAgent`）。
   final bool Function() _busy;
 
-  /// 换了项目：侧栏只留这个目录下的会话、正开着的会话若属于别的目录就从会话区放下（线程控制器的事）。
+  /// 换了项目：侧栏只留这个目录下的会话、正开着的会话若属于别的目录就从会话区放下（会话控制器的事）。
   final void Function() _onProjectChanged;
 
   List<ProjectRef> recentProjects = const <ProjectRef>[];

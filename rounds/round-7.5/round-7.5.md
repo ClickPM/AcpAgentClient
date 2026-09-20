@@ -69,17 +69,17 @@
 | 段 | 行 | 行数 | 咬合度 | 去向 |
 |---|---|---|---|---|
 | 投影 / 本地态 / UI 态字段 | 61–241 | 181 | 5 | 按字段各归其主（附录 A） |
-| 派生 getter | 242–287 | 46 | 11 | `thread`（`store` / `connection` / `hasSession` / `threadTitle` / `canCompose` …） |
-| 画板 06 侧栏活动 | 288–388 | 101 | 9 | `thread`（running / unread / `_markDone`）；`composerOptions` / `optionOf` / `optionById` 归 `turn` |
+| 派生 getter | 242–287 | 46 | 11 | `session`（`store` / `connection` / `hasSession` / `threadTitle` / `canCompose` …） |
+| 画板 06 侧栏活动 | 288–388 | 101 | 9 | `session`（running / unread / `_markDone`）；`composerOptions` / `optionOf` / `optionById` 归 `turn` |
 | 生命周期 `start` / `_restoreUiState` | 389–454 | 66 | 6 | 组合根（编排顺序不变）；`_restoreUiState` 归 `shell` |
 | 分栏宽度 + fixtures 启动 + 调度 + dispose + `_guard` | 455–636 | 182 | 10 | 宽度归 `shell`；`_startFixtures` / `_enqueue` / dispose 留组合根；`_guard` / `_touch` 抽成 mixin |
-| 索引与项目 | 637–942 | 306 | 27 | 项目 / 分支 / 规则归 `workspace`；索引归 `index`；agents 列表归 `agents`；能力 getter 归 `thread` |
-| 会话 | 943–1501 | 559 | 73 | `thread`（整段） |
+| 索引与项目 | 637–942 | 306 | 27 | 项目 / 分支 / 规则归 `workspace`；索引归 `index`；agents 列表归 `agents`；能力 getter 归 `session` |
+| 会话 | 943–1501 | 559 | 73 | `session`（整段） |
 | 一轮对话 | 1502–1692 | 191 | 20 | `turn`（整段） |
 | 会话配置 | 1693–1733 | 41 | 6 | `turn` |
 | 输入框的 `@` 与 `/` | 1734–1876 | 143 | 2 | `composer` |
 | `+` 的四项 | 1877–1957 | 81 | 1 | `composer`（`transcriptText` 归 `turn`） |
-| 壳的 UI 动作 | 1958–1975 | 18 | 0 | `shell`（`toggleSidebar`）；`search` 三件归 `thread` |
+| 壳的 UI 动作 | 1958–1975 | 18 | 0 | `shell`（`toggleSidebar`）；`search` 三件归 `session` |
 | 右栏 | 1976–2069 | 94 | 0 | `shell` |
 | 本地终端 | 2070–2139 | 70 | 2 | 标签开关归 `shell`；`killTerminal` 归 `turn`；`_onTerminalOutput` 分发留组合根 |
 | 定位与 Follow | 2140–2174 | 35 | 1 | `shell` |
@@ -102,9 +102,9 @@
 | `agents_state.dart` | `AgentsState` | 已装 agent 列表（`installed` / `refreshAgents` / `displayName` / `iconSvgOf`）、registry 面板（画板 50 / 51：`registry` / 搜索与过滤 / `refreshRegistry` / `onRegistryProgress` / install / cancel / remove / `downloadNode` / `visibleEntries`）、设置面板（画板 70：`installedEntries` / `editAgent` / `collapseEdit` / `saveCustomAgent` / `splitArgs` / `importZed` / `zedImportResult`） | 450 | `bridge`；回调 `onRemoved(id)`、`onInstalledChanged()` |
 | `auth_state.dart` | `AuthState` | 认证页（画板 52）的整个状态机：`agentId` / `phase` / `methodId` / `error` / `terminalLabel` / `elicitations` / `connection` / `methods` / `agentName` / `terminalId` / `terminalBuffer`，`open` / `selectMethod` / `start` / `retry` / `changeMethod` / `cancel` / `close` / `stopTerminal` / `terminalInput` / `authenticate`，requestScope elicitation 的 `onPendingChanged` / `acceptUrl` / `cancelElicitation` | 260 | `bridge`、`sessions`（`agents` 与 `pending`）；回调 `onAuthenticated(agent, cwd)`（自动重试新会话）、`openAgentsTab()`、`cwd()`、`agentName(id)` |
 | `composer_state.dart` | `ComposerState` | 输入框：`editor`（原 `composer`）/ `focus`、`pendingBlocks` / `pendingImages`、`onChanged`（原 `onComposerChanged`）、`@` / `/` 内联菜单（`inlineMenu` / `inlineMenuOpen` / close / move / pick / `_updateMentionMenu`）、`+` 四项（`addResourceLink` / `removePendingBlock` / `addImage` / `pasteImageFromClipboard` / `addEmbeddedResource`）、`modelSearch` 输入控件、`configAnchor(id)` / `hideConfigPopovers`、`plusAnchor` / `followAnchor` / `usageAnchor` | 280 | `bridge`（`fs_list_dir` / `fs_search`）；查询 `store()`（slash 命令来源）、`cwd()`、`imageAllowed()` |
-| `turn_controller.dart` | `TurnController` | 一轮对话：`send` / `_runTurn` / `_promptBlocks` / `cancel` / `answerPermission` / `answerElicitation` / `restore` / `_respondCancelled` / `_turnInFlight` / `_promptSentAt`；会话配置：`setConfigOption` / `selectConfigValue` / `setMode` / `toggleConfigBoolean` / `composerOptions` / `optionOf` / `optionById`；`firstPending` / `killTerminal` / `transcriptText` | 300 | `bridge`、`thread`、`composer`、`index` |
-| `thread_controller.dart` | `ThreadController` | 当前线程与会话生命周期：`agentId` / `sessionId` / `_sessionAgent` / `store` / `connection` / `hasAgent` / `hasSession` / `isRunning` / `agentDisplayName` / `threadTitle` / `agentIconSvg` / `sessionEpoch` / `waitingForAgent` / `composerPlaceholder` / `canCompose` / `showAgentStateBar` / `droppedUpdates`；能力 getter 九个（`canLoadSession` … `deletesOnAgent`）；侧栏列表（`sidebarSessions` / `visibleSessions` / `search` 三件 / `sidebarSearch` / running / unread / `noteUpdateArrival`）；`newSession` / `createSession` / `_ensureConnected` / `_adoptSession` / `reloadAgent` / `selectSession` / `_ensureLoaded` / `loadSession` / `resumeSession` / `closeSession` / `deleteSession` / `reconcileSessions` / `missingOnAgent` / `blockedByClose`；改名（`rename` 输入控件 + `startRename` / `cancelRename` / `commitRename` / `renamingInHeader`）与删除确认（`askDelete` / `cancelDelete` / `confirmingDeleteId`）；`newSessionAnchor` / `threadMenuAnchor` / `timelineAnchor`（画板 43，2026-09-20 新增）/ `deleteAnchor`；`ensureAgentSelected`（原 `_selectDefaultAgent`）、`dropAgent(id)`、`leaveWorkspace()` | 850 | `bridge`、`sessions`、`index`、`agents`、`workspace`；回调 `openWorkbench()` |
-| `workbench_controller.dart` | `WorkbenchController`（组合根，仍是 `ChangeNotifier`） | 只剩：`source` / `bridge` / `sessions` / `batcher` / `traffic` / `files` / `terminals` + 九个子对象的构造与回调接线；`start()`（init → 索引 → registry → agents → 项目 → ui-state 的顺序不变）；六路核心事件的订阅与分发（`session_update` → `sessions` + `thread.noteUpdateArrival` + `shell.followLocations`；`terminal_output` 按 `source` 分给 `terminals` / `sessions` / `auth`；`registry/progress` → `agents`）；`_enqueue` 与 flush 调度器；`dataDir` / `logPath` / `zedSettingsPath`；`dispose` / `shutdown` / `refresh`；子对象通知的汇总转发（阶段 A） | 400 | — |
+| `turn_controller.dart` | `TurnController` | 一轮对话：`send` / `_runTurn` / `_promptBlocks` / `cancel` / `answerPermission` / `answerElicitation` / `restore` / `_respondCancelled` / `_turnInFlight` / `_promptSentAt`；会话配置：`setConfigOption` / `selectConfigValue` / `setMode` / `toggleConfigBoolean` / `composerOptions` / `optionOf` / `optionById`；`firstPending` / `killTerminal` / `transcriptText` | 300 | `bridge`、`session`、`composer`、`index` |
+| `session_controller.dart` | `SessionController` | 当前线程与会话生命周期：`agentId` / `sessionId` / `_sessionAgent` / `store` / `connection` / `hasAgent` / `hasSession` / `isRunning` / `agentDisplayName` / `threadTitle` / `agentIconSvg` / `sessionEpoch` / `waitingForAgent` / `composerPlaceholder` / `canCompose` / `showAgentStateBar` / `droppedUpdates`；能力 getter 九个（`canLoadSession` … `deletesOnAgent`）；侧栏列表（`sidebarSessions` / `visibleSessions` / `search` 三件 / `sidebarSearch` / running / unread / `noteUpdateArrival`）；`newSession` / `createSession` / `_ensureConnected` / `_adoptSession` / `reloadAgent` / `selectSession` / `_ensureLoaded` / `loadSession` / `resumeSession` / `closeSession` / `deleteSession` / `reconcileSessions` / `missingOnAgent` / `blockedByClose`；改名（`rename` 输入控件 + `startRename` / `cancelRename` / `commitRename` / `renamingInHeader`）与删除确认（`askDelete` / `cancelDelete` / `confirmingDeleteId`）；`newSessionAnchor` / `threadMenuAnchor` / `timelineAnchor`（画板 43，2026-09-20 新增）/ `deleteAnchor`；`ensureAgentSelected`（原 `_selectDefaultAgent`）、`dropAgent(id)`、`leaveWorkspace()` | 850 | `bridge`、`sessions`、`index`、`agents`、`workspace`；回调 `openWorkbench()` |
+| `workbench_controller.dart` | `WorkbenchController`（组合根，仍是 `ChangeNotifier`） | 只剩：`source` / `bridge` / `sessions` / `batcher` / `traffic` / `files` / `terminals` + 九个子对象的构造与回调接线；`start()`（init → 索引 → registry → agents → 项目 → ui-state 的顺序不变）；六路核心事件的订阅与分发（`session_update` → `sessions` + `session.noteUpdateArrival` + `shell.followLocations`；`terminal_output` 按 `source` 分给 `terminals` / `sessions` / `auth`；`registry/progress` → `agents`）；`_enqueue` 与 flush 调度器；`dataDir` / `logPath` / `zedSettingsPath`；`dispose` / `shutdown` / `refresh`；子对象通知的汇总转发（阶段 A） | 400 | — |
 
 `workbench_screen.dart` 与 `headless_run.dart`：只改成员引用路径（附录 A），widget 树与步骤逻辑一行不动。
 `test/app/` 与 `test/ui/`：同样只改路径；用例数与断言不变。
@@ -126,10 +126,10 @@ screen / headless / test 三处触碰的成员并集，按新家分组。没列�
 | `c.auth` | `authAgentId → agentId` `authPhase → phase` `authMethodId → methodId` `authError → error` `authTerminalLabel → terminalLabel` `authElicitations → elicitations` `authConnection → connection` `authMethods → methods` `authAgentName → agentName` `authTerminalId → terminalId` `authTerminalBuffer → terminalBuffer` `openAuth → open` `selectAuthMethod → selectMethod` `startAuth → start` `retryAuth → retry` `changeAuthMethod → changeMethod` `cancelAuth → cancel` `closeAuth → close` `stopAuthTerminal → stopTerminal` `authTerminalInput → terminalInput` `authenticate` `acceptElicitationUrl → acceptUrl` `cancelElicitation` |
 | `c.composer` | `composer → editor` `composerFocus → focus` `pendingBlocks` `pendingImages` `onComposerChanged → onChanged` `inlineMenu` `inlineMenuOpen` `closeInlineMenu` `moveInlineMenuSelection` `pickInlineMenuSelection` `addResourceLink` `removePendingBlock` `addImage` `pasteImageFromClipboard` `addEmbeddedResource` `modelSearch` `modelSearchFocus` `configAnchor` `hideConfigPopovers` `plusAnchor` `followAnchor` `usageAnchor` |
 | `c.turn` | `send` `cancel` `answerPermission` `answerElicitation` `restore` `setConfigOption` `selectConfigValue` `setMode` `toggleConfigBoolean` `composerOptions` `optionOf` `optionById` `firstPending` `killTerminal` `transcriptText` |
-| `c.thread` | `agentId` `sessionId` `store` `connection` `hasAgent` `hasSession` `isRunning` `agentDisplayName` `threadTitle` `agentIconSvg` `sessionEpoch` `waitingForAgent` `composerPlaceholder` `canCompose` `canPromptImage` `showAgentStateBar` `droppedUpdates` `canLoadSession` `canLoadSessionOf` `canListSessions` `sessionClosed` `canResumeSession` `canCloseSession` `canDeleteSession` `deletesOnAgent` `missingOnAgent` `sidebarSessions` `visibleSessions` `search` `setSearch` `clearSearch` `sidebarSearch` `sidebarSearchFocus` `runningSessionIds` `unreadSessionIds` `newSession` `reloadAgent` `selectSession` `resumeSession` `closeSession` `deleteSession` `reconcileSessions` `startRename` `cancelRename` `commitRename` `rename` `renameFocus` `renamingSessionId` `renamingInHeader` `askDelete` `cancelDelete` `confirmingDeleteId` `newSessionAnchor` `threadMenuAnchor` `timelineAnchor` `deleteAnchor` |
+| `c.session` | `agentId` `sessionId` `store` `connection` `hasAgent` `hasSession` `isRunning` `agentDisplayName` `threadTitle` `agentIconSvg` `sessionEpoch` `waitingForAgent` `composerPlaceholder` `canCompose` `canPromptImage` `showAgentStateBar` `droppedUpdates` `canLoadSession` `canLoadSessionOf` `canListSessions` `sessionClosed` `canResumeSession` `canCloseSession` `canDeleteSession` `deletesOnAgent` `missingOnAgent` `sidebarSessions` `visibleSessions` `search` `setSearch` `clearSearch` `sidebarSearch` `sidebarSearchFocus` `runningSessionIds` `unreadSessionIds` `newSession` `reloadAgent` `selectSession` `resumeSession` `closeSession` `deleteSession` `reconcileSessions` `startRename` `cancelRename` `commitRename` `rename` `renameFocus` `renamingSessionId` `renamingInHeader` `askDelete` `cancelDelete` `confirmingDeleteId` `newSessionAnchor` `threadMenuAnchor` `timelineAnchor` `deleteAnchor` |
 | 各对象自带 | `lastError`（来自 mixin；headless / test 里读哪个动作的错误就读哪个对象的） |
 
-`waitingForAgent` 留在 `thread`（`newSession` / `reloadAgent` 写它），`workspace.openProject` 的等待期守卫经回调 `busy()` 读；
+`waitingForAgent` 留在 `session`（`newSession` / `reloadAgent` 写它），`workspace.openProject` 的等待期守卫经回调 `busy()` 读；
 `lastError` 不再有全局一份，谁的命令谁记。BACKLOG「`lastError` 在产品 UI 上没有出口」那条将来做壳级提示位时，
 在组合根上聚合九个对象的 `lastError` 即可，本轮不做。
 
@@ -162,14 +162,14 @@ screen / headless / test 三处触碰的成员并集，按新家分组。没列�
     thread.openWorkbench        → shell.openWorkbench
 ```
 
-`turn → thread` 是唯一保留的「协议对象之间」的依赖，方向固定：一轮对话读当前线程，线程不知道有轮。
+`turn → session` 是唯一保留的「协议对象之间」的依赖，方向固定：一轮对话读当前线程，线程不知道有轮。
 BACKLOG 那条 `send()` 懒开会话守卫要分清的四种状态（无 sessionId / 有 store / 已 initialized 且不支持 loadSession /
-载回失败或能力未知）正好落在这条边上，下一轮修它时给 `thread` 加一个返回四态的查询即可，不必再翻整个类。
+载回失败或能力未知）正好落在这条边上，下一轮修它时给 `session` 加一个返回四态的查询即可，不必再翻整个类。
 
 ## 实施顺序
 
 从边缘往里剥，每一步之后剩下的 `workbench_controller.dart` 都能编译、`validate.ps1` 全绿、fake-agent 的三份无头报告等价；
-每步一个提交（提交说明写「R7.5 第 N 步：拆出 X」）。咬合的核心（`thread`）最后一步整体搬出，中途不拆散它。
+每步一个提交（提交说明写「R7.5 第 N 步：拆出 X」）。咬合的核心（`session`）最后一步整体搬出，中途不拆散它。
 
 | # | 步骤 | 提交后 `workbench_controller.dart` 约剩 |
 |---|---|---|
@@ -181,7 +181,7 @@ BACKLOG 那条 `send()` 懒开会话守卫要分清的四种状态（无 session
 | 5 | `AuthState`：认证页整段 + `authenticate` + `_onPendingChanged`。自动重试改走 `onAuthenticated` | 1150 |
 | 6 | `ComposerState`：输入框、内联菜单、`+` 四项、配置项弹层锚点 | 900 |
 | 7 | `TurnController`：一轮对话 + 会话配置 + `killTerminal` / `transcriptText`。此时它还从组合根读 `agentId` / `sessionId` / `store` | 650 |
-| 8 | `ThreadController`：会话核心整段搬出，组合根只剩接线；`turn` 的引用改指 `thread` | ≤ 400 |
+| 8 | `SessionController`：会话核心整段搬出，组合根只剩接线；`turn` 的引用改指 `session` | ≤ 400 |
 | 9 | 阶段 B（按裁定门第 4 项）：先量后动。在 `debug` 构建里给 `AppShell` 的 build 计数，回放 `test/fixtures/` 的 290 行 `session/load` 重放与一段 fake-agent 流式输出，记「每帧 batch 触发的壳级 build 次数」；超过裁定阈值才把 screen 改成按区域 `Listenable.merge([...])` 订阅并补一条重建计数的 widget 测试，否则数字记任务卡、条目记 BACKLOG | — |
 
 审查节奏：第 2 步与第 8 步之后各发一轮全量审查（`-Scope branch`），中间各步只跑 validate 与无头等价；
@@ -220,8 +220,8 @@ BACKLOG 那条 `send()` 懒开会话守卫要分清的四种状态（无 session
 | # | 事项 | 推荐 | 备选 |
 |---|---|---|---|
 | 1 | 轮次编号 | **R7.5**：纯代码结构、无画板，夹在 R7 与 R8 之间做，先于打包发布；沿用 R1.5 的编号写法 | R9，排在 R8 之后（代价：R8 干净机验收之后再动组合根，发布后的回归风险更高） |
-| 2 | 拆分粒度 | **组合根 + 8 个对象**（交付物表）。粒度取自耦合矩阵：咬合的两段各成一个 Controller，零咬合的按画板归组成 State | 保守版「组合根 + 3 个」：`ThreadController`（会话 + 一轮 + 索引）、`PanelsState`（registry + 认证 + 设置）、`ShellState`（其余）。改名面小一半，但 thread 仍 1300 行、下一轮修缺陷时还得再拆 |
-| 3 | 引用方式 | **直接访问子对象**（`c.thread.send()`），screen / headless / test 按附录 A 改名，编译器兜底漏改 | 组合根保留转发门面、零改名。代价：150 行一行转发，103 个公有方法的上帝接口原样留着，只是身体变薄 |
+| 2 | 拆分粒度 | **组合根 + 8 个对象**（交付物表）。粒度取自耦合矩阵：咬合的两段各成一个 Controller，零咬合的按画板归组成 State | 保守版「组合根 + 3 个」：`SessionController`（会话 + 一轮 + 索引）、`PanelsState`（registry + 认证 + 设置）、`ShellState`（其余）。改名面小一半，但 thread 仍 1300 行、下一轮修缺陷时还得再拆 |
+| 3 | 引用方式 | **直接访问子对象**（`c.session.send()`），screen / headless / test 按附录 A 改名，编译器兜底漏改 | 组合根保留转发门面、零改名。代价：150 行一行转发，103 个公有方法的上帝接口原样留着，只是身体变薄 |
 | 4 | 通知策略 | **阶段 A 必做 + 阶段 B 先量后动**：阶段 A 组合根继续汇总转发（行为零变化）；阶段 B 按实施顺序第 9 步量壳级 build 次数，超过阈值才改区域订阅。阈值建议：一次 `session/update` batch 触发的壳级 build > 1 次且 290 行重放的总 build 耗时 > 一帧（16 ms） | 阶段 B 本轮必做（代价：screen 的订阅关系是新的行为面，「漏订阅 → 界面不刷新」这类缺陷要靠手测兜） |
 | 5 | 是否顺手修缺陷 | **不修**，本轮零行为变化；紧接着开 R7.7 在新结构上修 § 「与 BACKLOG 的关系」的 8 条（起草时叫 R7.6，该编号 2026-09-20 已被字体切换轮占用） | 本轮末尾（第 8 步审查收口后）追加修 4 条「最小修复」项（`closeTab` / `_updateMentionMenu` / `_saveIndex` 两条），单独提交、单独审查 |
 | 6 | validate 加门 | **加两个 Step**：「lib/app 行数门（规则 3 补充）」与「lib/app 依赖方向门」，各十来行 PowerShell，防止再长回去 | 只在任务卡记数字，不进 validate |
@@ -235,28 +235,28 @@ BACKLOG 84 条未关闭项（2026-09-20 重数，含本轮自己的立项条目�
 
 | BACKLOG 条目 | 新家 | 备注 |
 |---|---|---|
-| `send()` 的懒开会话守卫（两轮整改被报回，所有者裁定单独一轮） | `turn` ↔ `thread` 的边 | 给 `thread` 加四态查询，`turn.send` 按四态分流；别覆盖 `newSession` 的 `lastError` |
+| `send()` 的懒开会话守卫（两轮整改被报回，所有者裁定单独一轮） | `turn` ↔ `session` 的边 | 给 `session` 加四态查询，`turn.send` 按四态分流；别覆盖 `newSession` 的 `lastError` |
 | `_runTurn` 收轮 `_saveIndex()` 写的是当前选中而不是刚跑完的会话 | `turn` → `index.upsert(s)` | 拆分时 `_saveIndex` 已改成收 `SessionStore` 参数（只是形参，行为不变），修的时候只改一个实参 |
 | 载回来的会话在下一轮对话后丢标题（`_saveIndex` 写占位串） | `index.upsert` | 退回索引里已有的标题 |
 | `_updateMentionMenu` 在 await 之后无条件写回 | `composer` | await 之后加一句 token 仍是原来那个才写回 |
 | `closeTab`：文件 + 终端并存时关掉最后一个面板标签把整栏收起 | `shell` | `openTabs` 空而 `terminals.tabs` 非空时 `activeTerminalId` 设成最后一个 |
-| `session/list` 校对 `_reconcile` 按 cwd 原串比、侧栏按归一后比 | `thread.reconcileSessions` + `workspace.normalizeCwd` | 两处统一走 `workspace.normalizeCwd` |
-| agent 进程换过一轮之后其它会话拿的还是旧 sessionId（要连接代次） | `thread` | 机制类，代次记在 `thread._sessionAgent` 旁；拆完后改动面只在一个文件 |
-| 认证页成功后的自动重试 `_createSession(agent, retryCwd)` 用的是旧 cwd | `auth.onAuthenticated` → `thread.createSession` | 在 `thread.createSession` 里按当前 `workspace.project` 判一次 |
+| `session/list` 校对 `_reconcile` 按 cwd 原串比、侧栏按归一后比 | `session.reconcileSessions` + `workspace.normalizeCwd` | 两处统一走 `workspace.normalizeCwd` |
+| agent 进程换过一轮之后其它会话拿的还是旧 sessionId（要连接代次） | `session` | 机制类，代次记在 `session._sessionAgent` 旁；拆完后改动面只在一个文件 |
+| 认证页成功后的自动重试 `_createSession(agent, retryCwd)` 用的是旧 cwd | `auth.onAuthenticated` → `session.createSession` | 在 `session.createSession` 里按当前 `workspace.project` 判一次 |
 
 **要先改设计稿的（3 条，扩边界，等设计轮）**
 
 | BACKLOG 条目 | 新家 |
 |---|---|
 | `lastError` 在产品 UI 上没有出口 | 组合根聚合九个 `lastError` + 壳级提示位（画板要先画） |
-| 第三条「等 agent」的路径没有等待态（`selectSession → _ensureLoaded`） | `thread`（`waitingForAgent` 套在 `_ensureLoaded` 上；画板 05 A 组要先补等待期） |
-| 换项目放下的会话若正挂着权限 / elicitation 请求，界面无痕迹 | `thread.leaveWorkspace` + 项目切换器徽章（画板 41 要先画） |
+| 第三条「等 agent」的路径没有等待态（`selectSession → _ensureLoaded`） | `session`（`waitingForAgent` 套在 `_ensureLoaded` 上；画板 05 A 组要先补等待期） |
+| 换项目放下的会话若正挂着权限 / elicitation 请求，界面无痕迹 | `session.leaveWorkspace` + 项目切换器徽章（画板 41 要先画） |
 
 **设计稿补注记（2 条，实现已在控制器里，只等重出 PNG）**
 
 | BACKLOG 条目 | 新家 |
 |---|---|
-| 画板 05 B 组 `waitingForAgent` 两个触发共用 | `thread.waitingForAgent` |
+| 画板 05 B 组 `waitingForAgent` 两个触发共用 | `session.waitingForAgent` |
 | 画板 40 会话配置固定档序平铺（`composerOptions`；gallery 之后改回走控制器的档序） | `turn.composerOptions` |
 
 **相邻（4 条，主体在别处，改动会碰到这些新家）**
@@ -266,7 +266,7 @@ BACKLOG 84 条未关闭项（2026-09-20 重数，含本轮自己的立项条目�
 | 用户消息的编辑重发只带回文本（`onRegenerate` 只传 `String`） | `turn.restore` |
 | `workbench_screen.dart` `_addImage()` 没有大小门、screen 一处都不写 `lastError` | `composer.addImage` 做门、记 `composer.lastError`，分层就顺了 |
 | R5 无头实跑以 `exit()` 结束不走 `agent_disconnect` | 组合根 `shutdown` |
-| R6 `session/delete` 只在「已连上且声明 delete」时发 | `thread.deleteSession`（产品取舍，等裁定） |
+| R6 `session/delete` 只在「已连上且声明 delete」时发 | `session.deleteSession`（产品取舍，等裁定） |
 
 另有 3 条与 `lib/app/` 其它文件有关但不碰组合根，本轮不动：`files_state.dart` `setProject` 的 A→B→A 竞态、
 `clipboard_image.dart` 的三条（超时不杀进程 / 张数门 / 截断 PNG）。
@@ -279,7 +279,7 @@ v1.0.0 许可证与版本号（`9771d19` / `8eacfe7`）。逐项核对后计划�
 
 | 新合并的内容 | 对组合根的实际改动 | 对本计划的影响 |
 |---|---|---|
-| 画板 43 会话时间线（`42ad9fc` / `e44620d` / `c1227fd` / `867251b`） | `workbench_controller.dart` +3 行：`timelineAnchor`（第 9 个 `PopoverHandle`）。弹层开关、跳转估位与聚焦态全在 `workbench_screen.dart`（+106 行：`_openTimelinePopover` / `_jumpToEntry` / `_scheduleJump` / `_revealRow` / `_focusedEntryId`），另有新的 `lib/projection/timeline.dart` 与 `lib/ui/popovers/session_timeline.dart`；`test/app/timeline_wiring_test.dart` 经 `c.timelineAnchor` / `c.sessionId` / `c.sessions` / `c.composer` 驱动 | `timelineAnchor` 归 `thread`（与 `threadMenuAnchor` 同属线程头）；附录 A、交付物表、验收 9 已加。screen 侧的跳转逻辑不在本轮范围（screen 只改引用路径），但 screen 已从 835 行长到 945 行、开始攒滚动 / 跟随 / 跳转三套多帧纠正逻辑，记「观察」不记 BACKLOG，等它出第一个缺陷再议 |
+| 画板 43 会话时间线（`42ad9fc` / `e44620d` / `c1227fd` / `867251b`） | `workbench_controller.dart` +3 行：`timelineAnchor`（第 9 个 `PopoverHandle`）。弹层开关、跳转估位与聚焦态全在 `workbench_screen.dart`（+106 行：`_openTimelinePopover` / `_jumpToEntry` / `_scheduleJump` / `_revealRow` / `_focusedEntryId`），另有新的 `lib/projection/timeline.dart` 与 `lib/ui/popovers/session_timeline.dart`；`test/app/timeline_wiring_test.dart` 经 `c.timelineAnchor` / `c.sessionId` / `c.sessions` / `c.composer` 驱动 | `timelineAnchor` 归 `session`（与 `threadMenuAnchor` 同属线程头）；附录 A、交付物表、验收 9 已加。screen 侧的跳转逻辑不在本轮范围（screen 只改引用路径），但 screen 已从 835 行长到 945 行、开始攒滚动 / 跟随 / 跳转三套多帧纠正逻辑，记「观察」不记 BACKLOG，等它出第一个缺陷再议 |
 | R7.6 字体切换（`0238842` / `7117f68` / `bab8bf5` / `1bf7eb8` / `93c4204` / `6d7f301` / `5a001bf`） | 组合根零改动。新增 `lib/app/font_prefs.dart`（479 行，`FontPrefsController extends ChangeNotifier`，自带 `bridge` 与 `_disposed` 挡板），在 `app.dart` 里与 `WorkbenchController` 并列构造、作为第二个构造参数传给 `WorkbenchScreen`，整棵 `MaterialApp` 包在 `ListenableBuilder(listenable: _fonts)` 下；`CoreCommands` 加 `appearanceGet` / `appearanceSet`（`test/app/fake_core.dart` 已同步）；`tokens.dart` 的 `Fonts` 从编译期常量改为运行时四轴、9 个字阶改 getter | ① 它是「独立 `ChangeNotifier` + 注入 `bridge` + 在组合根旁接线」这一形态的第四个先例（前三个是 `FilesState` / `LocalTerminals` / `RegistryState`），本计划的 8 个对象与它同形，裁定门第 2 项的推荐项因此更稳；② 它又复制了一份 `_disposed` / 错误边界的样板，是 `GuardedNotifier` mixin 的又一个收编对象，但本轮不碰它（交付物表 `guarded.dart` 行已注）；③ 「`app.dart` 不改」仍成立，`FontPrefsController` 留在 `app.dart`、不进组合根；④ 验收 1 零 diff 清单里的 `lib/theme` 与 `lib/bridge` 都被上游改过，但本轮不碰它们，判据不变；⑤ 「不改 `CoreCommands`」仍成立 |
 | R7.6 这个编号 | — | 起草时把「拆完后修 8 条缺陷」那一轮叫 R7.6，现已被字体切换占用；**后续缺陷轮改叫 R7.7**（裁定门第 5 项、§ 与 BACKLOG 的关系、ROUNDS.md 已同步改） |
 | v1.0.0 许可证与版本号 | 无 | 无；R8 的 LICENSE / NOTICE 交付物已提前落地，与本轮无关 |
@@ -356,11 +356,11 @@ r6 = `fake-r6`（`--sessions`）+ 三轮（第三轮 2 s 后 cancel）+ `ACP_R6_
 | 5 | `d8e5096` | `auth_state.dart` | 1681 | 288 | 21 / 13 / 40 |
 | 6 | `2c25099` | `composer_state.dart` | 1430 | 327 | 34 / 6 / 29 |
 | 7 | `67082bc` | `turn_controller.dart`（临时 `ThreadPort` 接口由根实现，第 8 步删） | 1134 | 358 | 14 / 19 / 32 |
-| 8 | `60235d4` | `thread_controller.dart`；根整体改写成组合根；`turn` 改指 `ThreadController` | **356** | thread 848 / turn 345 | 85 / 104 / 160（另 13 处级联赋值 `..agentId = ` 等，与 session_lifecycle 里 `full` / `pi` / `none` / `plain` 四个变量名上的 19 处） |
+| 8 | `60235d4` | `session_controller.dart`；根整体改写成组合根；`turn` 改指 `SessionController` | **356** | thread 848 / turn 345 | 85 / 104 / 160（另 13 处级联赋值 `..agentId = ` 等，与 session_lifecycle 里 `full` / `pi` / `none` / `plain` 四个变量名上的 19 处） |
 
-验收 5 的行数门：`wc -l`：`workbench_controller.dart` **356**（≤ 450）；新文件 `thread_controller.dart` 848、`shell_state.dart` 348、`turn_controller.dart` 345、`composer_state.dart` 327、`agents_state.dart` 317、`auth_state.dart` 288、`workspace_state.dart` 196、`session_index.dart` 144、`guarded.dart` 50，都 ≤ 900；本轮只改引用路径的两个既有文件超过 900——`headless_run.dart` 1186（无头驱动，基线就是这个数）与 `workbench_screen.dart` 946（画板 43 之后就是这个数）——在门里显式放宽到 1300 / 1000 并写明理由，记 BACKLOG 等裁定。门一开始用 `Measure-Object -Line` 数非空行（screen 870 / headless 1112）与本表的 `wc -l` 口径不一致，第 2 轮审查后改成按原始行计（与 `wc -l` 同口径）
+验收 5 的行数门：`wc -l`：`workbench_controller.dart` **356**（≤ 450）；新文件 `session_controller.dart` 848、`shell_state.dart` 348、`turn_controller.dart` 345、`composer_state.dart` 327、`agents_state.dart` 317、`auth_state.dart` 288、`workspace_state.dart` 196、`session_index.dart` 144、`guarded.dart` 50，都 ≤ 900；本轮只改引用路径的两个既有文件超过 900——`headless_run.dart` 1186（无头驱动，基线就是这个数）与 `workbench_screen.dart` 946（画板 43 之后就是这个数）——在门里显式放宽到 1300 / 1000 并写明理由，记 BACKLOG 等裁定。门一开始用 `Measure-Object -Line` 数非空行（screen 870 / headless 1112）与本表的 `wc -l` 口径不一致，第 2 轮审查后改成按原始行计（与 `wc -l` 同口径）
 
-验收 6 的依赖方向（`lib/app/*.dart` 同目录 import，2026-09-20 核对）：`guarded` → core_bridge；`shell_state` → core_bridge / files_state / guarded / local_terminals；`workspace_state` → core_bridge / files_state / guarded；`session_index` → core_bridge；`agents_state` → core_bridge / guarded；`auth_state` → core_bridge / guarded；`composer_state` → clipboard_image / core_bridge / guarded；`turn_controller` → composer_state / core_bridge / guarded / thread_controller；`thread_controller` → agents_state / core_bridge / guarded / session_index / workspace_state；组合根 → 以上全部 + files_state / local_terminals / paths。全部是附录 B 的边（`turn → thread`、`thread → index / agents / workspace`、`shell / workspace → files`），没有反向边
+验收 6 的依赖方向（`lib/app/*.dart` 同目录 import，2026-09-20 核对）：`guarded` → core_bridge；`shell_state` → core_bridge / files_state / guarded / local_terminals；`workspace_state` → core_bridge / files_state / guarded；`session_index` → core_bridge；`agents_state` → core_bridge / guarded；`auth_state` → core_bridge / guarded；`composer_state` → clipboard_image / core_bridge / guarded；`turn_controller` → composer_state / core_bridge / guarded / session_controller；`session_controller` → agents_state / core_bridge / guarded / session_index / workspace_state；组合根 → 以上全部 + files_state / local_terminals / paths。全部是附录 B 的边（`turn → session`、`session → index / agents / workspace`、`shell / workspace → files`），没有反向边
 `grep -l "workbench_controller.dart" lib/app/*.dart` = `app.dart` / `workbench_screen.dart` / `headless_run.dart` 三个。两道门已进 `scripts/validate.ps1`（提交 `fd5b7a9`），validate 从 13 项变 15 项。
 
 验收 3：`test/` 只改引用路径——`test/app` + `test/ui` 仍是 186 例 / `expect(` 798 行（`git diff main...HEAD -- test | grep -c '^[-+].*expect('` = `-` 191 行 / `+` 191 行，一一对应，全部是接收者路径改动，见 `git diff --color-moved=dimmed-zebra`）；`flutter test` 全量 319。
@@ -376,12 +376,12 @@ r6 = `fake-r6`（`--sessions`）+ 三轮（第三轮 2 s 后 cancel）+ `ACP_R6_
 ### 与计划的偏离（原因都在括号里，不改任务卡正文）
 
 1. 分支：本会话跑在独立 worktree，提交落在 `claude/r7-5-composition-root-refactor-7600bf`（`round-7.5` 在主工作副本已检出、worktree 里再检出会让主副本 HEAD 跟着走）；收口后 `git -C D:\variFlight_work\AcpAgentClient merge --ff-only claude/r7-5-composition-root-refactor-7600bf` 即可把 `round-7.5` 推到同一个提交。
-2. 回调比附录 B 多几条，都是原码里确实存在、附录 B 没画出来的反向读写：`shell.cwd`（开本地终端要项目目录）、`shell.onWorkbenchShown`（回工作台撤绿点）、`agents.onRegistryChanged`（与 `onInstalledChanged` 分开——原码里侧栏重投影在 `refreshAgents` **之前**，合成一条会改顺序）、`agents.onPaths`（`dataDir` / `logPath` / `zedSettingsPath` 留在根）、`auth.ensureAgentsTab`（`onPendingChanged` 那条「右栏不是 Agents 标签才切」的判断）、`auth.currentAgentId` / `auth.registryName` / `auth.showWorkbench`、`thread.showWorkbench` / `isWorkbenchPage` / `openAgentsTab` / `openAuth`、`composer.canCompose`。
-3. `_promptSentAt` 放在 `SessionIndex`（不是任务卡写的 `turn`）：`commitRename` 与 `saveIndex` 都要读它；`saveIndex` / `stampPromptSent` 留在 `thread`（`turn` 调它们），`SessionIndex.upsert` 收显式的 agent / 标题兜底参数。
-4. `thread.leaveWorkspace` 沿用原名 `enterWorkspace`；`_selectDefaultAgent` → `ensureAgentSelected`（任务卡的名字）。
+2. 回调比附录 B 多几条，都是原码里确实存在、附录 B 没画出来的反向读写：`shell.cwd`（开本地终端要项目目录）、`shell.onWorkbenchShown`（回工作台撤绿点）、`agents.onRegistryChanged`（与 `onInstalledChanged` 分开——原码里侧栏重投影在 `refreshAgents` **之前**，合成一条会改顺序）、`agents.onPaths`（`dataDir` / `logPath` / `zedSettingsPath` 留在根）、`auth.ensureAgentsTab`（`onPendingChanged` 那条「右栏不是 Agents 标签才切」的判断）、`auth.currentAgentId` / `auth.registryName` / `auth.showWorkbench`、`session.showWorkbench` / `isWorkbenchPage` / `openAgentsTab` / `openAuth`、`composer.canCompose`。
+3. `_promptSentAt` 放在 `SessionIndex`（不是任务卡写的 `turn`）：`commitRename` 与 `saveIndex` 都要读它；`saveIndex` / `stampPromptSent` 留在 `session`（`turn` 调它们），`SessionIndex.upsert` 收显式的 agent / 标题兜底参数。
+4. `session.leaveWorkspace` 沿用原名 `enterWorkspace`；`_selectDefaultAgent` → `ensureAgentSelected`（任务卡的名字）。
 5. `hidePopover` 顶层函数放在 `guarded.dart`（三个对象共用，原 `static _hide`）。
 6. 第 7 步用临时接口 `ThreadPort`（九个成员）让 `turn` 先接根、第 8 步换本体后删掉，代替任务卡写的「先读组合根」；根上五个私有方法（`_clearUnread` / `_markDone` / `_saveIndex` / `_stampPromptSent` / `agentRefOf`）因此提前转公有。
-7. headless 的 `report['lastError']`（异常收尾时那一份）改读 `thread.lastError`，记 BACKLOG（做壳级聚合时一并改）。
+7. headless 的 `report['lastError']`（异常收尾时那一份）改读 `session.lastError`，记 BACKLOG（做壳级聚合时一并改）。
 8. 行数门对 `headless_run.dart`（1186 行，本轮只改引用路径）单独放宽到 1300，记 BACKLOG。
 9. `flutter test` 全量是 319 不是任务卡写的 294（起草时的旧数字）。
 10. 私有具名初始化形参（`required this._cwd`，Dart 3.10+）：analyzer 对 `: _x = x` 的写法报 `prefer_initializing_formals`，为了不给基线的 14 条 info 添新条目改用了这种写法，仓库里首次出现。
@@ -451,19 +451,19 @@ $p = Start-Process build\windows\x64\runner\Release\acp_agent_client.exe -PassTh
 
 本轮开工基线 `f62520f` 之后 main 进了 11 个提交，三件事：`44d256d`「UI 与前端代码语义统一：Thread 收敛为 Session」（碰组合根 62 行、screen 32 行、headless 6 行与 12 个测试文件，全是改名与文案；提交说明标「未构建 / 未审查（所有者指定）」）、画板 07 深色模式那一轮（`1420556` 合入 main，4 轮 cursor 审查收口；`lib/app/font_prefs.dart` → `appearance_prefs.dart`、`FontPrefsController` → `AppearanceController`，screen 的构造参数 `fonts` → `appearance`、侧栏多了 `dark` / `onToggleTheme` 两个参数）、`7c9c592` v1.2.0 版本号。先前那份只对 `44d256d` 备用的解冲突脚本已删，换成实际用的这份。
 
-合法（脚本 `rounds/round-7.5/merge-main-7c9c592.py`，随本轮入库）：`git merge --no-ff --no-commit main` 出 6 个文件的冲突——组合根 5 块（main 改了注释 / 名字的那几段本分支已经搬走，本分支侧全是空或一行）、screen 7 块、headless 2 块、`workbench_wiring_test` 3 块、ROUNDS.md 1 块、BACKLOG.md 1 块。每个冲突块取本分支这一侧再重放 main 的改名（`threadTitle → sessionTitle`、`threadMenuAnchor → sessionMenuAnchor`、`ThreadHeader → SessionHeader`、`NewThreadEmpty → NewSessionEmpty`、`_openThreadMenu → _openSessionMenu`、`_addThread → _addSession`、`acp-thread: → acp-session:`、默认标题 `New <agent> Thread → Session`、`+` 的 `Threads → Sessions`、注释「线程头 / 线程区 / 线程标题」→「会话头 / 会话区 / 会话标题」、`font_prefs → appearance_prefs`），改名同时施加到本轮拆出的九个文件与本轮改过的测试——搬走的代码在 main 那边改了名，git 合不到新文件上（七个文件有改动：`thread_controller` 的 `sessionTitle` / `sessionMenuAnchor` 与注释，`turn_controller` / `agents_state` / `auth_state` / `workspace_state` / `session_index` / `guarded` 只有注释）。深色模式对 screen 的四处改动不在冲突块里，git 自动合上（核对过 `import 'appearance_prefs.dart'`、`AppearanceController? appearance`、`onToggleTheme`、`appearance: widget.appearance` 四处都在）。ROUNDS.md 两行都留（main 的「Thread → Session 收敛」行在前）；BACKLOG 以本分支的 17 行为准换成 main 的措辞（它们的「新家」后缀保留），再补 main 新增的「设计稿补注记（Thread → Session 收敛）」一条。`CLAUDE.md` 仓库结构那一行的 `font_prefs` 改 `appearance_prefs`。
+合法（脚本 `rounds/round-7.5/merge-main-7c9c592.py`，随本轮入库）：`git merge --no-ff --no-commit main` 出 6 个文件的冲突——组合根 5 块（main 改了注释 / 名字的那几段本分支已经搬走，本分支侧全是空或一行）、screen 7 块、headless 2 块、`workbench_wiring_test` 3 块、ROUNDS.md 1 块、BACKLOG.md 1 块。每个冲突块取本分支这一侧再重放 main 的改名（`threadTitle → sessionTitle`、`threadMenuAnchor → sessionMenuAnchor`、`ThreadHeader → SessionHeader`、`NewThreadEmpty → NewSessionEmpty`、`_openThreadMenu → _openSessionMenu`、`_addThread → _addSession`、`acp-thread: → acp-session:`、默认标题 `New <agent> Thread → Session`、`+` 的 `Threads → Sessions`、注释「线程头 / 线程区 / 线程标题」→「会话头 / 会话区 / 会话标题」、`font_prefs → appearance_prefs`），改名同时施加到本轮拆出的九个文件与本轮改过的测试——搬走的代码在 main 那边改了名，git 合不到新文件上（七个文件有改动：`session_controller` 的 `sessionTitle` / `sessionMenuAnchor` 与注释，`turn_controller` / `agents_state` / `auth_state` / `workspace_state` / `session_index` / `guarded` 只有注释）。深色模式对 screen 的四处改动不在冲突块里，git 自动合上（核对过 `import 'appearance_prefs.dart'`、`AppearanceController? appearance`、`onToggleTheme`、`appearance: widget.appearance` 四处都在）。ROUNDS.md 两行都留（main 的「Thread → Session 收敛」行在前）；BACKLOG 以本分支的 17 行为准换成 main 的措辞（它们的「新家」后缀保留），再补 main 新增的「设计稿补注记（Thread → Session 收敛）」一条。`CLAUDE.md` 仓库结构那一行的 `font_prefs` 改 `appearance_prefs`。
 
 核对（都对 main@7c9c592）：
-- 解完之后 `lib/app` + `test` 里不再有 `ThreadHeader` / `threadTitle` / `threadMenuAnchor` / `NewThreadEmpty` / `thread_header` / `acp-thread:` / 「线程头 / 线程区 / 线程标题」/ `font_prefs` / `FontPrefsController`；只剩本轮自己的 `ThreadController` / `thread_controller.dart` / 注释里的「线程控制器」（见下）。
-- 逐词比对 screen / headless / wiring 测试与 main 的差异（difflib 按行配对再按 token 配对）：256 / 219 / 89 处替换全部是接收者路径（`c.` → `c.thread.` 等）与附录 A 的改名（`installAgent → agents.install`、`authPhase → auth.phase` 等），0 行只删、1 行只增（screen 多一个 `import 'shell_state.dart';`）——main 的每一处改动都在。
+- 解完之后 `lib/app` + `test` 里不再有 `ThreadHeader` / `threadTitle` / `threadMenuAnchor` / `NewThreadEmpty` / `thread_header` / `acp-thread:` / 「线程头 / 线程区 / 线程标题」/ `font_prefs` / `FontPrefsController`；只剩本轮自己的 `SessionController` / `session_controller.dart` / 注释里的「会话控制器」（见下）。
+- 逐词比对 screen / headless / wiring 测试与 main 的差异（difflib 按行配对再按 token 配对）：256 / 219 / 89 处替换全部是接收者路径（`c.` → `c.session.` 等）与附录 A 的改名（`installAgent → agents.install`、`authPhase → auth.phase` 等），0 行只删、1 行只增（screen 多一个 `import 'shell_state.dart';`）——main 的每一处改动都在。
 - 验收 1：`git diff main -- lib/ui lib/theme lib/projection lib/bridge rust test/fixtures pubspec.yaml pins` 为空。
 - 验收 3：`test/app` + `test/ui` 用例 201 / `expect(` 886，与 main 相同（main 那几轮加了主题切换与外观的用例，所以比开工时的 186 / 798 多）；`git diff main -- test` 的 `expect(` 行 `-` 191 / `+` 191。
 - `flutter analyze`：0 error / 0 warning / 14 info（与基线同一批）。
 - validate：15 项 PASS（`flutter test` 334，与 main 相同；cargo test 全过、clippy 干净；两道门 PASS）
 - 验收 4（无头等价）：基线换成 main@7c9c592——拿所有者 15:08 在 `AcpAgentClient-release` worktree（工作树干净、HEAD 就是 `7c9c592`、`app.so` / `acp_bridge.dll` 都晚于该提交）出的 release 构建，整个 `Release/` 复制到 `D:\cargo-target\AcpAgentClient\r75\main-bin` 跑，只删掉旁边的 `zed-agent-acp.exe`（核心见到它会多并一条内置 agent 条目，本分支的构建目录里没有它）。新基线与旧基线 `f62520f` 的差异只有 `threadTitle → sessionTitle` 这个键与 `New Fake Agent Thread → Session` 这个标题（r3 2 处、r6 3 处、r5 零差异），说明 main 这 11 个提交在这三条路径上除改名外行为没变。合并后的构建（`scripts/build.ps1`）对新基线：r5 / r6 **EQUIVALENT**；r3 第一次只在 `steps.files.error` 差一处（main 与之前 15 次跑都是 `fs: not found …fake-agent.txt`，这次是 null）——这是 Follow 开着时 `tool_call` 的 `locations` 先于 agent 的 `fs/write_text_file` 到达、文件面板先去开一个还没写出来的文件的竞态，`FilesState._guard` 记下的错误不会被之后的成功清掉，所以竞态哪边赢就报哪个；同一二进制重跑 r3 **EQUIVALENT**，与前两次偶发同类（取样时序，不是行为差异）。新基线三份存在 `rounds/round-7.5/baseline/main-7c9c592/`（合并后那三份与重跑的一份在 `D:\cargo-target\AcpAgentClient\r75\reports\merged{,-b}\`，不入库）
-- 第 3 轮审查（`fd5b7a9..HEAD`，含 main 带进来的改动与本次解冲突）：2026-09-20 15:23 → 15:28（5 分钟），产物 `.claude/reviews/20260920-152350-review.out.md`：**0 findings**。审查器核了：① `44d256d` 的符号表在 `lib/app` 与 `test/` 里旧名全部不存在，并逐个列了落地处（`thread_controller` 的 `sessionTitle` / `sessionMenuAnchor` / 默认标题、`turn_controller` 的 Sessions 与 `saveIndex`、screen 的 `SessionHeader` / `NewSessionEmpty` / `_openSessionMenu` / `_addSession` / `acp-session:`、headless 的 JSON 键、wiring 测试的断言、五个文件的注释）；② `lib/ui` / `lib/theme` / `appearance_prefs.dart` / `app.dart` / `rust/settings` / 两个外观测试相对 `7c9c592` 零 diff，screen 相对 main 只有成员路径前缀、画板 07 的三处接线都在；③ 行数门（组合根 356、thread 848、screen 950、headless 1186）与依赖方向门仍成立、没有子对象 import 组合根；另核了版本号、无新依赖、pins 未动、`unsafe_code = deny`、`set_appearance` 仍整段替换、无冲突标记残留。`ThreadController` 按任务书保留、未替所有者决定。未跟踪的基线目录 `rounds/round-7.5/baseline/main-7c9c592/` 不在 git 范围内（随本次回填入库）。无整改。
+- 第 3 轮审查（`fd5b7a9..HEAD`，含 main 带进来的改动与本次解冲突）：2026-09-20 15:23 → 15:28（5 分钟），产物 `.claude/reviews/20260920-152350-review.out.md`：**0 findings**。审查器核了：① `44d256d` 的符号表在 `lib/app` 与 `test/` 里旧名全部不存在，并逐个列了落地处（`session_controller` 的 `sessionTitle` / `sessionMenuAnchor` / 默认标题、`turn_controller` 的 Sessions 与 `saveIndex`、screen 的 `SessionHeader` / `NewSessionEmpty` / `_openSessionMenu` / `_addSession` / `acp-session:`、headless 的 JSON 键、wiring 测试的断言、五个文件的注释）；② `lib/ui` / `lib/theme` / `appearance_prefs.dart` / `app.dart` / `rust/settings` / 两个外观测试相对 `7c9c592` 零 diff，screen 相对 main 只有成员路径前缀、画板 07 的三处接线都在；③ 行数门（组合根 356、thread 848、screen 950、headless 1186）与依赖方向门仍成立、没有子对象 import 组合根；另核了版本号、无新依赖、pins 未动、`unsafe_code = deny`、`set_appearance` 仍整段替换、无冲突标记残留。`ThreadController` 按任务书保留、未替所有者决定（随后所有者裁定改名 `SessionController`，见下「命名收敛」）。未跟踪的基线目录 `rounds/round-7.5/baseline/main-7c9c592/` 不在 git 范围内（随本次回填入库）。无整改。
 
-合并提交 4e17300。**待裁定**：`ThreadController` / `c.thread` / `thread_controller.dart`——main 的 `lib/` 里现在一个 `Thread` 都不剩，本轮这三个名字是仅有的例外（来自任务卡的粒度表）。改名是纯机械替换（候选 `SessionController` / `c.session` / `session_controller.dart`，与 `sessions`（投影层）、`sessionId` 并排时读感要所有者看过），裁定后单独一个提交做，不混进合并。
+合并提交 4e17300。**已裁定（2026-09-20）**：原 `ThreadController` / `c.thread` / `thread_controller.dart` 改成 `SessionController` / `c.session` / `session_controller.dart`，单独一个提交，见下「命名收敛」段。
 
 ### 第二次合并 main（2026-09-20，所有者：「main 上现在又有两个提交，请在分支上合并进你来，并由你自己 review 一下」）
 
@@ -475,3 +475,7 @@ main@32d372f 相对 `7c9c592` 多 3 个提交：`0fd4fcb` markdown 渲染器认�
 - 合并本身：无冲突、无手工改动，三个两边都改的文件核过。**0 条**。
 - `0fd4fcb`（`<br>`）：`HtmlLineBreakSyntax` 排在 GFM 的 `InlineHtmlSyntax` 之前（InlineParser 取第一个匹配的），产出 `md.Element.empty('br')` 走渲染器原有的 `case 'br'`（`TextSpan('\n')`），表格单元格与段落两条路都有测试；行内代码里的 `<br>` 由 `CodeSyntax` 整段吃掉、不经过它（测试第 4 条守着）；`<br>` 落在单元格末尾会多一个空行，属边角、不算问题。**0 条**。
 - `0c95a84`（深色 SVG 取色）：`SvgTheme(currentColor: Neutral.strong)` 按 build 现算，`SvgStringLoader` 的相等性含 theme、换主题后缓存不会串；`AppLogo` 去 const 的理由成立（`Element.updateChild` 见 `identical(old, new)` 直接复用旧 element、不 build）。**1 条 P3，机制不止 `AppLogo` 一处**：主题切换只靠 `app.dart` 的 `ListenableBuilder` 整树重建，`t.Theming.apply` 只换颜色表、不给树换 key，于是凡是 **`const` 构造**又在 build 里读颜色 token 的自写 widget，实例相同就被跳过、颜色冻在切换前那一套，直到那个 element 被重建。本会话用临时探针证实（`const ToneChip('x', tone: success)` 与非 const 的孪生放在同一个 `ListenableBuilder` 下，`Theming.apply(dark)` 后重建父级：非 const 那只变成 `d.successSoft`，const 那只仍是浅色值；探针跑完即删、不入库）。元素常驻的调用点：`registry_entry.dart` 7 处 `ToneChip` + 2 处 `_Diamond`、`settings_page.dart` 2 处 `ToneChip`、`tool_call_card.dart` 的 `ToneChip('Canceled')`、`elicitation_form_card.dart` 的 `ToneChip('Recommended')`、`card_chrome.dart` / `plan_card.dart` / `composer.dart` / `turn_state.dart` 的 `Chevron`、`files_panel.dart` 的 `FileViewerEmpty`；弹层里的 `MenuDivider` / `MenuGroupLabel` / `_TimelineEmpty` 每次打开都新建 element，实际看不出来。**不在本轮修**：`lib/ui` 是本轮零 diff 区（验收 1），且这是画板 07 那轮的遗留、不是这次合并引入的；记 `rounds/BACKLOG.md`，修法由所有者定（逐处去 const，与 `AppLogo` 同一做法；或换主题时给 `home` 换 `ValueKey(theme)` 整树重建，代价是滚动位置 / 焦点等瞬时态全丢）。
+
+### 命名收敛：`SessionController`（2026-09-20，所有者裁定「跟 main 一样改成 Session」）
+
+`ThreadController` → `SessionController`、`lib/app/thread_controller.dart` → `session_controller.dart`、组合根与 `TurnController` 上的字段 `thread` → `session`（screen / headless / 测试的接收者 `c.thread.` → `c.session.`），注释里的「线程控制器」→「会话控制器」；组合根 `onAuthenticated` 回调的参数 `session` 改名 `adopted`，免得遮住新字段。validate 的依赖方向门表跟着改键名。本文上面各处（步骤表、附录 A / B、偏离、审查段）的 `ThreadController` / `c.thread` 已一并改成新名，历史提交说明里仍是旧名。纯机械替换，行为零变化（validate 全绿、三份无头报告与 main@7c9c592 基线等价）。

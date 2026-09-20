@@ -36,7 +36,7 @@ AcpAgentClient/
 ├── rust/                                  Rust 核心 workspace：acp-core（含 assets/ 里内置条目的图标）/ registry / pty / fs / settings + bridge（frb cdylib，包名 acp_bridge）+ tools/acp-smoke
 ├── cargokit/                              frb 模板自带的 cargokit 副本；windows/CMakeLists.txt 直接 apply_cargokit（不走 pub 插件，见 rounds/round-00）
 ├── assets/fonts/                          Geist / Geist Mono 可变字体 + CJK 回退 Noto Sans SC（Regular 一档）+ 各自的 OFL 许可证
-├── lib/                                   Flutter 前端（Dart）：app/（组合根 workbench_controller 只接线与生命周期；R7.5 拆出的 shell_state / workspace_state / session_index / agents_state / auth_state / composer_state 按画板分组管状态，thread_controller / turn_controller 驱动协议，guarded 是共用的通知与错误边界；另有 workbench_screen 装配、window_controls / clipboard_image / files_state / local_terminals / appearance_prefs / headless_run）/ bridge/（frb 生成物）/ projection/（ACP 投影状态层）/ theme/tokens.dart / gallery/（画板对照）/ ui/（画板 widget）
+├── lib/                                   Flutter 前端（Dart）：app/（组合根 workbench_controller 只接线与生命周期；R7.5 拆出的 shell_state / workspace_state / session_index / agents_state / auth_state / composer_state 按画板分组管状态，session_controller / turn_controller 驱动协议，guarded 是共用的通知与错误边界；另有 workbench_screen 装配、window_controls / clipboard_image / files_state / local_terminals / appearance_prefs / headless_run）/ bridge/（frb 生成物）/ projection/（ACP 投影状态层）/ theme/tokens.dart / gallery/（画板对照）/ ui/（画板 widget）
 ├── test/                                  fixtures/（ACP 线上行，JSON Lines，Rust 测试 / Dart 单测 / gallery 三处共用）+ fake-agent/fake-agent.mjs（离线确定性 agent）+ projection/ ui/ app/ 单测
 ├── prototype/                             早期 HTML 原型：fixtures 与投影规则的来源，不维护、不作功能边界
 ├── pubspec.yaml / flutter_rust_bridge.yaml Flutter 项目与 frb codegen 配置
