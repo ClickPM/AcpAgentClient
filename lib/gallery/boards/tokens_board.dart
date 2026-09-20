@@ -56,13 +56,13 @@ class _Header extends StatelessWidget {
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width)),
       ),
-      child: const Row(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: <Widget>[
           Text('00 · Token 表', style: t.TextStyles.title),
-          SizedBox(width: t.Spacing.s12),
+          const SizedBox(width: t.Spacing.s12),
           Flexible(child: Text('AcpAgent Client · 本表是唯一样式来源，将直接翻成 tokens.dart；任何画板不得出现表外数值', style: t.TextStyles.meta)),
-          SizedBox(width: t.Spacing.s12),
+          const SizedBox(width: t.Spacing.s12),
           Flexible(child: Text('色相 5（accent + 4 语义）· 圆角 3 / 4 / 6（+ pill 例外）· 字阶 11 / 12 / 13 / 15 / 20', style: t.TextStyles.monoMeta, textAlign: TextAlign.right)),
         ],
       ),
@@ -300,7 +300,7 @@ class _SurfaceDemo extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                const Text('surface.canvas', style: t.TextStyles.monoMeta),
+                Text('surface.canvas', style: t.TextStyles.monoMeta),
                 const SizedBox(height: t.Spacing.s4),
                 Container(
                   height: _surfacePanelDemo,
@@ -310,7 +310,7 @@ class _SurfaceDemo extends StatelessWidget {
                     borderRadius: t.Radii.card,
                     border: Border.all(color: t.Borders.subtle, width: t.Borders.width),
                   ),
-                  child: const Text('surface.panel', style: t.TextStyles.monoMeta),
+                  child: Text('surface.panel', style: t.TextStyles.monoMeta),
                 ),
                 const SizedBox(height: t.Spacing.s4),
                 Container(
@@ -323,7 +323,7 @@ class _SurfaceDemo extends StatelessWidget {
                     border: Border.all(color: t.Borders.subtle, width: t.Borders.width),
                     boxShadow: const <BoxShadow>[t.Shadows.popover],
                   ),
-                  child: const Text('surface.popover', style: t.TextStyles.monoMeta),
+                  child: Text('surface.popover', style: t.TextStyles.monoMeta),
                 ),
               ],
             ),
@@ -403,19 +403,19 @@ class _TypeScale extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         _TypeLine(sample: Text('New Thread', style: t.TextStyles.display), note: 'text.display 20 / 500 · 空态'),
-        SizedBox(height: t.Spacing.s8),
+        const SizedBox(height: t.Spacing.s8),
         _TypeLine(sample: Text('ACP Registry', style: t.TextStyles.title), note: 'text.title 15 / 500'),
-        SizedBox(height: t.Spacing.s8),
+        const SizedBox(height: t.Spacing.s8),
         _TypeLine(sample: Text('正文与控件基准 Body', style: t.TextStyles.body), note: 'text.body 13 / 400 · lh 1.5（控件 1.35）'),
-        SizedBox(height: t.Spacing.s8),
+        const SizedBox(height: t.Spacing.s8),
         _TypeLine(sample: Text('次要说明 Secondary', style: t.TextStyles.secondary), note: 'text.secondary 12 / 400'),
-        SizedBox(height: t.Spacing.s8),
+        const SizedBox(height: t.Spacing.s8),
         _TypeLine(sample: Text('15 分钟前 · 2 条消息', style: t.TextStyles.meta), note: 'text.meta 11 / 400'),
-        SizedBox(height: t.Spacing.s8),
+        const SizedBox(height: t.Spacing.s8),
         _TypeLine(sample: Text('10,240 tokens · \$0.021 · 4.2s', style: t.TextStyles.mono), note: 'mono 12.5 · tabular-nums'),
       ],
     );
@@ -514,7 +514,7 @@ class _SpacingAndRadius extends StatelessWidget {
           ],
         ),
         const SizedBox(height: t.Spacing.s12),
-        const Text('space.chip 1px 5px（徽章内边距，唯一非 4px 网格例外；kbd 用 0 4px + line-height 16）', style: t.TextStyles.monoMeta),
+        Text('space.chip 1px 5px（徽章内边距，唯一非 4px 网格例外；kbd 用 0 4px + line-height 16）', style: t.TextStyles.monoMeta),
         const SizedBox(height: t.Spacing.s8),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -585,20 +585,20 @@ class _ControlsAndButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Row(
           children: <Widget>[
             _ControlSample(height: t.Controls.compact, padding: t.Controls.padCompact, radius: t.Radii.chip, style: t.TextStyles.meta, label: '24 紧凑'),
-            SizedBox(width: t.Spacing.s8),
+            const SizedBox(width: t.Spacing.s8),
             _ControlSample(height: t.Controls.standard, padding: t.Controls.padStandard, radius: t.Radii.control, style: t.TextStyles.secondary, label: '28 标准'),
-            SizedBox(width: t.Spacing.s8),
+            const SizedBox(width: t.Spacing.s8),
             _ControlSample(height: t.Controls.input, padding: t.Controls.padInput, radius: t.Radii.control, style: t.TextStyles.body, label: '32 主输入'),
           ],
         ),
-        SizedBox(height: t.Spacing.s8),
-        Wrap(
+        const SizedBox(height: t.Spacing.s8),
+        const Wrap(
           spacing: t.Spacing.s4,
           runSpacing: t.Spacing.s4,
           crossAxisAlignment: WrapCrossAlignment.center,
@@ -668,24 +668,24 @@ class _IconsKbdMotion extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        const Row(
+        Row(
           children: <Widget>[
-            AcpIcon(AcpIcons.search, color: t.Neutral.text),
-            SizedBox(width: t.Spacing.s12),
-            AcpIcon(AcpIcons.file, color: t.Neutral.text),
-            SizedBox(width: t.Spacing.s12),
-            AcpIcon(AcpIcons.terminal, color: t.Neutral.text, size: t.IconSizes.toolbar),
-            SizedBox(width: t.Spacing.s12),
+            const AcpIcon(AcpIcons.search, color: t.Neutral.text),
+            const SizedBox(width: t.Spacing.s12),
+            const AcpIcon(AcpIcons.file, color: t.Neutral.text),
+            const SizedBox(width: t.Spacing.s12),
+            const AcpIcon(AcpIcons.terminal, color: t.Neutral.text, size: t.IconSizes.toolbar),
+            const SizedBox(width: t.Spacing.s12),
             Flexible(child: Text('icon 16 / 工具栏 14 · stroke 1.5', style: t.TextStyles.monoMeta)),
           ],
         ),
         const SizedBox(height: t.Spacing.s8),
-        const Row(
+        Row(
           children: <Widget>[
-            _Kbd(label: 'Alt-Shift-A'),
-            SizedBox(width: t.Spacing.s8),
-            _Kbd(label: 'Ctrl-Alt-A'),
-            SizedBox(width: t.Spacing.s8),
+            const _Kbd(label: 'Alt-Shift-A'),
+            const SizedBox(width: t.Spacing.s8),
+            const _Kbd(label: 'Ctrl-Alt-A'),
+            const SizedBox(width: t.Spacing.s8),
             Flexible(child: Text('kbd · mono 11 · radius 3', style: t.TextStyles.monoMeta)),
           ],
         ),

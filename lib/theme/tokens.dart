@@ -82,16 +82,194 @@ abstract final class Shadows {
   );
 }
 
-/// 字体栈：Geist / Geist Mono（OFL），CJK 回退随包的 Noto Sans SC，系统字体只做兜底。
+/// 字体栈，四个轴：界面西文 [sans] / 界面中文 [cjk] / 代码西文 [mono] / 代码中文 [codeCjk]。
+/// 随包默认是 Geist / Geist Mono / Noto Sans SC（都是 OFL），系统字体只做兜底。
 ///
-/// Geist / Geist Mono 对 U+4E00–9FFF 的 cmap 覆盖是 0，所以中文一个字都不走 [sans] / [mono]，
-/// 整段由 [cjkFallback] 的第一项渲染。第一项必须是随包的 Noto Sans SC（注册见 `pubspec.yaml`）：
-/// Microsoft YaHei UI 的字形是按 GDI full hinting 调的，而 Flutter 桌面只做灰度抗锯齿、不吃那套
-/// hinting，中文因此比拉丁文更虚。后两项留着兜 Noto Sans SC 没有的字（生僻字、日文假名以外的补集）。
+/// **为什么中西文能分轴**：Geist / Geist Mono 对 U+4E00–9FFF 的 cmap 覆盖是 0，中文一个字都不走
+/// [sans] / [mono]，整段由 [cjkFallback] / [codeCjkFallback] 的第一项渲染。反过来说，
+/// **西文轴上不能放含 CJK 字形的字体**（Noto Sans SC、MiSans 这类），否则它把中文也吃掉，中文轴就失效了——
+/// 设置页的两组下拉因此互不重叠，见 `lib/app/font_prefs.dart` 的候选表。
+///
+/// 回退链尾的两项兜中文字体没有的字（生僻字等），不随轴变。为什么 CJK 首项优先随包的 Noto Sans SC 而不是
+/// 系统的 Microsoft YaHei UI：YaHei 的字形是按 GDI full hinting 调的，而 Flutter 桌面只做灰度抗锯齿、
+/// 不吃那套 hinting，中文因此比拉丁文更虚。
+///
+/// 四个轴是**运行时可变**的（画板 70「外观」小节）：值由 `lib/app/font_prefs.dart` 经 [apply] 灌进来，
+/// tokens 这一层不认识持久化，只持有当前值并派生 [styles]。
 abstract final class Fonts {
-  static const String sans = 'Geist';
-  static const String mono = 'Geist Mono';
-  static const List<String> cjkFallback = <String>['Noto Sans SC', 'Microsoft YaHei UI', 'PingFang SC'];
+  /// 随包默认，也是各轴的缺省值。**唯一一份默认字体名**——Rust 侧 `Appearance` 四个字段一律 `Option`，
+  /// 没设过就是 null，由这里兜底（同 `ui_state` 的口径：默认值只在 token 里写一次）。
+  static const String defaultSans = 'Geist';
+  static const String defaultMono = 'Geist Mono';
+  static const String defaultCjk = 'Noto Sans SC';
+
+  /// 回退链尾的系统兜底，不随轴变。
+  static const List<String> systemCjkFallback = <String>['Microsoft YaHei UI', 'PingFang SC'];
+
+  static String _sans = defaultSans;
+  static String _mono = defaultMono;
+  static String _cjk = defaultCjk;
+  static String _codeCjk = defaultCjk;
+
+  /// 界面西文。
+  static String get sans => _sans;
+
+  /// 代码等宽西文。
+  static String get mono => _mono;
+
+  /// 界面中文（[cjkFallback] 首项）。
+  static String get cjk => _cjk;
+
+  /// 代码等宽中文（[codeCjkFallback] 首项）。
+  static String get codeCjk => _codeCjk;
+
+  /// 界面文字的 CJK 回退链。
+  static List<String> get cjkFallback => <String>[_cjk, ...systemCjkFallback];
+
+  /// 等宽文字的 CJK 回退链（代码块 / 终端 / diff / kbd）。
+  ///
+  /// 独立于 [cjkFallback]：等宽场景下中文宽度应当正好是拉丁的两倍，否则终端的字符网格会错位，
+  /// 而界面场景不在乎这个。两条链因此分开，默认值相同但可以各自换。
+  static List<String> get codeCjkFallback => <String>[_codeCjk, ...systemCjkFallback];
+
+  static FontStyles _styles = FontStyles.build();
+
+  /// 当前这套字体下派生出的全部字阶。[TextStyles] 与 [Kbd] 都从这里取。
+  static FontStyles get styles => _styles;
+
+  /// 换字体：只覆盖给到的轴，`null` 表示这一轴不动。改完重算 [styles]。
+  ///
+  /// 调用方负责触发重建（`lib/app/font_prefs.dart` 用 [ChangeNotifier]）——tokens 不持有 widget 树。
+  /// 返回是否真的变了，没变就不必重建。
+  static bool apply({String? sans, String? mono, String? cjk, String? codeCjk}) {
+    final String nextSans = sans ?? _sans;
+    final String nextMono = mono ?? _mono;
+    final String nextCjk = cjk ?? _cjk;
+    final String nextCodeCjk = codeCjk ?? _codeCjk;
+    if (nextSans == _sans && nextMono == _mono && nextCjk == _cjk && nextCodeCjk == _codeCjk) return false;
+    _sans = nextSans;
+    _mono = nextMono;
+    _cjk = nextCjk;
+    _codeCjk = nextCodeCjk;
+    _styles = FontStyles.build();
+    return true;
+  }
+
+  /// 四个轴回到随包默认（测试与「恢复默认」按钮用）。
+  static bool reset() => apply(sans: defaultSans, mono: defaultMono, cjk: defaultCjk, codeCjk: defaultCjk);
+}
+
+/// 一套字体下的全部字阶实例，由 [Fonts.apply] 一次性重算并缓存。
+///
+/// 为什么要缓存而不是每次 getter 现造：`const TextStyle` 时代同一档取到的永远是同一个对象，
+/// widget 的 `==` 因此命中；现造会每次给出新对象，让原本能短路的比较全部落空、多出无谓重建。
+/// 缓存后同一套字体下仍然是同一个对象，行为与 `const` 时代一致。
+class FontStyles {
+  const FontStyles({
+    required this.display,
+    required this.title,
+    required this.body,
+    required this.secondary,
+    required this.meta,
+    required this.label,
+    required this.mono,
+    required this.monoMeta,
+    required this.kbd,
+  });
+
+  factory FontStyles.build() {
+    final String sans = Fonts.sans;
+    final String mono = Fonts.mono;
+    final List<String> cjk = Fonts.cjkFallback;
+    final List<String> codeCjk = Fonts.codeCjkFallback;
+    return FontStyles(
+      display: TextStyle(
+        fontFamily: sans,
+        fontFamilyFallback: cjk,
+        fontSize: 20,
+        fontWeight: Weights.medium,
+        fontVariations: Weights.mediumVariation,
+        color: Neutral.strong,
+      ),
+      title: TextStyle(
+        fontFamily: sans,
+        fontFamilyFallback: cjk,
+        fontSize: 15,
+        fontWeight: Weights.medium,
+        fontVariations: Weights.mediumVariation,
+        color: Neutral.strong,
+      ),
+      body: TextStyle(
+        fontFamily: sans,
+        fontFamilyFallback: cjk,
+        fontSize: 13,
+        fontWeight: Weights.regular,
+        fontVariations: Weights.regularVariation,
+        height: LineHeights.body,
+        color: Neutral.text,
+      ),
+      secondary: TextStyle(
+        fontFamily: sans,
+        fontFamilyFallback: cjk,
+        fontSize: 12,
+        fontWeight: Weights.regular,
+        fontVariations: Weights.regularVariation,
+        color: Neutral.muted,
+      ),
+      meta: TextStyle(
+        fontFamily: sans,
+        fontFamilyFallback: cjk,
+        fontSize: 11,
+        fontWeight: Weights.regular,
+        fontVariations: Weights.regularVariation,
+        color: Neutral.placeholder,
+      ),
+      label: TextStyle(
+        fontFamily: sans,
+        fontFamilyFallback: cjk,
+        fontSize: 11,
+        fontWeight: Weights.medium,
+        fontVariations: Weights.mediumVariation,
+        letterSpacing: 0.66,
+        color: Neutral.muted,
+      ),
+      mono: TextStyle(
+        fontFamily: mono,
+        fontFamilyFallback: codeCjk,
+        fontSize: 12.5,
+        fontWeight: Weights.regular,
+        fontVariations: Weights.regularVariation,
+        fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+        color: Neutral.text,
+      ),
+      monoMeta: TextStyle(
+        fontFamily: mono,
+        fontFamilyFallback: codeCjk,
+        fontSize: 11,
+        fontWeight: Weights.regular,
+        fontVariations: Weights.regularVariation,
+        color: Neutral.placeholder,
+      ),
+      kbd: TextStyle(
+        fontFamily: mono,
+        fontFamilyFallback: codeCjk,
+        fontSize: 11,
+        fontWeight: Weights.regular,
+        fontVariations: Weights.regularVariation,
+        color: Neutral.muted,
+      ),
+    );
+  }
+
+  final TextStyle display;
+  final TextStyle title;
+  final TextStyle body;
+  final TextStyle secondary;
+  final TextStyle meta;
+  final TextStyle label;
+  final TextStyle mono;
+  final TextStyle monoMeta;
+  final TextStyle kbd;
 }
 
 /// 字重 400 / 500。Geist 是可变字体，`fontWeight` 之外还要带 `fontVariations`。
@@ -110,89 +288,34 @@ abstract final class LineHeights {
 }
 
 /// 字阶五档 + mono 12.5（画板 00「字阶（5 档）」）。颜色按画板样例带上，需要时 copyWith。
+///
+/// 各档是 **getter 而不是 `const`**：字体轴要能在运行时切换（画板 70「外观」小节），
+/// 而 `const TextStyle` 在编译期就把 family 焊死了。调用点写法不变（还是 `t.TextStyles.body`），
+/// 只有原本写在 `const` 上下文里的那些要去掉 `const`。实例由 [Fonts] 缓存，取到的是同一个对象。
 abstract final class TextStyles {
   /// text.display 20 / 500 · 空态。
-  static const TextStyle display = TextStyle(
-    fontFamily: Fonts.sans,
-    fontFamilyFallback: Fonts.cjkFallback,
-    fontSize: 20,
-    fontWeight: Weights.medium,
-    fontVariations: Weights.mediumVariation,
-    color: Neutral.strong,
-  );
+  static TextStyle get display => Fonts.styles.display;
 
   /// text.title 15 / 500。
-  static const TextStyle title = TextStyle(
-    fontFamily: Fonts.sans,
-    fontFamilyFallback: Fonts.cjkFallback,
-    fontSize: 15,
-    fontWeight: Weights.medium,
-    fontVariations: Weights.mediumVariation,
-    color: Neutral.strong,
-  );
+  static TextStyle get title => Fonts.styles.title;
 
   /// text.body 13 / 400 · lh 1.5（控件用 [LineHeights.control]）。
-  static const TextStyle body = TextStyle(
-    fontFamily: Fonts.sans,
-    fontFamilyFallback: Fonts.cjkFallback,
-    fontSize: 13,
-    fontWeight: Weights.regular,
-    fontVariations: Weights.regularVariation,
-    height: LineHeights.body,
-    color: Neutral.text,
-  );
+  static TextStyle get body => Fonts.styles.body;
 
   /// text.secondary 12 / 400。
-  static const TextStyle secondary = TextStyle(
-    fontFamily: Fonts.sans,
-    fontFamilyFallback: Fonts.cjkFallback,
-    fontSize: 12,
-    fontWeight: Weights.regular,
-    fontVariations: Weights.regularVariation,
-    color: Neutral.muted,
-  );
+  static TextStyle get secondary => Fonts.styles.secondary;
 
   /// text.meta 11 / 400。
-  static const TextStyle meta = TextStyle(
-    fontFamily: Fonts.sans,
-    fontFamilyFallback: Fonts.cjkFallback,
-    fontSize: 11,
-    fontWeight: Weights.regular,
-    fontVariations: Weights.regularVariation,
-    color: Neutral.placeholder,
-  );
+  static TextStyle get meta => Fonts.styles.meta;
 
   /// 分组标题：11 / 500 / letter-spacing .06em（画板 00 各分组的标题行）。
-  static const TextStyle label = TextStyle(
-    fontFamily: Fonts.sans,
-    fontFamilyFallback: Fonts.cjkFallback,
-    fontSize: 11,
-    fontWeight: Weights.medium,
-    fontVariations: Weights.mediumVariation,
-    letterSpacing: 0.66,
-    color: Neutral.muted,
-  );
+  static TextStyle get label => Fonts.styles.label;
 
   /// mono 12.5 · tabular-nums（用量 / 耗时 / 计数）。
-  static const TextStyle mono = TextStyle(
-    fontFamily: Fonts.mono,
-    fontFamilyFallback: Fonts.cjkFallback,
-    fontSize: 12.5,
-    fontWeight: Weights.regular,
-    fontVariations: Weights.regularVariation,
-    fontFeatures: <FontFeature>[FontFeature.tabularFigures()],
-    color: Neutral.text,
-  );
+  static TextStyle get mono => Fonts.styles.mono;
 
   /// mono 11（token 名、kbd、注释性元信息）。
-  static const TextStyle monoMeta = TextStyle(
-    fontFamily: Fonts.mono,
-    fontFamilyFallback: Fonts.cjkFallback,
-    fontSize: 11,
-    fontWeight: Weights.regular,
-    fontVariations: Weights.regularVariation,
-    color: Neutral.placeholder,
-  );
+  static TextStyle get monoMeta => Fonts.styles.monoMeta;
 }
 
 /// 间距（4px 网格）+ space.chip 例外 + kbd 内边距。
@@ -263,14 +386,8 @@ abstract final class IconSizes {
 
 /// kbd：mono 11 · 边框 1 [Borders.base] · radius 3 · 0 4px · line-height 16。
 abstract final class Kbd {
-  static const TextStyle text = TextStyle(
-    fontFamily: Fonts.mono,
-    fontFamilyFallback: Fonts.cjkFallback,
-    fontSize: 11,
-    fontWeight: Weights.regular,
-    fontVariations: Weights.regularVariation,
-    color: Neutral.muted,
-  );
+  /// getter 而非 `const`：随代码等宽轴走，理由同 [TextStyles]。
+  static TextStyle get text => Fonts.styles.kbd;
   static const EdgeInsets padding = Spacing.kbd;
   static const BorderRadius radius = Radii.chip;
   static const Color border = Borders.base;

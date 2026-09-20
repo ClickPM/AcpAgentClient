@@ -86,7 +86,7 @@ class _TrafficPageState extends State<TrafficPage> {
         decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
         child: Row(
           children: <Widget>[
-            const Text('ACP 流量调试', style: t.TextStyles.title),
+            Text('ACP 流量调试', style: t.TextStyles.title),
             const SizedBox(width: t.Spacing.s12),
             _directionChip('全部', null),
             _directionChip('← 收', TrafficDirection.inbound),

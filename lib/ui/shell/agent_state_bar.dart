@@ -184,7 +184,7 @@ class DroppedUpdatesBar extends StatelessWidget {
                   const SizedBox(width: t.Spacing.s8),
                   Text('$count 条未知会话更新已丢弃', style: CardText.headerTitle),
                   const SizedBox(width: t.Spacing.s8),
-                  const Expanded(child: Text('sessionUpdate 反序列化失败 · 原文见 ACP 流量调试', style: t.TextStyles.monoMeta, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  Expanded(child: Text('sessionUpdate 反序列化失败 · 原文见 ACP 流量调试', style: t.TextStyles.monoMeta, maxLines: 1, overflow: TextOverflow.ellipsis)),
                 ],
               ),
             ),

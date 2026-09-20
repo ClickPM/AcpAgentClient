@@ -201,14 +201,14 @@ class _AttachmentChipState extends State<AttachmentChip> {
         child: ClipRRect(
           borderRadius: t.Radii.control,
           child: bytes == null
-              ? const Text('image · 无法解码', style: t.TextStyles.monoMeta)
+              ? Text('image · 无法解码', style: t.TextStyles.monoMeta)
               : Image.memory(
                   bytes,
                   // 预览框最宽 [t.Geometry.attachmentPreviewMaxWidth]，按它的 2 倍解码（高 DPI 留量）：
                   // 不给 cacheWidth 的话一张 2880×1716 的截图会按原分辨率解进 image cache（约 20 MB）。
                   cacheWidth: (t.Geometry.attachmentPreviewMaxWidth * 2).round(),
                   fit: BoxFit.contain,
-                  errorBuilder: (_, _, _) => const Text('image · 无法解码', style: t.TextStyles.monoMeta),
+                  errorBuilder: (_, _, _) => Text('image · 无法解码', style: t.TextStyles.monoMeta),
                 ),
         ),
       ),

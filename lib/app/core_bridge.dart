@@ -98,6 +98,10 @@ abstract interface class CoreCommands {
   Future<JsonMap> uiStateGet();
   Future<JsonMap> uiStateSet(JsonMap patch);
 
+  // ---- 外观（画板 70「外观」小节）：四个字体轴，整段读写
+  Future<JsonMap> appearanceGet();
+  Future<JsonMap> appearanceSet(JsonMap patch);
+
   // ---- R4：文件面板、目录监视、git 徽章、本地 shell 与终端控制、退出收尾
   Future<JsonMap> fsRead(String root, String path);
 
@@ -298,6 +302,12 @@ class CoreBridge implements CoreCommands {
   @override
   Future<JsonMap> sessionIndexRemove(String agentId, String sessionId) =>
       _run(() => api.sessionIndexRemove(agentId: agentId, sessionId: sessionId));
+
+  @override
+  Future<JsonMap> appearanceGet() => _run(api.appearanceGet);
+
+  @override
+  Future<JsonMap> appearanceSet(JsonMap patch) => _run(() => api.appearanceSet(patch: jsonEncode(patch)));
 
   @override
   Future<JsonMap> uiStateGet() => _run(api.uiStateGet);

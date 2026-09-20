@@ -405,7 +405,7 @@ class SidebarSessionRow extends StatelessWidget {
             onSubmitted: onCommitRename,
             onCancel: onCancelRename,
           ),
-          const Text('Enter 保存 · Esc 取消', style: t.TextStyles.meta),
+          Text('Enter 保存 · Esc 取消', style: t.TextStyles.meta),
         ],
       );
 

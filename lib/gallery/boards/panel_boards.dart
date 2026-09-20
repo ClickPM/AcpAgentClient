@@ -226,7 +226,7 @@ final List<GalleryBoard> panelBoards = <GalleryBoard>[
           padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12),
           decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
           alignment: Alignment.centerLeft,
-          child: const Text('查看器空态', style: t.TextStyles.monoMeta),
+          child: Text('查看器空态', style: t.TextStyles.monoMeta),
         ),
         const Expanded(child: FileViewerEmpty()),
       ],

@@ -387,7 +387,7 @@ class AuthSucceededCard extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     Text('认证成功', style: t.TextStyles.body.copyWith(color: t.Neutral.strong, height: t.LineHeights.control)),
-                    const Text('正在自动重试 session/new，完成后回到刚才的新会话。', style: t.TextStyles.secondary),
+                    Text('正在自动重试 session/new，完成后回到刚才的新会话。', style: t.TextStyles.secondary),
                   ],
                 ),
               ),

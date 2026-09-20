@@ -15,6 +15,11 @@ macos/Flutter/ephemeral/
 linux/flutter/ephemeral/
 # frb 生成物入库（lib/bridge/、rust/bridge/src/frb_generated.rs），不要在这里忽略
 
+# 可选字体（画板 70「外观」）：MiSans / HarmonyOS Sans 的协议禁止「在独立基础上」再分发字体文件，
+# 公开仓库里放一份就是那种情况。文件只在本地与安装包里存在，永不入库；README.md 是例外，要入库。
+assets/fonts/optional/*
+!assets/fonts/optional/README.md
+
 # Node（仅 npx 类 agent 运行期使用，仓库内不应出现）
 node_modules/
 

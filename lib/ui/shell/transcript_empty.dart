@@ -103,7 +103,7 @@ class NoAgentEmpty extends StatelessWidget {
           size: t.Controls.input,
           child: AcpIcon(AcpIcons.layers, color: t.Neutral.placeholder, size: t.IconSizes.base),
         ),
-        const Text('还没有已安装的 agent', style: t.TextStyles.display, textAlign: TextAlign.center),
+        Text('还没有已安装的 agent', style: t.TextStyles.display, textAlign: TextAlign.center),
         Text('先在 Agents 面板安装一个 ACP agent，再回来开始会话。',
             style: t.TextStyles.body.copyWith(color: t.Neutral.muted), textAlign: TextAlign.center),
         AcpButton(

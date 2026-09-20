@@ -1,0 +1,202 @@
+// 字体偏好（画板 70「外观」）：候选表不变量、四轴解析与落盘形状、tokens 的运行时生效、可选字体探测。
+
+import 'dart:io';
+
+import 'package:acp_agent_client/app/font_prefs.dart';
+import 'package:acp_agent_client/theme/tokens.dart' as t;
+import 'package:flutter/widgets.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  // Fonts 是全局可变状态：每个用例跑完必须复位，否则会污染后面的用例与别的测试文件。
+  tearDown(t.Fonts.reset);
+
+  group('候选表', () {
+    test('西文两轴与中文两轴的 family 不得有交集', () {
+      // 这是整个分轴机制成立的前提：西文轴上出现含 CJK 字形的字体，它会把中文也吃掉，中文轴就失效了。
+      final Set<String> latin = <String>{
+        for (final FontChoice c in fontCatalog[FontAxis.uiLatin]!) c.family,
+        for (final FontChoice c in fontCatalog[FontAxis.codeLatin]!) c.family,
+      };
+      final Set<String> cjk = <String>{
+        for (final FontChoice c in fontCatalog[FontAxis.uiCjk]!) c.family,
+        for (final FontChoice c in fontCatalog[FontAxis.codeCjk]!) c.family,
+      };
+      expect(latin.intersection(cjk), isEmpty, reason: '西文轴与中文轴的候选重叠了');
+    });
+
+    test('四个轴都有候选，且默认项在各自轴的候选里、来源是随包', () {
+      for (final FontAxis axis in FontAxis.values) {
+        final List<FontChoice> list = fontCatalog[axis]!;
+        expect(list, isNotEmpty, reason: '$axis 没有候选');
+        final Iterable<FontChoice> hit = list.where((FontChoice c) => c.family == defaultFamilyFor(axis));
+        expect(hit.length, 1, reason: '$axis 的默认项应当在候选里且只有一条');
+        expect(hit.first.source, FontSource.bundled, reason: '$axis 的默认项必须是随包的，否则装不上就没有兜底');
+      }
+    });
+
+    test('optional 候选都给了探测用的文件名主干与下载去处', () {
+      for (final MapEntry<FontAxis, List<FontChoice>> e in fontCatalog.entries) {
+        for (final FontChoice c in e.value) {
+          if (c.source != FontSource.optional) continue;
+          expect(c.fileStems, isNotEmpty, reason: '${c.family} 没有 fileStems，永远探测不到');
+          expect(c.downloadUrl, isNotNull, reason: '${c.family} 没有下载去处，用户装不上');
+        }
+      }
+    });
+  });
+
+  group('FontPrefs', () {
+    test('没设过的轴回默认，落盘形状里不出现该键', () {
+      const FontPrefs p = FontPrefs();
+      expect(p.raw(FontAxis.uiLatin), isNull);
+      expect(p.resolved(FontAxis.uiLatin), t.Fonts.defaultSans);
+      expect(p.resolved(FontAxis.uiCjk), t.Fonts.defaultCjk);
+      expect(p.resolved(FontAxis.codeLatin), t.Fonts.defaultMono);
+      expect(p.resolved(FontAxis.codeCjk), t.Fonts.defaultCjk);
+      expect(p.toJson(), isEmpty);
+    });
+
+    test('选回默认项存的是 null 而不是默认名', () {
+      // 这样以后改了默认字体，没动过设置的用户会跟着走。
+      final FontPrefs p = const FontPrefs().withAxis(FontAxis.uiCjk, 'MiSans');
+      expect(p.toJson(), <String, Object?>{'ui_cjk_font_family': 'MiSans'});
+      final FontPrefs back = p.withAxis(FontAxis.uiCjk, t.Fonts.defaultCjk);
+      expect(back.raw(FontAxis.uiCjk), isNull);
+      expect(back.toJson(), isEmpty);
+    });
+
+    test('键名与 Rust 侧 Appearance 对得上，JSON 往返不掉字段', () {
+      const FontPrefs p = FontPrefs(uiLatin: 'Inter', uiCjk: 'MiSans', codeLatin: 'JetBrains Mono', codeCjk: 'Sarasa Mono SC');
+      expect(p.toJson(), <String, Object?>{
+        'ui_font_family': 'Inter',
+        'ui_cjk_font_family': 'MiSans',
+        'buffer_font_family': 'JetBrains Mono',
+        'buffer_cjk_font_family': 'Sarasa Mono SC',
+      });
+      expect(FontPrefs.fromJson(p.toJson()), p);
+    });
+
+    test('脏值当没设置：空串、纯空白、类型不对', () {
+      final FontPrefs p = FontPrefs.fromJson(<String, Object?>{
+        'ui_font_family': '',
+        'ui_cjk_font_family': '   ',
+        'buffer_font_family': 42,
+        'buffer_cjk_font_family': '  Sarasa Mono SC  ',
+      });
+      expect(p.uiLatin, isNull);
+      expect(p.uiCjk, isNull);
+      expect(p.codeLatin, isNull);
+      expect(p.codeCjk, 'Sarasa Mono SC', reason: '首尾空白要去掉');
+    });
+  });
+
+  group('tokens 运行时生效', () {
+    test('换轴之后字阶跟着换，界面轴与代码轴互不干扰', () {
+      expect(t.TextStyles.body.fontFamily, t.Fonts.defaultSans);
+      expect(t.TextStyles.mono.fontFamily, t.Fonts.defaultMono);
+
+      t.Fonts.apply(sans: 'Inter', cjk: 'MiSans');
+      expect(t.TextStyles.body.fontFamily, 'Inter');
+      expect(t.TextStyles.body.fontFamilyFallback!.first, 'MiSans');
+      // 代码轴没动，还是默认。
+      expect(t.TextStyles.mono.fontFamily, t.Fonts.defaultMono);
+      expect(t.TextStyles.mono.fontFamilyFallback!.first, t.Fonts.defaultCjk);
+
+      t.Fonts.apply(mono: 'JetBrains Mono', codeCjk: 'Sarasa Mono SC');
+      expect(t.TextStyles.mono.fontFamily, 'JetBrains Mono');
+      expect(t.TextStyles.mono.fontFamilyFallback!.first, 'Sarasa Mono SC');
+      expect(t.Kbd.text.fontFamilyFallback!.first, 'Sarasa Mono SC', reason: 'kbd 也是等宽档');
+      // 界面轴不受代码轴影响。
+      expect(t.TextStyles.body.fontFamilyFallback!.first, 'MiSans');
+    });
+
+    test('回退链尾始终留着系统兜底', () {
+      t.Fonts.apply(cjk: 'MiSans');
+      expect(t.TextStyles.body.fontFamilyFallback, <String>['MiSans', ...t.Fonts.systemCjkFallback]);
+    });
+
+    test('同一套字体下取到的是同一个对象（`==` 短路与 const 时代一致）', () {
+      final TextStyle a = t.TextStyles.body;
+      final TextStyle b = t.TextStyles.body;
+      expect(identical(a, b), isTrue);
+
+      t.Fonts.apply(sans: 'Inter');
+      expect(identical(t.TextStyles.body, a), isFalse, reason: '换了字体就该是新对象');
+      expect(identical(t.TextStyles.body, t.TextStyles.body), isTrue);
+    });
+
+    test('apply 给同样的值返回 false，不触发无谓重建', () {
+      expect(t.Fonts.apply(sans: t.Fonts.defaultSans), isFalse);
+      expect(t.Fonts.apply(sans: 'Inter'), isTrue);
+      expect(t.Fonts.apply(sans: 'Inter'), isFalse);
+    });
+  });
+
+  group('可选字体探测', () {
+    test('文件名规范化：大小写、连字符、下划线、扩展名都归一', () {
+      expect(normalizeFileStem('MiSans-Regular.ttf'), 'misansregular');
+      expect(normalizeFileStem('misans_regular.otf'), 'misansregular');
+      expect(normalizeFileStem('HarmonyOS_Sans_SC_Regular.ttf'), 'harmonyossansscregular');
+      expect(normalizeFileStem('noextension'), 'noextension');
+    });
+
+    test('系统目录里按文件名认出字体，只探测不注册', () async {
+      final Directory dir = Directory.systemTemp.createTempSync('acp-fonts-probe');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      // 内容无所谓：probe 路径只看文件名，不读字节、不往引擎里塞。
+      File('${dir.path}${Platform.pathSeparator}MiSans-Regular.ttf').writeAsStringSync('not a real font');
+      File('${dir.path}${Platform.pathSeparator}Sarasa-Mono-SC-Regular.ttf').writeAsStringSync('not a real font');
+      File('${dir.path}${Platform.pathSeparator}SomethingElse.ttf').writeAsStringSync('not a real font');
+      // .ttc 是字体集合，FontLoader 吃不下，不该被认出来。
+      File('${dir.path}${Platform.pathSeparator}MiSans.ttc').writeAsStringSync('not a real font');
+
+      final FontRegistry reg = FontRegistry(loadDirs: const <Directory>[], probeDirs: <Directory>[dir]);
+      final Set<String> found = await reg.discoverAndLoad();
+
+      expect(found, containsAll(<String>['MiSans', 'Sarasa Mono SC']));
+      expect(found, isNot(contains('Inter')));
+      expect(reg.isAvailable(fontCatalog[FontAxis.uiCjk]!.firstWhere((FontChoice c) => c.family == 'MiSans')), isTrue);
+    });
+
+    test('随包的永远可用，目录不存在也不报错', () async {
+      final FontRegistry reg = FontRegistry(
+        loadDirs: <Directory>[Directory('Z:${Platform.pathSeparator}no-such-dir')],
+        probeDirs: <Directory>[Directory('Z:${Platform.pathSeparator}also-missing')],
+      );
+      final Set<String> found = await reg.discoverAndLoad();
+      expect(found, isEmpty);
+      final FontChoice bundled = fontCatalog[FontAxis.uiLatin]!.firstWhere((FontChoice c) => c.source == FontSource.bundled);
+      expect(reg.isAvailable(bundled), isTrue);
+      final FontChoice optional = fontCatalog[FontAxis.uiCjk]!.firstWhere((FontChoice c) => c.source == FontSource.optional);
+      expect(reg.isAvailable(optional), isFalse);
+    });
+  });
+
+  group('FontPrefsController', () {
+    test('没有桥时只在内存里生效，改轴会通知监听者', () async {
+      final FontPrefsController c = FontPrefsController(
+        registry: FontRegistry(loadDirs: const <Directory>[], probeDirs: const <Directory>[]),
+      );
+      addTearDown(c.dispose);
+      int notified = 0;
+      c.addListener(() => notified++);
+
+      await c.start();
+      expect(notified, 0, reason: '启动时没有任何设置，与默认相同，不该触发重建');
+
+      await c.setAxis(FontAxis.uiCjk, 'MiSans');
+      expect(notified, 1);
+      expect(c.prefs.resolved(FontAxis.uiCjk), 'MiSans');
+      expect(t.TextStyles.body.fontFamilyFallback!.first, 'MiSans');
+
+      // 同一个值再设一次不重建。
+      await c.setAxis(FontAxis.uiCjk, 'MiSans');
+      expect(notified, 1);
+
+      await c.resetAll();
+      expect(notified, 2);
+      expect(t.TextStyles.body.fontFamilyFallback!.first, t.Fonts.defaultCjk);
+    });
+  });
+}

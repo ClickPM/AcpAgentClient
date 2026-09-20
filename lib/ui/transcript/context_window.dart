@@ -123,15 +123,15 @@ class ContextPopover extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            const Text('Context', style: t.TextStyles.secondary),
+            Text('Context', style: t.TextStyles.secondary),
             Text(context_, style: t.TextStyles.body),
             if (u != null && u.hasCost) ...<Widget>[
               const SizedBox(height: t.Spacing.s8),
-              const Text('Cost', style: t.TextStyles.secondary),
+              Text('Cost', style: t.TextStyles.secondary),
               Text('\$${u.costAmount} ${u.costCurrency ?? ''}', style: t.TextStyles.body),
             ],
             const SizedBox(height: t.Spacing.s8),
-            const Text('Rules', style: t.TextStyles.secondary),
+            Text('Rules', style: t.TextStyles.secondary),
             GestureDetector(
               onTap: onOpenRules,
               child: MouseRegion(

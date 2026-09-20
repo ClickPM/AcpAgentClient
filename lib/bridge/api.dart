@@ -349,6 +349,15 @@ Future<String> sessionIndexRemove({
   sessionId: sessionId,
 );
 
+/// 外观设置：`{ui_font_family?, ui_cjk_font_family?, buffer_font_family?, buffer_cjk_font_family?}`。
+/// 四个字体轴，没设过的是 null，默认字体名在前端 token 里（`lib/theme/tokens.dart`）。
+Future<String> appearanceGet() => RustLib.instance.api.crateApiAppearanceGet();
+
+/// 整段覆盖外观设置（`patch` 是上面那个形状的 JSON 字符串，四个轴一次全给；null / 空串 = 用默认）；
+/// 返回落盘后的外观。
+Future<String> appearanceSet({required String patch}) =>
+    RustLib.instance.api.crateApiAppearanceSet(patch: patch);
+
 /// 窗口 UI 状态：`{sidebarWidth?, rightPanelWidth?}`。没存过的字段是 null，缺省宽度在前端 token 里。
 Future<String> uiStateGet() => RustLib.instance.api.crateApiUiStateGet();
 

@@ -90,7 +90,7 @@ class _SmokeScreenState extends State<SmokeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            const Text('R0 smoke', style: t.TextStyles.title),
+            Text('R0 smoke', style: t.TextStyles.title),
             const SizedBox(height: t.Spacing.s8),
             Text(_status, style: t.TextStyles.secondary),
             const SizedBox(height: t.Spacing.s16),
@@ -102,22 +102,22 @@ class _SmokeScreenState extends State<SmokeScreen> {
               ],
             ),
             const SizedBox(height: t.Spacing.s16),
-            const Text('IME TEST · 在下面输入中文，观察组合窗与候选', style: t.TextStyles.label),
+            Text('IME TEST · 在下面输入中文，观察组合窗与候选', style: t.TextStyles.label),
             const SizedBox(height: t.Spacing.s8),
             TextField(
               controller: _ime,
               style: t.TextStyles.body,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 isDense: true,
                 hintText: '在此输入中文…',
                 hintStyle: t.TextStyles.secondary,
                 contentPadding: t.Controls.padInput,
-                enabledBorder: OutlineInputBorder(borderRadius: t.Radii.control, borderSide: BorderSide(color: t.Borders.base, width: t.Borders.width)),
-                focusedBorder: OutlineInputBorder(borderRadius: t.Radii.control, borderSide: BorderSide(color: t.FocusRing.color, width: t.FocusRing.width)),
+                enabledBorder: const OutlineInputBorder(borderRadius: t.Radii.control, borderSide: BorderSide(color: t.Borders.base, width: t.Borders.width)),
+                focusedBorder: const OutlineInputBorder(borderRadius: t.Radii.control, borderSide: BorderSide(color: t.FocusRing.color, width: t.FocusRing.width)),
               ),
             ),
             const SizedBox(height: t.Spacing.s16),
-            const Text('EVENTS', style: t.TextStyles.label),
+            Text('EVENTS', style: t.TextStyles.label),
             const SizedBox(height: t.Spacing.s8),
             Expanded(
               child: DecoratedBox(

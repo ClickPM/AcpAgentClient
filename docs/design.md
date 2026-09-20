@@ -182,6 +182,12 @@ Windows：`%APPDATA%/AcpAgentClient/{settings.json, sessions.json, projects.json
 
 `ui-state.json` 是窗口的机器态（两栏宽度、文件面板树列的宽度与收起态），同样走临时文件 + rename。它与 `settings.json` 分开：后者是用户手写的配置（`agent_servers` 与 Zed 同形），不该被拖窗口改写。字段一律可缺省，缺省宽度与夹取范围只在前端 token 里（`lib/theme/tokens.dart`），核心不复制一份；读不动或不是合法 JSON 时按缺省重建，不挡启动。
 
+`settings.json` 除 `agent_servers` 外还有 **`appearance`**（R7.6，字体切换）：四个轴各一个可选的 family 名 —— `ui_font_family` / `ui_cjk_font_family` / `buffer_font_family` / `buffer_cjk_font_family`。键名与 Zed 同形取 `ui_font_family` / `buffer_font_family`（Zed `crates/settings_content/src/theme.rs`）；两个 `*_cjk_font_family` 是本客户端自己的，Zed 没有中西文分轴。字段一律可缺省，默认字体名只在前端 token 里写一份（口径同 `ui-state.json`），四个轴全空时整个 `appearance` 键不落盘。读不出来不报错、回默认，字体设置不该挡住启动。
+
+`settings.json` 顶层还保留 **`extra`**（`#[serde(flatten)]`）：这份文件是用户可手写的，而写盘是整份覆盖，没有 `extra` 的话用户加的任何未知顶层键都会被静默抹掉（规则 7）。
+
+字体文件的三个来源（前端 `lib/app/font_prefs.dart`）：可执行文件旁的 `fonts/`（随安装包，install 规则见 `windows/CMakeLists.txt`）、数据目录的 `fonts/`（用户自己丢的）、系统字体目录。前两处启动时用 `FontLoader` 注册，系统目录只探测不注册（Windows 上装进系统的字体由平台按家族名直接解析）。**可选字体一律不进 `pubspec.yaml`**：MiSans 与 HarmonyOS Sans 的协议禁止「在独立基础上」再分发字体文件（不能入库），而 `pubspec.yaml` 声明了却没有文件会让 `flutter build` 直接失败。
+
 ## 11. 阶段草案（已取代）
 
 本节的草案已于 2026-09-15 由仓库根 [`ROUNDS.md`](../ROUNDS.md) 取代：设计稿（40 张画板）收口后，实现拆成 R0–R8（含 R1.5 spike），每张画板归属恰好一轮，各轮的验收、裁定门与契约变更都在那里。本节不再维护，编号沿革只记一句：原草案的 R6（sidecar）与 R7（打包）在 `ROUNDS.md` 里是 R7 与 R8，其余编号含义不变。

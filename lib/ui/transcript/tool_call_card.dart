@@ -126,11 +126,11 @@ class _PathChipState extends State<PathChip> {
                 clipBehavior: Clip.none,
                 children: <Widget>[
                   chip,
-                  const Positioned(
+                  Positioned(
                     top: t.Controls.compact,
                     left: 0,
                     child: Popover(
-                      padding: EdgeInsets.symmetric(horizontal: t.Spacing.s8, vertical: t.Spacing.s4),
+                      padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s8, vertical: t.Spacing.s4),
                       child: Text('Go to File', style: t.TextStyles.meta),
                     ),
                   ),

@@ -1,15 +1,20 @@
-// 画板 70 · 设置：agent 配置（registry 型只读展开；custom 型行内编辑 cmd / args / env）、从 Zed 导入、Node 运行时、
-// 数据目录与日志路径的打开 / 复制。只做这四块，没有外观设置（BACKLOG）。走 agent_settings_get / set / remove 与
-// agent_settings_import_zed（接线阶段）。数据源 lib/projection/registry.dart 里已安装的条目。样式只取 tokens。
+// 画板 70 · 设置：外观（四个字体轴）、agent 配置（registry 型只读展开；custom 型行内编辑 cmd / args / env）、
+// 从 Zed 导入、Node 运行时、数据目录与日志路径的打开 / 复制。走 agent_settings_get / set / remove、
+// agent_settings_import_zed 与 appearance_get / set（接线阶段）。数据源 lib/projection/registry.dart 里已安装的条目。
+// 样式只取 tokens。
+//
+// 「外观」小节是实现先行、设计稿待补（画板 70 尚未画这一小节，见 design/README.md 变更记录与 rounds/BACKLOG.md）。
 
 import 'package:flutter/widgets.dart';
 
+import '../../app/font_prefs.dart';
 import '../../projection/registry.dart';
 import '../../theme/tokens.dart' as t;
 import '../registry/registry_entry.dart';
 import '../shell/shell_common.dart';
 import '../transcript/card_chrome.dart';
 import '../transcript/icons.dart';
+import 'appearance_card.dart';
 
 /// custom 型行内编辑的三个输入（cmd / args / env；args 空格分隔，env 是 `K=V` 空格分隔）。
 class CustomEditFields {
@@ -42,6 +47,8 @@ class SettingsPage extends StatelessWidget {
     this.onDownloadNode,
     this.onOpenPath,
     this.onCopyPath,
+    this.fonts,
+    this.onOpenUrl,
   });
 
   /// 已安装的条目（registry 型 + custom 型）。
@@ -70,6 +77,12 @@ class SettingsPage extends StatelessWidget {
   final ValueChanged<String>? onOpenPath;
   final ValueChanged<String>? onCopyPath;
 
+  /// 字体偏好（画板 70「外观」）。gallery 与单测可以不给，不给就不出这一小节。
+  final FontPrefsController? fonts;
+
+  /// 「去下载」用：在系统浏览器里打开候选字体的官网。
+  final ValueChanged<String>? onOpenUrl;
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -83,6 +96,14 @@ class SettingsPage extends StatelessWidget {
             children: <Widget>[
               _title(),
               const SizedBox(height: t.Spacing.s16),
+              if (fonts != null) ...<Widget>[
+                _section(
+                  '外观',
+                  note: '西文与中文分轴：西文档只列不含中文字形的字体，中文才不会被它吃掉',
+                  child: AppearanceCard(fonts: fonts!, onOpenUrl: onOpenUrl),
+                ),
+                const SizedBox(height: t.Spacing.s16),
+              ],
               _section('agent 配置', note: 'registry 型只读；custom 型可编辑 cmd / args / env', child: _agentsCard()),
               const SizedBox(height: t.Spacing.s16),
               _section('从 Zed 导入', child: _zedCard()),
@@ -105,9 +126,9 @@ class SettingsPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.baseline,
           textBaseline: TextBaseline.alphabetic,
           children: <Widget>[
-            const Text('设置', style: t.TextStyles.display),
+            Text('设置', style: t.TextStyles.display),
             const SizedBox(width: t.Spacing.s8),
-            Expanded(child: Text('agent 配置 · 从 Zed 导入 · Node 运行时 · 数据目录', style: t.TextStyles.secondary.copyWith(color: t.Neutral.placeholder))),
+            Expanded(child: Text('外观 · agent 配置 · 从 Zed 导入 · Node 运行时 · 数据目录', style: t.TextStyles.secondary.copyWith(color: t.Neutral.placeholder))),
           ],
         ),
       );

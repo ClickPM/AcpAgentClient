@@ -366,7 +366,7 @@ class FileTreeColumn extends StatelessWidget {
         padding: const EdgeInsets.only(left: t.Spacing.s8, right: t.Spacing.s4),
         child: Row(
           children: <Widget>[
-            const Expanded(child: Text('文件浏览器', style: t.TextStyles.label, maxLines: 1, overflow: TextOverflow.ellipsis)),
+            Expanded(child: Text('文件浏览器', style: t.TextStyles.label, maxLines: 1, overflow: TextOverflow.ellipsis)),
             PanelIconButton(icon: AcpIcons.search, selected: searchMode, onTap: onToggleSearch),
             PanelIconButton(icon: AcpIcons.collapseAll, onTap: onCollapseTree),
             PanelIconButton(icon: AcpIcons.rotateCw, onTap: onRefresh),
@@ -578,9 +578,9 @@ class FileViewerEmpty extends StatelessWidget {
             child: const AcpIcon(AcpIcons.file, color: t.Neutral.placeholder),
           ),
           const SizedBox(height: t.Spacing.s8),
-          const Text('没有打开的文件', style: t.TextStyles.title),
+          Text('没有打开的文件', style: t.TextStyles.title),
           const SizedBox(height: t.Spacing.s8),
-          const Text('在左侧文件树中点击任意文件即可在此展示内容与预览', style: t.TextStyles.secondary),
+          Text('在左侧文件树中点击任意文件即可在此展示内容与预览', style: t.TextStyles.secondary),
         ],
       ),
     );
@@ -727,7 +727,7 @@ class FileViewer extends StatelessWidget {
 
   Widget _body(FileViewMode effective) {
     if (data.binary) {
-      return const Align(alignment: Alignment.topLeft, child: Text('二进制文件，不预览', style: t.TextStyles.secondary));
+      return Align(alignment: Alignment.topLeft, child: Text('二进制文件，不预览', style: t.TextStyles.secondary));
     }
     if (effective == FileViewMode.preview) {
       return SingleChildScrollView(child: MarkdownBody(data.text, onLink: onLink));

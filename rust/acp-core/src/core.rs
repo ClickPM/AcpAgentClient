@@ -642,6 +642,20 @@ impl Core {
 
     /// 窗口 UI 状态（`ui_state_get`）：两栏被拖出来的宽度与文件面板树列的宽度 / 收起态。没存过的字段返回 null，
     /// 缺省宽度与夹取范围都在前端的 token 里，核心不复制一份（docs/design.md § 10）。
+    /// 外观设置（四个字体轴）。读不出来不报错，回四个 null——字体读失败不该挡住启动。
+    ///
+    /// 不走 [`Self::agent_settings_get`]：那个会把内置 sidecar 合进结果，外观不需要也不该沾那一层。
+    pub fn appearance_get(&self) -> Result<Value> {
+        Ok(serde_json::to_value(self.settings.appearance())?)
+    }
+
+    /// 整段覆盖外观设置；返回落盘后的外观。family 名的形状校验在 settings crate 里（[`settings::Appearance::sanitized`]）。
+    pub fn appearance_set(&self, patch: Value) -> Result<Value> {
+        let patch: settings::Appearance =
+            serde_json::from_value(patch).map_err(|e| CoreError::InvalidArgument(format!("appearance: {e}")))?;
+        Ok(serde_json::to_value(self.settings.set_appearance(patch)?)?)
+    }
+
     pub fn ui_state_get(&self) -> Result<Value> {
         Ok(serde_json::to_value(self.ui_state.load())?)
     }

@@ -55,14 +55,14 @@ final List<GalleryBoard> transcriptBoards = <GalleryBoard>[
           ),
         ),
         BoardSection('编辑中（改文本 → Regenerate 截断后续并重起一轮）', child: UserMessage(msg, initialState: UserMessageState.editing)),
-        const BoardSection(
+        BoardSection(
           '@ 提及芯片 · 默认 / 悬浮（等宽 12.5 · accent 文字 · accent.soft 底 · 圆角 3 · 悬浮出 6% 深色容器）',
           child: Row(
             children: <Widget>[
-              MentionChip(label: '@scripts/validate.ps1'),
-              SizedBox(width: t.Spacing.s16),
-              MentionChip(label: '@scripts/validate.ps1', hoveredInitially: true),
-              SizedBox(width: t.Spacing.s16),
+              const MentionChip(label: '@scripts/validate.ps1'),
+              const SizedBox(width: t.Spacing.s16),
+              const MentionChip(label: '@scripts/validate.ps1', hoveredInitially: true),
+              const SizedBox(width: t.Spacing.s16),
               Text('左：默认 · 右：悬浮', style: t.TextStyles.secondary),
             ],
           ),

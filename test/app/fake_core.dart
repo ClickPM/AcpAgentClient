@@ -21,6 +21,15 @@ class FakeCore implements CoreCommands {
   @override
   Future<JsonMap> uiStateSet(JsonMap patch) async => uiState = <String, dynamic>{...uiState, ...patch};
 
+  /// 外观（四个字体轴）：整段替换，不合并——前端一次给全四个轴。
+  JsonMap appearance = <String, dynamic>{};
+
+  @override
+  Future<JsonMap> appearanceGet() async => appearance;
+
+  @override
+  Future<JsonMap> appearanceSet(JsonMap patch) async => appearance = <String, dynamic>{...patch};
+
   @override
   Future<JsonMap> acpRespond(String agentId, String requestId, JsonMap response) async {
     responded.add((requestId, response));

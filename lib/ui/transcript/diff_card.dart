@@ -178,8 +178,8 @@ class _DiffCardState extends State<DiffCard> {
           const SizedBox(width: t.Spacing.s8),
           Expanded(child: Text(l.text, style: t.TextStyles.mono.copyWith(color: fg), maxLines: 1, overflow: TextOverflow.ellipsis)),
           if (hovered)
-            const Popover(
-              padding: EdgeInsets.symmetric(horizontal: t.Spacing.s8, vertical: t.Spacing.s4),
+            Popover(
+              padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s8, vertical: t.Spacing.s4),
               child: Text('在文件面板中定位', style: t.TextStyles.meta),
             ),
         ],

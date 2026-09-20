@@ -40,13 +40,17 @@ import '../ui/transcript/awaiting_bar.dart';
 import '../ui/transcript/plan_card.dart';
 import '../ui/transcript/transcript_list.dart';
 import 'clipboard_image.dart';
+import 'font_prefs.dart';
 import 'window_controls.dart';
 import 'workbench_controller.dart';
 
 class WorkbenchScreen extends StatefulWidget {
-  const WorkbenchScreen({super.key, required this.controller});
+  const WorkbenchScreen({super.key, required this.controller, this.fonts});
 
   final WorkbenchController controller;
+
+  /// 字体偏好（画板 70「外观」）。gallery 与单测里可以不给，设置页那一小节就不出现。
+  final FontPrefsController? fonts;
 
   @override
   State<WorkbenchScreen> createState() => _WorkbenchScreenState();
@@ -746,6 +750,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         // 「打开」：目录在资源管理器里开，日志文件用系统默认程序开（都经 url_launcher 的 file: URI）。
         onOpenPath: (path) => launchUrl(Uri.file(path, windows: true)),
         onCopyPath: (path) => Clipboard.setData(ClipboardData(text: path)),
+        fonts: widget.fonts,
+        onOpenUrl: (url) => launchUrl(Uri.parse(url)),
       );
 
   Widget _rightPanel() {

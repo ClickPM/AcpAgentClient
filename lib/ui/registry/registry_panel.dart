@@ -83,9 +83,9 @@ class RegistryPanel extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: <Widget>[
-                const Text('ACP Registry', style: t.TextStyles.title),
+                Text('ACP Registry', style: t.TextStyles.title),
                 const SizedBox(width: t.Spacing.s8),
-                const Expanded(child: Text('Agent Client Protocol 插件市场', style: t.TextStyles.secondary, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                Expanded(child: Text('Agent Client Protocol 插件市场', style: t.TextStyles.secondary, maxLines: 1, overflow: TextOverflow.ellipsis)),
                 if (fetching) ...<Widget>[const Spinner(), const SizedBox(width: t.Spacing.s8)],
                 MouseRegion(
                   cursor: SystemMouseCursors.click,

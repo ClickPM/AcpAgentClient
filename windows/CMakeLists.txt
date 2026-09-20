@@ -116,6 +116,32 @@ install(CODE "
   endif()
   " COMPONENT Runtime)
 
+# Optional fonts (font switching, board 70 "appearance"): shipped in a `fonts/` folder next to the
+# runner, where lib/app/font_prefs.dart discovers them at startup and registers them with FontLoader.
+#
+# These fonts are deliberately NOT declared in pubspec.yaml and NOT committed: MiSans and HarmonyOS Sans
+# are free to embed in an application but their licenses forbid redistributing the font files "on a
+# standalone basis", which a public git repository would be. Declaring them in pubspec.yaml would also
+# make `flutter build` fail outright whenever the files are absent. Runtime registration keeps the repo
+# buildable with zero font files present, and lights the fonts up as soon as they are dropped in.
+#
+# Source folder is assets/fonts/optional/ (gitignored; see its README.md). Checked at *install* time so
+# fonts added after the CMake configure step are still picked up. Missing folder is not an error: those
+# entries then simply show as "not found on this machine" in settings.
+set(ACP_OPTIONAL_FONTS_DIR "${CMAKE_SOURCE_DIR}/../assets/fonts/optional")
+install(CODE "
+  if(EXISTS \"${ACP_OPTIONAL_FONTS_DIR}\")
+    file(GLOB _acp_font_files \"${ACP_OPTIONAL_FONTS_DIR}/*.ttf\" \"${ACP_OPTIONAL_FONTS_DIR}/*.otf\")
+    if(_acp_font_files)
+      file(INSTALL \${_acp_font_files}
+        DESTINATION \"${INSTALL_BUNDLE_LIB_DIR}/fonts\"
+        USE_SOURCE_PERMISSIONS)
+    endif()
+  else()
+    message(STATUS \"optional fonts not found at ${ACP_OPTIONAL_FONTS_DIR}; skipping (see assets/fonts/optional/README.md)\")
+  endif()
+  " COMPONENT Runtime)
+
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/windows/")
 install(DIRECTORY "${NATIVE_ASSETS_DIR}"

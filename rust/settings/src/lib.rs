@@ -9,6 +9,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 
 pub mod index;
 pub mod ui_state;
@@ -73,11 +74,77 @@ impl AgentServer {
     }
 }
 
+/// 外观：四个字体轴，各存一个 family 名（画板 70「外观」小节）。
+///
+/// 键名与 Zed 同形取 `ui_font_family` / `buffer_font_family`（Zed `crates/settings_content/src/theme.rs`）；
+/// 两个 `*_cjk_font_family` 是本客户端自己的——Zed 没有中西文分轴，它靠系统 fallback 兜中文。
+///
+/// **一律 `Option`，缺省是 `None`**：默认字体名是设计 token（`lib/theme/tokens.dart`），
+/// 不在这里再写一份（同 [`ui_state`] 的口径）。没存过就返回 null，由前端落到 token 上。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct Appearance {
+    /// 界面西文。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ui_font_family: Option<String>,
+    /// 界面中文（进 `fontFamilyFallback` 首项）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ui_cjk_font_family: Option<String>,
+    /// 代码等宽西文。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub buffer_font_family: Option<String>,
+    /// 代码等宽中文。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub buffer_cjk_font_family: Option<String>,
+}
+
+/// family 名的最大长度。真实字体家族名远短于此，这里只挡住把整个文件塞进来那种输入。
+const MAX_FAMILY_LEN: usize = 128;
+
+/// 去首尾空白；空串、纯空白、超长、含控制字符的一律当没设置。
+///
+/// 为什么不做白名单：家族名是用户可手写的（系统里装了什么我们不知道），只能做形状校验。
+fn sane_family(value: Option<String>) -> Option<String> {
+    let v = value?;
+    let v = v.trim();
+    if v.is_empty() || v.chars().count() > MAX_FAMILY_LEN || v.chars().any(char::is_control) {
+        return None;
+    }
+    Some(v.to_string())
+}
+
+impl Appearance {
+    /// 四个轴逐个过 [`sane_family`]。读写两侧都过一遍：读是为了兜住手写的脏值，写是为了不把脏值落盘。
+    #[must_use]
+    pub fn sanitized(self) -> Self {
+        Self {
+            ui_font_family: sane_family(self.ui_font_family),
+            ui_cjk_font_family: sane_family(self.ui_cjk_font_family),
+            buffer_font_family: sane_family(self.buffer_font_family),
+            buffer_cjk_font_family: sane_family(self.buffer_cjk_font_family),
+        }
+    }
+}
+
 /// `settings.json` 的顶层。
+///
+/// `extra` 原样保留我们不认识的顶层键（规则 7「不动用户数据」）：这份文件是用户可手写的，
+/// 而 `save` 是整份覆盖写——没有 `extra` 的话，用户加的任何键都会在下一次写盘时被静默抹掉。
+/// R7 之前只有改 agent 设置才写盘，所以没暴露；外观设置让写盘变频繁，必须堵上。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct Settings {
     #[serde(default)]
     pub agent_servers: BTreeMap<String, AgentServer>,
+    #[serde(default, skip_serializing_if = "Appearance::is_default")]
+    pub appearance: Appearance,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+impl Appearance {
+    /// 四个轴全空时不写 `appearance` 键，省得给没动过外观的用户平白多一段。
+    fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
 }
 
 /// 数据目录里的 settings 文件。
@@ -116,6 +183,20 @@ impl SettingsStore {
         settings.agent_servers.insert(agent_id.to_string(), server);
         self.save(&settings)?;
         Ok(settings)
+    }
+
+    /// 读外观设置。文件读不动 / 不是合法 JSON 时**不报错**，回默认（四个轴全空）：
+    /// 字体设置读不出来不该挡住启动，落回 token 默认值即可。
+    pub fn appearance(&self) -> Appearance {
+        self.load().map(|s| s.appearance.sanitized()).unwrap_or_default()
+    }
+
+    /// 覆盖外观设置并落盘，返回落盘后的外观。整段替换而不是合并：四个轴前端一次全给。
+    pub fn set_appearance(&self, appearance: Appearance) -> Result<Appearance> {
+        let mut settings = self.load()?;
+        settings.appearance = appearance.sanitized();
+        self.save(&settings)?;
+        Ok(settings.appearance)
     }
 
     /// 删掉一条并落盘（不存在也算成功），返回落盘后的全量设置。
@@ -220,6 +301,63 @@ mod tests {
         assert!(matches!(store.load(), Err(SettingsError::Json(_))));
         assert!(matches!(store.upsert("x", AgentServer::Registry { env: BTreeMap::new(), extra: BTreeMap::new() }), Err(SettingsError::Json(_))));
         assert_eq!(std::fs::read_to_string(&store.path).expect("read"), "{ not json");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn appearance_round_trip_and_defaults() {
+        let dir = temp_dir("appearance");
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        let store = SettingsStore::new(dir.clone());
+
+        // 没存过 -> 四个轴全空，前端据此落回 token。
+        assert_eq!(store.appearance(), Appearance::default());
+
+        let want = Appearance {
+            ui_font_family: Some("Inter".into()),
+            ui_cjk_font_family: Some("MiSans".into()),
+            buffer_font_family: Some("JetBrains Mono".into()),
+            buffer_cjk_font_family: Some("Sarasa Mono SC".into()),
+        };
+        assert_eq!(store.set_appearance(want.clone()).expect("set"), want);
+        assert_eq!(store.appearance(), want);
+
+        // 四个轴全空时不写 `appearance` 键。
+        store.set_appearance(Appearance::default()).expect("clear");
+        let text = std::fs::read_to_string(&store.path).expect("read");
+        assert!(!text.contains("appearance"), "空外观不该落键: {text}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn appearance_sanitizes_junk() {
+        let junk = Appearance {
+            ui_font_family: Some("   ".into()),                       // 纯空白
+            ui_cjk_font_family: Some("  MiSans  ".into()),            // 去首尾空白
+            buffer_font_family: Some("a".repeat(MAX_FAMILY_LEN + 1)), // 超长
+            buffer_cjk_font_family: Some("Bad\u{7}Name".into()),      // 控制字符
+        }
+        .sanitized();
+        assert_eq!(junk.ui_font_family, None);
+        assert_eq!(junk.ui_cjk_font_family.as_deref(), Some("MiSans"));
+        assert_eq!(junk.buffer_font_family, None);
+        assert_eq!(junk.buffer_cjk_font_family, None);
+    }
+
+    #[test]
+    fn unknown_top_level_keys_survive_a_save() {
+        // 规则 7：settings.json 是用户可手写的，整份覆盖写不能把我们不认识的键抹掉。
+        let dir = temp_dir("extra");
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        let store = SettingsStore::new(dir.clone());
+        std::fs::write(&store.path, r#"{"theme":"One Dark","telemetry":{"diagnostics":false}}"#).expect("write");
+
+        store.set_appearance(Appearance { ui_font_family: Some("Geist".into()), ..Default::default() }).expect("set");
+
+        let back: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&store.path).expect("read")).expect("json");
+        assert_eq!(back["theme"], serde_json::json!("One Dark"), "未知顶层键被抹掉了");
+        assert_eq!(back["telemetry"]["diagnostics"], serde_json::json!(false));
+        assert_eq!(back["appearance"]["ui_font_family"], serde_json::json!("Geist"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

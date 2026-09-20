@@ -67,7 +67,7 @@ class _MermaidBlockState extends State<MermaidBlock> {
             ),
             child: Row(
               children: <Widget>[
-                const Text('mermaid', style: t.TextStyles.monoMeta),
+                Text('mermaid', style: t.TextStyles.monoMeta),
                 const Spacer(),
                 _Segmented(
                   value: _view,
