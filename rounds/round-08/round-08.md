@@ -1,6 +1,6 @@
 # Round 08 — 打包与发布（Windows 端）
 
-> 状态：进行中
+> 状态：已完成（3 轮审查收口，0 条待处理；合并 `main` 的时机等所有者）
 
 ## 目标
 
@@ -29,7 +29,7 @@ Windows 免安装 zip 与 per-user 安装器随包 sidecar 一起交付，并且
 - `sidecar/zed-agent-acp/Cargo.toml`：`version` 由 `1.3.0`（跟着应用抬）改为 `1.21.0`（= zed 钉版本），连同解耦理由的注释。
 - `pins/upstream.json`：zed 条目加 `version` 字段（上游 crate 版本，`vendor/upstream/zed/crates/zed/Cargo.toml`），`notes` 写明它是 sidecar 版本的事实来源。
 - `sidecar/zed-agent-acp/build.rs`：加 `ZED_PINNED_COMMIT`（从 pins 手工扫，不引 serde）；`src/main.rs` 的 `--version` 改为 `zed-agent-acp 1.21.0 (zed @ <commit>)`。
-- `scripts/validate.ps1`：新增「版本门」（应用两处一致；sidecar == pins zed version == vendor zed manifest；sidecar ≠ 应用版本），并把原「Zed 派生文件头注释」一步扩成与 `NOTICE` 双向核对（ROUNDS R8 验收 4）。
+- `scripts/validate.ps1`：新增「版本门」（应用两处一致；sidecar == pins 的 zed `version` == vendor 里 zed manifest 的 version），并把原「Zed 派生文件头注释」一步扩成与 `NOTICE` 双向核对（ROUNDS R8 验收 4）。**原本还判了一条「sidecar ≠ 应用版本」，第 2 轮审查指出它会与前一条死锁，已删**（见下面的 finding 4）。
 - `scripts/package.ps1`（新）：zip（含 / 不含 sidecar）+ Inno Setup 安装器，产物落 `dist/`（已加 `.gitignore`）。
 - `packaging/windows/acp-agent-client.iss`（新）：per-user 安装器脚本，`LICENSE` 进向导，卸载不动 `%APPDATA%\AcpAgentClient`。
 - `scripts/verify-package.ps1`（新）：打包产物的自动化验收（空 `%APPDATA%` 上跑无头自检、随包 sidecar 自检、安装器静默装 / 跑 / 卸）。
@@ -42,7 +42,7 @@ Windows 免安装 zip 与 per-user 安装器随包 sidecar 一起交付，并且
 |---|---|---|
 | 1 | 版本解耦成立 | 抬应用版本（`pubspec.yaml` + `rust/Cargo.toml`）后跑 `scripts/build-sidecar.ps1`：cargo 判 fresh，秒级结束、不重链 |
 | 2 | 解耦前的代价有数 | 改 sidecar `version` 那一次的重链耗时实测记本卡（对照：不改时 8.2 s） |
-| 3 | 版本门拦得住 | `scripts/validate.ps1` 新增 Step PASS；手工把 sidecar 版本改成应用版本时该 Step FAIL |
+| 3 | 版本门拦得住 | `scripts/validate.ps1` 新增 Step PASS；手工把 sidecar 版本改成应用版本（= 典型的「又跟着应用抬」）时该 Step FAIL |
 | 4 | 三件产物 | `scripts/package.ps1` 产出 zip（含 / 不含 sidecar）与 `AcpAgentClient-<版本>-setup.exe`，三个体积数字记本卡 |
 | 5 | 解压即用 / 装得上卸得掉 | `scripts/verify-package.ps1` 全绿（空 `%APPDATA%` 无头往返、随包 sidecar `--version` / `--selftest`、静默装 → 跑 → 静默卸） |
 | 6 | 日志版本行 | 空数据目录首启后 `logs/acp-<日期>.log` 里有 `core AcpAgentClient <版本> (release, windows/x86_64) data=… sidecar=…` |
@@ -94,10 +94,10 @@ Windows 免安装 zip 与 per-user 安装器随包 sidecar 一起交付，并且
 
 ### 第 3 轮（只审整改 diff）
 
-- 范围：`38b8578..HEAD`
-- findings：<回填>
+- 范围：`38b8578..HEAD`（整改提交 `cc6c051`，3 文件）；产物 `.claude/reviews/20260920-174231-review.out.md`
+- findings：**0 条**。逐点复核了「删掉那两处之后『解耦被改回去』还拦不拦得住」：应用 `1.4.0` / zed 钉 `1.21.0` 时，把 sidecar 改成应用号会被「sidecar == pins.zed.version」拦下，`verify-package.ps1` 对二进制 `--version` 的 zed 版本与 commit 两条断言同样过不去；只有应用碰巧升到 `1.21.0` 那一种情况下两者不可区分，而那正是删掉它的理由。删除都是独立 `if`，没有挂 `else`、没有改后续对 `$Matches` / `$appVersion` / `$version` 的消费。
 
-- 结论：<回填>
+- 结论：**整改后 PASS**。3 轮共 4 条 findings（high 0 / P2 2 / P3 2），全部采纳整改，零条记 BACKLOG 放行；末轮 0 条收口，符合 CLAUDE.md 的复审收口标准。
 
 ## 偏离
 
