@@ -2,7 +2,7 @@
 
 <!-- 保存为 rounds/round-7.5/round-7.5.md；该轮其他管理产出放同一目录。编号沿用 R1.5 的写法：夹在 R7 与 R8 之间的纯代码结构轮，无画板。 -->
 
-> 状态：未开始（2026-09-18 起草；2026-09-20 按 main 新合并的 16 个提交复核、基线改到 `5a001bf`、分支 `round-7.5` 已拉出，见 §「2026-09-20 复核」；§「裁定门」六项待所有者拍板，有推荐项的可按推荐项开工并标「待确认」）
+> 状态：进行中——**按推荐项开工，待确认**（2026-09-20 起；裁定门六项全部按推荐项执行：编号 R7.5、组合根 + 8 个对象、直接访问子对象不留转发门面、阶段 A 必做 + 阶段 B 先量后动、不修 BACKLOG 缺陷、validate 加行数门与依赖方向门）。2026-09-18 起草；2026-09-20 按 main 新合并的 16 个提交复核、基线改到 `5a001bf`（实际开工基线 `f62520f` = main = `round-7.5`，只多一个 v1.1.0 版本号提交），见 §「2026-09-20 复核」。本轮在独立 worktree 的分支 `claude/r7-5-composition-root-refactor-7600bf` 上逐步提交（`round-7.5` 在主工作副本已检出、无法在 worktree 再检出），收口时 `round-7.5` 一次 fast-forward 即可。
 
 ## 目标
 
@@ -322,3 +322,22 @@ main 直改期间控制器只被碰了 3 行，说明「前置」里那条「尽
 
 <!-- 完成后回填：基线数字（行数 / 用例数 / 三份报告）、每步的 wc -l、import 列表核对、阶段 B 的 build 计数、
      Windows 真跑命令与输出（规则 9）、与计划的偏离及原因 -->
+
+### 第 0 步：基线（2026-09-20，提交 `f62520f`）
+
+| 项 | 数值 |
+|---|---|
+| `wc -l lib/app/workbench_controller.dart` | 2645 |
+| `scripts/validate.ps1` | 13 项 PASS（`flutter test` 全量 **319** 项通过；任务卡起草时记的 294 是旧数字，以这次实测为准） |
+| `test/app` + `test/ui` 用例数 / `expect(` 行数 | 186 / 798（`grep -cE '^\s*(test|testWidgets)\('` 与 `grep -c 'expect('`） |
+| 三份无头报告 | `rounds/round-7.5/baseline/{r3,r5,r6}.json`（fake-agent，`ok: true`；r3 70 s、r5 2 s、r6 6 s） |
+
+无头报告的跑法（脚本随基线入库：`rounds/round-7.5/baseline/run-report.ps1`，工作目录 `D:\cargo-target\AcpAgentClient75`）：
+每次跑都从模板复制一份**隔离的** `APPDATA`（只有 `settings.json` 的三条 fake 条目 + 一份 `registry-cache` 副本，不碰所有者的真实数据目录，规则 7）
+与一份 git 化的项目目录，所以三份报告逐次可比。参数：r3 = `fake-r3`（`--fs --terminal --terminal-bg --stderr-noise`）+ `ACP_R3_CONFIG=mode=code` +
+两轮（第二轮 2 s 后 cancel）+ 新建分支 + `ACP_R3_KILL=1` + R4 的四项（后台终端 2 s 后停止、本地 shell、文件面板、Follow）；
+r5 = `fake-r5`（无 `FAKE_AGENT_AUTHED`，走 `-32000` → 认证页 → `fake-url` → requestScope 卡 → 自动重试）+ 一轮 + `ACP_R5_IMPORT_ZED=1`（隔离目录里没有 Zed，走错误文案那条路）；
+r6 = `fake-r6`（`--sessions`）+ 三轮（第三轮 2 s 后 cancel）+ `ACP_R6_MODE=ask` + reload + close + resume + delete。
+基线连跑两遍做噪声校准：原始 diff 只有 `elapsedMs`、`taskkill` 块（pid 与文案）与 r6 随机的 `sess_<uuid>`，r5 零差异；
+比对脚本 `compare.py` 只忽略这三样（uuid 按首次出现顺序规范化），其余字段（含 `traffic.byMethod` 的逐方法计数、`seen` 的逐类 update 计数、
+每步的 `error` 文案）全部逐字比。
