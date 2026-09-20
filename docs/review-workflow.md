@@ -1,16 +1,16 @@
-# 独立审查工作流（首选 cursor CLI + grok 4.6 high，回落 Claude Code 子代理）
+# 独立审查工作流（首选 cursor CLI + grok 4.6 high fast，回落 Claude Code 子代理）
 
 > **本文只管「谁来审、怎么发起、结果怎么取回、什么时候回落」。审查的策略**（范围口径 / 复审收口标准 / 审查边界）
 > **正本在 [`CLAUDE.md`](../CLAUDE.md)「开发模式与轮次流程」，本文不复述、只引用。**
 > 审查者读的任务书是 [`.claude/cursor-review-prompt.md`](../.claude/cursor-review-prompt.md)（入库，改契约改它，两级共用）；
 > cursor 路径的启动脚本是 [`.claude/cursor-review.ps1`](../.claude/cursor-review.ps1)，与 agent-xray 的同名脚本**逐字节一致**
-> （2026-09-15 两边同步把 `--plan` 换成 `--mode ask`，原因见「四条容易踩的」第 4 条；**改一边就要同步另一边**）。
+> （2026-09-15 两边同步把 `--plan` 换成 `--mode ask`，原因见「四条容易踩的」第 4 条；2026-09-20 两边同步把默认 `-Model` 换成 `cursor-grok-4.6-high-fast`；**改一边就要同步另一边**）。
 
 ## 0. 执行器（所有者裁定 2026-09-11，沿用 agent-xray）
 
 | 级 | 执行器 | 形态 | 何时用 |
 |---|---|---|---|
-| ① | cursor CLI（`cursor-agent`）+ `cursor-grok-4.6-high` | `.claude/cursor-review.ps1` 后台拉起的独立进程，读实例化后的任务书 | 首选 |
+| ① | cursor CLI（`cursor-agent`）+ `cursor-grok-4.6-high-fast` | `.claude/cursor-review.ps1` 后台拉起的独立进程，读实例化后的任务书 | 首选 |
 | ② | Claude Code 子代理 | 主会话用 Agent 工具委派一个只读子代理，读同一份任务书 | ① 硬失败 |
 
 **硬失败的定义**：`cursor-agent` 未安装 / 未登录 / 启动失败 / 限流 / 后台进程已死而 `.out` 仍空。「等得久」「改动小」不是回落理由。
@@ -40,7 +40,7 @@ powershell -File .claude\cursor-review.ps1 -Wait
 ```
 
 参数：`-Base`（默认 `main`）、`-Scope branch|since|worktree`（默认 `branch` = `<Base>...HEAD`；`since` = `<Base>..HEAD`；`worktree` = 未提交改动）、
-`-Kind review|adversarial`、`-Model`（默认 `cursor-grok-4.6-high`）、`-Note "<本轮要点>"`、`-Wait`。
+`-Kind review|adversarial`、`-Model`（默认 `cursor-grok-4.6-high-fast`）、`-Note "<本轮要点>"`、`-Wait`。
 
 脚本做四件事：验 `cursor-agent` 在位且已登录 → 验 git 范围非空（空 diff 直接拒）→
 把任务书模板实例化（填入范围与要点，`review` 档删掉 adversarial 专属段）→ 后台起 `cursor-agent`，
