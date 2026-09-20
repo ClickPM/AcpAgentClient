@@ -181,6 +181,7 @@ class FontStyles {
     required this.secondary,
     required this.meta,
     required this.label,
+    required this.labelTabular,
     required this.mono,
     required this.monoMeta,
     required this.kbd,
@@ -242,6 +243,16 @@ class FontStyles {
         letterSpacing: 0.66,
         color: Neutral.muted,
       ),
+      labelTabular: TextStyle(
+        fontFamily: sans,
+        fontFamilyFallback: cjk,
+        fontSize: 11,
+        fontWeight: Weights.medium,
+        fontVariations: Weights.mediumVariation,
+        letterSpacing: 0.66,
+        fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+        color: Neutral.placeholder,
+      ),
       mono: TextStyle(
         fontFamily: mono,
         fontFamilyFallback: codeCjk,
@@ -276,6 +287,7 @@ class FontStyles {
   final TextStyle secondary;
   final TextStyle meta;
   final TextStyle label;
+  final TextStyle labelTabular;
   final TextStyle mono;
   final TextStyle monoMeta;
   final TextStyle kbd;
@@ -319,6 +331,10 @@ abstract final class TextStyles {
 
   /// 分组标题：11 / 500 / letter-spacing .06em（画板 00 各分组的标题行）。
   static TextStyle get label => Fonts.styles.label;
+
+  /// 画板 43 标题行：[label] 加等宽数字。不是新字阶——同一档字开 tabular-nums，
+  /// 这样 `Session timeline · N turns` 里的计数变化时标题不会左右跳。
+  static TextStyle get labelTabular => Fonts.styles.labelTabular;
 
   /// mono 12.5 · tabular-nums（用量 / 耗时 / 计数）。
   static TextStyle get mono => Fonts.styles.mono;
@@ -672,4 +688,32 @@ abstract final class Geometry {
   /// 提示条在 Overlay 里的落点。位置由布局代理现算（见 lib/ui/shell/tooltip.dart），但 `Offset(…)` 本身
   /// 是几何字面量、按规则 3 归 tokens.dart，widget 文件里不写——与 [Motion.offsetY] 同一个道理。
   static Offset tooltipOffset(double dx, double dy) => Offset(dx, dy);
+}
+
+/// 画板 43「会话时间线弹层」的 token（画板自己列的「本画板新增 token」表；画板 00 未改，这组值只服务画板 43）。
+abstract final class Timeline {
+  /// `timeline.maxHeight` 主窗口高 × 0.75：弹层总高上限（含内边距与标题行）。
+  /// 存的是系数不是像素——上限随窗口走，算的地方按当帧窗口高乘一次。
+  static const double maxHeightFactor = 0.75;
+
+  /// `timeline.width` 420：弹层宽。画板登记为 `menu.width.inline` 的别名（与画板 42 的 `@` / `/` 菜单同一档），
+  /// 所以这里指过去而不是再写一个 420：改那一档时两边一起动。
+  static const double width = Geometry.menuWidthInline;
+
+  /// `timeline.rail` 1px · border.subtle：导轨竖线。
+  static const Color rail = Borders.subtle;
+  static const double railWidth = Borders.width;
+
+  /// `timeline.railColumn` 16px：导轨列宽，线居中于列（x = 8）。
+  static const double railColumn = 16;
+
+  /// `timeline.node` 6px · #8b8b96：节点直径与颜色（用户行实心、`A` 行空心，空心的描边宽同 [railWidth]）。
+  static const double node = 6;
+  static const Color nodeColor = Neutral.placeholder;
+
+  /// `timeline.label` 24px：标签列宽（两位编号 `01` 与字母 `A` 共用）。
+  static const double label = 24;
+
+  /// `timeline.turnGap` 4px：轮与轮之间的空隙（导轨竖线跨过它不断）。
+  static const double turnGap = Spacing.s4;
 }

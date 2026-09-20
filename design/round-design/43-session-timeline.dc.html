@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet"><style>body{margin:0;background:#fbfbfc}a{color:#4a59c9;text-decoration:none}a:hover{color:#3d4cb5}</style></helmet>
+<div data-screen-label="43" style="width:1200px;min-width:1200px;box-sizing:border-box;padding:24px;background:#fbfbfc;color:#33333d;font-family:Geist,'Noto Sans SC',system-ui,sans-serif;font-size:13px;display:flex;flex-direction:column;gap:18px">
+
+  <div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #e2e2e7;padding-bottom:10px">
+    <span style="font-size:15px;font-weight:500;color:#1e1e26">43 · 会话时间线弹层</span>
+    <span style="font-size:11px;color:#8b8b96">协议来源：session/prompt（轮边界）· user_message_chunk · agent_message_chunk</span>
+    <span style="margin-left:auto;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">解决的问题：几十轮之后，转录区只能靠滚轮翻，找不到第 7 轮问的那句在哪</span>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="font-size:13px;font-weight:500;color:#1e1e26">A · 线程头局部 · history 按钮三态（在 reload 与 ≡ 之间，其余四个不动，gap 2 不变）</div>
+    <div style="display:flex;gap:40px;align-items:flex-start">
+
+      <div style="width:200px;position:relative;padding-bottom:34px">
+        <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">默认</div>
+        <div style="width:200px;height:36px;box-sizing:border-box;display:flex;align-items:center;justify-content:flex-end;gap:2px;padding:0 8px;background:#fbfbfc;border-bottom:1px solid #e2e2e7">
+          <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg></span>
+          <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg></span>
+          <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"></path></svg></span>
+          <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"></path><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path><path d="M12 7v5l4 2"></path></svg></span>
+          <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="16" y2="6"></line><line x1="3" y1="12" x2="16" y2="12"></line><line x1="3" y1="18" x2="16" y2="18"></line><line x1="20" y1="4" x2="20" y2="20"></line></svg></span>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">ghost · 16px 单线 1.5px</div>
+      </div>
+
+      <div style="width:200px;position:relative;padding-bottom:26px">
+        <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">悬浮 + 提示条</div>
+        <div style="width:200px;height:36px;box-sizing:border-box;display:flex;align-items:center;justify-content:flex-end;gap:2px;padding:0 8px;background:#fbfbfc;border-bottom:1px solid #e2e2e7">
+          <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg></span>
+          <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg></span>
+          <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"></path></svg></span>
+          <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#62626e;background:rgba(30,30,38,.06)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"></path><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path><path d="M12 7v5l4 2"></path></svg></span>
+          <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="16" y2="6"></line><line x1="3" y1="12" x2="16" y2="12"></line><line x1="3" y1="18" x2="16" y2="18"></line><line x1="20" y1="4" x2="20" y2="20"></line></svg></span>
+        </div>
+        <div style="position:absolute;left:148px;top:63px;transform:translateX(-50%);background:#ffffff;border:1px solid #e2e2e7;border-radius:4px;padding:4px 8px;font-size:12px;color:#62626e;white-space:nowrap">Session timeline</div>
+      </div>
+
+      <div style="width:200px;position:relative;padding-bottom:34px">
+        <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">打开态（弹层开着）</div>
+        <div style="width:200px;height:36px;box-sizing:border-box;display:flex;align-items:center;justify-content:flex-end;gap:2px;padding:0 8px;background:#fbfbfc;border-bottom:1px solid #e2e2e7">
+          <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg></span>
+          <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg></span>
+          <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"></path></svg></span>
+          <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#4a59c9;background:rgba(30,30,38,.10)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"></path><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path><path d="M12 7v5l4 2"></path></svg></span>
+          <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="16" y2="6"></line><line x1="3" y1="12" x2="16" y2="12"></line><line x1="3" y1="18" x2="16" y2="18"></line><line x1="20" y1="4" x2="20" y2="20"></line></svg></span>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">按下态容器 + accent 图标</div>
+      </div>
+
+      <div style="flex:1;min-width:0;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e;line-height:1.7;padding-top:26px">
+        <div>显示条件与 reload 同规则：有 agent、有会话才渲染（画板 01 状态 2 不画）。</div>
+        <div>提示条照实现现状画：弹层底 + 1px 发丝边 + radius.4 + 8 / 4 内边距，按钮正下方 8px 居中；画板 00 本次不登记 tooltip token。</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:1px;background:#e2e2e7"></div>
+
+  <div style="display:flex;gap:32px;align-items:flex-start">
+
+    <div style="width:700px;display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:13px;font-weight:500;color:#1e1e26">B · 弹层 · 完整样张（5 轮，第 03 轮无 A 行）</div>
+      <div style="position:relative;min-height:352px">
+        <div style="width:200px;margin-left:auto;height:36px;box-sizing:border-box;display:flex;align-items:center;justify-content:flex-end;gap:2px;padding:0 8px;background:#fbfbfc;border-bottom:1px solid #e2e2e7">
+          <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg></span>
+          <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg></span>
+          <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"></path></svg></span>
+          <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#4a59c9;background:rgba(30,30,38,.10)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"></path><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path><path d="M12 7v5l4 2"></path></svg></span>
+          <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="16" y2="6"></line><line x1="3" y1="12" x2="16" y2="12"></line><line x1="3" y1="18" x2="16" y2="18"></line><line x1="20" y1="4" x2="20" y2="20"></line></svg></span>
+        </div>
+        <div style="position:absolute;top:36px;right:38px;width:420px;box-sizing:border-box;background:#ffffff;border:1px solid #e2e2e7;border-radius:6px;box-shadow:0 4px 12px rgba(28,28,35,.10);padding:4px">
+          <div style="height:22px;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:500;letter-spacing:.06em;color:#8b8b96;font-variant-numeric:tabular-nums">Session timeline · 5 turns</div>
+          <div style="position:relative;display:flex;flex-direction:column;gap:4px">
+            <div style="position:absolute;left:8px;top:14px;bottom:14px;width:1px;background:#e2e2e7"></div>
+            <div style="display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;border-radius:50%;background:#8b8b96"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;font-variant-numeric:tabular-nums;color:#62626e">01</span><span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">hi</span></span></div>
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;box-sizing:border-box;border-radius:50%;border:1px solid #8b8b96;background:#ffffff"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">A</span><span style="flex:1;min-width:0;font-size:12px;color:#62626e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">你好！有什么可以帮你的？</span></span></div>
+            </div>
+            <div style="display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;border-radius:50%;background:#8b8b96"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;font-variant-numeric:tabular-nums;color:#62626e">02</span><span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">你是什么模型</span></span></div>
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;box-sizing:border-box;border-radius:50%;border:1px solid #8b8b96;background:#ffffff"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">A</span><span style="flex:1;min-width:0;font-size:12px;color:#62626e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">当前会话跑的是 deepseek-v4-flash（provider: deepseek），思考强度 high</span></span></div>
+            </div>
+            <div style="display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;border-radius:50%;background:#8b8b96"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;font-variant-numeric:tabular-nums;color:#62626e">03</span><span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">你能看到这张图吗</span></span></div>
+            </div>
+            <div style="display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;border-radius:50%;background:#8b8b96"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;font-variant-numeric:tabular-nums;color:#62626e">04</span><span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">你能看到这张图吗</span></span></div>
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;box-sizing:border-box;border-radius:50%;border:1px solid #8b8b96;background:#ffffff"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">A</span><span style="flex:1;min-width:0;font-size:12px;color:#62626e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">能看到。这是 Pi Agent 桌面版的截图，里面有：</span></span></div>
+            </div>
+            <div style="display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;border-radius:50%;background:#8b8b96"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;font-variant-numeric:tabular-nums;color:#62626e">05</span><span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">当前 会话的jsonl保存在哪里</span></span></div>
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;box-sizing:border-box;border-radius:50%;border:1px solid #8b8b96;background:#ffffff"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">A</span><span style="flex:1;min-width:0;font-size:12px;color:#62626e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">当前会话的 JSONL：</span></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">弹层右边缘对齐 history 按钮右边缘，间隙 4；宽 420；第 02 轮的 A 行示范单行截断</div>
+
+      <div style="height:1px;background:#e2e2e7;margin:6px 0"></div>
+
+      <div style="font-size:13px;font-weight:500;color:#1e1e26">E · 空态（有会话、还没有任何一轮）</div>
+      <div style="width:420px;box-sizing:border-box;background:#ffffff;border:1px solid #e2e2e7;border-radius:6px;box-shadow:0 4px 12px rgba(28,28,35,.10);padding:4px">
+        <div style="height:22px;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:500;letter-spacing:.06em;color:#8b8b96;font-variant-numeric:tabular-nums">Session timeline · 0 turns</div>
+        <div style="height:28px;display:flex;align-items:center;padding:0 8px;font-size:12px;color:#8b8b96">No messages in this session yet</div>
+      </div>
+      <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">无导轨、无节点；弹层按内容收窄</div>
+    </div>
+
+    <div style="width:420px;display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:13px;font-weight:500;color:#1e1e26">D · 封顶滚动（30 轮 · 高 675 = 900 × 0.75）</div>
+      <div style="width:420px;height:675px;box-sizing:border-box;background:#ffffff;border:1px solid #e2e2e7;border-radius:6px;box-shadow:0 4px 12px rgba(28,28,35,.10);padding:4px;display:flex;flex-direction:column">
+        <div style="height:22px;flex:none;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:500;letter-spacing:.06em;color:#8b8b96;font-variant-numeric:tabular-nums">Session timeline · 30 turns</div>
+        <div style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end">
+          <div style="position:relative;display:flex;flex-direction:column;gap:4px;flex:none">
+            <div style="position:absolute;left:8px;top:0;bottom:14px;width:1px;background:#e2e2e7"></div>
+            <div style="display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;border-radius:50%;background:#8b8b96"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;font-variant-numeric:tabular-nums;color:#62626e">19</span><span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">把 tokens.dart 里的阴影统一一下</span></span></div>
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;box-sizing:border-box;border-radius:50%;border:1px solid #8b8b96;background:#ffffff"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">A</span><span style="flex:1;min-width:0;font-size:12px;color:#62626e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">已统一为 shadow.popover，共 6 处</span></span></div>
+            </div>
+            <div style="display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;border-radius:50%;background:#8b8b96"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;font-variant-numeric:tabular-nums;color:#62626e">20</span><span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">这个弹层宽度定多少</span></span></div>
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;box-sizing:border-box;border-radius:50%;border:1px solid #8b8b96;background:#ffffff"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">A</span><span style="flex:1;min-width:0;font-size:12px;color:#62626e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">420，与 @ 菜单同一档</span></span></div>
+            </div>
+            <div style="display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;border-radius:50%;background:#8b8b96"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;font-variant-numeric:tabular-nums;color:#62626e">21</span><span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">长列表滚动会不会卡</span></span></div>
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;box-sizing:border-box;border-radius:50%;border:1px solid #8b8b96;background:#ffffff"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">A</span><span style="flex:1;min-width:0;font-size:12px;color:#62626e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">按需构建，行高固定，不会</span></span></div>
+            </div>
+            <div style="display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;border-radius:50%;background:#8b8b96"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;font-variant-numeric:tabular-nums;color:#62626e">22</span><span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">加上下键移动高亮</span></span></div>
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;box-sizing:border-box;border-radius:50%;border:1px solid #8b8b96;background:#ffffff"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">A</span><span style="flex:1;min-width:0;font-size:12px;color:#62626e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">与画板 42 一致，Enter 命中</span></span></div>
+            </div>
+            <div style="display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;border-radius:50%;background:#8b8b96"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;font-variant-numeric:tabular-nums;color:#62626e">23</span><span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">首行怎么截</span></span></div>
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;box-sizing:border-box;border-radius:50%;border:1px solid #8b8b96;background:#ffffff"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">A</span><span style="flex:1;min-width:0;font-size:12px;color:#62626e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">取第一个非空行，去掉行首 Markdown 标记</span></span></div>
+            </div>
+            <div style="display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;border-radius:50%;background:#8b8b96"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;font-variant-numeric:tabular-nums;color:#62626e">24</span><span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">轮编号从几开始</span></span></div>
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;box-sizing:border-box;border-radius:50%;border:1px solid #8b8b96;background:#ffffff"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">A</span><span style="flex:1;min-width:0;font-size:12px;color:#62626e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">从 01 起，满 100 轮自然变三位</span></span></div>
+            </div>
+            <div style="display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;border-radius:50%;background:#8b8b96"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;font-variant-numeric:tabular-nums;color:#62626e">25</span><span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">被打断那一轮怎么画</span></span></div>
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;box-sizing:border-box;border-radius:50%;border:1px solid #8b8b96;background:#ffffff"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">A</span><span style="flex:1;min-width:0;font-size:12px;color:#62626e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">只画编号行，导轨上单节点</span></span></div>
+            </div>
+            <div style="display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;border-radius:50%;background:#8b8b96"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;font-variant-numeric:tabular-nums;color:#62626e">26</span><span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">空态文案定了吗</span></span></div>
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;box-sizing:border-box;border-radius:50%;border:1px solid #8b8b96;background:#ffffff"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">A</span><span style="flex:1;min-width:0;font-size:12px;color:#62626e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">No messages in this session yet</span></span></div>
+            </div>
+            <div style="display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;border-radius:50%;background:#8b8b96"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;font-variant-numeric:tabular-nums;color:#62626e">27</span><span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">点一行是滚动还是直接跳</span></span></div>
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;box-sizing:border-box;border-radius:50%;border:1px solid #8b8b96;background:#ffffff"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">A</span><span style="flex:1;min-width:0;font-size:12px;color:#62626e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">直接跳，0ms，不做滚动动画</span></span></div>
+            </div>
+            <div style="display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;border-radius:50%;background:#8b8b96"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;font-variant-numeric:tabular-nums;color:#62626e">28</span><span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">弹层能拖动吗</span></span></div>
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;box-sizing:border-box;border-radius:50%;border:1px solid #8b8b96;background:#ffffff"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">A</span><span style="flex:1;min-width:0;font-size:12px;color:#62626e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">不能，锚定在按钮正下方</span></span></div>
+            </div>
+            <div style="display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;border-radius:50%;background:#8b8b96"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;font-variant-numeric:tabular-nums;color:#62626e">29</span><span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">要不要在行里加时间戳</span></span></div>
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;box-sizing:border-box;border-radius:50%;border:1px solid #8b8b96;background:#ffffff"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">A</span><span style="flex:1;min-width:0;font-size:12px;color:#62626e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">不加，只留编号与首行</span></span></div>
+            </div>
+            <div style="display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;border-radius:50%;background:#8b8b96"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;font-variant-numeric:tabular-nums;color:#62626e">30</span><span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">那就先这样</span></span></div>
+              <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;box-sizing:border-box;border-radius:50%;border:1px solid #8b8b96;background:#ffffff"></span></span><span style-hover="background:rgba(30,30,38,.06)" style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">A</span><span style="flex:1;min-width:0;font-size:12px;color:#62626e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">好，我把规格表补到画板底部</span></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;line-height:1.7">标题行钉在滚动区之外；内容区内部滚动，视口停在底部（第 30 轮可见）；无可见滚动条；顶部一轮被截断示意上方还有内容</div>
+    </div>
+  </div>
+
+  <div style="height:1px;background:#e2e2e7"></div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="font-size:13px;font-weight:500;color:#1e1e26">C · 行的四态</div>
+    <div style="display:flex;gap:20px;align-items:flex-start">
+
+      <div style="width:264px">
+        <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">默认</div>
+        <div style="width:264px;box-sizing:border-box;background:#ffffff;border:1px solid #e2e2e7;border-radius:6px;padding:4px">
+          <div style="position:relative;display:flex;flex-direction:column">
+            <div style="position:absolute;left:8px;top:14px;bottom:14px;width:1px;background:#e2e2e7"></div>
+            <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;border-radius:50%;background:#8b8b96"></span></span><span style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;font-variant-numeric:tabular-nums;color:#62626e">04</span><span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">你能看到这张图吗</span></span></div>
+            <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;box-sizing:border-box;border-radius:50%;border:1px solid #8b8b96;background:#ffffff"></span></span><span style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">A</span><span style="flex:1;min-width:0;font-size:12px;color:#62626e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">能看到。这是桌面版的截图</span></span></div>
+          </div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">无容器 · 13/500 与 12/400</div>
+      </div>
+
+      <div style="width:264px">
+        <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">悬浮容器 6%</div>
+        <div style="width:264px;box-sizing:border-box;background:#ffffff;border:1px solid #e2e2e7;border-radius:6px;padding:4px">
+          <div style="position:relative;display:flex;flex-direction:column">
+            <div style="position:absolute;left:8px;top:14px;bottom:14px;width:1px;background:#e2e2e7"></div>
+            <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;border-radius:50%;background:#8b8b96"></span></span><span style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;background:rgba(30,30,38,.06)"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;font-variant-numeric:tabular-nums;color:#62626e">04</span><span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">你能看到这张图吗</span></span></div>
+            <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;box-sizing:border-box;border-radius:50%;border:1px solid #8b8b96;background:#ffffff"></span></span><span style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">A</span><span style="flex:1;min-width:0;font-size:12px;color:#62626e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">能看到。这是桌面版的截图</span></span></div>
+          </div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">容器只盖标签列 + 文字列，导轨不在内</div>
+      </div>
+
+      <div style="width:264px">
+        <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">键盘高亮 10%</div>
+        <div style="width:264px;box-sizing:border-box;background:#ffffff;border:1px solid #e2e2e7;border-radius:6px;padding:4px">
+          <div style="position:relative;display:flex;flex-direction:column">
+            <div style="position:absolute;left:8px;top:14px;bottom:14px;width:1px;background:#e2e2e7"></div>
+            <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;border-radius:50%;background:#8b8b96"></span></span><span style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;font-variant-numeric:tabular-nums;color:#62626e">04</span><span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">你能看到这张图吗</span></span></div>
+            <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;box-sizing:border-box;border-radius:50%;border:1px solid #8b8b96;background:#ffffff"></span></span><span style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;background:rgba(30,30,38,.10)"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">A</span><span style="flex:1;min-width:0;font-size:12px;color:#62626e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">能看到。这是桌面版的截图</span></span></div>
+          </div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">上下键移动 · Enter = 点击 · 打开那一下无高亮</div>
+      </div>
+
+      <div style="width:264px">
+        <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">没有 A 行的轮</div>
+        <div style="width:264px;box-sizing:border-box;background:#ffffff;border:1px solid #e2e2e7;border-radius:6px;padding:4px">
+          <div style="position:relative;display:flex;flex-direction:column">
+            <div style="position:absolute;left:8px;top:14px;bottom:14px;width:1px;background:#e2e2e7"></div>
+            <div style="display:flex;align-items:center;height:28px"><span style="width:16px;flex:none;height:28px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1"><span style="width:6px;height:6px;border-radius:50%;background:#8b8b96"></span></span><span style="flex:1;min-width:0;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px"><span style="width:24px;flex:none;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;font-variant-numeric:tabular-nums;color:#62626e">03</span><span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">你能看到这张图吗</span></span></div>
+          </div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">导轨上单节点 · 无 spinner、无占位文案</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:1px;background:#e2e2e7"></div>
+
+  <div style="display:flex;gap:32px;align-items:flex-start">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:13px;font-weight:500;color:#1e1e26">F · 跳转落点（转录区局部）</div>
+      <div style="width:800px;height:240px;box-sizing:border-box;background:#fbfbfc;border:1px solid #e2e2e7;border-radius:6px;padding:16px 24px;position:relative;overflow:hidden">
+        <div style="position:absolute;left:0;right:0;top:16px;border-top:1px dashed #d3d3da"></div>
+        <div style="background:#eeeef1;border-radius:6px;padding:10px 12px;font-size:13px;line-height:1.5;color:#33333d;outline:1.5px solid #5566d8;outline-offset:1px">当前 会话的jsonl保存在哪里</div>
+        <div style="font-size:13px;line-height:1.5;margin-top:14px">当前会话的 JSONL：</div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;background:#eeeef1;border-radius:3px;padding:1px 4px;display:inline-block;margin-top:8px">~/.pi/sessions/2026-09-20/8f3a…c1.jsonl</div>
+        <div style="font-size:13px;line-height:1.5;margin-top:10px;color:#33333d">每轮一条记录，写入时机是回合结束（拿到 stop_reason）。</div>
+      </div>
+      <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">目标块顶边对齐转录区顶部内边距 16（虚线）· 用户气泡落地后进入画板 11 的点击聚焦态 · A 行落地不加任何高亮</div>
+    </div>
+
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:13px;font-weight:500;color:#1e1e26">首行怎么取（实现照它做）</div>
+      <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e;line-height:1.8">
+        <div>用户行 = 该轮用户消息的第一个非空行；@ 提及写成 @name 纯文本，不画芯片；只有图片没有文字的消息写 image。</div>
+        <div>A 行 = 该轮最后一条 agent 文本的第一个非空行（工具调用之间的中间文本不算）；去掉行首 Markdown 标记（#、-、1.、&gt;、代码围栏），去完是空的再往下取一行。</div>
+        <div>轮边界以 session/prompt 为准；编号按轮次序从 01 递增，不因删除或压缩重排。</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:1px;background:#e2e2e7"></div>
+
+  <div style="display:flex;gap:32px;align-items:flex-start">
+    <div style="width:560px">
+      <div style="font-size:13px;font-weight:500;color:#1e1e26;margin-bottom:8px">规格 · 弹层几何与外观</div>
+      <div style="display:grid;grid-template-columns:96px 1fr;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;border-top:1px solid #e2e2e7">
+        <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">项</div>
+        <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">值</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">锚定</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">history 按钮正下方，间隙 popover.below 4；弹层右边缘对齐按钮右边缘，向左展开</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">宽度</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">420（= menu.width.inline，画板 42 同档）</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">最大高度</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">主窗口高 × 0.75（含内边距与标题行）；内容不足按内容收窄，超过时内容区内部滚动</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">容器</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">surface.popover + 1px border.subtle + radius.6 + shadow.popover + 内边距 4（同 40 / 41 / 42）</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">标题行</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">沿用 42 分组标题：高 22 · 11 / 500 · letter-spacing .06em · #8b8b96；文案 Session timeline · N turns，等宽数字；钉在滚动区之外</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">滚动条</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">不画可见滚动条（与 42 一致）</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">出场</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">画板 05 D 组：opacity 0 → 1 + translateY −4 → 0，motion.base 160ms，motion.ease；关闭 0ms；按钮选中容器 0ms 立即出现</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">打开位置</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">打开时滚到底部，最新一轮在视口内</div>
+      </div>
+    </div>
+
+    <div style="flex:1;min-width:0">
+      <div style="font-size:13px;font-weight:500;color:#1e1e26;margin-bottom:8px">规格 · 行与导轨</div>
+      <div style="display:grid;grid-template-columns:96px 1fr;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;border-top:1px solid #e2e2e7">
+        <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">项</div>
+        <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">值</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">导轨列</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">宽 16，1px border.subtle 竖线居中（x=8）贯穿整列；从第一个节点中心画到最后一个节点中心，两端不出头</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">节点</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">6px：用户行实心 #8b8b96；A 行空心（1px #8b8b96 描边 + surface.popover 填充）</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">标签列</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">宽 24，等宽 11 / 等宽数字 / 左对齐；用户行两位编号 01 02 …（#62626e），A 行固定字母 A（#8b8b96）</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">间隙</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">标签列与文字列之间 8</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">文字列</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">余量宽，单行、超出省略号；用户行 13 / 500 / #33333d，A 行 12 / 400 / #62626e</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">行几何</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">高 28（control.standard）· 内边距 0 8 · radius.4；同轮两行紧挨，轮间空 4（space.4），竖线跨过空隙不断</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">悬浮</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">标签列 + 文字列之上 rgba(30,30,38,.06) + radius.4；导轨列不在容器内</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">键盘高亮</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">与 42 一致：上下键移动，高亮行用 rgba(30,30,38,.10)，移出视口自动露出，Enter = 点击；打开那一下没有高亮</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">无 A 行的轮</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">该轮至今无任何 agent 文本（取消 / 失败 / 正在跑还没出字）：只画编号行，导轨上单节点</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:32px;align-items:flex-start">
+    <div style="width:560px">
+      <div style="font-size:13px;font-weight:500;color:#1e1e26;margin-bottom:8px">规格 · 交互</div>
+      <div style="display:grid;grid-template-columns:130px 1fr;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;border-top:1px solid #e2e2e7">
+        <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">动作</div>
+        <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">结果</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">点 history 按钮</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">开弹层；再点一次关（切换）</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">Esc</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">关</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">点弹层之外</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">含转录区、输入框、侧栏：关；那一下点击不再触发别的动作</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">点一行 / Enter</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">转录区 0ms 跳到该条（不做滚动动画），目标块顶边对齐转录区顶部内边距 16；用户行落地后气泡进入画板 11 点击聚焦态（再点别处退出），A 行落地不加高亮；弹层随即 0ms 关闭；「跟着底部走」停掉，与用户自己翻上去同语义</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">空态</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">有会话、还没有任何一轮：只剩标题行 Session timeline · 0 turns + 占位文案 No messages in this session yet（12 / #8b8b96 / 行高 28，无导轨无节点），弹层按内容收窄</div>
+      </div>
+    </div>
+
+    <div style="flex:1;min-width:0">
+      <div style="font-size:13px;font-weight:500;color:#1e1e26;margin-bottom:8px">本画板新增 token（需回写 tokens.dart；画板 00 不改）</div>
+      <div style="display:grid;grid-template-columns:150px 150px 1fr;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;border-top:1px solid #e2e2e7">
+        <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">token</div>
+        <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">值</div>
+        <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">用途</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">timeline.maxHeight</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">主窗口高 × 0.75</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">弹层总高上限（含内边距与标题行）</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">timeline.width</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">420</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">弹层宽（= menu.width.inline，登记别名）</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">timeline.rail</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">1px · border.subtle</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">导轨竖线</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">timeline.railColumn</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">16px</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">导轨列宽，线居中</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">timeline.node</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">6px · #8b8b96</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">节点直径与颜色（用户实心、A 空心 1px）</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">timeline.label</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">24px</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">标签列宽</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">timeline.turnGap</div>
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">4px</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">轮与轮之间的空隙</div>
+      </div>
+      <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">其余（行高、圆角、容器叠色、字阶、阴影、动效）全部复用画板 00 已有的值；本画板不出现这张表与 00 之外的数值。</div>
+    </div>
+  </div>
+
+  <div style="background:#fbeeea;border:1px solid #e2e2e7;border-radius:4px;padding:6px 8px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#bc4e39;line-height:1.7">反例：不做当前位置跟随高亮，不做带编号的迷你滚动指示条；行里不加时间戳、耗时、token 数、模型名、状态徽章；不加搜索框、不加折叠 / 展开；弹层不可拖动、不可调宽，不做成右栏标签或侧栏；不改 reload 与 ≡ 的语义与样式；除画板 01 / 02 / 03 线程头新增的这一个按钮外，不改任何现有画板的布局、间距、字体、颜色、文案；不新增颜色，不新增上表之外的 token。</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1200,&quot;height&quot;:2400}}"></script>
+</body>
+</html>

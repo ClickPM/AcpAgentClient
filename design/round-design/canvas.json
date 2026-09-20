@@ -334,6 +334,15 @@
       "h": 615
     },
     {
+      "file": "43-session-timeline.dc.html",
+      "title": "会话时间线弹层",
+      "page": "page-3",
+      "x": 3840,
+      "y": 0,
+      "w": 1200,
+      "h": 2400
+    },
+    {
       "file": "50-registry.dc.html",
       "title": "Agents 面板（ACP Registry）",
       "page": "page-4",

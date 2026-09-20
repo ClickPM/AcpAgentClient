@@ -1,6 +1,7 @@
 // 画板 01 / 02 / 03 · 线程头：agent 标记 + 标题（`session_info_update.title`，缺省 `New <agent> Thread`）+ 运行中 spinner，
 // 右侧四个动作。画板 01 注：四个动作依能力显示——重命名依赖 `sessionCapabilities`（`canRename`），重载是客户端本地动作
 // （断开 + 重拉 + 新会话），无对应能力时该按钮不渲染；≡ 打开右栏（画板 03 是选中态）与画板 41 的会话菜单。
+// 画板 43：reload 与 ≡ 之间多一个 history（会话时间线弹层），显示条件与 reload 同规则。
 
 import 'package:flutter/widgets.dart';
 
@@ -20,6 +21,8 @@ class ThreadHeader extends StatelessWidget {
     this.running = false,
     this.canRename = true,
     this.canReload = true,
+    this.canTimeline = true,
+    this.timelineSelected = false,
     this.menuSelected = false,
     this.renaming = false,
     this.renameController,
@@ -30,8 +33,10 @@ class ThreadHeader extends StatelessWidget {
     this.onCancelRename,
     this.onNewSession,
     this.onReload,
+    this.onTimeline,
     this.onMenu,
     this.newSessionAnchor,
+    this.timelineAnchor,
     this.menuAnchor,
     this.transitionEpoch,
   });
@@ -51,6 +56,12 @@ class ThreadHeader extends StatelessWidget {
   /// 有已连接的 agent 才给「重载 agent」。
   final bool canReload;
 
+  /// 画板 43：有 agent、有会话才给「会话时间线」（与 [canReload] 同规则）。
+  final bool canTimeline;
+
+  /// 时间线弹层开着（画板 43 A 组第三态：按下态容器 + accent 图标）。
+  final bool timelineSelected;
+
   /// 右栏已展开（画板 03）。
   final bool menuSelected;
 
@@ -66,10 +77,12 @@ class ThreadHeader extends StatelessWidget {
   final VoidCallback? onCancelRename;
   final VoidCallback? onNewSession;
   final VoidCallback? onReload;
+  final VoidCallback? onTimeline;
   final VoidCallback? onMenu;
 
-  /// 画板 41 的「新建会话 · 选 agent」与 ≡ 菜单的弹层锚点（内容由组合根给；gallery 里为 null）。
+  /// 画板 41 的「新建会话 · 选 agent」与 ≡ 菜单、画板 43 时间线的弹层锚点（内容由组合根给；gallery 里为 null）。
   final PopoverHandle? newSessionAnchor;
+  final PopoverHandle? timelineAnchor;
   final PopoverHandle? menuAnchor;
 
   @override
@@ -109,9 +122,20 @@ class ThreadHeader extends StatelessWidget {
           ),
           if (hasAgent && canReload)
             AcpTooltip(message: 'Reload this session', child: IconButtonGhost(icon: AcpIcons.reload, onTap: onReload)),
+          if (hasAgent && canTimeline)
+            AcpTooltip(
+              message: 'Session timeline',
+              child: PopoverAnchor(
+                handle: timelineAnchor,
+                child: _SelectableIconButton(icon: AcpIcons.history, selected: timelineSelected, onTap: onTimeline),
+              ),
+            ),
           AcpTooltip(
             message: 'Tools-sidebar',
-            child: PopoverAnchor(handle: menuAnchor, child: _MenuButton(selected: menuSelected, onTap: onMenu)),
+            child: PopoverAnchor(
+              handle: menuAnchor,
+              child: _SelectableIconButton(icon: AcpIcons.menuLines, selected: menuSelected, onTap: onMenu),
+            ),
           ),
         ],
       ),
@@ -130,9 +154,12 @@ class ThreadHeader extends StatelessWidget {
   }
 }
 
-class _MenuButton extends StatelessWidget {
-  const _MenuButton({required this.selected, this.onTap});
+/// 线程头上带「选中态」的图标按钮：≡（右栏开着）与 history（时间线弹层开着）。
+/// 选中 = 按下态容器 + accent 图标，与 [IconButtonGhost] 的区别只在这一态。
+class _SelectableIconButton extends StatelessWidget {
+  const _SelectableIconButton({required this.icon, required this.selected, this.onTap});
 
+  final String icon;
   final bool selected;
   final VoidCallback? onTap;
 
@@ -148,7 +175,7 @@ class _MenuButton extends StatelessWidget {
           borderRadius: t.Radii.control,
         ),
         alignment: Alignment.center,
-        child: AcpIcon(AcpIcons.menuLines, color: selected ? t.Accent.text : t.Neutral.muted, size: t.IconSizes.toolbar),
+        child: AcpIcon(icon, color: selected ? t.Accent.text : t.Neutral.muted, size: t.IconSizes.toolbar),
       ),
     );
   }

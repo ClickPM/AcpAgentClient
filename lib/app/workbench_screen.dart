@@ -9,16 +9,18 @@ import 'dart:convert';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/gestures.dart' show kPrimaryButton;
-import 'package:flutter/rendering.dart' show ScrollDirection;
+import 'package:flutter/rendering.dart' show RenderAbstractViewport, ScrollDirection;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../projection/entries.dart';
 import '../projection/session_store.dart';
+import '../projection/timeline.dart';
 import '../theme/tokens.dart' as t;
 import '../ui/files/files_panel.dart';
 import '../ui/popovers/composer_popovers.dart';
+import '../ui/popovers/session_timeline.dart';
 import '../ui/popovers/topbar_popovers.dart';
 import '../ui/registry/auth_page.dart';
 import '../ui/registry/registry_entry.dart';
@@ -72,6 +74,15 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   /// 离底部多远还算「在底部」：一格滚轮、一次触控板轻扫都远超这个值，
   /// 而流式增长留下的零头不会被误判成「用户翻上去了」。
   static const double _atBottomSlack = 32;
+
+  /// 画板 43：时间线刚跳到的那条用户气泡（进入画板 11 的点击聚焦态）。转录区里再点一下别处就撤。
+  String? _focusedEntryId;
+
+  /// 正在跳的那一次已经试了几帧（见 [_scheduleJump]）。
+  int _jumpTries = 0;
+
+  /// 估位最多试几帧就收手：够不着就停在估出来的位置，不在这里空转。
+  static const int _maxJumpTries = 8;
 
   WorkbenchController get c => widget.controller;
 
@@ -194,6 +205,9 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   /// 没有画板 40 / 41 那层「点外即关」的透明遮罩，在这里补上（所有者手测 2026-09-18）。
   /// 画板 40 / 41 的弹层开着时点击先落到它们自己的遮罩上、根本到不了这里，两者不会互相打架。
   void _closeInlineMenuOnOutsideTap(PointerDownEvent event) {
+    // 画板 43：转录区里（或壳上任何地方）再点一下就撤掉时间线跳过来的那个聚焦态。
+    // 点在气泡自己身上时它自己的本地聚焦接手，看上去焦点环没动过。
+    if (_focusedEntryId != null) setState(() => _focusedEntryId = null);
     if (!c.inlineMenuOpen) return;
     final box = _composerArea.currentContext?.findRenderObject();
     if (box is RenderBox && box.hasSize && box.paintBounds.contains(box.globalToLocal(event.position))) return;
@@ -344,8 +358,12 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
           onCancelRename: c.cancelRename,
           onNewSession: _openNewSessionPopover,
           onReload: c.reloadAgent,
+          canTimeline: c.hasSession,
+          timelineSelected: c.timelineAnchor.isShowing,
+          onTimeline: _openTimelinePopover,
           onMenu: _openThreadMenu,
           newSessionAnchor: c.newSessionAnchor,
+          timelineAnchor: c.timelineAnchor,
           menuAnchor: c.threadMenuAnchor,
         ),
         body: _body(),
@@ -402,6 +420,9 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
             child: TranscriptList(
               store,
               controller: _transcript,
+              // 画板 43 的跳转落点：只有这一份转录需要行键（gallery / 单测里不开，见 TranscriptList.trackRows）。
+              trackRows: true,
+              focusedEntryId: _focusedEntryId,
               agentName: c.agentDisplayName,
               onLink: _openLink,
               // 画板 18 的 Go to File 与 21 的行点击：落右栏文件面板并定位到行。
@@ -649,6 +670,89 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   /// 现有入口：删除走侧栏的删除图标（画板 04）；Resume / Close 本轮在产品 UI 上没有入口（见任务卡「已知限制」）。
   void _openThreadMenu() {
     c.toggleRightPanel();
+  }
+
+  // ---------------------------------------------------------------- 会话时间线（画板 43）
+
+  /// 线程头 history：开 / 关时间线弹层。右边缘对齐按钮右边缘（按钮贴着中栏右侧，向左展开才落得进窗口）。
+  /// 开着的时候再点这个按钮其实到不了这里：弹层那层透明遮罩先吃掉点击并关掉它（与画板 41 的 ≡ / `+` 一样），
+  /// 「再点一次关」是这么实现的。这里的 [PopoverHandle.isShowing] 分支只是兜底。
+  void _openTimelinePopover() {
+    final store = c.store;
+    if (store == null) return;
+    if (c.timelineAnchor.isShowing) {
+      c.timelineAnchor.hide();
+      setState(() {});
+      return;
+    }
+    c.timelineAnchor.show(
+      (_) => ListenableBuilder(
+        // 弹层开着时这一轮还在跑：轮列表跟着转录长。
+        listenable: store,
+        builder: (context, _) => SessionTimelinePopover(
+          turns: buildTimeline(store.entries),
+          onJump: (row) {
+            c.timelineAnchor.hide();
+            _jumpToEntry(row.entryId, focus: row.isUser);
+          },
+        ),
+      ),
+      targetAnchor: Alignment.bottomRight,
+      followerAnchor: Alignment.topRight,
+      // 点外面 / Esc 关掉时按钮的选中容器要跟着撤（句柄自己不通知组合根）。
+      onDismiss: () {
+        if (mounted) setState(() {});
+      },
+    );
+    // 按钮的选中容器要当帧出现（画板 05 D 组：0ms，不等弹层）。
+    setState(() {});
+  }
+
+  /// 画板 43：跳到某个转录条目，落点是「目标块顶边对齐转录区顶部内边距」，不做滚动动画。
+  ///
+  /// 惰性列表里目标行多半还没建出来（`ListView.builder` 只建视口附近那几行，没建的行没有 RenderObject），
+  /// 所以先按行序比例估一个落点跳过去，下一帧再看目标建出来没有；建出来了就按它的真实位置精确落位。
+  /// 与跟随底部那套多帧纠正同一个套路（见 [_scheduleFollow]），只是方向反过来。
+  void _jumpToEntry(String entryId, {required bool focus}) {
+    final store = c.store;
+    if (store == null) return;
+    final rows = buildRows(store.entries);
+    final index = rows.indexWhere((r) => r is EntryRow && r.entry.id == entryId);
+    if (index < 0) return;
+    final entry = (rows[index] as EntryRow).entry;
+    // 跳到旧内容 = 用户自己翻上去，跟随底部要停掉，否则下一条流式块又把视口拽回最底下。
+    _stick = false;
+    setState(() => _focusedEntryId = focus ? entryId : null);
+    _jumpTries = 0;
+    if (_revealRow(entry)) return;
+    _scheduleJump(entry, index, rows.length);
+  }
+
+  void _scheduleJump(TranscriptEntry entry, int index, int count) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_transcript.hasClients) return;
+      if (_revealRow(entry)) return;
+      if (++_jumpTries > _maxJumpTries) return;
+      // 估位：按行序在总长里的比例。`maxScrollExtent` 对没建出来的那截是按已建行的平均高估的，
+      // 所以每跳一次、建出来的行换一批，估值就更贴一点——几帧内收敛到目标那一屏。
+      final p = _transcript.position;
+      _transcript.jumpTo((p.maxScrollExtent * index / count).clamp(p.minScrollExtent, p.maxScrollExtent));
+      _scheduleJump(entry, index, count);
+    });
+  }
+
+  /// 目标行已经建出来了：按它在视口里的真实位置精确落位。返回 false = 还没建出来。
+  bool _revealRow(TranscriptEntry entry) {
+    final context = transcriptRowKey(entry).currentContext;
+    if (context == null || !_transcript.hasClients) return false;
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.attached) return false;
+    // `getOffsetToReveal(…, 0)` 给的是「目标顶边贴视口顶边」的偏移，再减去转录区顶部内边距，
+    // 目标上方就正好留出画板要的那 16。
+    final reveal = RenderAbstractViewport.of(box).getOffsetToReveal(box, 0).offset - t.Spacing.s16;
+    final p = _transcript.position;
+    _transcript.jumpTo(reveal.clamp(p.minScrollExtent, p.maxScrollExtent));
+    return true;
   }
 
   // ---------------------------------------------------------------- 右栏与流量面板（画板 03 / 80）

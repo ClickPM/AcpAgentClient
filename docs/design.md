@@ -161,7 +161,7 @@ Flutter 宿主进程（Dart）
 - 终端渲染用 `xterm`（pub.dev）；PTY 仍在 Rust 侧 portable-pty，`acp/terminal_output` 推字节，Dart 只渲染。文件对话框与打开 URL 用 Flutter 官方 `file_selector` / `url_launcher`，其余系统交互一律走 Rust。
 - ACP 投影的状态层自己写，约五百行，是唯一不允许第三方替代的部分；规则来自 `prototype/assets/projection.js`。
 - 设计稿存 `design/`：每轮一个子目录，含 `design-prompt.md`（给 Claude Design 的设计简报）、每个画板一个 `.dc.html` 源、`canvas.json` 布局与每个画板一张 PNG 快照；`design/README.md` 是画板索引（编号、名称、`.dc.html`、PNG、画布 URL），画板编号只增不改。`.dc.html` 是设计的唯一事实来源，PNG 是审查与验收的基准，画布上的后续改动不影响已开工轮次；改设计走「先拉回 `.dc.html`、重导 PNG、更新索引，再进轮次」。
-- 页面：会话工作台（消息、思考、工具卡、计划、用量、权限与 elicitation；顶栏的项目与分支切换）；右栏三个标签——文件面板（含终端面板）、agent 管理（registry、custom、认证状态）、设置（2026-09-17 起也是右栏标签）；ACP 流量调试（占会话区，从画板 34 的入口进、点侧栏会话返回）。
+- 页面：会话工作台（消息、思考、工具卡、计划、用量、权限与 elicitation；顶栏的项目与分支切换；线程头 history 开画板 43 的会话时间线弹层）；右栏三个标签——文件面板（含终端面板）、agent 管理（registry、custom、认证状态）、设置（2026-09-17 起也是右栏标签）；ACP 流量调试（占会话区，从画板 34 的入口进、点侧栏会话返回）。
 - 画板要求、文档原本没有的几项，所有者 2026-09-15 按 `ROUNDS.md` § 6 的推荐一并裁定：
   - **项目** = 一个本地目录，作为 `session/new` 的 cwd；顶栏可在已打开项目、最近项目（本地列表）与 `file_selector` 选目录之间切换；不做 Zed 的 worktree 模型。侧栏只列当前项目目录下的会话，换项目时别的目录的会话不露出、正开着的那条放下回空态（2026-09-18，规则在 § 3）。
   - **分支**：顶栏显示当前分支，弹层列本地分支、可搜索、可切换与新建（`git switch` / `git switch -c`）；非 git 目录整块隐藏。
@@ -174,6 +174,7 @@ Flutter 宿主进程（Dart）
   - **分栏宽度**（画板 01–03 的两条分栏线，所有者裁定 2026-09-16）：拖拽命中区 4px 叠在 1px 分栏线上、**不占布局**；侧栏 220–480、右栏 360–900、中栏至少留 360（窗口变窄时先压右栏、再压侧栏）；双击复位到 280 / 580；宽度记在 `ui-state.json`。把手的默认与悬停态见画板 04。文件面板（画板 60）里树列与查看器之间用同一个把手：树列 160–480、查看器至少留 240，双击复位到 240；树列头行那个「缩小」按钮把整列收起（收起后由查看器头行左侧的按钮放回来），宽度与收起态同样记在 `ui-state.json`（所有者裁定 2026-09-17）。
   - **R7 合并后按所有者手测直接定下的交互**（2026-09-17 / 18；设计稿未改的都记在 `rounds/BACKLOG.md`「设计稿补注记」里）：输入框 Enter 发送、Shift+Enter 换行；转录默认跟着底部走、用户翻上去就停，转录区左右留白也在滚动区内；线程头的铅笔就在线程头上改标题；设置是右栏的一个标签（与文件 / Agents 并列），右栏没有关闭键，开合都交给侧栏底部导航；文件面板树列可拖、「缩小」是收起整列；agent 的标记（侧栏会话项、新建会话选 agent 弹层、画板 01 空态的大图标位）都画各 agent 自己的 logo（registry 缓存的 `icon.svg`，内置条目随包带）；侧栏顶部是正式标记（`design/brand/`）；终端面板的键盘输入走硬件按键（Windows 引擎拒了 xterm 的文本输入通道），中文输入法由自建的 `TerminalIme` 接（组字串暂不画在光标处）；终端卡跑完自动收起；弹层内容区封顶 `Geometry.menuMaxHeight` 并内部滚动、搜索框钉在滚动区外，Esc 与点外面都能关，`@` / `/` 菜单支持上下键与 Enter，裸 `@` 列会话 cwd 的一层；壳上 14 个入口有悬停提示（`lib/ui/shell/tooltip.dart`）；权限卡（画板 25）的范围下拉走 `PopoverAnchor` 浮在 Overlay 上（原来画在卡片自己的 Stack 里会被下一张卡压住），三个按钮上的 Alt-Shift-A / Alt-Shift-X / Ctrl-Alt-A 标签已去掉——它们从未接过按键，不做快捷键（所有者裁定 2026-09-18）；画板 05 的转场（新建 / 切换会话、重载 agent、右栏切标签、弹层）与画板 06 的侧栏活动指示（运行中扫掠线、完成未读绿点）已接线，新建会话与重载共用 B 组等待期（转录降到 `opacity.pending`、线程头 spinner）。
   - **字体**：Geist / Geist Mono 随包；CJK 回退随包的 Noto Sans SC（Regular 一档，OFL），不再让中文落到系统的 Microsoft YaHei UI（2026-09-18；原因与「别换成可变字体」的坑见 `pubspec.yaml` 注释）。
+  - **会话时间线**（画板 43，2026-09-20）：线程头 reload 与 ≡ 之间一个 history 按钮，弹层按轮列「用户 query 首行 + 该轮最终回答首行（A）」，点一行转录区跳到那一条。轮的切分按**顶层用户消息**而不是 `TurnEntry`——轮边界只有客户端自己 `session/prompt` 时才放，`session/load` 重放回来的历史一条都没有（Restore 截断点踩过同一个坑）。整份是 `SessionStore.entries` 的纯派生，不新增 `docs/acp-projection.md` § 7 的自造态、不碰协议。
 - 接后端只换数据源，不改样式：接线轮里 `lib/theme/tokens.dart` 与画板 widget 文件应零 diff。
 
 ## 10. 数据目录

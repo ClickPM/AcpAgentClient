@@ -113,6 +113,20 @@ void main() {
       expect(t.TextStyles.body.fontFamilyFallback!.first, 'MiSans');
     });
 
+    test('画板 43 的 labelTabular 也跟着界面轴走（并行分支合并接点）', () {
+      // labelTabular 来自画板 43（会话时间线），合并进来时是 `static const TextStyle`——
+      // 引用了已改成 getter 的 Fonts.sans，编译期就会拦住，所以一并并进 FontStyles。
+      // 这条守住它不会在以后某次合并里被改回一次求值的写法。
+      expect(t.TextStyles.labelTabular.fontFamily, t.Fonts.defaultSans);
+      t.Fonts.apply(sans: 'Inter', cjk: 'MiSans');
+      expect(t.TextStyles.labelTabular.fontFamily, 'Inter');
+      expect(t.TextStyles.labelTabular.fontFamilyFallback!.first, 'MiSans');
+      // 它是 label 档加 tabular-nums，不是新字阶：其余特征要和 label 一致。
+      expect(t.TextStyles.labelTabular.fontSize, t.TextStyles.label.fontSize);
+      expect(t.TextStyles.labelTabular.letterSpacing, t.TextStyles.label.letterSpacing);
+      expect(t.TextStyles.labelTabular.fontFeatures, isNotEmpty);
+    });
+
     test('回退链尾始终留着系统兜底', () {
       t.Fonts.apply(cjk: 'MiSans');
       expect(t.TextStyles.body.fontFamilyFallback, <String>['MiSans', ...t.Fonts.systemCjkFallback]);
