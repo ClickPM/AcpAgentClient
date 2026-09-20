@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "acp-core"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "agent-client-protocol",
  "fs",
@@ -19,7 +19,7 @@ dependencies = [
 
 [[package]]
 name = "acp-smoke"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "acp-core",
  "serde_json",
@@ -28,7 +28,7 @@ dependencies = [
 
 [[package]]
 name = "acp_bridge"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "acp-core",
  "flutter_rust_bridge",
@@ -787,7 +787,7 @@ dependencies = [
 
 [[package]]
 name = "fs"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "notify",
  "serde",
@@ -1800,7 +1800,7 @@ dependencies = [
 
 [[package]]
 name = "pty"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "portable-pty",
 ]
@@ -1880,7 +1880,7 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "registry"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "reqwest",
  "serde",
@@ -2226,7 +2226,7 @@ dependencies = [
 
 [[package]]
 name = "settings"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "serde",
  "serde_json",
