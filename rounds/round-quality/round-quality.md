@@ -1,6 +1,6 @@
 # Round quality — 代码质量清理（七原则评估的第 1–5 项）
 
-> 状态：实现完成、validate 全绿、Windows 实测全过；审查中
+> 状态：**审查通过（3 轮，findings 已清零）**，待所有者裁定合并 `main`
 
 ## 目标
 
@@ -61,10 +61,12 @@ validate 全绿、独立审查清零后合 `main`。第 6 项（桥的四层手�
 | 2 | 全量验证 | `scripts/validate.ps1` → `VALIDATE OK` | PASS（整改后重跑）：15 项全 PASS，`flutter test` 346 项通过（整改前 343，+3 是第 1 轮 finding 2 带来的 mock 通道用例） |
 | 3 | analyzer 零 warning、info 不多于 main 基线（14） | `flutter analyze` | PASS：14 条 info，与 main 基线逐条相同（全在 gallery / test），0 warning。中途曾多一条 `unnecessary_import`（`dart:typed_data`，foundation 已导出），已删 |
 | 4 | Rust 侧 `--locked` | `cargo test / clippy -D warnings --locked` 全过 | PASS（Cargo.lock 只多 4 行：acp-core / acp-smoke → base64 0.22.1 的边） |
-| 5 | 发布包不再带验收驱动 | `flutter build windows --release` 的 exe 在 `ACP_R3_REPORT` 下照常起窗口而不是进无头；`-t lib/main_headless.dart` 那份才进 | PASS：product 构建在 `ACP_R3_REPORT` 下 6 s 后仍活着且有主窗口（`alive=True mainWindow=13110254 reportWritten=False`）；headless 构建在同一变量下进 R3 模式，`ACP_R3_AGENT=no-such-agent` 使其 exit=1 并写出报告（`ok:false`，error「新会话失败…」）。AOT 快照 `data/app.so`：product 15,041,416 B，headless 15,270,792 B（多出的 229,376 B 就是三个驱动 + 探针） |
+| 5 | 发布包不再带验收驱动 | `flutter build windows --release` 的 exe 在 `ACP_R3_REPORT` 下照常起窗口而不是进无头；`-t lib/main_headless.dart` 那份才进 | PASS：product 构建在 `ACP_R3_REPORT` 下 6 s 后仍活着且有主窗口（`alive=True mainWindow=3082008 reportWritten=False`）；headless 构建在同一变量下进 R3 模式，`ACP_R3_AGENT=no-such-agent` 使其 exit=1 并写出报告（`ok:false`，error「新会话失败…」）。AOT 快照 `data/app.so`：product 15,041,416 B，headless 15,270,792 B（多出的 229,376 B 就是三个驱动 + 探针） |
 | 6 | 剪贴板位图（规则 9） | 探针：PowerShell 放一张已知颜色的位图 → `ACP_CLIPBOARD_PROBE` 报告里 `image/png`、尺寸对、左上角像素对 | PASS：`Clipboard::SetImage` 放 64×48 位图（左上红、其余蓝）→ 报告 `image/png`、201 B、64×48、`topLeftRgba [255,0,0,255]`（BGRA → PNG 的通道与行序都对） |
 | 7 | 剪贴板文件列表（规则 9） | 探针：`SetFileDropList` 放一个含中文名的 PNG + 一个非图片 → 报告里只有那张 PNG、路径原样 | PASS：`SetFileDropList([截图 测试.png, notes.txt])` → 只有那张 PNG，`path` 原样 `D:\cargo-target\AcpAgentClient\quality\run\截图 测试.png`（UTF-16 → UTF-8 没丢字），224 B，解出 64×48、左上红；纯文本剪贴板 → `images: []`、`ok:true` |
 | 8 | smoke 自检仍在产品入口 | `scripts/build.ps1 -Smoke` 过 | PASS：product 构建的 exe 在隔离 `APPDATA` 下 `ACP_SMOKE_REPORT` → exit 0，`ok:true`（init / ping / core_ready，coreVersion 1.3.0，droppedEvents 0） |
+
+**验收 2 / 5–8 在三轮审查整改后各复跑一次**，最后一次是在收口提交（第 2 轮整改）上跑的：validate 15 项全 PASS / 346 测试；两份 release 重建 + smoke exit 0；三份剪贴板探针与首轮逐项一致（位图 201 B、中文名文件 224 B、纯文本空，左上像素都是 `[255,0,0,255]`，`skippedTooLarge` 三份都是 false —— 新加的 256 MB 像素门没误伤正常尺寸）。
 
 ## 禁止
 
@@ -84,8 +86,8 @@ validate 全绿、独立审查清零后合 `main`。第 6 项（桥的四层手�
   - **第 2 轮**（2026-09-20 18:23，全量 `main...HEAD` 到 `a61981f`，产物 `.claude/reviews/20260920-182321-review.out.md`）：2 条（high 0 / P2 1 / P3 1），全部采纳整改。第 1 轮那 3 条的整改本身经复核成立（`item` 在 `std::move` 之后不再用、`catch` 里 `items.clear()` 清的是未完成的这一次、settings 对外仍是 `settings: io: <inner>`）。
     1. [P2] 第 1 轮 finding 2 的整改把**两道门共用了一个 `skippedTooLarge` 旗标**，而 `ComposerState` 的提示文案写死 `clipboardImageSizeLimit`（20 MB）：一张 9000×9000 的位图（像素 324 MB，但 PNG 可能只有几百字节）会被报成「图片超过 20 MB」→ 文案改成不写死数字的「图片太大，没有加进输入框」（两道门的数不一样，写死任一个都会谎报）；顺带把「runner 少给 `bgra`」从尺寸门里分出来静默跳过（形状不对不是尺寸问题）。旗标本身保留：静默丢图比文案不精确更糟。
     2. [P3] `rounds/BACKLOG.md` 那条剪贴板条目的句尾还写着「每次粘贴要拉一次 powershell（几百毫秒）」→ 改成「剪贴板里是文本时提前 return，不去读位图」。
-  - **第 3 轮**：待填（范围 `a61981f..HEAD`，只审整改 diff）
-- 结论：待填
+  - **第 3 轮**（2026-09-20 18:32，`a61981f..HEAD` 只审整改 diff，产物 `.claude/reviews/20260920-183201-review.out.md`）：**0 条**，收口。审查者逐条核了旗标与两处 `continue` 的先后顺序（对调就会让 9000×9000 那条静默丢图、第 1 轮 finding 2 回退）、正常位图路径仍完整、全库再无写死的「20 MB」用户文案、BACKLOG 那条没把现行路径写回子进程。
+- 结论：**整改后 PASS**（3 轮：3 条 P2 → 1 条 P2 + 1 条 P3 → 0 条；累计 5 条全部采纳整改，0 条 high，无记 BACKLOG 放行的项）
 
 ## 失败处理
 
@@ -120,6 +122,21 @@ validate 全绿、独立审查清零后合 `main`。第 6 项（桥的四层手�
 调这个函数）。`IconButtonGhost` 改走 `Hoverable` 后整个方块都是点击热区（原来 `GestureDetector` 默认 `deferToChild`，只有
 图标本身可点）——这是对齐悬浮高亮的范围，不是回归。
 
-**BACKLOG 冲突面**：本分支只在 `rounds/BACKLOG.md` 上把两条剪贴板条目标成 `[x]` + 结论、改一条措辞、行数门那条补注、末尾追加四条；
-R8 分支的未提交改动正在把 `[x]` 条目拆到 `BACKLOG-CLOSED.md`，后合并的一方要把这几行照那份新约定挪一下。
+**与 `main` 的关系（2026-09-20 复核）**：本分支基线是 `main@4ddaf2e`，其后 main 已前进到 `de3b73a`（R8 合入 + v1.4.0，6 个提交）。
+`git merge-tree --write-tree HEAD de3b73a` **退出 0，机械上无冲突**；双边都改过的 6 个文件落在不同 hunk：
+
+| 文件 | 本轮改的 | main 改的 |
+|---|---|---|
+| `CLAUDE.md` | 规则 1 加 `base64`、仓库结构行注明 `main_headless.dart` | 规则 11（sidecar 版本解耦）、结构行的 packaging |
+| `docs/design.md` | § 9 剪贴板那一句 | R8 的一行 |
+| `rust/acp-core/src/core.rs` | 删 `adopt_connection` 与手写 `base64_encode` | 加启动 banner（+40 行） |
+| `rust/Cargo.toml` | `[workspace.dependencies]` 加 `base64` | `[workspace.package]` 版本 1.3.0 → 1.4.0 |
+| `rust/Cargo.lock` | acp-core / acp-smoke 的 base64 边 | 工作区四个包的版本号 |
+| `scripts/validate.ps1` | 行数门那条注释 | 新增「版本门」一步（15 → 16 项） |
+
+**合完必须做的两件事**：① `cargo build --locked` 验一次 lock（版本号与依赖边在同一个 `[[package]]` 块里，文本合得上不等于 lock 自洽）；
+② 本卡的 `ROUNDS.md` 进度表行**有意没在本分支加** —— § 7 表的最后一行正是 R8 那行，两边内容不同，在其后追加会人为造一个冲突；合并时再按 main 的最终表追加。
+
+**`rounds/BACKLOG.md` 的约定差异**：本分支按 `main@4ddaf2e` 的老约定就地标 `[x]` + 写结论（两条剪贴板条目），
+而 main 现在已有 `BACKLOG-CLOSED.md`（R8 那批拆出去的）。合并后要把这两条连结论剪到 `BACKLOG-CLOSED.md` 的「工程」小节末尾。
 
