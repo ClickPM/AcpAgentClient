@@ -290,15 +290,15 @@ final List<GalleryBoard> transcriptBoards2 = <GalleryBoard>[
   _page('31-turn-state', '回合态与结束', () {
     final r = FixtureReplay.replay(<String>['01-connect', '02-turn-read', '03-permission-edit', '04-terminal', '05-elicitation-config', '06-compaction', '07-tolerance', '08-end-turn', '18-stop-reasons']);
     final agent = r.sessions.agents[FixtureReplay.agentId];
-    final title = 'New ${agent?.agentTitle ?? agent?.agentName ?? 'Agent'} Thread';
+    final title = 'New ${agent?.agentTitle ?? agent?.agentName ?? 'Agent'} Session';
     return BoardPage(
       number: '31',
       title: '回合态与结束',
       source: 'stopReason 五种 + end-turn usage（unstable_end_turn_token_usage）· session/cancel',
       sections: <BoardSection>[
         BoardSection(
-          '运行中（线程头 spinner + 发送位替换为停止方块）',
-          child: BoardStack(<Widget>[ThreadHeaderRunning(title: title, note: '线程头在回合进行中出 spinner'), const ComposerRunning()]),
+          '运行中（会话头 spinner + 发送位替换为停止方块）',
+          child: BoardStack(<Widget>[SessionHeaderRunning(title: title, note: '会话头在回合进行中出 spinner'), const ComposerRunning()]),
         ),
         BoardSection(
           '五种 stopReason 的结束行',

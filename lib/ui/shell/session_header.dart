@@ -1,4 +1,4 @@
-// 画板 01 / 02 / 03 · 线程头：agent 标记 + 标题（`session_info_update.title`，缺省 `New <agent> Thread`）+ 运行中 spinner，
+// 画板 01 / 02 / 03 · 会话头：agent 标记 + 标题（`session_info_update.title`，缺省 `New <agent> Session`）+ 运行中 spinner，
 // 右侧四个动作。画板 01 注：四个动作依能力显示——重命名依赖 `sessionCapabilities`（`canRename`），重载是客户端本地动作
 // （断开 + 重拉 + 新会话），无对应能力时该按钮不渲染；≡ 打开右栏（画板 03 是选中态）与画板 41 的会话菜单。
 // 画板 43：reload 与 ≡ 之间多一个 history（会话时间线弹层），显示条件与 reload 同规则。
@@ -13,8 +13,8 @@ import 'popover_anchor.dart';
 import 'shell_common.dart';
 import 'tooltip.dart';
 
-class ThreadHeader extends StatelessWidget {
-  const ThreadHeader({
+class SessionHeader extends StatelessWidget {
+  const SessionHeader({
     super.key,
     required this.title,
     this.hasAgent = true,
@@ -154,7 +154,7 @@ class ThreadHeader extends StatelessWidget {
   }
 }
 
-/// 线程头上带「选中态」的图标按钮：≡（右栏开着）与 history（时间线弹层开着）。
+/// 会话头上带「选中态」的图标按钮：≡（右栏开着）与 history（时间线弹层开着）。
 /// 选中 = 按下态容器 + accent 图标，与 [IconButtonGhost] 的区别只在这一态。
 class _SelectableIconButton extends StatelessWidget {
   const _SelectableIconButton({required this.icon, required this.selected, this.onTap});

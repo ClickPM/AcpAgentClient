@@ -222,7 +222,7 @@ class SidebarSearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      // 条高而不是 [t.Controls.input]：侧栏搜索行与中栏线程头共用第二条分割线，32 对 36 会错开 4px。
+      // 条高而不是 [t.Controls.input]：侧栏搜索行与中栏会话头共用第二条分割线，32 对 36 会错开 4px。
       height: t.Geometry.barHeight,
       decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
       padding: const EdgeInsets.only(left: t.Spacing.s12, right: t.Spacing.s8),

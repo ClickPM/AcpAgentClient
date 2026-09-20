@@ -534,7 +534,7 @@ abstract final class Geometry {
   /// 01–04：侧栏宽。
   static const double sidebarWidth = 280;
 
-  /// 01–04：顶栏 / 线程头 / 侧栏头 / 侧栏底部导航的条高。
+  /// 01–04：顶栏 / 会话头 / 侧栏头 / 侧栏底部导航的条高。
   static const double barHeight = 36;
 
   /// 06：运行中的会话项行高 `row.running`（默认态是 48 = [Controls.input] + [Spacing.s16]）。

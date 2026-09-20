@@ -1,4 +1,4 @@
-// 弹层锚点：把触发控件（顶栏的项目名 / 分支名、线程头的 ≡、输入框的 + 与三个下拉…）与画板 40 / 41 / 42 的弹层连起来。
+// 弹层锚点：把触发控件（顶栏的项目名 / 分支名、会话头的 ≡、输入框的 + 与三个下拉…）与画板 40 / 41 / 42 的弹层连起来。
 // 壳的 widget 只负责「把自己包进锚点」并在点击时回调；弹层内容由组合根给（`PopoverHandle.show`），
 // 这样接线阶段不需要改任何 widget 的布局与 token（CLAUDE.md 规则 3）。
 //
@@ -17,7 +17,7 @@ class PopoverHandle {
 
   /// 「要不要显示」归句柄自己管，不放在 `OverlayPortalController` 里：controller 只认**一个**
   /// `_OverlayPortalState`，而 `_OverlayPortalState.dispose()` 是**无条件**把它的 `_attachTarget` 置空的
-  /// （Flutter 3.47 `widgets/overlay.dart`）。触发控件那一行只要增删兄弟节点——线程头连上 agent 后多出
+  /// （Flutter 3.47 `widgets/overlay.dart`）。触发控件那一行只要增删兄弟节点——会话头连上 agent 后多出
   /// 铅笔与重载两个按钮——没写 key 的 `PopoverAnchor` 元素就会被拆掉重建，新元素先 attach、旧元素在帧末
   /// dispose 时又把它解绑：此后 `show()` 只改 controller 自己的 z 序，没有任何 `OverlayPortal` 渲染它，
   /// 点一下「没反应」、再点一下 `isShowing` 翻回 false，于是一次不出一次不出地烙下去
@@ -114,7 +114,7 @@ class _PopoverAnchorState extends State<PopoverAnchor> {
   @override
   void didUpdateWidget(PopoverAnchor oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 元素被复用给另一个句柄（线程头那排动作增删兄弟节点时会发生）：换订阅，并按新句柄的状态重新对齐。
+    // 元素被复用给另一个句柄（会话头那排动作增删兄弟节点时会发生）：换订阅，并按新句柄的状态重新对齐。
     if (oldWidget.handle != widget.handle) {
       oldWidget.handle?._visible.removeListener(_sync);
       widget.handle?._visible.addListener(_sync);

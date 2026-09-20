@@ -36,7 +36,7 @@ void _say(SessionStore store, int from, int count) {
 ScrollPosition _pos(WidgetTester tester) => tester.widget<ListView>(_list).controller!.position;
 
 /// 跟随是 post-frame 里做的，惰性构建还可能要连纠正几帧：给足帧数，但不用 pumpAndSettle
-/// （回合进行中线程头的 spinner 是永不停的动画，会把 pumpAndSettle 拖到超时）。
+/// （回合进行中会话头的 spinner 是永不停的动画，会把 pumpAndSettle 拖到超时）。
 Future<void> _settle(WidgetTester tester) async {
   for (var i = 0; i < 20; i++) {
     await tester.pump(const Duration(milliseconds: 16));

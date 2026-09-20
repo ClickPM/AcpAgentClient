@@ -98,7 +98,7 @@ Future<void> runR6({required String reportPath}) async {
       'sessionId': sessionId,
       'cwd': c.store?.cwd,
       'agentName': c.connection?.agentName,
-      'threadTitle': c.threadTitle,
+      'sessionTitle': c.sessionTitle,
       'commands': <String?>[for (final x in c.store!.commands) x.name],
       'modeDropdown': _modeDropdownSummary(c),
     };
@@ -725,7 +725,7 @@ Future<void> runR3({required String reportPath}) async {
       'cwdMatchesProject': store.cwd == c.project?.path,
       'agentName': c.connection?.agentName,
       'agentTitle': c.connection?.agentTitle,
-      'threadTitle': c.threadTitle,
+      'sessionTitle': c.sessionTitle,
       'capabilities': c.connection?.capabilityNames,
       'configOptions': <String, dynamic>{
         for (final o in store.configOptions) o.id ?? '?': <String, dynamic>{'category': o.category, 'type': o.type},
@@ -744,7 +744,7 @@ Future<void> runR3({required String reportPath}) async {
       'modeDropdown': c.optionOf('mode')?.id,
     };
 
-    // ---- config option（验收 3 末：改一个 config option 后弹层与线程头同步刷新）
+    // ---- config option（验收 3 末：改一个 config option 后弹层与会话头同步刷新）
     trace('session ready');
     final config = _env('ACP_R3_CONFIG');
     if (config != null) {

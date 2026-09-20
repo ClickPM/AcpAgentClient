@@ -33,7 +33,7 @@ import '../ui/shell/motion.dart';
 import '../ui/shell/right_panel.dart';
 import '../ui/shell/shell_common.dart';
 import '../ui/shell/sidebar.dart';
-import '../ui/shell/thread_header.dart';
+import '../ui/shell/session_header.dart';
 import '../ui/shell/topbar.dart';
 import '../ui/shell/transcript_empty.dart';
 import '../ui/terminal/terminal_panel.dart';
@@ -221,7 +221,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         now: DateTime.now(),
         query: c.search,
         selectedId: c.sessionId,
-        // 线程头那支笔就地改（下面的 [ThreadHeader]），别同时把侧栏这一行也切成输入框。
+        // 会话头那支笔就地改（下面的 [SessionHeader]），别同时把侧栏这一行也切成输入框。
         renamingId: c.renamingInHeader ? null : c.renamingSessionId,
         renameController: c.rename,
         renameFocusNode: c.renameFocus,
@@ -339,8 +339,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
 
   Widget _workbenchColumn() => WorkbenchColumn(
         topBar: _topBar(windowControls: _windowControlsInTopBar),
-        threadHeader: ThreadHeader(
-          title: c.threadTitle,
+        sessionHeader: SessionHeader(
+          title: c.sessionTitle,
           hasAgent: c.hasAgent,
           // 等待期（重载 agent / 新建会话）借用同一只 spinner（画板 05 B 组阶段 ①：不新增元素）。
           running: c.isRunning || c.waitingForAgent,
@@ -361,10 +361,10 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
           canTimeline: c.hasSession,
           timelineSelected: c.timelineAnchor.isShowing,
           onTimeline: _openTimelinePopover,
-          onMenu: _openThreadMenu,
+          onMenu: _openSessionMenu,
           newSessionAnchor: c.newSessionAnchor,
           timelineAnchor: c.timelineAnchor,
-          menuAnchor: c.threadMenuAnchor,
+          menuAnchor: c.sessionMenuAnchor,
         ),
         body: _body(),
         composer: _composer(),
@@ -401,7 +401,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
             ..._stateBars(),
             Expanded(
               child: c.hasAgent
-                  ? NewThreadEmpty(title: c.threadTitle, transitionEpoch: c.sessionEpoch, svg: c.agentIconSvg)
+                  ? NewSessionEmpty(title: c.sessionTitle, transitionEpoch: c.sessionEpoch, svg: c.agentIconSvg)
                   : NoAgentEmpty(onOpenAgents: () => c.openTab(ShellTab.agents)),
             ),
           ],
@@ -440,7 +440,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     );
   }
 
-  /// 画板 34：连接状态条与丢弃告警（线程头下）。
+  /// 画板 34：连接状态条与丢弃告警（会话头下）。
   List<Widget> _stateBars() {
     final connection = c.connection;
     return <Widget>[
@@ -607,7 +607,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     c.plusAnchor.showAbove((_) => PlusPopover(
           imageEnabled: c.canPromptImage,
           onFiles: _addFiles,
-          onThreads: _addThread,
+          onSessions: _addSession,
           onImage: _addImage,
           onBranchDiff: _addBranchDiff,
         ));
@@ -630,11 +630,11 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     c.addImage(base64Encode(bytes), file.mimeType ?? imageMimeOf(file.path), path: file.path);
   }
 
-  void _addThread() {
+  void _addSession() {
     c.plusAnchor.hide();
     final text = c.transcriptText();
     if (text.isEmpty) return;
-    c.addEmbeddedResource('acp-thread:${c.sessionId}', text, mimeType: 'text/plain');
+    c.addEmbeddedResource('acp-session:${c.sessionId}', text, mimeType: 'text/plain');
   }
 
   Future<void> _addBranchDiff() async {
@@ -648,7 +648,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     c.addEmbeddedResource('acp-branch-diff:${result['command'] ?? 'git diff'}', text, mimeType: 'text/x-diff');
   }
 
-  // ---------------------------------------------------------------- 线程头的两个弹层（画板 41）
+  // ---------------------------------------------------------------- 会话头的两个弹层（画板 41）
 
   void _openNewSessionPopover() {
     c.newSessionAnchor.toggle(
@@ -656,25 +656,25 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         listenable: c,
         builder: (context, _) => NewSessionAgentPopover(agents: c.installedAgents, onSelect: c.newSession),
       ),
-      // 右对齐：+ 就贴在窗口右边缘上（线程头右侧 padding 只有 8），左对齐的话 240 宽的弹层整块甩出屏外，
+      // 右对齐：+ 就贴在窗口右边缘上（会话头右侧 padding 只有 8），左对齐的话 240 宽的弹层整块甩出屏外，
       // 只剩最左边一条（所有者手测 2026-09-17「选择框被截断」）。
       targetAnchor: Alignment.bottomRight,
       followerAnchor: Alignment.topRight,
     );
   }
 
-  /// 线程头 ≡：右栏开关（画板 03 是右栏展开的选中态）。
+  /// 会话头 ≡：右栏开关（画板 03 是右栏展开的选中态）。
   /// 画板 41 里同一个 ≡ 又是会话菜单，两张画板对它的语义冲突；**所有者裁定 2026-09-16：≡ 保持右栏开关，
   /// 会话菜单要另开入口得先改设计稿**。所以 R6 只接通菜单的动作（`resumeSession` / `closeSession` /
   /// `deleteSession` 与能力裁剪都在组合根里、有单测覆盖），产品里的入口留到改完画板的那一轮。
   /// 现有入口：删除走侧栏的删除图标（画板 04）；Resume / Close 本轮在产品 UI 上没有入口（见任务卡「已知限制」）。
-  void _openThreadMenu() {
+  void _openSessionMenu() {
     c.toggleRightPanel();
   }
 
   // ---------------------------------------------------------------- 会话时间线（画板 43）
 
-  /// 线程头 history：开 / 关时间线弹层。右边缘对齐按钮右边缘（按钮贴着中栏右侧，向左展开才落得进窗口）。
+  /// 会话头 history：开 / 关时间线弹层。右边缘对齐按钮右边缘（按钮贴着中栏右侧，向左展开才落得进窗口）。
   /// 开着的时候再点这个按钮其实到不了这里：弹层那层透明遮罩先吃掉点击并关掉它（与画板 41 的 ≡ / `+` 一样），
   /// 「再点一次关」是这么实现的。这里的 [PopoverHandle.isShowing] 分支只是兜底。
   void _openTimelinePopover() {

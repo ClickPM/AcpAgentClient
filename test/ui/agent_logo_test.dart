@@ -1,4 +1,4 @@
-// 会话的 agent logo（画板 01–04 的 agent 标记）：侧栏会话项、线程头与「新建会话 · 选 agent」弹层画的是
+// 会话的 agent logo（画板 01–04 的 agent 标记）：侧栏会话项、会话头与「新建会话 · 选 agent」弹层画的是
 // **已装 agent 自己的 `icon.svg`**（registry 缓存的那一份，与画板 50 / 51 / 70 的图标框同源），
 // registry 里没有才退回画板的单色占位菱形。守住：按 agentId 查出来（会话按所属 agent、弹层按每条自己的 id）、
 // registry 后到时侧栏会重投影（不会一直停在占位上）、以及 [AgentMark] 真按有没有 svg 分两条路走。
@@ -57,7 +57,7 @@ Future<WorkbenchController> _start(FakeCore core) async {
 }
 
 void main() {
-  test('侧栏会话项与线程头拿的是所属 agent 的 icon.svg', () async {
+  test('侧栏会话项与会话头拿的是所属 agent 的 icon.svg', () async {
     final core = FakeCore()..registry = _registry(<Object?>[_entry(_agent, icon: _svg)]);
     final c = await _start(core);
     expect(c.sidebarSessions.single.iconSvg, _svg);
@@ -117,7 +117,7 @@ void main() {
     Future<void> pump(String? svg) => tester.pumpWidget(
           Directionality(
             textDirection: TextDirection.ltr,
-            child: Center(child: NewThreadEmpty(title: 'New Codex Thread', svg: svg)),
+            child: Center(child: NewSessionEmpty(title: 'New Codex Session', svg: svg)),
           ),
         );
 
