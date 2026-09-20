@@ -2,7 +2,7 @@
 
 > 设计稿已于 2026-09-14 收口（40 张画板；2026-09-17 增画板 05「转场规格」、2026-09-18 增画板 06「侧栏会话活动指示」，现 42 张。清单与计数以 [`design/README.md`](design/README.md) 为准），本文据此把实现拆成 **R0–R8（含 R1.5 spike）**，取代 `docs/design.md` § 11 的草案（2026-09-15）。
 > 本文只管三件事：**哪一轮做什么画板与协议面、验收什么、开工前要所有者裁定什么**。流程、审查与硬性规则在 [`CLAUDE.md`](CLAUDE.md)，任务卡模板在 [`rounds/TEMPLATE.md`](rounds/TEMPLATE.md)，每轮开工 `cp rounds/TEMPLATE.md rounds/round-NN/round-NN.md` 后按本文对应节填。
-> 轮次编号只增不改；R1.5 沿用 CLAUDE.md 规则 1 的写法（Markdown 库 spike）。R7 = sidecar、R8 = 打包，与 CLAUDE.md 仓库结构里的标注一致。
+> 轮次编号只增不改；R1.5 沿用 CLAUDE.md 规则 1 的写法（Markdown 库 spike）。R7 = sidecar、R8 = 打包，与 CLAUDE.md 仓库结构里的标注一致。R7.5 = 组合根拆分（纯代码结构轮，无画板；2026-09-18 起草、2026-09-20 按 main 新合并提交复核，裁定门待所有者拍板）、R7.6 = 字体切换（已完成，见 § 7）；拆完后的缺陷轮拟叫 R7.7。
 
 ## 0. 拆解原则
 
@@ -28,6 +28,7 @@
 | R5 | registry、安装、受管 Node、认证页与设置页 | 50、51、52、70 | codex-acp、Cursor | R3（R4 的右栏框架） | L |
 | R6 | 会话生命周期（list / load / resume / close / delete）、modes 回退、五 agent 全通矩阵收口 | 41（会话菜单与删除确认）、04 复核 | pi-acp + 全部五个 | R4、R5 | M |
 | R7 | zed-agent-acp sidecar | （无新画板；41 新建会话列表出现 Zed Agent） | Zed 内置 agent | R3；建议在 R6 后 | XL |
+| R7.5 | 组合根拆分：`lib/app/workbench_controller.dart`（2645 行单类）拆成组合根 + 8 个对象，行为零变化，`lib/ui` / `lib/theme` / `lib/projection` 零 diff | —（无画板） | fake-agent（无头等价）+ dsh、claude-agent-acp 各一次真跑 | R7、画板 43、R7.6 已合入 main（5a001bf） | L |
 | R8 | 打包与发布：Windows zip + 安装器、macOS、LICENSE、干净机验收 | 01 状态 2（首次启动） | 全部 | R6、R7 | M |
 
 体量只是相对量（S < M < L < XL），不是工时承诺。R7 只依赖 R1 与 R3，若 Zed 构建环境先就绪可提前，但冷编译 30–60 分钟且与主程序无耦合，默认放在 R6 之后。
@@ -331,6 +332,18 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 
 **契约变更**：无（sidecar 走标准 ACP）。
 
+### R7.5 组合根拆分（纯代码结构轮）
+
+**目标**：`lib/app/workbench_controller.dart`（基线 `5a001bf`：2645 行、1 个 `ChangeNotifier`、103 个公有方法、19 段）拆成组合根 + 8 个各管一段的对象（`shell` / `workspace` / `index` / `agents` / `auth` / `composer` / `turn` / `thread` + 共用的 `GuardedNotifier` mixin），**行为零变化**；拆完组合根 ≤ 450 行、`lib/app` 无文件超 900 行、子对象只允许单向依赖、没有子对象 import 组合根。依据：R3 起的增长曲线（901 → 2642）、19 段耦合矩阵两极分化（约 1250 行咬合 / 约 700 行合租）、BACKLOG 17 条相关项里 8 条逻辑缺陷全出在共享 `agentId` / `sessionId` / `store` 的段落。
+
+**交付物**：`lib/app/` 新增 `guarded.dart` / `shell_state.dart` / `workspace_state.dart` / `session_index.dart` / `agents_state.dart` / `auth_state.dart` / `composer_state.dart` / `turn_controller.dart` / `thread_controller.dart`；`workbench_controller.dart` 只剩接线与生命周期；`workbench_screen.dart` / `headless_run.dart` / `test/` 只改成员引用路径（改名表在任务卡附录 A）。不产出新桥命令、新 `_meta` 键、新依赖。
+
+**验收要点**：① `git diff main...HEAD -- lib/ui lib/theme lib/projection lib/bridge rust test/fixtures pubspec.yaml` 为空；② validate 全绿；③ 测试只改路径、用例数与 `expect(` 不变；④ fake-agent 的 `ACP_R3/R5/R6_REPORT` 与基线逐步骤等价；⑤ 行数门与依赖方向门；⑥ Windows 真跑 + 所有者手测弹层锚点搬家后的画板 40 / 41 / 42 / 25 / 05 / 06。
+
+**裁定（开工前，任务卡「裁定门」六项，各有推荐 + 备选）**：编号 R7.5 还是 R9；粒度 8 对象还是保守 3 对象；直接访问子对象还是保留转发门面；通知策略阶段 B 先量后动还是必做；本轮是否顺手修缺陷（推荐不修，紧接 R7.7 修 8 条；R7.6 已被字体切换占用）；validate 是否加行数门与依赖方向门。
+
+**契约变更**：无。文档同步：CLAUDE.md 仓库结构 `lib/app/` 行、本文 § 2 的 `lib/app/` 描述、`docs/design.md` § 9 加「组合根分层」一条。
+
 ### R8 打包与发布
 
 **目标**：Windows 免安装 zip 与安装器，sidecar 随包；macOS 构建；LICENSE 与派生文件清单；在只有系统 Node 的干净 Windows 上，从 registry 安装到发出第一条 prompt 不看文档（`docs/requirements.md` 验收视角）。
@@ -383,6 +396,7 @@ R6 的逐格证据（报告 JSON 路径、能力声明、重放 digest 比对、
 | R5 | § 3 `registry/progress` 与四命令；§ 5 requestScope 落点 | — |
 | R6 | § 3 `session_resume` / `session_delete` / 分页 | — |
 | R7 | § 8 `threads.db` 裁定结果（已落 2026-09-17：配置共用、数据隔离，待所有者确认） | `rounds/BACKLOG.md` 争用条目已关闭；新增 6 条 R7 已知限制 |
+| R7.5 | § 9 加「组合根分层」一条（收口时） | CLAUDE.md 仓库结构 `lib/app/` 行；本文 § 2 `lib/app/` 描述；`rounds/BACKLOG.md` 立项条目关闭、17 条相关条目各补「新家」；若裁定加门则 `scripts/validate.ps1` 两个 Step |
 | R8 | — | README、LICENSE、NOTICE |
 
 ## 6. 设计稿之外与待裁定汇总
@@ -424,4 +438,5 @@ R6 的逐格证据（报告 JSON 路径、能力声明、重放 digest 比对、
 | main 直改（R7 后） | 进行中（2026-09-17 起） | `main` | —（画板 05 / 06 随修复一起入库） | 直接提交 `main`（`44cd33a..HEAD`） | 2026-09-17 两轮 / cursor CLI `--mode ask`（全量 `44cd33a..HEAD`：2 条 P2 1 / P3 1，复审 0 条；产物在 `.claude/reviews/20260917-15*`）。之后各批由所有者逐批指示是否构建、是否走审查：走了的按「发布前审查 → 整改 → 复审」记在提交说明（执行器未逐批记，`.claude/reviews/` 里没有再落产物），未走的在提交说明写明「未构建 / 未审查（所有者指定）」 | 所有者手测报障的修复（按提交顺序）：侧栏删除确认弹层、弹层位置与锚点、用户消息本地回显（`acp-projection.md` § 7 第 8 条）、转录跟随、终端面板硬件按键 + `TerminalIme`、Enter 发送、agent 自己的 logo（侧栏 / 新建弹层 / 空态）、正式 logo 与 `.ico`、右栏去关闭键 / 设置改右栏标签 / 树列可拖、无边框窗口缩放与双击、`@` `/` 键盘导航与裸 `@`、画板 10 废弃、内建 dsh 条目与 DeepSeek 图标（pins 加 `deepseek-harness`）、画板 05 转场 + 新建会话等待期、画板 06 活动指示、Noto Sans SC、图片粘贴与芯片条、一轮失败原因落结束行、弹层封顶滚动 / Esc / 点外面关、终端卡自动收起、14 个 tooltip、会话配置固定档序平铺、新建会话不重连、sidecar 孤儿进程；2026-09-18 五个并行会话的改动合并（16af3d1 侧栏按用户最后发消息时间倒序 + 权限卡范围下拉浮到 Overlay（e6b074f 是空提交，内容随 16af3d1 落地）、354d71d Restore / Regenerate 改按用户气泡定位、0945c42 侧栏只留当前 workspace 的会话 + 换项目时放下别的目录的会话、aa98275 文档同步）：所有者指定由主会话自审（cursor 未用），4 条采纳整改随一个提交落地（收轮写索引不再盖掉发消息时打的时间、换项目撤掉离开侧栏那条的改名态、等待期里不换项目、改名从索引取计数与 cwd），3 条记 BACKLOG；validate 全绿后构建并替换 `D:\tools\AcpAgentClient`。设计稿待补的注记记 BACKLOG（清单见 `design/README.md` 变更记录） |
 | 画板 43（会话时间线） | 已完成 | `session-timeline` | `42ad9fc`（画板 43 拉回 + 01 / 02 / 03 补 history 按钮） | `867251b` | 3 轮 / cursor CLI `--mode ask`（第 1–2 轮全量 `main...HEAD`：各 1 条 P2；第 3 轮只审整改 diff `e44620d..HEAD`：0 条；2 条全部采纳整改） | 简报 `design/round-design/input/revision-03.md`；两条 P2 是同一条路径的两半 —— 弹层原用 `HardwareKeyboard` 全局处理器接键，而全局处理器**挡不住焦点链**（`KeyEventManager` 跑完它还会无条件再发给焦点链），Enter 因此落到输入框被当成「发送」把草稿发出去；改成弹层自己拿焦点后，Tab / 左右键又经默认 Shortcuts 把焦点交回输入框，最终改为除 Esc 外一律 `handled`。`autofocus` 在这里不兑现的真因是域里已有 `focusedChild`（复审订正）。validate 13 项全绿、`flutter test` 294 项通过（新增 37 项）；**未构建、未手测** |
 | R7.6 | 已完成 | `font-switching`（worktree `AcpAgentClient-fonts`） | —（设计稿待补，见下） | — | 3 轮 / cursor CLI `cursor-grok-4.6-high`（第 1 轮全量 `main...HEAD`：3 条 high 1 / P2 2，全部采纳整改；第 2 轮全量复审：**0 条**；第 3 轮合并 `main`（画板 43）之后再全量：**0 条**） | 字体切换四轴（界面西文 / 界面中文 / 代码等宽西文 / 代码等宽中文），所有者裁定 2026-09-20「字体属聚合物 + 随包直选 + 两组互不重叠的下拉」；任务卡 `rounds/round-7.6/round-7.6.md`；validate 全绿（281 测试）；第 1 轮审查抓到 high 1 条：`CardText` 等 14 个 `static final` 样式缓存会把 family 冻在首次访问那一刻，导致「全局生效」原本是假的（自测只断言 `TextStyles.*` 故假通过），已改 getter 并加扫源码的回归测试；**画板 70 的「外观」小节属实现先行、设计稿待补**；随包字体文件需所有者本人下载后放 `assets/fonts/optional/`（协议的点击同意不可由工具绕过），在此之前验收 9 待完成 |
+| R7.5 | 未开始（2026-09-18 起草，2026-09-20 按 main 新合并提交复核，裁定门待拍板） | `round-7.5`（2026-09-20 从 `5a001bf` 拉出） | —（无画板阶段） | — | — | 任务卡 `rounds/round-7.5/round-7.5.md`；基线 `5a001bf`（2645 行；画板 43 只给控制器加了 `timelineAnchor` 3 行，R7.6 零改动）；9 步实施，第 2 步与第 8 步后各一轮全量审查；不修 BACKLOG 缺陷，拆完后建议开 R7.7 修 8 条 |
 | R8 | 未开始 | `round-08` | — | — | — | 前置 R7 已完成；打包时注意 sidecar 体积（release 176.7 MB） |
