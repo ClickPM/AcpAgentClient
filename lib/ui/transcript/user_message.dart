@@ -168,7 +168,7 @@ class _UserMessageState extends State<UserMessage> {
   Widget _editor() {
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(color: t.Neutral.panel, borderRadius: t.Radii.card),
+      decoration: BoxDecoration(color: t.Neutral.panel, borderRadius: t.Radii.card),
       padding: const EdgeInsets.all(t.Spacing.s12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -231,8 +231,8 @@ class _MentionChipState extends State<MentionChip> {
   @override
   Widget build(BuildContext context) {
     final chip = Container(
-      decoration: const BoxDecoration(color: t.Accent.soft, borderRadius: t.Radii.chip),
-      foregroundDecoration: _hover ? const BoxDecoration(color: t.Overlays.hover, borderRadius: t.Radii.chip) : null,
+      decoration: BoxDecoration(color: t.Accent.soft, borderRadius: t.Radii.chip),
+      foregroundDecoration: _hover ? BoxDecoration(color: t.Overlays.hover, borderRadius: t.Radii.chip) : null,
       padding: t.Spacing.chip,
       child: Text(widget.label, style: t.TextStyles.mono.copyWith(color: t.Accent.text)),
     );

@@ -169,6 +169,15 @@ abstract final class AcpIcons {
   /// 61：终端状态行的「清屏」。
   static const String clearScreen = '<rect x="3" y="5" width="18" height="14" rx="2"/><line x1="8" y1="12" x2="16" y2="12"/>';
 
+  /// 侧栏标题条右端的主题切换（画板 07；画板上没画这个按钮，见 rounds/BACKLOG.md 的「设计稿补注记」）。
+  /// 显示的是**切过去**的那一档：浅色时出月亮，深色时出太阳。几何照其余图标的路子（24 视口、单线、圆头）。
+  static const String moon = '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>';
+  static const String sun =
+      '<circle cx="12" cy="12" r="4.5"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/>'
+      '<line x1="4.2" y1="4.2" x2="5.6" y2="5.6"/><line x1="18.4" y1="18.4" x2="19.8" y2="19.8"/>'
+      '<line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/>'
+      '<line x1="4.2" y1="19.8" x2="5.6" y2="18.4"/><line x1="18.4" y1="5.6" x2="19.8" y2="4.2"/>';
+
   /// 全部图标（测试预热 svg 缓存用）。
   static const List<String> all = <String>[
     rotateCcw, pencil, copy, check, arrowDown, spinnerArc, chevronDown, chevronUp, lightbulb, file, checkCircle, search,
@@ -176,7 +185,7 @@ abstract final class AcpIcons {
     alertTriangle, info, plus, arrowUpRight, play, link, dot, lock, slashCircle, diamond,
     panelLeft, gitBranch, settings, folder, plusSquare, reload, rotateCw, menuLines, target, arrowUp,
     arrowRight, arrowLeft, messageSquare, image, command, windowMinimize, windowMaximize, download,
-    chevronRight, collapseAll, clearScreen, history,
+    chevronRight, collapseAll, clearScreen, history, moon, sun,
   ];
 
   /// 完整 SVG 文档：stroke 固定为黑，真实颜色由 [AcpIcon] 的 colorFilter 给，这样同一图标只解析一次。
@@ -207,10 +216,12 @@ class AcpIcon extends StatelessWidget {
 
 /// spinner：accent · 1.5px 弧，持续旋转（tokens Spinner）。
 class Spinner extends StatefulWidget {
-  const Spinner({super.key, this.size = t.IconSizes.toolbar, this.color = t.Spinner.color});
+  const Spinner({super.key, this.size = t.IconSizes.toolbar, this.color});
 
   final double size;
-  final Color color;
+
+  /// 不给就是 [t.Spinner.color]。**可空而不是默认值**：颜色 token 换成了 getter（主题切换），进不了 `const` 默认值。
+  final Color? color;
 
   @override
   State<Spinner> createState() => _SpinnerState();
@@ -229,7 +240,7 @@ class _SpinnerState extends State<Spinner> with SingleTickerProviderStateMixin {
   Widget build(BuildContext context) {
     return RotationTransition(
       turns: _controller,
-      child: AcpIcon(AcpIcons.spinnerArc, color: widget.color, size: widget.size, strokeWidth: t.Spinner.strokeWidth),
+      child: AcpIcon(AcpIcons.spinnerArc, color: widget.color ?? t.Spinner.color, size: widget.size, strokeWidth: t.Spinner.strokeWidth),
     );
   }
 }

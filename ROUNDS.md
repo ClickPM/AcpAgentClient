@@ -45,6 +45,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 | 04 | 侧栏与顶栏状态 | R3 | `sidebar.dart`、`topbar.dart`（会话项、搜索、折叠态） |
 | 05 | 转场规格 | main 直改（2026-09-17） | `lib/ui/shell/motion.dart`（`MotionEnter`，A / B / C / D 四组共用）+ 接线点 `workbench_screen.dart`、`workbench_controller.dart`、`thread_header.dart`、`transcript_empty.dart`、`popover_anchor.dart`；数值在 `tokens.dart` 的 `Motion` / `Opacities` |
 | 06 | 侧栏会话活动指示 | main 直改（2026-09-18） | `sidebar.dart`（`SessionSweepLine` / `SessionUnreadDot` + 会话项的 running / unread 两态）+ 接线点 `workbench_controller.dart`（`runningSessionIds` / `unreadSessionIds`）、`workbench_screen.dart`；数值在 `tokens.dart` 的 `Sweep` / `UnreadDot` / `Geometry` |
+| 07 | 深色 Token 对位表 | `dark-mode-toggle-implementation` 分支（2026-09-20） | `lib/theme/tokens.dart`（`AppTheme` / `ThemeColors` / `Theming` + 颜色 token 全部改 getter）+ `lib/app/appearance_prefs.dart`（原 `font_prefs.dart`，`AppearanceController` 一并管字体与主题）；切换按钮在 `sidebar.dart` 的 `SidebarTitleBar`，接线点 `workbench_screen.dart` / `app.dart`；落盘在 `rust/settings` 的 `Appearance.theme` |
 | 10 | ~~Restore Checkpoint 分隔线~~ 已废弃（2026-09-17） | R2 | 已删除（与画板 11 的 Restore 同一动作） |
 | 11 | 用户消息气泡 | R2 | `lib/ui/transcript/user_message.dart` |
 | 12 | 助手富文本正文 | R2 | `lib/ui/transcript/assistant_text.dart` |

@@ -1,4 +1,5 @@
-// 字体偏好（画板 70「外观」小节）：四个轴各选一款字体，全局生效。
+// 外观偏好（画板 70「外观」小节 + 画板 07「深色 Token 对位表」）：四个字体轴各选一款字体，
+// 外加浅色 / 深色主题，全局生效。
 //
 // 四个轴是「界面西文 / 界面中文 / 代码西文 / 代码中文」。为什么这么分而不是一个「界面字体」下拉：
 // Flutter 里中西文分轴是靠 `fontFamily` + `fontFamilyFallback` 天然成立的——西文字体对 CJK 的 cmap
@@ -9,9 +10,17 @@
 // （随包的 Noto Sans SC 汉字是全角 1em，而 Geist Mono 的 advance 约 0.6em，2×0.6 ≠ 1，现在就是歪的）。
 // 更纱黑体 Sarasa Mono SC 专门做了 2:1 对齐，是这一轴的推荐项。界面场景不在乎这个，所以两轴分开。
 //
-// 持久化在 `settings.json` 的 `appearance` 段（Rust 侧 `settings::Appearance`，键名与 Zed 同形取
-// `ui_font_family` / `buffer_font_family`）。生效方式是把值灌进 `tokens.dart` 的 [t.Fonts.apply]
-// 再 [notifyListeners] 触发重建——tokens 是样式唯一来源（规则 3），这一层只负责选择与落盘。
+// 主题只有浅色 / 深色两档（画板 07：深色只换颜色，间距 / 圆角 / 字阶 / 控件高度 / 动效时长全都一样）。
+// 切换入口是侧栏标题条右端那个按钮（`lib/ui/shell/sidebar.dart`）；画板 70 的「外观」小节还没有这一行，
+// 见 rounds/BACKLOG.md 的「设计稿补注记」。
+//
+// 持久化在 `settings.json` 的 `appearance` 段（Rust 侧 `settings::Appearance`，字体键名与 Zed 同形取
+// `ui_font_family` / `buffer_font_family`，主题是我们自己的 `theme`）。生效方式是把值灌进 `tokens.dart`
+// 的 [t.Fonts.apply] / [t.Theming.apply]，再 [notifyListeners] 触发重建——tokens 是样式唯一来源（规则 3），
+// 这一层只负责选择与落盘。
+//
+// **`appearance` 段是整段替换的**（Rust 侧 `set_appearance`），所以它只能有一个写者：就是
+// [AppearanceController]。要加新的外观项就加在 [AppearancePrefs] 上，不要另起一个控制器去写同一段。
 
 import 'dart:io';
 
@@ -117,7 +126,7 @@ String normalizeFileStem(String name) {
 
 /// 四个轴的候选表。
 ///
-/// **不变量：西文两轴与中文两轴的 family 不得有交集**（理由见文件头），由 `test/app/font_prefs_test.dart` 守住。
+/// **不变量：西文两轴与中文两轴的 family 不得有交集**（理由见文件头），由 `test/app/appearance_prefs_test.dart` 守住。
 /// 西文轴只放对 CJK 覆盖为 0 的纯拉丁字体；中文轴只放 CJK 字体。
 const Map<FontAxis, List<FontChoice>> fontCatalog = <FontAxis, List<FontChoice>>{
   FontAxis.uiLatin: <FontChoice>[
@@ -270,6 +279,58 @@ class FontPrefs {
   String toString() => 'FontPrefs(${toJson()})';
 }
 
+/// 外观设置的全量：四个字体轴 + 主题。`appearance` 段整段落盘，所以这里一次给全。
+@immutable
+class AppearancePrefs {
+  const AppearancePrefs({this.fonts = const FontPrefs(), this.theme});
+
+  factory AppearancePrefs.fromJson(Map<String, Object?> json) =>
+      AppearancePrefs(fonts: FontPrefs.fromJson(json), theme: parseTheme(json[themeSettingsKey]));
+
+  /// `settings.json` 里 `appearance` 段内的键名。不是顶层 `theme`——那个是 Zed 的主题名，我们不碰（规则 7）。
+  static const String themeSettingsKey = 'theme';
+
+  /// 落盘取值：`"light"` / `"dark"`，与 Rust 侧 `settings::sane_theme` 的白名单一致。
+  static String themeValue(t.AppTheme mode) => mode.name;
+
+  /// 读回来的字符串 → 主题。认不出来的（手写的脏值）一律 null = 没设置过，落回缺省。
+  static t.AppTheme? parseTheme(Object? v) {
+    if (v is! String) return null;
+    final String name = v.trim().toLowerCase();
+    for (final t.AppTheme mode in t.AppTheme.values) {
+      if (mode.name == name) return mode;
+    }
+    return null;
+  }
+
+  final FontPrefs fonts;
+
+  /// `null` = 没选过，用 [t.Theming.defaultMode]（不往 `settings.json` 里写死缺省值，口径同字体轴）。
+  final t.AppTheme? theme;
+
+  t.AppTheme get resolvedTheme => theme ?? t.Theming.defaultMode;
+
+  AppearancePrefs withFonts(FontPrefs next) => AppearancePrefs(fonts: next, theme: theme);
+
+  /// 选回缺省档时存 null 而不是档名，理由同 [FontPrefs.withAxis]。
+  AppearancePrefs withTheme(t.AppTheme? mode) =>
+      AppearancePrefs(fonts: fonts, theme: mode == t.Theming.defaultMode ? null : mode);
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    ...fonts.toJson(),
+    if (theme != null) themeSettingsKey: themeValue(theme!),
+  };
+
+  @override
+  bool operator ==(Object other) => other is AppearancePrefs && other.fonts == fonts && other.theme == theme;
+
+  @override
+  int get hashCode => Object.hash(fonts, theme);
+
+  @override
+  String toString() => 'AppearancePrefs(${toJson()})';
+}
+
 /// 可选字体的探测与注册。
 ///
 /// 三个来源按优先级：可执行文件旁的 `fonts/`（随安装包）→ 数据目录的 `fonts/`（用户自己丢的）→ 系统字体目录。
@@ -395,16 +456,22 @@ class FontRegistry {
   }
 }
 
-/// 字体偏好的读写与生效。挂在组合根上，[AcpApp] 监听它重建。
-class FontPrefsController extends ChangeNotifier {
-  FontPrefsController({this.bridge, FontRegistry? registry}) : registry = registry ?? FontRegistry();
+/// 外观偏好的读写与生效。挂在组合根上，[AcpApp] 监听它重建整棵树。
+class AppearanceController extends ChangeNotifier {
+  AppearanceController({this.bridge, FontRegistry? registry}) : registry = registry ?? FontRegistry();
 
   /// 没有桥（gallery / 单测）就只在内存里生效，不落盘。
   final CoreCommands? bridge;
   final FontRegistry registry;
 
-  FontPrefs _prefs = const FontPrefs();
-  FontPrefs get prefs => _prefs;
+  AppearancePrefs _prefs = const AppearancePrefs();
+  AppearancePrefs get prefs => _prefs;
+
+  /// 四个字体轴的当前选择（设置页「外观」小节用）。
+  FontPrefs get fonts => _prefs.fonts;
+
+  /// 当前生效的主题。
+  t.AppTheme get theme => _prefs.resolvedTheme;
 
   /// [start] 与 [setAxis] 里都有 `await`（扫盘、读写设置），期间窗口可能已经关掉。
   /// 对已 dispose 的 [ChangeNotifier] 调 [notifyListeners] 在 debug 下会断言失败，
@@ -417,20 +484,20 @@ class FontPrefsController extends ChangeNotifier {
     super.dispose();
   }
 
-  /// 启动：先扫字体文件，再读设置并生效。任何一步失败都只是回到默认字体，不挡启动。
+  /// 启动：先扫字体文件，再读设置并生效。任何一步失败都只是回到缺省外观，不挡启动。
   Future<void> start() async {
     try {
       await registry.discoverAndLoad();
     } on Object catch (e) {
-      debugPrint('font: 扫描失败，全部回默认: $e');
+      debugPrint('appearance: 字体扫描失败，全部回默认: $e');
     }
-    FontPrefs loaded = const FontPrefs();
+    AppearancePrefs loaded = const AppearancePrefs();
     final CoreCommands? bridge = this.bridge;
     if (bridge != null) {
       try {
-        loaded = FontPrefs.fromJson(await bridge.appearanceGet());
+        loaded = AppearancePrefs.fromJson(await bridge.appearanceGet());
       } on Object catch (e) {
-        debugPrint('font: 读设置失败，回默认: $e');
+        debugPrint('appearance: 读设置失败，回默认: $e');
       }
     }
     if (_disposed) return;
@@ -442,43 +509,45 @@ class FontPrefsController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 改一个轴：立即生效 + 落盘。落盘失败不回滚（界面已经变了，下次启动回到旧值即可），只报错。
-  Future<void> setAxis(FontAxis axis, String? family) async {
-    if (_disposed) return;
-    final FontPrefs next = _prefs.withAxis(axis, family);
-    if (next == _prefs) return;
+  /// 改一个字体轴：立即生效 + 落盘。
+  Future<void> setAxis(FontAxis axis, String? family) =>
+      _update(_prefs.withFonts(_prefs.fonts.withAxis(axis, family)));
+
+  /// 换主题（浅色 ↔ 深色）。
+  Future<void> setTheme(t.AppTheme mode) => _update(_prefs.withTheme(mode));
+
+  /// 侧栏标题条那个按钮：在两档之间来回切。
+  Future<void> toggleTheme() => setTheme(theme == t.AppTheme.dark ? t.AppTheme.light : t.AppTheme.dark);
+
+  /// 整段外观回缺省（四个字体轴 + 主题）。
+  Future<void> resetAll() => _update(const AppearancePrefs());
+
+  /// 改一次外观：立即生效 + 落盘。`appearance` 段整段替换，所以每次都把全量给过去。
+  /// 落盘失败不回滚（界面已经变了，下次启动回到旧值即可），只报错。
+  Future<void> _update(AppearancePrefs next) async {
+    if (_disposed || next == _prefs) return;
     _applyLocally(next, notify: true);
     final CoreCommands? bridge = this.bridge;
     if (bridge == null) return;
     try {
       await bridge.appearanceSet(next.toJson());
     } on Object catch (e) {
-      debugPrint('font: 存设置失败: $e');
-    }
-  }
-
-  /// 四个轴一起回默认。
-  Future<void> resetAll() async {
-    if (_disposed || _prefs == const FontPrefs()) return;
-    _applyLocally(const FontPrefs(), notify: true);
-    final CoreCommands? bridge = this.bridge;
-    if (bridge == null) return;
-    try {
-      await bridge.appearanceSet(const <String, Object?>{});
-    } on Object catch (e) {
-      debugPrint('font: 存设置失败: $e');
+      debugPrint('appearance: 存设置失败: $e');
     }
   }
 
   /// 灌进 tokens。`notify` 只在真的变了时才发，避免无谓重建。
-  void _applyLocally(FontPrefs next, {required bool notify}) {
+  void _applyLocally(AppearancePrefs next, {required bool notify}) {
     _prefs = next;
-    final bool changed = t.Fonts.apply(
-      sans: next.resolved(FontAxis.uiLatin),
-      cjk: next.resolved(FontAxis.uiCjk),
-      mono: next.resolved(FontAxis.codeLatin),
-      codeCjk: next.resolved(FontAxis.codeCjk),
+    final FontPrefs fonts = next.fonts;
+    // 两个 apply 都要跑到：写成 `a || b` 会在字体已经变了的时候短路掉主题那一边。
+    final bool fontsChanged = t.Fonts.apply(
+      sans: fonts.resolved(FontAxis.uiLatin),
+      cjk: fonts.resolved(FontAxis.uiCjk),
+      mono: fonts.resolved(FontAxis.codeLatin),
+      codeCjk: fonts.resolved(FontAxis.codeCjk),
     );
-    if (notify && changed && !_disposed) notifyListeners();
+    final bool themeChanged = t.Theming.apply(next.resolvedTheme);
+    if (notify && (fontsChanged || themeChanged) && !_disposed) notifyListeners();
   }
 }

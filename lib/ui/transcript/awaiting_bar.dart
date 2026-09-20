@@ -62,10 +62,10 @@ class AwaitingDock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final icon = kind == AwaitingKind.permission
-        ? const AcpIcon(AcpIcons.alertTriangle, color: t.Semantic.warning)
-        : const AcpIcon(AcpIcons.info, color: t.Accent.base);
+        ? AcpIcon(AcpIcons.alertTriangle, color: t.Semantic.warning)
+        : AcpIcon(AcpIcons.info, color: t.Accent.base);
     return Container(
-      decoration: const BoxDecoration(color: t.Neutral.panel, borderRadius: t.Radii.card),
+      decoration: BoxDecoration(color: t.Neutral.panel, borderRadius: t.Radii.card),
       padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12, vertical: t.Spacing.s8),
       child: Row(
         children: <Widget>[

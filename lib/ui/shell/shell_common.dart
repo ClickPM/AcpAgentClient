@@ -28,7 +28,7 @@ class AgentMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (empty) {
-      return const SizedBox(
+      return SizedBox(
         width: t.IconSizes.base,
         height: t.IconSizes.base,
         child: CustomPaint(painter: _DashedBoxPainter()),
@@ -70,9 +70,13 @@ class AgentMark extends StatelessWidget {
 
 /// 虚线方框（画板 01 状态 2 的 `No Agent` 与空态图标）。
 class _DashedBoxPainter extends CustomPainter {
-  const _DashedBoxPainter({this.radius = t.Radii.r3});
+  _DashedBoxPainter({this.radius = t.Radii.r3}) : _styleGeneration = t.Fonts.generation;
 
   final Radius radius;
+
+  /// 画笔的颜色是现取的，但 [shouldRepaint] 只比 [radius]，换主题 / 换字体后不会重绘。
+  /// 记下算它时的样式代数，代数变了就重绘（同 `files_panel.dart` 的高亮缓存）。
+  final int _styleGeneration;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -100,7 +104,7 @@ class _DashedBoxPainter extends CustomPainter {
   static const double _gap = t.Spacing.s4 / 2;
 
   @override
-  bool shouldRepaint(_DashedBoxPainter old) => old.radius != radius;
+  bool shouldRepaint(_DashedBoxPainter old) => old.radius != radius || old._styleGeneration != _styleGeneration;
 }
 
 /// 虚线圆角框（画板 01 状态 2 的 32 见方空态图标）。
@@ -115,7 +119,7 @@ class DashedBox extends StatelessWidget {
         width: size,
         height: size,
         child: CustomPaint(
-          painter: const _DashedBoxPainter(radius: t.Radii.r6),
+          painter: _DashedBoxPainter(radius: t.Radii.r6),
           child: Center(child: child),
         ),
       );

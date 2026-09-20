@@ -161,13 +161,13 @@ class AuthMethodPicker extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           CardHeader(
-            leading: const AcpIcon(AcpIcons.lock, color: t.Semantic.warning),
+            leading: AcpIcon(AcpIcons.lock, color: t.Semantic.warning),
             title: '$agentName 需要认证',
             titleStyle: CardText.cardTitle,
             subtitle: 'session/new → -32000',
           ),
           Container(
-            decoration: const BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+            decoration: BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
             padding: const EdgeInsets.all(t.Spacing.s4),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -183,7 +183,7 @@ class AuthMethodPicker extends StatelessWidget {
             ),
           ),
           Container(
-            decoration: const BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+            decoration: BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
             padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12, vertical: t.Spacing.s8),
             child: Row(
               children: <Widget>[
@@ -265,7 +265,7 @@ class RadioDot extends StatelessWidget {
         ),
         alignment: Alignment.center,
         child: selected
-            ? Container(width: t.Geometry.radioDot, height: t.Geometry.radioDot, decoration: const BoxDecoration(shape: BoxShape.circle, color: t.Accent.base))
+            ? Container(width: t.Geometry.radioDot, height: t.Geometry.radioDot, decoration: BoxDecoration(shape: BoxShape.circle, color: t.Accent.base))
             : null,
       );
 }
@@ -342,14 +342,14 @@ class _AuthTerminalCardState extends State<AuthTerminalCard> {
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           CardHeader(
-            leading: const AcpIcon(AcpIcons.terminal, color: t.Neutral.muted),
+            leading: AcpIcon(AcpIcons.terminal, color: t.Neutral.muted),
             title: 'terminal auth · ${widget.label}',
             trailing: <Widget>[
               if (widget.running) ...<Widget>[const Spinner(), StopSquareButton(onTap: widget.onStop)] else Text(exitLabel, style: t.TextStyles.monoMeta),
             ],
           ),
           Container(
-            decoration: const BoxDecoration(color: t.Neutral.panel, border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+            decoration: BoxDecoration(color: t.Neutral.panel, border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
             padding: const EdgeInsets.all(t.Spacing.s12),
             height: t.Geometry.authTerminalHeight,
             child: xt.TerminalView(
@@ -379,7 +379,7 @@ class AuthSucceededCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12, vertical: t.Spacing.s8),
           child: Row(
             children: <Widget>[
-              const AcpIcon(AcpIcons.checkCircle, color: t.Semantic.success),
+              AcpIcon(AcpIcons.checkCircle, color: t.Semantic.success),
               const SizedBox(width: t.Spacing.s8),
               Expanded(
                 child: Column(
@@ -414,7 +414,7 @@ class AuthFailedCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              const AcpIcon(AcpIcons.slashCircle, color: t.Semantic.error),
+              AcpIcon(AcpIcons.slashCircle, color: t.Semantic.error),
               const SizedBox(width: t.Spacing.s8),
               Expanded(
                 child: Column(
@@ -470,7 +470,7 @@ class RequestScopeElicitationCard extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           CardHeader(
-            leading: const AcpIcon(AcpIcons.info, color: t.Accent.base),
+            leading: AcpIcon(AcpIcons.info, color: t.Accent.base),
             title: 'Sign in requested by $who',
             titleStyle: CardText.cardTitle,
             trailing: <Widget>[

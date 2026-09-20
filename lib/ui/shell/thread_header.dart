@@ -90,7 +90,7 @@ class ThreadHeader extends StatelessWidget {
     final inlineEdit = renaming && renameController != null && renameFocusNode != null;
     return Container(
       height: t.Geometry.barHeight,
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
       padding: const EdgeInsets.only(left: t.Spacing.s16, right: t.Spacing.s8),
       child: Row(
         children: <Widget>[

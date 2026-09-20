@@ -112,8 +112,8 @@ class _SmokeScreenState extends State<SmokeScreen> {
                 hintText: '在此输入中文…',
                 hintStyle: t.TextStyles.secondary,
                 contentPadding: t.Controls.padInput,
-                enabledBorder: const OutlineInputBorder(borderRadius: t.Radii.control, borderSide: BorderSide(color: t.Borders.base, width: t.Borders.width)),
-                focusedBorder: const OutlineInputBorder(borderRadius: t.Radii.control, borderSide: BorderSide(color: t.FocusRing.color, width: t.FocusRing.width)),
+                enabledBorder: OutlineInputBorder(borderRadius: t.Radii.control, borderSide: BorderSide(color: t.Borders.base, width: t.Borders.width)),
+                focusedBorder: OutlineInputBorder(borderRadius: t.Radii.control, borderSide: BorderSide(color: t.FocusRing.color, width: t.FocusRing.width)),
               ),
             ),
             const SizedBox(height: t.Spacing.s16),
@@ -121,7 +121,7 @@ class _SmokeScreenState extends State<SmokeScreen> {
             const SizedBox(height: t.Spacing.s8),
             Expanded(
               child: DecoratedBox(
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: t.Surface.panel,
                   borderRadius: t.Radii.card,
                   border: Border.fromBorderSide(BorderSide(color: t.Borders.subtle, width: t.Borders.width)),

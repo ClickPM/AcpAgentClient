@@ -97,7 +97,7 @@ class ImageBlock extends StatelessWidget {
               onTap: uri == null ? null : () => onOpen?.call(uri),
               child: Container(
                 height: t.Geometry.imagePreviewHeight,
-                decoration: const BoxDecoration(color: t.Neutral.surface, borderRadius: t.Radii.control),
+                decoration: BoxDecoration(color: t.Neutral.surface, borderRadius: t.Radii.control),
                 clipBehavior: Clip.antiAlias,
                 alignment: Alignment.center,
                 child: bytes == null
@@ -227,8 +227,8 @@ class _AudioBlockState extends State<AudioBlock> {
                       height: t.Geometry.audioBarHeight,
                       child: Stack(
                         children: <Widget>[
-                          const Positioned.fill(child: ColoredBox(color: t.Borders.subtle)),
-                          FractionallySizedBox(widthFactor: fraction, child: const ColoredBox(color: t.Accent.base)),
+                          Positioned.fill(child: ColoredBox(color: t.Borders.subtle)),
+                          FractionallySizedBox(widthFactor: fraction, child: ColoredBox(color: t.Accent.base)),
                         ],
                       ),
                     ),
@@ -268,9 +268,9 @@ class _PlayButton extends StatelessWidget {
             ? Container(
                 width: t.Spacing.s8,
                 height: t.Spacing.s8,
-                decoration: const BoxDecoration(color: t.Neutral.muted, borderRadius: t.Radii.chip),
+                decoration: BoxDecoration(color: t.Neutral.muted, borderRadius: t.Radii.chip),
               )
-            : const AcpIcon(AcpIcons.play, color: t.Neutral.muted, size: t.IconSizes.toolbar),
+            : AcpIcon(AcpIcons.play, color: t.Neutral.muted, size: t.IconSizes.toolbar),
       ),
     );
   }
@@ -287,7 +287,7 @@ class _IconBox extends StatelessWidget {
     return Container(
       width: t.Controls.standard,
       height: t.Controls.standard,
-      decoration: const BoxDecoration(color: t.Neutral.surface, borderRadius: t.Radii.control),
+      decoration: BoxDecoration(color: t.Neutral.surface, borderRadius: t.Radii.control),
       alignment: Alignment.center,
       child: AcpIcon(icon, color: t.Neutral.muted, size: t.IconSizes.toolbar),
     );
@@ -381,7 +381,7 @@ class EmbeddedTextBlock extends StatelessWidget {
               padding: t.Controls.padStandard,
               child: Row(
                 children: <Widget>[
-                  const AcpIcon(AcpIcons.file, color: t.Neutral.muted, size: t.IconSizes.toolbar),
+                  AcpIcon(AcpIcons.file, color: t.Neutral.muted, size: t.IconSizes.toolbar),
                   const SizedBox(width: t.Spacing.s8),
                   Expanded(child: Text('resource · text · $name', style: t.TextStyles.monoMeta, maxLines: 1, overflow: TextOverflow.ellipsis)),
                 ],

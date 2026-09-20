@@ -23,6 +23,13 @@ List<TimelineTurn> long(int n) => <TimelineTurn>[
 /// （与画板 40 / 41 / 42 的封顶同一个口径，见 menu_overflow_test）。
 const double _chrome = 2 * t.Spacing.s4 + 2 * t.Borders.width;
 
+/// 导轨那条竖线。按颜色认而不是 `find.byType(ColoredBox)`：[Popover] 自己也画了一条 1px 的
+/// 顶边提亮（画板 07 § 2.5，浅色下全透明），按类型找会把它一起捞进来。
+final Finder _rail = find.byWidgetPredicate(
+  (Widget w) => w is ColoredBox && w.color == t.Timeline.rail,
+  description: 'timeline rail',
+);
+
 void main() {
   Future<void> pumpTimeline(
     WidgetTester tester, {
@@ -115,7 +122,7 @@ void main() {
 
     expect(find.text('Session timeline · 0 turns'), findsOneWidget);
     expect(find.text('No messages in this session yet'), findsOneWidget);
-    expect(find.byType(Stack), findsNothing, reason: '空态不画导轨那一层');
+    expect(_rail, findsNothing, reason: '空态不画导轨那一层');
   });
 
   testWidgets('点一行回调该行的条目 id；A 行回调的是回答那一条', (tester) async {
@@ -183,7 +190,7 @@ void main() {
   testWidgets('导轨两端不出头：线顶在第一个节点中心、底在最后一个节点中心', (tester) async {
     await pumpTimeline(tester, turns: sample(), scrollToBottomOnOpen: false);
 
-    final rail = tester.getRect(find.byType(ColoredBox));
+    final rail = tester.getRect(_rail);
     final firstRow = tester.getRect(find.text('01'));
     final lastRow = tester.getRect(find.text('能看到。这是桌面版的截图'));
     expect(rail.top, moreOrLessEquals(firstRow.center.dy, epsilon: 1));

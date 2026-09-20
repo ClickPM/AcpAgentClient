@@ -74,7 +74,7 @@ class RegistryPanel extends StatelessWidget {
 
   Widget _header() => Container(
         padding: const EdgeInsets.only(left: t.Spacing.s16, right: t.Spacing.s16, top: t.Spacing.s16, bottom: t.Spacing.s12),
-        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
@@ -96,7 +96,7 @@ class RegistryPanel extends StatelessWidget {
                       children: <Widget>[
                         Text('Learn More', style: t.TextStyles.secondary.copyWith(color: t.Accent.text)),
                         const SizedBox(width: t.Spacing.s4),
-                        const AcpIcon(AcpIcons.externalLink, color: t.Accent.text, size: t.IconSizes.toolbar),
+                        AcpIcon(AcpIcons.externalLink, color: t.Accent.text, size: t.IconSizes.toolbar),
                       ],
                     ),
                   ),
@@ -119,7 +119,7 @@ class RegistryPanel extends StatelessWidget {
               const SizedBox(height: t.Spacing.s8),
               Row(
                 children: <Widget>[
-                  const AcpIcon(AcpIcons.alertTriangle, color: t.Semantic.warning, size: t.IconSizes.toolbar),
+                  AcpIcon(AcpIcons.alertTriangle, color: t.Semantic.warning, size: t.IconSizes.toolbar),
                   const SizedBox(width: t.Spacing.s4),
                   Expanded(
                     child: Text(

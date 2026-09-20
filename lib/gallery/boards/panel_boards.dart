@@ -200,12 +200,12 @@ Widget _sidebar(ShellTab active) => Sidebar(
 final List<GalleryBoard> panelBoards = <GalleryBoard>[
   _window('60a-files-panel', '文件面板', (_) {
     final r = FixtureReplay.replay(<String>['01-connect', '25-config-options', '19-usage'], upTo: 1);
-    final files = const PanelTab.shell(ShellTab.files);
+    const files = PanelTab.shell(ShellTab.files);
     return AppShell(
       sidebar: _sidebar(ShellTab.files),
       main: _mainColumn(r),
       rightPanel: RightPanel(
-        tabs: <PanelTab>[files, const PanelTab.terminal('term_local_1', 'VariFlightWork')],
+        tabs: const <PanelTab>[files, PanelTab.terminal('term_local_1', 'VariFlightWork')],
         active: files,
         body: FilesPanel(
           tree: _tree(),
@@ -224,7 +224,7 @@ final List<GalleryBoard> panelBoards = <GalleryBoard>[
         Container(
           height: t.Controls.input,
           padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12),
-          decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
+          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
           alignment: Alignment.centerLeft,
           child: Text('查看器空态', style: t.TextStyles.monoMeta),
         ),

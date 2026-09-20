@@ -156,11 +156,11 @@ class _AttachmentChipState extends State<AttachmentChip> {
     return Container(
       height: t.Controls.compact,
       padding: t.Controls.padCompact,
-      decoration: const BoxDecoration(color: t.Accent.soft, borderRadius: t.Radii.chip),
+      decoration: BoxDecoration(color: t.Accent.soft, borderRadius: t.Radii.chip),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          const AcpIcon(AcpIcons.image, size: t.IconSizes.toolbar, color: t.Accent.text),
+          AcpIcon(AcpIcons.image, size: t.IconSizes.toolbar, color: t.Accent.text),
           const SizedBox(width: t.Spacing.s4),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: t.Geometry.composerModelMaxWidth),

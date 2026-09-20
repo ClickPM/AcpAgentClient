@@ -29,8 +29,12 @@ const Map<String, String> _aliases = <String, String>{
   'jsonc': 'json',
 };
 
-/// hljs 11 scope → tokens（画板 13：只用中性色阶 + accent + success + warning + placeholder）。
-const Map<String, TextStyle> codeHighlightTheme = <String, TextStyle>{
+/// hljs 11 scope → tokens（画板 13：只用中性色阶 + accent + success + warning + placeholder；
+/// 深色按画板 07 § 2.8 换成同名 d. 对位值，映射本身一个都不改）。
+///
+/// **getter 而不是 `const` / `static final`**：色表把颜色烘进了 [TextStyle]，存成常量就冻在浅色那一套，
+/// 换主题后代码块还是浅色字（理由同 `card_chrome.dart` 的 `CardText`）。
+Map<String, TextStyle> get codeHighlightTheme => <String, TextStyle>{
   'keyword': TextStyle(color: t.Accent.text),
   'meta-keyword': TextStyle(color: t.Accent.text),
   'literal': TextStyle(color: t.Accent.text),
@@ -104,7 +108,7 @@ class _CodeBlockState extends State<CodeBlock> {
           Container(
             height: t.Controls.standard,
             padding: t.Controls.padStandard,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: t.Neutral.panel,
               border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width)),
             ),
@@ -116,10 +120,10 @@ class _CodeBlockState extends State<CodeBlock> {
                   Container(
                     height: t.Controls.compact,
                     padding: t.Controls.padCompact,
-                    decoration: const BoxDecoration(color: t.Semantic.successSoft, borderRadius: t.Radii.control),
+                    decoration: BoxDecoration(color: t.Semantic.successSoft, borderRadius: t.Radii.control),
                     child: Row(
                       children: <Widget>[
-                        const AcpIcon(AcpIcons.check, color: t.Semantic.success, size: t.IconSizes.toolbar),
+                        AcpIcon(AcpIcons.check, color: t.Semantic.success, size: t.IconSizes.toolbar),
                         const SizedBox(width: t.Spacing.s4),
                         Text('Copied', style: CardText.secondary.copyWith(color: t.Semantic.success)),
                       ],

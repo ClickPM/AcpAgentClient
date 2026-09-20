@@ -404,7 +404,7 @@ class _StopButton extends StatelessWidget {
         child: Container(
           width: t.Spacing.s12,
           height: t.Spacing.s12,
-          decoration: const BoxDecoration(color: t.Semantic.error, borderRadius: t.Radii.chip),
+          decoration: BoxDecoration(color: t.Semantic.error, borderRadius: t.Radii.chip),
         ),
       ),
     );

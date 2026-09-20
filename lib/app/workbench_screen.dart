@@ -42,17 +42,18 @@ import '../ui/transcript/awaiting_bar.dart';
 import '../ui/transcript/plan_card.dart';
 import '../ui/transcript/transcript_list.dart';
 import 'clipboard_image.dart';
-import 'font_prefs.dart';
+import 'appearance_prefs.dart';
 import 'window_controls.dart';
 import 'workbench_controller.dart';
 
 class WorkbenchScreen extends StatefulWidget {
-  const WorkbenchScreen({super.key, required this.controller, this.fonts});
+  const WorkbenchScreen({super.key, required this.controller, this.appearance});
 
   final WorkbenchController controller;
 
-  /// 字体偏好（画板 70「外观」）。gallery 与单测里可以不给，设置页那一小节就不出现。
-  final FontPrefsController? fonts;
+  /// 外观偏好（字体 = 画板 70「外观」，主题 = 画板 07）。gallery 与单测里可以不给：
+  /// 设置页的字体小节不出现，侧栏的主题按钮也不出现。
+  final AppearanceController? appearance;
 
   @override
   State<WorkbenchScreen> createState() => _WorkbenchScreenState();
@@ -243,6 +244,9 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         unreadIds: c.unreadSessionIds,
         // 侧栏标题条与顶栏是同一行：那一段也要能拖窗口、双击最大化。
         dragArea: _dragArea(),
+        // 画板 07：标题条右端的浅色 / 深色切换。没有外观控制器（gallery / 单测）就不画这个按钮。
+        dark: widget.appearance?.theme == t.AppTheme.dark,
+        onToggleTheme: widget.appearance?.toggleTheme,
       );
 
   void _askDelete(String id) {
@@ -854,7 +858,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         // 「打开」：目录在资源管理器里开，日志文件用系统默认程序开（都经 url_launcher 的 file: URI）。
         onOpenPath: (path) => launchUrl(Uri.file(path, windows: true)),
         onCopyPath: (path) => Clipboard.setData(ClipboardData(text: path)),
-        fonts: widget.fonts,
+        appearance: widget.appearance,
         onOpenUrl: (url) => launchUrl(Uri.parse(url)),
       );
 

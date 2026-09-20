@@ -130,7 +130,7 @@ class ConfigSelectPopover extends StatelessWidget {
       if (g.name != null) rows.add(MenuGroupLabel(g.name!));
       for (final c in visible) {
         rows.add(MenuRow(
-          leading: showLeadingMark ? const AcpIcon(AcpIcons.dashedCircle, color: t.Neutral.muted, size: t.IconSizes.toolbar) : null,
+          leading: showLeadingMark ? AcpIcon(AcpIcons.dashedCircle, color: t.Neutral.muted, size: t.IconSizes.toolbar) : null,
           label: c.name,
           selected: c.value == current,
           forceHover: c.value == hoveredValue,

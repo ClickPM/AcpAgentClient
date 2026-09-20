@@ -161,7 +161,7 @@ class MarkdownBlock extends StatelessWidget {
       case 'blockquote':
         return Container(
           padding: const EdgeInsets.only(left: t.Spacing.s12),
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             border: Border(left: BorderSide(color: t.Borders.base, width: t.Borders.width * 2)),
           ),
           child: Column(
@@ -174,8 +174,8 @@ class MarkdownBlock extends StatelessWidget {
           ),
         );
       case 'hr':
-        return const Padding(
-          padding: EdgeInsets.symmetric(vertical: t.Spacing.s8),
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: t.Spacing.s8),
           child: SizedBox(height: t.Borders.width, child: ColoredBox(color: t.Borders.subtle)),
         );
       case 'pre':
@@ -318,7 +318,7 @@ class MarkdownBlock extends StatelessWidget {
         final href = node.attributes['href'] ?? '';
         final cb = onLink;
         final owner = links;
-        final span = TextSpan(style: const TextStyle(color: t.Accent.text), children: <InlineSpan>[inlines(node.children, base)]);
+        final span = TextSpan(style: TextStyle(color: t.Accent.text), children: <InlineSpan>[inlines(node.children, base)]);
         if (cb == null || owner == null) return span;
         // RichText 命中测试只看最内层 TextSpan 的 recognizer，所以要下推到每个叶子；recognizer 由 MarkdownBody 的 State 释放。
         return _withRecognizer(span, owner.create(() => cb(href)));
@@ -329,7 +329,7 @@ class MarkdownBlock extends StatelessWidget {
       case 'input':
         return WidgetSpan(alignment: PlaceholderAlignment.middle, child: TaskCheckbox(checked: node.attributes['checked'] == 'true'));
       case 'img':
-        return TextSpan(text: '[image: ${node.attributes['alt'] ?? node.attributes['src'] ?? ''}]', style: const TextStyle(color: t.Neutral.muted));
+        return TextSpan(text: '[image: ${node.attributes['alt'] ?? node.attributes['src'] ?? ''}]', style: TextStyle(color: t.Neutral.muted));
       default:
         return inlines(node.children, base);
     }
@@ -368,7 +368,7 @@ class _TaskCheckboxState extends State<TaskCheckbox> {
           borderRadius: t.Radii.chip,
         ),
         alignment: Alignment.center,
-        child: _checked ? const AcpIcon(AcpIcons.check, color: t.Accent.onAccent, size: t.IconSizes.toolbar, strokeWidth: t.IconSizes.stroke * 2) : null,
+        child: _checked ? AcpIcon(AcpIcons.check, color: t.Accent.onAccent, size: t.IconSizes.toolbar, strokeWidth: t.IconSizes.stroke * 2) : null,
       ),
     );
   }

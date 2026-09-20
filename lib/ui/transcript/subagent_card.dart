@@ -35,7 +35,7 @@ class _SubagentCardState extends State<SubagentCard> {
 
   Widget _outputLabel() => Row(
         children: <Widget>[
-          const AcpIcon(AcpIcons.cornerDownRight, color: t.Neutral.muted, size: t.IconSizes.toolbar),
+          AcpIcon(AcpIcons.cornerDownRight, color: t.Neutral.muted, size: t.IconSizes.toolbar),
           const SizedBox(width: t.Spacing.s4),
           Text('Subagent Output', style: CardText.secondary),
         ],
