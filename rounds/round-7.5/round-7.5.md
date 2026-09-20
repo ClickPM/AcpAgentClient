@@ -478,4 +478,4 @@ main@32d372f 相对 `7c9c592` 多 3 个提交：`0fd4fcb` markdown 渲染器认�
 
 ### 命名收敛：`SessionController`（2026-09-20，所有者裁定「跟 main 一样改成 Session」）
 
-`ThreadController` → `SessionController`、`lib/app/thread_controller.dart` → `session_controller.dart`、组合根与 `TurnController` 上的字段 `thread` → `session`（screen / headless / 测试的接收者 `c.thread.` → `c.session.`），注释里的「线程控制器」→「会话控制器」；组合根 `onAuthenticated` 回调的参数 `session` 改名 `adopted`，免得遮住新字段。validate 的依赖方向门表跟着改键名。本文上面各处（步骤表、附录 A / B、偏离、审查段）的 `ThreadController` / `c.thread` 已一并改成新名，历史提交说明里仍是旧名。纯机械替换，行为零变化（validate 全绿、三份无头报告与 main@7c9c592 基线等价）。
+`ThreadController` → `SessionController`、`lib/app/thread_controller.dart` → `session_controller.dart`、组合根与 `TurnController` 上的字段 `thread` → `session`（screen / headless / 测试的接收者 `c.thread.` → `c.session.`），注释里的「线程控制器」→「会话控制器」；组合根 `onAuthenticated` 回调的参数 `session` 改名 `adopted`，免得遮住新字段。validate 的依赖方向门表跟着改键名。本文上面各处（步骤表、附录 A / B、偏离、审查段）的 `ThreadController` / `c.thread` 已一并改成新名，历史提交说明里仍是旧名。纯机械替换，行为零变化（validate 15 项全绿、`flutter test` 340、三份无头报告与 main@7c9c592 基线等价）；提交 `2404956`。所有者指示「只是改方法名的代码不要审核」，这一个提交不发审查，合入 main 前的最后一轮审查仍是第 4 轮。
