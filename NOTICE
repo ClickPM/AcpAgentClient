@@ -1,0 +1,90 @@
+AcpAgent Client
+Copyright (C) 2026 ClickPM and the AcpAgent Client contributors
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. See the LICENSE file for the full text.
+
+This file lists third-party material that is included in, or derived into, this
+repository, and the license each piece carries. Pinned upstream revisions live
+in pins/upstream.json; vendor/upstream/ itself is never committed (it is filled
+by scripts/fetch-upstream.ps1 / .sh).
+
+--------------------------------------------------------------------------------
+1. Zed (zed-industries/zed) -- GPL-3.0-or-later
+--------------------------------------------------------------------------------
+
+Pinned at commit d9e1c024f393832765a03f4de204d6c8cd9abcb2.
+
+This project reuses Zed source code, which is why the project as a whole is
+GPL-3.0-or-later. Every file below carries a header naming its upstream path and
+commit; the reuse is by copy-then-rewrite or by transcription, not by linking.
+
+  rust/acp-core/src/agent.rs          <- crates/agent_servers/src/acp.rs
+  rust/acp-core/src/capabilities.rs   <- crates/agent_servers/src/acp.rs
+  rust/acp-core/src/terminal_auth.rs  <- crates/agent_servers/src/acp.rs
+  rust/pty/src/shell.rs               <- crates/util/src/shell_builder.rs
+  rust/registry/src/archive.rs        <- crates/project/src/agent_server_store.rs
+  rust/registry/src/install.rs        <- crates/project/src/agent_server_store.rs
+  rust/registry/src/index.rs          <- crates/project/src/agent_registry_store.rs
+  rust/registry/src/download.rs       <- crates/http_client/src/github_download.rs
+  rust/registry/src/node.rs           <- crates/node_runtime/src/node_runtime.rs
+  rust/acp-core/assets/zed-icon.svg   <- assets/icons/ai_zed.svg
+
+  sidecar/zed-agent-acp/.cargo/config.toml <- .cargo/config.toml
+  sidecar/zed-agent-acp/build.rs           <- crates/eval_cli/build.rs
+  sidecar/zed-agent-acp/src/headless.rs    <- crates/eval_cli/src/headless.rs
+  sidecar/zed-agent-acp/src/session.rs     <- crates/eval_cli/src/main.rs
+  sidecar/zed-agent-acp/src/translate.rs   <- crates/agent/src/agent.rs
+
+The sidecar (sidecar/zed-agent-acp) is a separate cargo workspace that builds
+against Zed crates by path dependency. Binary distributions of it are covered by
+the same GPL-3.0-or-later terms; the corresponding source is this repository
+plus the pinned Zed revision above.
+
+Note: Zed's gpui, util and collections crates are Apache-2.0 upstream; the
+crates this project reuses from are GPL-3.0-or-later.
+
+--------------------------------------------------------------------------------
+2. Agent Client Protocol -- Apache-2.0
+--------------------------------------------------------------------------------
+
+  agentclientprotocol/agent-client-protocol @ 1ce24ea67a6f0598b0f5aff637993d9836306a28
+      specification and schema/v1 JSON Schema
+  agentclientprotocol/rust-sdk @ 3a6d0ae88dbaa09fcb74e26761e3643a75b2015e
+      agent-client-protocol crate (client role in the Rust core, agent role in
+      the sidecar)
+  agentclientprotocol/registry @ 26773d16ae9237aef9906e6df1fab98c946d0e28
+      official agent registry schemas and entries
+
+--------------------------------------------------------------------------------
+3. Bundled assets
+--------------------------------------------------------------------------------
+
+Fonts (SIL Open Font License 1.1; license texts are next to the font files):
+
+  assets/fonts/Geist-Variable.ttf       OFL-Geist.txt
+  assets/fonts/GeistMono-Variable.ttf   OFL-GeistMono.txt
+  assets/fonts/NotoSansSC-Regular.otf   OFL-NotoSansSC.txt
+
+Icons:
+
+  rust/acp-core/assets/dsh-icon.svg
+      derived from deepseek-ai/deepseek-harness apps/web/public/favicon.svg
+      @ 47f943859bef60e4160492346772ded9b24f765a (MIT)
+  rust/acp-core/assets/zed-icon.svg
+      see section 1 (GPL-3.0-or-later)
+
+Agent icons fetched at runtime from the official ACP registry are not part of
+this repository and keep their own upstream licenses.
+
+--------------------------------------------------------------------------------
+4. Trademarks
+--------------------------------------------------------------------------------
+
+Zed, Claude, Codex, Cursor and DeepSeek are trademarks of their respective
+owners. Their marks are used here only to identify the agents this client can
+connect to; a code license (MIT, Apache-2.0, GPL) is a copyright license and
+does not grant trademark rights. This project is not affiliated with, endorsed
+by, or sponsored by any of them.
