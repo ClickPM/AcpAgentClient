@@ -242,7 +242,7 @@ void main() {
       ..agentId = _agent
       ..sessionId = _session;
     final store = c.sessions.session(_session, agentId: _agent);
-    c.composer.text = '第一轮';
+    c.composer.editor.text = '第一轮';
     final sending = c.send();
     expect(store.isRunning, isTrue);
     final bubble = store.entries.whereType<MessageEntry>().first;
@@ -267,7 +267,7 @@ void main() {
       ..agentId = _agent
       ..sessionId = _session;
     final store = c.sessions.session(_session, agentId: _agent);
-    c.composer.text = '会失败的一轮';
+    c.composer.editor.text = '会失败的一轮';
 
     await c.send();
 
@@ -310,7 +310,7 @@ void main() {
     expect(c.canCompose, isTrue);
     expect(c.composerPlaceholder, 'Message to Zed Agent , @ to include context , / for commands');
 
-    c.composer.text = '第一条';
+    c.composer.editor.text = '第一条';
     await c.send();
 
     expect(c.sessionId, 'sess_fake', reason: '第一条消息把会话现开出来');
@@ -329,11 +329,11 @@ void main() {
     expect(c.canCompose, isFalse);
     expect(c.composerPlaceholder, '先选一个项目目录，新会话的 cwd 从它来');
 
-    c.composer.text = '发不出去';
+    c.composer.editor.text = '发不出去';
     await c.send();
     expect(c.sessionId, isNull);
     expect(core.prompts, isEmpty);
-    expect(c.composer.text, '发不出去', reason: '没发出去就不能把输入清掉');
+    expect(c.composer.editor.text, '发不出去', reason: '没发出去就不能把输入清掉');
     c.dispose();
   });
 

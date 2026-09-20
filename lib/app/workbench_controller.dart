@@ -13,7 +13,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../projection/agent_state.dart';
@@ -25,12 +24,11 @@ import '../projection/pending.dart';
 import '../projection/session_store.dart';
 import '../projection/traffic.dart';
 import '../projection/wire.dart';
-import '../ui/popovers/inline_menus.dart';
 import '../ui/popovers/topbar_popovers.dart';
 import '../ui/shell/popover_anchor.dart';
 import '../ui/shell/shell_common.dart';
 import '../ui/shell/sidebar.dart';
-import 'clipboard_image.dart';
+import 'composer_state.dart';
 import 'core_bridge.dart';
 import 'files_state.dart';
 import 'guarded.dart';
@@ -58,6 +56,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     workspace.addListener(notifyListeners);
     agents.addListener(notifyListeners);
     auth.addListener(notifyListeners);
+    composer.addListener(notifyListeners);
   }
 
   final DataSource source;
@@ -130,33 +129,15 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   bool renamingInHeader = false;
   String? confirmingDeleteId;
 
-  /// 输入框里待随下一条 prompt 发出的附件块（`+` 与 `@` 加进来的）。
-  final List<JsonMap> pendingBlocks = <JsonMap>[];
-
-  /// `@` / `/` 内联菜单（画板 42）的数据：两个来源同一时刻只可能有一个非空，都空 = 不显示。
-  /// 存数据而不是存 widget，是因为键盘上下键要按它算高亮、Enter 要按它取项。
-  List<MentionItem> _mentionFiles = const <MentionItem>[];
-  List<MentionItem> _mentionDirs = const <MentionItem>[];
-  List<AvailableCommandWire> _slashCommands = const <AvailableCommandWire>[];
-
-  /// 键盘高亮下标（`@` 菜单里跨分组是全局的，与 [MentionMenu.items] 的拼接顺序一致）。
-  int _inlineSelected = 0;
-
-  /// 内联菜单 widget：null = 不显示。
-  Widget? get inlineMenu {
-    if (_slashCommands.isNotEmpty) {
-      return SlashCommandMenu(commands: _slashCommands, selectedIndex: _inlineSelected, onPick: _pickCommand);
-    }
-    if (_mentionFiles.isNotEmpty || _mentionDirs.isNotEmpty) {
-      return MentionMenu(
-        files: _mentionFiles,
-        directories: _mentionDirs,
-        selectedIndex: _inlineSelected,
-        onPick: _pickMention,
-      );
-    }
-    return null;
-  }
+  // ---- 输入框（画板 40 / 42）（R7.5 拆出）：正文与附件、`@` `/` 内联菜单、`+` 四项、配置格与三个弹层锚点；
+  // 当前 store / 项目目录 / 可用性 / 能否带图经查询回调向这里要。
+  late final ComposerState composer = ComposerState(
+    bridge: bridge,
+    store: () => store,
+    cwd: () => workspace.project?.path,
+    canCompose: () => canCompose,
+    canPromptImage: () => canPromptImage,
+  );
 
   // ---- 已装 agent 列表、registry 面板（画板 50 / 51）与设置面板（画板 70）（R7.5 拆出）
   late final AgentsState agents = AgentsState(
@@ -202,14 +183,10 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   );
 
   // ---- 输入控件
-  final TextEditingController composer = TextEditingController();
-  final FocusNode composerFocus = FocusNode();
   final TextEditingController sidebarSearch = TextEditingController();
   final FocusNode sidebarSearchFocus = FocusNode();
   final TextEditingController rename = TextEditingController();
   final FocusNode renameFocus = FocusNode();
-  final TextEditingController modelSearch = TextEditingController();
-  final FocusNode modelSearchFocus = FocusNode();
 
   // ---- 弹层锚点（画板 40 / 41 / 43）
   final PopoverHandle newSessionAnchor = PopoverHandle();
@@ -218,14 +195,6 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   /// 画板 43：线程头 history 的会话时间线弹层。
   final PopoverHandle timelineAnchor = PopoverHandle();
   final PopoverHandle deleteAnchor = PopoverHandle();
-  final PopoverHandle plusAnchor = PopoverHandle();
-  final PopoverHandle followAnchor = PopoverHandle();
-  final PopoverHandle usageAnchor = PopoverHandle();
-
-  /// 输入框右下每一格配置的弹层锚点：按 configOption 的 id 取（modes 回退那条用它的哨兵 id）。
-  /// 惰性建、按 id 复用；换 agent 后旧 id 的锚点留着不回收（一个 agent 的条目是个位数），统一在 [dispose] 里收。
-  final Map<String, PopoverHandle> _configAnchors = <String, PopoverHandle>{};
-
   final List<StreamSubscription<CoreEventRecord>> _subs = <StreamSubscription<CoreEventRecord>>[];
 
   // ---------------------------------------------------------------- 派生
@@ -348,15 +317,6 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       if (o.id == id) return o;
     }
     return null;
-  }
-
-  /// 配置格的弹层锚点：id 一个，见 [_configAnchors]。
-  PopoverHandle configAnchor(String id) => _configAnchors.putIfAbsent(id, PopoverHandle.new);
-
-  void hideConfigPopovers() {
-    for (final h in _configAnchors.values) {
-      hidePopover(h);
-    }
   }
 
   /// 挂起队列的首项（画板 26 的停靠条）。
@@ -493,18 +453,17 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     files.dispose();
     terminals.dispose();
     for (final c in <TextEditingController>[
-      composer, sidebarSearch, rename, modelSearch,
+      sidebarSearch, rename,
     ]) {
       c.dispose();
     }
     for (final f in <FocusNode>[
-      composerFocus, sidebarSearchFocus, renameFocus, modelSearchFocus,
+      sidebarSearchFocus, renameFocus,
     ]) {
       f.dispose();
     }
     for (final h in <PopoverHandle>[
-      newSessionAnchor, threadMenuAnchor, timelineAnchor, deleteAnchor, plusAnchor,
-      followAnchor, usageAnchor, ..._configAnchors.values,
+      newSessionAnchor, threadMenuAnchor, timelineAnchor, deleteAnchor,
     ]) {
       h.dispose();
     }
@@ -516,6 +475,8 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     agents.dispose();
     auth.removeListener(notifyListeners);
     auth.dispose();
+    composer.removeListener(notifyListeners);
+    composer.dispose();
     super.dispose();
   }
 
@@ -1151,7 +1112,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     final b = bridge;
     final id = agentId;
     if (b == null || id == null) return;
-    if (composer.text.trim().isEmpty && pendingBlocks.isEmpty) return; // 空输入不开会话
+    if (composer.editor.text.trim().isEmpty && composer.pendingBlocks.isEmpty) return; // 空输入不开会话
     // 启动后的画板 01 状态 1：agent 已选、会话还没开（进程也没拉）。第一条消息把它开出来，
     // 失败（认证 / 缺 Node）时 `newSession` 已经把错误与认证页安排好，输入框里的文本原样留着。
     // 守卫看 `store`（= 没有可用转录）。已知问题：选中的会话只是**载不回**转录时 `store` 也是 null，
@@ -1175,11 +1136,9 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     if (_blockedByClose()) return;
     // 快照要取在开会话之后：拉起进程 + `initialize` + `session/new` 要几百毫秒到数秒，
     // 这期间新打的字与新加的附件也得发出去，否则下面的 clear 会把它们静默抹掉（审查 finding P2，2026-09-18）。
-    final blocks = _promptBlocks(composer.text);
+    final blocks = _promptBlocks(composer.editor.text);
     if (blocks.isEmpty) return;
-    composer.clear();
-    pendingBlocks.clear();
-    _clearInlineMenu();
+    composer.clearForSend();
     // 又开了一轮：上一轮留下的绿点立即撤（画板 06 D「运行中 · 绿点：无（有则立即撤）」）。
     _clearUnread(s.sessionId);
     s.startTurn(<ContentBlockWire>[for (final b in blocks) ContentBlockWire(b)]);
@@ -1229,7 +1188,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     final trimmed = text.trim();
     return <JsonMap>[
       if (trimmed.isNotEmpty) <String, dynamic>{'type': 'text', 'text': text},
-      ...pendingBlocks,
+      ...composer.pendingBlocks,
     ];
   }
 
@@ -1327,7 +1286,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   // ---------------------------------------------------------------- 会话配置
 
   Future<void> setConfigOption(String configId, JsonMap value) async {
-    hideConfigPopovers();
+    composer.hideConfigPopovers();
     final s = store;
     final b = bridge;
     final id = agentId;
@@ -1349,7 +1308,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   /// `session/set_mode`（modes 回退路径）。响应是空的；按规范客户端发起的切换成功即生效，
   /// 所以本地同步 `currentModeId`（agent 自己改模式时会另发 `current_mode_update`）。
   Future<void> setMode(String modeId) async {
-    hideConfigPopovers();
+    composer.hideConfigPopovers();
     final s = store;
     final b = bridge;
     final id = agentId;
@@ -1365,217 +1324,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   Future<void> toggleConfigBoolean(String configId, bool value) =>
       setConfigOption(configId, <String, dynamic>{'type': 'boolean', 'value': value});
 
-  // ---------------------------------------------------------------- 输入框的 @ 与 /
-
-  /// 输入框正文变化：按最后一个 token 决定要不要出内联菜单（画板 42）。
-  Future<void> onComposerChanged(String text) async {
-    final token = _activeToken(text);
-    if (token == null) {
-      closeInlineMenu();
-      return;
-    }
-    if (token.startsWith('/')) {
-      final q = token.substring(1).toLowerCase();
-      final commands = <AvailableCommandWire>[
-        for (final c in store?.commands ?? const <AvailableCommandWire>[])
-          if (q.isEmpty || (c.name ?? '').toLowerCase().startsWith(q)) c,
-      ];
-      _clearInlineMenu();
-      _slashCommands = commands;
-      touch();
-      return;
-    }
-    await _updateMentionMenu(token.substring(1));
-  }
-
-  /// 菜单开着（有东西可选）。
-  bool get inlineMenuOpen => _inlineMenuCount > 0;
-
-  int get _inlineMenuCount =>
-      _slashCommands.isNotEmpty ? _slashCommands.length : _mentionFiles.length + _mentionDirs.length;
-
-  void _clearInlineMenu() {
-    _mentionFiles = const <MentionItem>[];
-    _mentionDirs = const <MentionItem>[];
-    _slashCommands = const <AvailableCommandWire>[];
-    // 列表一换高亮就回第一条：每次改词后最匹配的那条在最上面。
-    _inlineSelected = 0;
-  }
-
-  /// Esc：关掉菜单，输入框里的文本原样留着。
-  void closeInlineMenu() {
-    if (!inlineMenuOpen) return;
-    _clearInlineMenu();
-    touch();
-  }
-
-  /// 上下键移动高亮（`-1` / `+1`，首尾环绕）。
-  void moveInlineMenuSelection(int delta) {
-    final n = _inlineMenuCount;
-    if (n == 0) return;
-    _inlineSelected = (_inlineSelected + delta) % n;
-    if (_inlineSelected < 0) _inlineSelected += n;
-    touch();
-  }
-
-  /// Enter：把高亮项填进输入框（与鼠标点那一行同一条路，不发送）。
-  void pickInlineMenuSelection() {
-    if (!inlineMenuOpen) return;
-    if (_slashCommands.isNotEmpty) {
-      _pickCommand(_slashCommands[_inlineSelected]);
-      return;
-    }
-    _pickMention(<MentionItem>[..._mentionFiles, ..._mentionDirs][_inlineSelected]);
-  }
-
-  /// 光标处的 `@` / `/` token：只在正文开头的 `/` 或空白后的 `@` 上触发。
-  String? _activeToken(String text) {
-    if (text.isEmpty) return null;
-    if (text.startsWith('/') && !text.contains(RegExp(r'\s'))) return text;
-    final m = RegExp(r'(?:^|\s)(@[^\s]*)$').firstMatch(text);
-    return m?.group(1);
-  }
-
-  /// `@` 菜单一组最多几条（裸 `@` 列根目录、有词时是 `fs_search` 的 limit）。
-  static const int _mentionLimit = 10;
-
-  Future<void> _updateMentionMenu(String query) async {
-    final b = bridge;
-    // 提及的根用当前会话的 cwd（agent 按它解析路径），没有才回落到当前项目。
-    final cwd = store?.cwd ?? workspace.project?.path;
-    if (b == null || cwd == null) {
-      _clearInlineMenu();
-      touch();
-      return;
-    }
-    await guard(() async {
-      final List<MentionItem> files;
-      final List<MentionItem> dirs;
-      if (query.isEmpty) {
-        // 裸 `@`：还没有可搜的词，`fs_search` 对空词按约定返回空结果（不做全量遍历），
-        // 所以这一步改列项目根目录的一层——菜单一出来就有东西可选。
-        final listing = await b.fsListDir(cwd, cwd);
-        final entries = _toMentions(listing['entries']);
-        files = <MentionItem>[for (final e in entries) if (!e.isDirectory) e].take(_mentionLimit).toList();
-        dirs = <MentionItem>[for (final e in entries) if (e.isDirectory) e].take(_mentionLimit).toList();
-      } else {
-        final result = await b.fsSearch(cwd, query, limit: _mentionLimit);
-        files = _toMentions(result['files']);
-        dirs = _toMentions(result['directories']);
-      }
-      _clearInlineMenu();
-      _mentionFiles = files;
-      _mentionDirs = dirs;
-    });
-    touch();
-  }
-
-  List<MentionItem> _toMentions(Object? raw) => <MentionItem>[
-        if (raw is List)
-          for (final e in raw)
-            if (e is Map)
-              MentionItem(
-                path: e['path'] as String? ?? '',
-                name: e['name'] as String? ?? '',
-                parent: e['parent'] as String? ?? '',
-                isDirectory: e['isDir'] == true,
-              ),
-      ];
-
-  void _pickCommand(AvailableCommandWire command) {
-    composer.text = '/${command.name ?? ''} ';
-    composer.selection = TextSelection.collapsed(offset: composer.text.length);
-    _clearInlineMenu();
-    composerFocus.requestFocus();
-    touch();
-  }
-
-  void _pickMention(MentionItem item) {
-    final text = composer.text;
-    final m = RegExp(r'(?:^|\s)(@[^\s]*)$').firstMatch(text);
-    final replaced = m == null ? '$text@${item.name} ' : '${text.substring(0, m.start + (m.group(0)!.length - m.group(1)!.length))}@${item.name} ';
-    composer.text = replaced;
-    composer.selection = TextSelection.collapsed(offset: replaced.length);
-    pendingBlocks.add(<String, dynamic>{
-      'type': 'resource_link',
-      'uri': _fileUri(item.path),
-      'name': item.name,
-    });
-    _clearInlineMenu();
-    composerFocus.requestFocus();
-    touch();
-  }
-
-  static String _fileUri(String path) => Uri.file(path, windows: Platform.isWindows).toString();
-
-  // ---------------------------------------------------------------- `+` 的四项（画板 40）
-
-  void addResourceLink(String path, String name) {
-    pendingBlocks.add(<String, dynamic>{'type': 'resource_link', 'uri': _fileUri(path), 'name': name});
-    _appendToComposer('@$name');
-  }
-
-  /// 输入框顶部芯片条的数据：待发的 `image` 块本身（规则 2，不另存一份视图状态）。
-  List<ContentBlockWire> get pendingImages => <ContentBlockWire>[
-        for (final b in pendingBlocks)
-          if (b['type'] == 'image') ContentBlockWire(b),
-      ];
-
-  /// 芯片上的 ×。按**同一个 map 对象**删，不按内容比——两张一模一样的图也要能分别删掉。
-  void removePendingBlock(ContentBlockWire block) {
-    pendingBlocks.removeWhere((b) => identical(b, block.json));
-    touch();
-  }
-
-  /// 图片不再往输入框塞 `[image]` 占位文本：它以芯片的形式显示在输入框顶部（[pendingImages]）。
-  /// `path` 只在图来自磁盘上的文件时有，转成 `image` 块的可选 `uri`，芯片按它显示文件名。
-  void addImage(String base64Data, String mimeType, {String? path}) {
-    pendingBlocks.add(<String, dynamic>{
-      'type': 'image',
-      'data': base64Data,
-      'mimeType': mimeType,
-      if (path != null) 'uri': _fileUri(path),
-    });
-    touch();
-  }
-
-  /// Ctrl/Cmd+V（输入框的按键回调只管调这里，判断全在这）：剪贴板里是文本就什么都不做——
-  /// 那一下已经由 `EditableText` 自己贴进去了；是截图 / 图片文件才加成 `image` 块。
-  Future<void> pasteImageFromClipboard() async {
-    if (!canCompose) return;
-    // 按键回调是 fire-and-forget（`onPaste?.call()` 没人 await），所以这里自己兜住：
-    // `Clipboard.getData` 在剪贴板被别的进程占着时会抛 `PlatformException`，不兜就成了未捕获的异步错误。
-    await guard(() async {
-      final text = await Clipboard.getData(Clipboard.kTextPlain);
-      if ((text?.text ?? '').isNotEmpty) return;
-      if (!canPromptImage) return; // 不支持图片的 agent：连剪贴板都不用读
-      final result = await readClipboardImages();
-      if (result.skippedTooLarge) {
-        lastError = '图片超过 ${clipboardImageSizeLimit ~/ (1024 * 1024)} MB，没有加进输入框';
-        touch();
-      }
-      if (result.images.isEmpty) return;
-      for (final image in result.images) {
-        addImage(base64Encode(image.bytes), image.mimeType, path: image.path);
-      }
-      composerFocus.requestFocus();
-    });
-  }
-
-  void addEmbeddedResource(String uri, String text, {String mimeType = 'text/plain'}) {
-    pendingBlocks.add(<String, dynamic>{
-      'type': 'resource',
-      'resource': <String, dynamic>{'uri': uri, 'mimeType': mimeType, 'text': text},
-    });
-    _appendToComposer('[${Uri.parse(uri).pathSegments.isEmpty ? uri : Uri.parse(uri).pathSegments.last}]');
-  }
-
-  void _appendToComposer(String label) {
-    final sep = composer.text.isEmpty || composer.text.endsWith(' ') ? '' : ' ';
-    composer.text = '${composer.text}$sep$label ';
-    composer.selection = TextSelection.collapsed(offset: composer.text.length);
-    touch();
-  }
+  // ---------------------------------------------------------------- 本地转录文本（`+` 的 Threads）
 
   /// 本地转录文本（`+` 的 Threads）：把当前会话的消息拼成一份 embedded resource。
   String transcriptText() {

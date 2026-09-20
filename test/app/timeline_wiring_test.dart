@@ -148,25 +148,25 @@ void main() {
     final (c, _) = await _pumpShellWithCore(tester, turns: 3);
     // 真实路径是「用户正打着字 → 输入框有焦点 → 点 history 开弹层」：按钮是 Hoverable / GestureDetector，
     // 点它不夺焦点，所以开着弹层时焦点仍在输入框上。测试里必须把这一步做出来，否则焦点链是空的、复现不出来。
-    c.composer.text = '还没写完的草稿';
-    c.composerFocus.requestFocus();
+    c.composer.editor.text = '还没写完的草稿';
+    c.composer.focus.requestFocus();
     await tester.pump();
-    expect(c.composerFocus.hasFocus, isTrue, reason: '这条测试的前提');
+    expect(c.composer.focus.hasFocus, isTrue, reason: '这条测试的前提');
     await _openTimeline(tester);
-    expect(c.composerFocus.hasFocus, isFalse, reason: '弹层开着时键盘归它（关掉会还回去，见下一条）');
+    expect(c.composer.focus.hasFocus, isFalse, reason: '弹层开着时键盘归它（关掉会还回去，见下一条）');
 
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await _settle(tester);
 
     expect(_core.prompts, isEmpty, reason: '这一下 Enter 必须被弹层吃掉，不能落到输入框');
-    expect(c.composer.text, '还没写完的草稿', reason: '草稿原样留着');
+    expect(c.composer.editor.text, '还没写完的草稿', reason: '草稿原样留着');
     expect(find.byType(SessionTimelinePopover), findsOneWidget, reason: '没有高亮就什么也不做，弹层照常开着');
 
     // 同一个根因的另一半：方向键也不该串到输入框里去移动光标。
-    c.composer.selection = const TextSelection.collapsed(offset: 3);
+    c.composer.editor.selection = const TextSelection.collapsed(offset: 3);
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
     await _settle(tester);
-    expect(c.composer.selection.baseOffset, 3, reason: '光标不该被方向键挪走');
+    expect(c.composer.editor.selection.baseOffset, 3, reason: '光标不该被方向键挪走');
   });
 
   // 复审 P2（2026-09-20，cursor）：改成抢焦点之后，`_onKey` 没吃的键会沿焦点链落到 WidgetsApp 的默认
@@ -174,11 +174,11 @@ void main() {
   // 而弹层还开着；此后 Enter 又走输入框的「发送」。弹层开着时键盘必须完全归它。
   testWidgets('弹层开着时 Tab 与左右键不把焦点交回输入框，之后 Enter 也发不出草稿', (tester) async {
     final (c, _) = await _pumpShellWithCore(tester, turns: 3);
-    c.composer.text = '还没写完的草稿';
-    c.composerFocus.requestFocus();
+    c.composer.editor.text = '还没写完的草稿';
+    c.composer.focus.requestFocus();
     await tester.pump();
     await _openTimeline(tester);
-    expect(c.composerFocus.hasFocus, isFalse);
+    expect(c.composer.focus.hasFocus, isFalse);
 
     for (final key in <LogicalKeyboardKey>[
       LogicalKeyboardKey.tab,
@@ -187,28 +187,28 @@ void main() {
     ]) {
       await tester.sendKeyEvent(key);
       await _settle(tester);
-      expect(c.composerFocus.hasFocus, isFalse, reason: '$key 把焦点带回输入框了');
+      expect(c.composer.focus.hasFocus, isFalse, reason: '$key 把焦点带回输入框了');
       expect(find.byType(SessionTimelinePopover), findsOneWidget, reason: '$key 之后弹层还该开着');
     }
 
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await _settle(tester);
     expect(_core.prompts, isEmpty, reason: '焦点没被带走，这一下 Enter 仍归弹层');
-    expect(c.composer.text, '还没写完的草稿');
+    expect(c.composer.editor.text, '还没写完的草稿');
   });
 
   testWidgets('弹层关掉后焦点还回输入框（用户能接着打字）', (tester) async {
     final (c, _) = await _pumpShellWithCore(tester, turns: 3);
-    c.composerFocus.requestFocus();
+    c.composer.focus.requestFocus();
     await tester.pump();
     await _openTimeline(tester);
-    expect(c.composerFocus.hasFocus, isFalse, reason: '开着时键盘归弹层');
+    expect(c.composer.focus.hasFocus, isFalse, reason: '开着时键盘归弹层');
 
     await tester.tapAt(tester.getCenter(_list));
     await _settle(tester);
 
     expect(find.byType(SessionTimelinePopover), findsNothing);
-    expect(c.composerFocus.hasFocus, isTrue, reason: '关掉要把焦点还回去，不然得再点一下才能打字');
+    expect(c.composer.focus.hasFocus, isTrue, reason: '关掉要把焦点还回去，不然得再点一下才能打字');
   });
 
   testWidgets('Esc 关掉弹层：它是唯一放行的键，靠 EscapeDismissible 的全局处理器', (tester) async {

@@ -276,7 +276,7 @@ void main() {
     final entriesBefore = store.entries.length;
     await c.closeSession();
 
-    c.composer.text = '还想说点什么';
+    c.composer.editor.text = '还想说点什么';
     await c.send();
     await c.restore(bubble);
     await c.restore(bubble, newText: '换个说法');
@@ -301,7 +301,7 @@ void main() {
     c.sessionId = _session;
     final store = c.sessions.session(_session, agentId: _agent)..cwd = _cwd;
 
-    c.composer.text = '正常发一条';
+    c.composer.editor.text = '正常发一条';
     await c.send();
     await c.selectConfigValue('model', 'gpt');
     await c.setMode('code');

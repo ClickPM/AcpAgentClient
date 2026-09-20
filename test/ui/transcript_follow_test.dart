@@ -131,7 +131,7 @@ void main() {
     await _wheel(tester, -300);
     expect(_pos(tester).pixels, lessThan(_pos(tester).maxScrollExtent - 32));
 
-    c.composer.text = '继续';
+    c.composer.editor.text = '继续';
     await tester.tap(_send);
     await _settle(tester);
 

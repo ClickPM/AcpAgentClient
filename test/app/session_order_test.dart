@@ -69,7 +69,7 @@ void main() {
     // 发第一条：session/prompt 挂着不回，索引里已经打上发消息的时间。
     core.gate = Completer<JsonMap>();
     final before = DateTime.now().millisecondsSinceEpoch;
-    c.composer.text = '第一条';
+    c.composer.editor.text = '第一条';
     final sending = c.send();
     await _untilPromptSent(core);
     final t1 = _updatedAtOf(core, sid);
@@ -91,7 +91,7 @@ void main() {
     // 再发一条才再打。
     core.gate = null;
     await Future<void>.delayed(const Duration(milliseconds: 20));
-    c.composer.text = '第二条';
+    c.composer.editor.text = '第二条';
     await c.send();
     expect(_updatedAtOf(core, sid), greaterThan(t1));
     expect(core.sessionIndex.single['messageCount'], 2);
@@ -107,7 +107,7 @@ void main() {
 
     final hold = core.holdNextUpsert = Completer<void>();
     final before = DateTime.now().millisecondsSinceEpoch;
-    c.composer.text = '一轮秒回';
+    c.composer.editor.text = '一轮秒回';
     // 发消息那次 upsert 已落地但还没回来；prompt 立刻返回，收轮那次 upsert 先跑。
     await c.send();
     expect(core.prompts, hasLength(1));

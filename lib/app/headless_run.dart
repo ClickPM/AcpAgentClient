@@ -109,7 +109,7 @@ Future<void> runR6({required String reportPath}) async {
     final prompt1 = _env('ACP_R6_PROMPT');
     if (prompt1 != null) {
       trace('turn1');
-      c.composer.text = prompt1;
+      c.composer.editor.text = prompt1;
       await c.send().timeout(timeout);
       steps['turn1'] = _turnSummary(c, prompt1)..['answers'] = List<Map<String, dynamic>>.of(answers);
     }
@@ -210,7 +210,7 @@ Future<void> runR6({required String reportPath}) async {
     final prompt2 = _env('ACP_R6_PROMPT2');
     if (prompt2 != null && c.sessionId != null) {
       trace('turn2');
-      c.composer.text = prompt2;
+      c.composer.editor.text = prompt2;
       await c.send().timeout(timeout);
       steps['turn2AfterLoad'] = _turnSummary(c, prompt2)..['answers'] = List<Map<String, dynamic>>.of(answers);
     }
@@ -221,7 +221,7 @@ Future<void> runR6({required String reportPath}) async {
     if (prompt3 != null && cancelAfter > 0 && c.sessionId != null) {
       trace('cancel');
       c.lastError = null;
-      c.composer.text = prompt3;
+      c.composer.editor.text = prompt3;
       Timer(Duration(seconds: cancelAfter), () => c.cancel());
       await c.send().timeout(timeout);
       steps['cancelledTurn'] = _turnSummary(c, prompt3)
@@ -488,7 +488,7 @@ Future<void> runR5({required String reportPath}) async {
     if (prompt != null && c.sessionId != null) {
       final answers = <Map<String, dynamic>>[];
       final watcher = _AutoAnswer(c, 'allow_once', answers)..attach();
-      c.composer.text = prompt;
+      c.composer.editor.text = prompt;
       await c.send().timeout(timeout);
       watcher.detach();
       steps['turn'] = _turnSummary(c, prompt)..['answers'] = answers;
@@ -784,7 +784,7 @@ Future<void> runR3({required String reportPath}) async {
     killer?.attach();
     final prompt1 = _env('ACP_R3_PROMPT');
     if (prompt1 != null) {
-      c.composer.text = prompt1;
+      c.composer.editor.text = prompt1;
       await c.send().timeout(timeout);
       killer?.detach();
       steps['turn1'] = _turnSummary(c, prompt1)..['answers'] = List<Map<String, dynamic>>.of(answers);
@@ -845,7 +845,7 @@ Future<void> runR3({required String reportPath}) async {
     final prompt2 = _env('ACP_R3_PROMPT2');
     if (prompt2 != null) {
       answers.clear();
-      c.composer.text = prompt2;
+      c.composer.editor.text = prompt2;
       final turn = c.send();
       Timer(Duration(seconds: _envInt('ACP_R3_CANCEL_AFTER', 4)), () => c.cancel());
       await turn.timeout(timeout);

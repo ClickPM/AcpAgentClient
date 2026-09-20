@@ -209,10 +209,10 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     // 画板 43：转录区里（或壳上任何地方）再点一下就撤掉时间线跳过来的那个聚焦态。
     // 点在气泡自己身上时它自己的本地聚焦接手，看上去焦点环没动过。
     if (_focusedEntryId != null) setState(() => _focusedEntryId = null);
-    if (!c.inlineMenuOpen) return;
+    if (!c.composer.inlineMenuOpen) return;
     final box = _composerArea.currentContext?.findRenderObject();
     if (box is RenderBox && box.hasSize && box.paintBounds.contains(box.globalToLocal(event.position))) return;
-    c.closeInlineMenu();
+    c.composer.closeInlineMenu();
   }
 
   // ---------------------------------------------------------------- 侧栏（画板 01 / 04）
@@ -483,8 +483,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     final plan = _activePlan();
     return Composer(
       key: _composerArea,
-      controller: c.composer,
-      focusNode: c.composerFocus,
+      controller: c.composer.editor,
+      focusNode: c.composer.focus,
       placeholder: c.composerPlaceholder,
       // 关掉的会话转录只读（画板 41 的 Close；R6 审查 finding P2）。
       enabled: c.canCompose,
@@ -502,18 +502,18 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
           else
             ComposerOption(
               label: configCurrentName(o),
-              anchor: c.configAnchor(o.id ?? ''),
+              anchor: c.composer.configAnchor(o.id ?? ''),
               onTap: () => _openSelectPopover(o.id ?? ''),
               maxWidth: o.category == 'model' ? t.Geometry.composerModelMaxWidth : null,
             ),
       ],
-      attachments: c.pendingImages,
-      onRemoveAttachment: c.removePendingBlock,
-      onPaste: c.pasteImageFromClipboard,
-      inlineMenu: c.inlineMenu,
-      onInlineMenuMove: c.moveInlineMenuSelection,
-      onInlineMenuPick: c.pickInlineMenuSelection,
-      onInlineMenuDismiss: c.closeInlineMenu,
+      attachments: c.composer.pendingImages,
+      onRemoveAttachment: c.composer.removePendingBlock,
+      onPaste: c.composer.pasteImageFromClipboard,
+      inlineMenu: c.composer.inlineMenu,
+      onInlineMenuMove: c.composer.moveInlineMenuSelection,
+      onInlineMenuPick: c.composer.pickInlineMenuSelection,
+      onInlineMenuDismiss: c.composer.closeInlineMenu,
       docks: <Widget>[
         if (plan != null) PlanCard(plan, initiallyCollapsed: true, cwd: store?.cwd, onDismiss: () => store?.dismissPlan(plan.planId)),
         ?AwaitingDock.forPending(
@@ -524,16 +524,16 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
           onScroll: _scrollToBottom,
         ),
       ],
-      onChanged: c.onComposerChanged,
+      onChanged: c.composer.onChanged,
       onSend: _send,
       onStop: c.cancel,
       onPlus: _openPlusPopover,
       onFollow: _toggleFollow,
       followOn: c.shell.follow,
       onUsage: _openUsagePopover,
-      plusAnchor: c.plusAnchor,
-      followAnchor: c.followAnchor,
-      usageAnchor: c.usageAnchor,
+      plusAnchor: c.composer.plusAnchor,
+      followAnchor: c.composer.followAnchor,
+      usageAnchor: c.composer.usageAnchor,
     );
   }
 
@@ -558,8 +558,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     final option = c.optionById(id);
     if (option == null) return;
     final searchable = option.category == 'model';
-    c.hideConfigPopovers();
-    c.configAnchor(id).showAbove((_) => ListenableBuilder(
+    c.composer.hideConfigPopovers();
+    c.composer.configAnchor(id).showAbove((_) => ListenableBuilder(
           listenable: c,
           builder: (context, _) {
             // `set_config_option` 的响应是全量替换，所以每次 rebuild 都按 id 重新取当前那一份。
@@ -568,9 +568,9 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
             return ConfigSelectPopover(
               option: current,
               title: searchable ? null : current.name,
-              searchController: searchable ? c.modelSearch : null,
-              searchFocusNode: searchable ? c.modelSearchFocus : null,
-              query: searchable ? c.modelSearch.text : '',
+              searchController: searchable ? c.composer.modelSearch : null,
+              searchFocusNode: searchable ? c.composer.modelSearchFocus : null,
+              query: searchable ? c.composer.modelSearch.text : '',
               showLeadingMark: searchable,
               width: searchable ? t.Geometry.menuWidthWide : t.Geometry.menuWidthNarrow,
               onQueryChanged: (_) => c.refresh(),
@@ -581,13 +581,13 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   }
 
   void _openUsagePopover() {
-    c.usageAnchor.showAbove((_) => ListenableBuilder(
+    c.composer.usageAnchor.showAbove((_) => ListenableBuilder(
           listenable: c,
           builder: (context, _) => UsagePopover(
             usage: c.store?.usage,
             rulesCount: c.workspace.rulesCount,
             onOpenRules: () {
-              c.usageAnchor.hide();
+              c.composer.usageAnchor.hide();
               c.shell.openTab(ShellTab.files);
             },
           ),
@@ -598,14 +598,14 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   void _toggleFollow() {
     c.shell.toggleFollow();
     if (c.shell.follow) {
-      c.followAnchor.showAbove((_) => FollowTip(agentName: c.agentDisplayName));
+      c.composer.followAnchor.showAbove((_) => FollowTip(agentName: c.agentDisplayName));
     } else {
-      c.followAnchor.hide();
+      c.composer.followAnchor.hide();
     }
   }
 
   void _openPlusPopover() {
-    c.plusAnchor.showAbove((_) => PlusPopover(
+    c.composer.plusAnchor.showAbove((_) => PlusPopover(
           imageEnabled: c.canPromptImage,
           onFiles: _addFiles,
           onThreads: _addThread,
@@ -615,38 +615,38 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   }
 
   Future<void> _addFiles() async {
-    c.plusAnchor.hide();
+    c.composer.plusAnchor.hide();
     final files = await openFiles();
     for (final f in files) {
-      c.addResourceLink(f.path, f.name);
+      c.composer.addResourceLink(f.path, f.name);
     }
   }
 
   Future<void> _addImage() async {
-    c.plusAnchor.hide();
+    c.composer.plusAnchor.hide();
     const group = XTypeGroup(label: 'images', extensions: <String>['png', 'jpg', 'jpeg', 'gif', 'webp']);
     final file = await openFile(acceptedTypeGroups: <XTypeGroup>[group]);
     if (file == null) return;
     final bytes = await file.readAsBytes();
-    c.addImage(base64Encode(bytes), file.mimeType ?? imageMimeOf(file.path), path: file.path);
+    c.composer.addImage(base64Encode(bytes), file.mimeType ?? imageMimeOf(file.path), path: file.path);
   }
 
   void _addThread() {
-    c.plusAnchor.hide();
+    c.composer.plusAnchor.hide();
     final text = c.transcriptText();
     if (text.isEmpty) return;
-    c.addEmbeddedResource('acp-thread:${c.sessionId}', text, mimeType: 'text/plain');
+    c.composer.addEmbeddedResource('acp-thread:${c.sessionId}', text, mimeType: 'text/plain');
   }
 
   Future<void> _addBranchDiff() async {
-    c.plusAnchor.hide();
+    c.composer.plusAnchor.hide();
     final cwd = c.workspace.project?.path;
     final bridge = c.bridge;
     if (cwd == null || bridge == null) return;
     final result = await bridge.gitDiff(cwd);
     final text = result['text'] as String? ?? '';
     if (text.isEmpty) return;
-    c.addEmbeddedResource('acp-branch-diff:${result['command'] ?? 'git diff'}', text, mimeType: 'text/x-diff');
+    c.composer.addEmbeddedResource('acp-branch-diff:${result['command'] ?? 'git diff'}', text, mimeType: 'text/x-diff');
   }
 
   // ---------------------------------------------------------------- 线程头的两个弹层（画板 41）
