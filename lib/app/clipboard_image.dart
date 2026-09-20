@@ -1,13 +1,16 @@
 // 输入框的图片粘贴（Ctrl+V）：Flutter 的 `Clipboard` 只给 text/plain，位图与文件列表都取不到，
-// 第三方剪贴板包又在 CLAUDE.md 规则 1 的清单之外，所以 Windows（规则 9 首发）借 PowerShell 的
-// `System.Windows.Forms.Clipboard` 读一次剪贴板：先看文件列表（资源管理器里复制的图片文件），
-// 再看位图（截图工具 / 企业微信截图），位图存成临时 PNG 再读回字节，读完删临时目录。
+// 第三方剪贴板包又在 CLAUDE.md 规则 1 的清单之外，所以 Windows（规则 9 首发）由 runner 直接走 Win32 读一次
+// 剪贴板（`acp/window` 通道的 `readClipboardImages`，windows/runner/acp_clipboard.cpp）：先看文件列表
+// （资源管理器里复制的图片文件），再看位图（截图工具 / 企业微信截图）。位图回来的是 BGRA 像素，PNG 编码在
+// 这里用 dart:ui 自带的编码器做，不落临时文件、不拉子进程。
 // 非 Windows 暂时返回空（macOS / Linux 的实现记在 rounds/BACKLOG.md）。
 
-import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
+
+import 'window_controls.dart';
 
 /// 剪贴板里的一张图。
 class ClipboardImage {
@@ -34,62 +37,75 @@ const Map<String, String> imageMimeTypes = <String, String>{
 };
 
 /// 单张图的字节上限。base64 之后整块进 `session/prompt` 的 JSON，一张几十 MB 的图会把一条 prompt
-/// 撑到桥接与 agent 都难受，超了的直接跳过并回报（调用方写进错误条）。
+/// 撑到桥接与 agent 都难受，超了的直接跳过并回报（调用方写进错误条）。位图按编码后的 PNG 算。
 const int clipboardImageSizeLimit = 20 * 1024 * 1024;
 
 /// 读一次剪贴板里的图片。`skippedTooLarge` = 有图但超过 [clipboardImageSizeLimit] 被跳过了。
+/// 没有 runner（flutter_tester、非 Windows）或剪贴板读不到时回空：粘贴文本那一下已经由输入框自己做完了，
+/// 这里只是没捞到图，不该把粘贴这件事搞砸。
 Future<({List<ClipboardImage> images, bool skippedTooLarge})> readClipboardImages() async {
-  if (!Platform.isWindows) return (images: const <ClipboardImage>[], skippedTooLarge: false);
-  Directory? temp;
+  const empty = (images: <ClipboardImage>[], skippedTooLarge: false);
   try {
-    temp = await Directory.systemTemp.createTemp('acp_clipboard');
-    final out = '${temp.path}/clipboard.png';
-    final result = await Process.run(
-      'powershell.exe',
-      const <String>['-NoProfile', '-NonInteractive', '-Sta', '-Command', _script],
-      environment: <String, String>{_outVar: out},
-      stdoutEncoding: utf8,
-      stderrEncoding: utf8,
-    ).timeout(const Duration(seconds: 15));
-    if (result.exitCode != 0) {
-      debugPrint('[clipboard] powershell exit ${result.exitCode}: ${result.stderr}');
-      return (images: const <ClipboardImage>[], skippedTooLarge: false);
-    }
+    final items = await AppWindow.invoke<List<Object?>>('readClipboardImages');
+    if (items == null) return empty;
     final images = <ClipboardImage>[];
     var skipped = false;
-    for (final line in const LineSplitter().convert(result.stdout as String)) {
-      final sep = line.indexOf('|');
-      if (sep <= 0) continue;
-      final kind = line.substring(0, sep);
-      final value = line.substring(sep + 1).trim();
-      if (value.isEmpty) continue;
-      final fromFile = kind == 'file';
-      final mime = fromFile ? imageMimeTypes[_extensionOf(value)] : 'image/png';
-      if (mime == null) continue;
-      final file = File(value);
-      if (!file.existsSync()) continue;
-      final length = await file.length();
-      // 0 字节也跳过：脚本里 `$img.Save(...)` 在编码前就失败（GDI+ 报错 / 杀软占用）时文件停在 0 字节，
-      // 而 PowerShell 只终止那一条语句、照常打印 `bitmap|<路径>` 且退出码 0，不判下限就会发出一个空的
-      // `image` 块。写到一半才失败（磁盘满）留下的是截断的非空 PNG，这一句挡不住，见 rounds/BACKLOG.md。
-      if (length == 0) continue;
-      if (length > clipboardImageSizeLimit) {
-        skipped = true;
-        continue;
+    for (final item in items) {
+      if (item is! Map) continue;
+      final path = item['path'];
+      final Uint8List bytes;
+      final String mime;
+      if (path is String) {
+        final fileMime = imageMimeTypes[_extensionOf(path)];
+        if (fileMime == null) continue;
+        final file = File(path);
+        if (!file.existsSync()) continue;
+        final length = await file.length();
+        if (length == 0) continue;
+        if (length > clipboardImageSizeLimit) {
+          skipped = true;
+          continue;
+        }
+        bytes = await file.readAsBytes();
+        mime = fileMime;
+      } else {
+        final width = item['width'];
+        final height = item['height'];
+        final bgra = item['bgra'];
+        if (width is! int || height is! int || bgra is! Uint8List) continue;
+        final png = await encodePngFromBgra(width, height, bgra);
+        if (png == null) continue;
+        if (png.length > clipboardImageSizeLimit) {
+          skipped = true;
+          continue;
+        }
+        bytes = png;
+        mime = 'image/png';
       }
-      images.add(ClipboardImage(bytes: await file.readAsBytes(), mimeType: mime, path: fromFile ? value : null));
+      images.add(ClipboardImage(bytes: bytes, mimeType: mime, path: path is String ? path : null));
     }
     return (images: images, skippedTooLarge: skipped);
   } catch (e) {
-    // 剪贴板读不到不该把粘贴这件事搞砸：文本粘贴已经由输入框自己做完了，这里只是没捞到图。
     debugPrint('[clipboard] read failed: $e');
-    return (images: const <ClipboardImage>[], skippedTooLarge: false);
+    return empty;
+  }
+}
+
+/// 自上而下的 BGRA 像素 → PNG（dart:ui 自带的编码器，不引图像库）。像素数与尺寸对不上时回 null。
+Future<Uint8List?> encodePngFromBgra(int width, int height, Uint8List bgra) async {
+  if (width <= 0 || height <= 0 || bgra.length != width * height * 4) return null;
+  final buffer = await ui.ImmutableBuffer.fromUint8List(bgra);
+  final descriptor = ui.ImageDescriptor.raw(buffer, width: width, height: height, pixelFormat: ui.PixelFormat.bgra8888);
+  final codec = await descriptor.instantiateCodec();
+  final frame = await codec.getNextFrame();
+  try {
+    final data = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+    return data?.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
   } finally {
-    try {
-      await temp?.delete(recursive: true);
-    } catch (e) {
-      debugPrint('[clipboard] temp cleanup failed: $e');
-    }
+    frame.image.dispose();
+    codec.dispose();
+    descriptor.dispose();
+    buffer.dispose();
   }
 }
 
@@ -100,17 +116,3 @@ String _extensionOf(String path) {
   final dot = path.lastIndexOf('.');
   return dot < 0 ? '' : path.substring(dot + 1).toLowerCase();
 }
-
-/// 临时 PNG 的落点走环境变量，不拼进脚本文本：省掉一层引号转义，路径含空格 / 中文也不用管（规则 9）。
-const String _outVar = 'ACP_CLIPBOARD_OUT';
-
-/// 输出一行一项：`file|<路径>`（剪贴板里的文件列表）或 `bitmap|<临时 PNG>`（剪贴板里的位图）。
-/// 两者都只输出路径，字节由 Dart 侧读——base64 走 stdout 会撞上 PowerShell 的重定向换行宽度。
-const String _script = r"[Console]::OutputEncoding = [Text.Encoding]::UTF8; "
-    r"Add-Type -AssemblyName System.Windows.Forms; "
-    r"Add-Type -AssemblyName System.Drawing; "
-    r"$files = [Windows.Forms.Clipboard]::GetFileDropList(); "
-    r"if ($files.Count -gt 0) { foreach ($p in $files) { Write-Output ('file|' + $p) }; exit 0 }; "
-    r"$img = [Windows.Forms.Clipboard]::GetImage(); "
-    r"if ($img -ne $null) { $img.Save($env:ACP_CLIPBOARD_OUT, [Drawing.Imaging.ImageFormat]::Png); $img.Dispose(); "
-    r"Write-Output ('bitmap|' + $env:ACP_CLIPBOARD_OUT) }";

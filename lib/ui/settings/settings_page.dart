@@ -164,10 +164,10 @@ class SettingsPage extends StatelessWidget {
               ),
             for (var i = 0; i < agents.length; i++) ...<Widget>[
               if (agents[i].id == editingId && editFields != null)
-                CustomEditBlock(agent: agents[i], fields: editFields!, onCancel: onCollapse, onSave: onSave == null ? null : () => onSave!(agents[i].id))
+                _CustomEditBlock(agent: agents[i], fields: editFields!, onCancel: onCollapse, onSave: onSave == null ? null : () => onSave!(agents[i].id))
               else ...<Widget>[
                 _agentRow(agents[i], last: i == agents.length - 1 && agents[i].id != expandedId),
-                if (agents[i].id == expandedId) LaunchReadOnlyBlock(agent: agents[i], onCollapse: onCollapse),
+                if (agents[i].id == expandedId) _LaunchReadOnlyBlock(agent: agents[i], onCollapse: onCollapse),
               ],
             ],
           ],
@@ -343,8 +343,8 @@ class SettingsRow extends StatelessWidget {
 }
 
 /// custom 型的行内编辑块（画板 70）：panel 底，标题行（id + custom 芯片 + 收起），cmd / args / env 三行输入，取消 / 保存。
-class CustomEditBlock extends StatelessWidget {
-  const CustomEditBlock({super.key, required this.agent, required this.fields, this.onCancel, this.onSave});
+class _CustomEditBlock extends StatelessWidget {
+  const _CustomEditBlock({required this.agent, required this.fields, this.onCancel, this.onSave});
 
   final RegistryEntryData agent;
   final CustomEditFields fields;
@@ -407,8 +407,8 @@ class CustomEditBlock extends StatelessWidget {
 }
 
 /// registry 型「编辑」展开的只读块：拉起参数来自 install.json（registry 型只读，画板 70 注）。
-class LaunchReadOnlyBlock extends StatelessWidget {
-  const LaunchReadOnlyBlock({super.key, required this.agent, this.onCollapse});
+class _LaunchReadOnlyBlock extends StatelessWidget {
+  const _LaunchReadOnlyBlock({required this.agent, this.onCollapse});
 
   final RegistryEntryData agent;
   final VoidCallback? onCollapse;

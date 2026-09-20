@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
+use base64::prelude::*;
 use registry::manifest::AuthStatus;
 use registry::{CancelToken, RegistryDirs};
 use serde_json::{Value, json};
@@ -74,7 +75,7 @@ impl pty::TerminalSink for TerminalEvents {
         let payload = json!({
             "terminalId": terminal_id,
             "source": source.as_str(),
-            "bytes": base64_encode(bytes),
+            "bytes": BASE64_STANDARD.encode(bytes),
         });
         self.sink.emit(EventChannel::TerminalOutput, payload.to_string());
     }
@@ -91,23 +92,6 @@ impl pty::TerminalSink for TerminalEvents {
 
 fn exit_status_json(status: &pty::ExitStatus) -> Value {
     json!({ "exitCode": status.exit_code, "signal": status.signal })
-}
-
-/// 标准 base64（带 `=` 填充）。只有这一处用到，不为它引库。
-pub fn base64_encode(bytes: &[u8]) -> String {
-    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
-    for chunk in bytes.chunks(3) {
-        let b0 = chunk[0] as u32;
-        let b1 = chunk.get(1).copied().unwrap_or(0) as u32;
-        let b2 = chunk.get(2).copied().unwrap_or(0) as u32;
-        let n = (b0 << 16) | (b1 << 8) | b2;
-        out.push(TABLE[((n >> 18) & 63) as usize] as char);
-        out.push(TABLE[((n >> 12) & 63) as usize] as char);
-        out.push(if chunk.len() > 1 { TABLE[((n >> 6) & 63) as usize] as char } else { '=' });
-        out.push(if chunk.len() > 2 { TABLE[(n & 63) as usize] as char } else { '=' });
-    }
-    out
 }
 
 impl Core {
@@ -278,11 +262,6 @@ impl Core {
         let connection = AgentConnection::connect(agent_id.to_string(), launch, cwd, self.sink.clone(), self.terminals.clone()).await?;
         lock(&self.agents).insert(agent_id.to_string(), connection.clone());
         Ok(json!({ "agentId": agent_id, "initialize": connection.initialize }))
-    }
-
-    /// 测试 / 嵌入用：接管一条已连好的连接。
-    pub fn adopt_connection(&self, connection: Arc<AgentConnection>) {
-        lock(&self.agents).insert(connection.agent_id().to_string(), connection);
     }
 
     pub async fn agent_disconnect(&self, agent_id: &str) -> Result<Value> {
@@ -733,14 +712,6 @@ mod tests {
         assert_eq!(err.code(), "invalid_data_dir");
     }
 
-    #[test]
-    fn base64_matches_reference_vectors() {
-        assert_eq!(base64_encode(b""), "");
-        assert_eq!(base64_encode(b"f"), "Zg==");
-        assert_eq!(base64_encode(b"fo"), "Zm8=");
-        assert_eq!(base64_encode(b"foo"), "Zm9v");
-        assert_eq!(base64_encode(b"foobar"), "Zm9vYmFy");
-    }
 
     #[test]
     fn unconfigured_or_unconnected_agent_errors() {

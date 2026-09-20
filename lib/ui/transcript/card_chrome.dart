@@ -10,6 +10,7 @@ import 'package:re_highlight/re_highlight.dart';
 
 import '../../theme/tokens.dart' as t;
 import 'icons.dart';
+import '../shell/shell_common.dart';
 
 /// 从 tokens 派生的组合样式（不含字面量）。
 /// 卡片里的派生字阶。
@@ -445,9 +446,18 @@ class _AcpButtonState extends State<AcpButton> {
   }
 }
 
-/// 图标按钮（24 / 28 方块，hover 6% 叠色）。
-class IconButtonGhost extends StatefulWidget {
-  const IconButtonGhost({super.key, required this.icon, this.color, this.onTap, this.size = t.Controls.standard, this.child});
+/// 图标按钮（20 / 24 / 28 方块，hover 6% 叠色）。悬浮态走 [Hoverable]，不再自己搓一遍 MouseRegion。
+/// [selected] 是面板头行那种带选中态的档（画板 60 的搜索开关）：selected 叠色 + accent 图标。
+class IconButtonGhost extends StatelessWidget {
+  const IconButtonGhost({
+    super.key,
+    required this.icon,
+    this.color,
+    this.onTap,
+    this.size = t.Controls.standard,
+    this.selected = false,
+    this.child,
+  });
 
   final String icon;
 
@@ -455,32 +465,24 @@ class IconButtonGhost extends StatefulWidget {
   final Color? color;
   final VoidCallback? onTap;
   final double size;
+  final bool selected;
 
   /// 替代图标的自定义内容（例如停止方块）。
   final Widget? child;
 
   @override
-  State<IconButtonGhost> createState() => _IconButtonGhostState();
-}
-
-class _IconButtonGhostState extends State<IconButtonGhost> {
-  bool _hover = false;
-
-  @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          width: widget.size,
-          height: widget.size,
-          decoration: BoxDecoration(color: _hover ? t.Overlays.hover : null, borderRadius: t.Radii.control),
-          alignment: Alignment.center,
-          child: widget.child ?? AcpIcon(widget.icon, color: widget.color ?? t.Neutral.muted, size: t.IconSizes.toolbar),
+    return Hoverable(
+      onTap: onTap,
+      builder: (context, hovered) => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: selected ? t.Overlays.selected : (hovered ? t.Overlays.hover : null),
+          borderRadius: t.Radii.control,
         ),
+        alignment: Alignment.center,
+        child: child ?? AcpIcon(icon, color: selected ? t.Accent.text : (color ?? t.Neutral.muted), size: t.IconSizes.toolbar),
       ),
     );
   }
@@ -528,18 +530,4 @@ class Popover extends StatelessWidget {
 /// 可点文本（链接样式，recognizer 挂在叶子 span 上）。
 InlineSpan linkSpan(String text, {VoidCallback? onTap, TextStyle? style}) {
   return TextSpan(text: text, style: style ?? CardText.link, recognizer: onTap == null ? null : (TapGestureRecognizer()..onTap = onTap));
-}
-
-/// 文本按钮（无底色，13 文字，可带前导图标）。
-class TextAction extends StatelessWidget {
-  const TextAction(this.label, {super.key, this.onTap, this.color, this.icon, this.iconColor});
-
-  final String label;
-  final VoidCallback? onTap;
-  final Color? color;
-  final String? icon;
-  final Color? iconColor;
-
-  @override
-  Widget build(BuildContext context) => AcpButton(label: label, onTap: onTap, labelColor: color, icon: icon, iconColor: iconColor);
 }

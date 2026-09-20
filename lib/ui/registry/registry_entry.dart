@@ -8,6 +8,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../projection/registry.dart';
 import '../../theme/tokens.dart' as t;
+import '../format.dart';
 import '../transcript/card_chrome.dart';
 import '../transcript/icons.dart';
 
@@ -72,10 +73,9 @@ class RegistryEntryActions {
 
 /// 条目正文 + 状态相关的附加区（安装步骤 / 进度条 / 失败日志 / custom 的 cmd · args · env）。
 /// [padding] 是正文的内边距（画板 50 的行是 12 / 16，画板 51 的卡是 12）；附加区左右沿用它、上 0 下同它。
-class RegistryEntryBody extends StatelessWidget {
-  const RegistryEntryBody(
+class _RegistryEntryBody extends StatelessWidget {
+  const _RegistryEntryBody(
     this.entry, {
-    super.key,
     this.actions = const RegistryEntryActions(),
     this.padding = const EdgeInsets.all(t.Spacing.s12),
     this.showMeta = true,
@@ -131,10 +131,10 @@ class RegistryEntryBody extends StatelessWidget {
           ),
         ),
         if (e.isInstalling && progress != null) InstallSteps(progress, padding: below),
-        if (e.isInstalling && progress != null && progress.kind == 'binary') InstallProgressBar(progress, padding: below),
+        if (e.isInstalling && progress != null && progress.kind == 'binary') _InstallProgressBar(progress, padding: below),
         if (e.isFailed && showLog && (e.failure ?? '').isNotEmpty)
           Padding(padding: below, child: MonoBlock(text: e.failure, background: t.Semantic.errorSoft, style: CardText.codeError)),
-        if (e.isCustom && e.custom != null) Padding(padding: below, child: CustomCommandLines(e.custom!)),
+        if (e.isCustom && e.custom != null) Padding(padding: below, child: _CustomCommandLines(e.custom!)),
       ],
     );
   }
@@ -256,7 +256,7 @@ class RegistryEntryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => TranscriptCard(
-        child: RegistryEntryBody(entry, actions: actions, showMeta: false, showLog: showLog),
+        child: _RegistryEntryBody(entry, actions: actions, showMeta: false, showLog: showLog),
       );
 }
 
@@ -271,7 +271,7 @@ class RegistryEntryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
-        child: RegistryEntryBody(
+        child: _RegistryEntryBody(
           entry,
           actions: actions,
           padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s16, vertical: t.Spacing.s12),
@@ -343,8 +343,8 @@ class InstallSteps extends StatelessWidget {
 }
 
 /// 下载进度条 + 「62% · 2.1 MB/s · 约 4s」（画板 51 的 binary 安装）。总大小未知时只画不确定态（整条 subtle）。
-class InstallProgressBar extends StatelessWidget {
-  const InstallProgressBar(this.progress, {super.key, this.padding = const EdgeInsets.all(t.Spacing.s12)});
+class _InstallProgressBar extends StatelessWidget {
+  const _InstallProgressBar(this.progress, {this.padding = const EdgeInsets.all(t.Spacing.s12)});
 
   final InstallProgress progress;
   final EdgeInsets padding;
@@ -391,8 +391,8 @@ class InstallProgressBar extends StatelessWidget {
 }
 
 /// custom 条目下方的 `cmd:` / `args:` / `env:` 三行（画板 51）。
-class CustomCommandLines extends StatelessWidget {
-  const CustomCommandLines(this.command, {super.key});
+class _CustomCommandLines extends StatelessWidget {
+  const _CustomCommandLines(this.command);
 
   final CustomCommand command;
 
@@ -463,7 +463,7 @@ class ManagedNodePrompt extends StatelessWidget {
           ),
           if (downloading) ...<Widget>[
             InstallSteps(p, padding: const EdgeInsets.only(left: t.Spacing.s12, right: t.Spacing.s12, bottom: t.Spacing.s12)),
-            InstallProgressBar(p, padding: const EdgeInsets.only(left: t.Spacing.s12, right: t.Spacing.s12, bottom: t.Spacing.s12)),
+            _InstallProgressBar(p, padding: const EdgeInsets.only(left: t.Spacing.s12, right: t.Spacing.s12, bottom: t.Spacing.s12)),
           ],
         ],
       ),

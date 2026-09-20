@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../theme/tokens.dart' as t;
+import '../format.dart';
 import '../shell/shell_common.dart';
 import '../shell/splitter.dart';
 import '../transcript/card_chrome.dart';
@@ -119,14 +120,6 @@ FileLanguage languageForName(String name) {
   final dot = lower.lastIndexOf('.');
   if (dot < 0 || dot == lower.length - 1) return const FileLanguage('text', null);
   return _languagesByExtension[lower.substring(dot + 1)] ?? const FileLanguage('text', null);
-}
-
-/// 「13.1 KB」：B / KB / MB，一位小数（整数字节不带小数）。
-String formatBytes(int n) {
-  const double k = 1024;
-  if (n < k) return '$n B';
-  if (n < k * k) return '${(n / k).toStringAsFixed(1)} KB';
-  return '${(n / (k * k)).toStringAsFixed(1)} MB';
 }
 
 /// 把高亮结果（一棵 TextSpan）按换行切成每行一个 span，样式跟着叶子走；行数与 `text.split('\n')` 一致。
@@ -237,7 +230,7 @@ class FilesPanel extends StatelessWidget {
             children: <Widget>[
               SizedBox(
                 width: width,
-                child: FileTreeColumn(
+                child: _FileTreeColumn(
                   tree: tree,
                   filterController: filterController,
                   filterFocusNode: filterFocusNode,
@@ -275,13 +268,13 @@ class FilesPanel extends StatelessWidget {
     return math.min(treeWidth, math.max(t.Geometry.filesTreeMinWidth, available - t.Geometry.filesViewerMinWidth));
   }
 
-  Widget? _restoreButton() => onToggleTree == null ? null : PanelIconButton(icon: AcpIcons.panelLeft, onTap: onToggleTree);
+  Widget? _restoreButton() => onToggleTree == null ? null : IconButtonGhost(icon: AcpIcons.panelLeft, onTap: onToggleTree, size: t.Geometry.panelIconButton);
 
   /// 右半边：查看器（或空态）。[leading] 是树列收起时「放回来」的按钮，空态也得给得到，
   /// 不然树一收起就再也点不回来。
   Widget _viewer({Widget? leading}) {
     if (viewer != null) {
-      return FileViewer(
+      return _FileViewer(
         viewer!,
         mode: viewMode,
         highlightLine: highlightLine,
@@ -311,9 +304,8 @@ class FilesPanel extends StatelessWidget {
 }
 
 /// 树列：头行 + 过滤框 + 树。
-class FileTreeColumn extends StatelessWidget {
-  const FileTreeColumn({
-    super.key,
+class _FileTreeColumn extends StatelessWidget {
+  const _FileTreeColumn({
     required this.tree,
     required this.filterController,
     required this.filterFocusNode,
@@ -367,9 +359,9 @@ class FileTreeColumn extends StatelessWidget {
         child: Row(
           children: <Widget>[
             Expanded(child: Text('文件浏览器', style: t.TextStyles.label, maxLines: 1, overflow: TextOverflow.ellipsis)),
-            PanelIconButton(icon: AcpIcons.search, selected: searchMode, onTap: onToggleSearch),
-            PanelIconButton(icon: AcpIcons.collapseAll, onTap: onCollapseTree),
-            PanelIconButton(icon: AcpIcons.rotateCw, onTap: onRefresh),
+            IconButtonGhost(icon: AcpIcons.search, selected: searchMode, onTap: onToggleSearch, size: t.Geometry.panelIconButton),
+            IconButtonGhost(icon: AcpIcons.collapseAll, onTap: onCollapseTree, size: t.Geometry.panelIconButton),
+            IconButtonGhost(icon: AcpIcons.rotateCw, onTap: onRefresh, size: t.Geometry.panelIconButton),
           ],
         ),
       );
@@ -398,14 +390,14 @@ class FileTreeColumn extends StatelessWidget {
 
   Widget _list() {
     if (searchMode && filterController.text.trim().isNotEmpty) {
-      if (searchResults.isEmpty) return const TreeNote('没有匹配的文件');
+      if (searchResults.isEmpty) return const _TreeNote('没有匹配的文件');
       return ListView.builder(
         padding: const EdgeInsets.all(t.Spacing.s4),
         itemExtent: t.Geometry.treeRowHeight,
         itemCount: searchResults.length,
         itemBuilder: (context, i) {
           final e = searchResults[i];
-          return FileTreeRow(
+          return _FileTreeRow(
             name: e.name,
             isDir: e.isDir,
             depth: 0,
@@ -417,16 +409,16 @@ class FileTreeColumn extends StatelessWidget {
         },
       );
     }
-    if (tree.rootError != null) return TreeNote(tree.rootError!);
+    if (tree.rootError != null) return _TreeNote(tree.rootError!);
     final rows = tree.visibleRows;
-    if (tree.loadedRoot && rows.isEmpty) return TreeNote(tree.filter.trim().isEmpty ? '空目录' : '没有匹配的文件');
+    if (tree.loadedRoot && rows.isEmpty) return _TreeNote(tree.filter.trim().isEmpty ? '空目录' : '没有匹配的文件');
     return ListView.builder(
       padding: const EdgeInsets.all(t.Spacing.s4),
       itemExtent: t.Geometry.treeRowHeight,
       itemCount: rows.length,
       itemBuilder: (context, i) {
         final n = rows[i];
-        return FileTreeRow(
+        return _FileTreeRow(
           name: n.name,
           isDir: n.isDir,
           depth: n.depth,
@@ -444,8 +436,8 @@ class FileTreeColumn extends StatelessWidget {
 }
 
 /// 树列里的一行提示（空目录 / 无匹配 / 读不到）。
-class TreeNote extends StatelessWidget {
-  const TreeNote(this.text, {super.key});
+class _TreeNote extends StatelessWidget {
+  const _TreeNote(this.text);
 
   final String text;
 
@@ -456,36 +448,9 @@ class TreeNote extends StatelessWidget {
       );
 }
 
-/// 面板头行的小图标按钮（画板 60：20 见方、14 图标）。
-class PanelIconButton extends StatelessWidget {
-  const PanelIconButton({super.key, required this.icon, this.onTap, this.selected = false});
-
-  final String icon;
-  final VoidCallback? onTap;
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) {
-    return Hoverable(
-      onTap: onTap,
-      builder: (context, hovered) => Container(
-        width: t.Geometry.panelIconButton,
-        height: t.Geometry.panelIconButton,
-        decoration: BoxDecoration(
-          color: selected ? t.Overlays.selected : (hovered ? t.Overlays.hover : null),
-          borderRadius: t.Radii.control,
-        ),
-        alignment: Alignment.center,
-        child: AcpIcon(icon, color: selected ? t.Accent.text : t.Neutral.muted, size: t.IconSizes.toolbar),
-      ),
-    );
-  }
-}
-
 /// 树的一行：`[折叠箭头 | 占位] [文件夹 / 文件图标] 名字 … [徽章]`；选中 = 按下态容器 + accent 文字。
-class FileTreeRow extends StatelessWidget {
-  const FileTreeRow({
-    super.key,
+class _FileTreeRow extends StatelessWidget {
+  const _FileTreeRow({
     required this.name,
     required this.isDir,
     this.depth = 0,
@@ -588,8 +553,8 @@ class FileViewerEmpty extends StatelessWidget {
 }
 
 /// Source / Preview 分段控件（画板 60 / 03）。
-class SegmentedToggle extends StatelessWidget {
-  const SegmentedToggle({super.key, required this.mode, this.onChanged, this.previewEnabled = true});
+class _SegmentedToggle extends StatelessWidget {
+  const _SegmentedToggle({required this.mode, this.onChanged, this.previewEnabled = true});
 
   final FileViewMode mode;
   final ValueChanged<FileViewMode>? onChanged;
@@ -632,10 +597,9 @@ class SegmentedToggle extends StatelessWidget {
 }
 
 /// 查看器：头行 + 正文。
-class FileViewer extends StatelessWidget {
-  const FileViewer(
+class _FileViewer extends StatelessWidget {
+  const _FileViewer(
     this.data, {
-    super.key,
     this.mode = FileViewMode.preview,
     this.highlightLine,
     this.onViewMode,
@@ -682,7 +646,7 @@ class FileViewer extends StatelessWidget {
                 ),
                 const SizedBox(width: t.Spacing.s8),
                 Expanded(child: Text(data.relPath, style: t.TextStyles.monoMeta, maxLines: 1, overflow: TextOverflow.ellipsis)),
-                SegmentedToggle(mode: effective, onChanged: onViewMode, previewEnabled: data.isMarkdown),
+                _SegmentedToggle(mode: effective, onChanged: onViewMode, previewEnabled: data.isMarkdown),
                 const SizedBox(width: t.Spacing.s4),
                 AcpButton(
                   label: '复制',
@@ -732,23 +696,23 @@ class FileViewer extends StatelessWidget {
     if (effective == FileViewMode.preview) {
       return SingleChildScrollView(child: MarkdownBody(data.text, onLink: onLink));
     }
-    return SourceView(text: data.text, language: data.language.highlight, highlightLine: highlightLine);
+    return _SourceView(text: data.text, language: data.language.highlight, highlightLine: highlightLine);
   }
 }
 
 /// Source 视图：行号 + 高亮，行高固定（定位滚动按行算），长行横向滚动。
-class SourceView extends StatefulWidget {
-  const SourceView({super.key, required this.text, this.language, this.highlightLine});
+class _SourceView extends StatefulWidget {
+  const _SourceView({required this.text, this.language, this.highlightLine});
 
   final String text;
   final String? language;
   final int? highlightLine;
 
   @override
-  State<SourceView> createState() => _SourceViewState();
+  State<_SourceView> createState() => _SourceViewState();
 }
 
-class _SourceViewState extends State<SourceView> {
+class _SourceViewState extends State<_SourceView> {
   final ScrollController _vertical = ScrollController();
   final ScrollController _horizontal = ScrollController();
   late List<String> _lines;
@@ -770,7 +734,7 @@ class _SourceViewState extends State<SourceView> {
   int _fontGeneration = t.Fonts.generation;
 
   @override
-  void didUpdateWidget(SourceView old) {
+  void didUpdateWidget(_SourceView old) {
     super.didUpdateWidget(old);
     if (old.text != widget.text || old.language != widget.language) _prepare();
     if (old.highlightLine != widget.highlightLine || old.text != widget.text) _scheduleReveal();
@@ -823,7 +787,7 @@ class _SourceViewState extends State<SourceView> {
 
   @override
   Widget build(BuildContext context) {
-    // 换过字体就重算带 family 的那几样。放在 build 而不是监听器里：SourceView 拿不到
+    // 换过字体就重算带 family 的那几样。放在 build 而不是监听器里：_SourceView 拿不到
     // AppearanceController，而组合根换字体时本来就会重建整棵树，这里只是顺带对一次代数。
     if (_fontGeneration != t.Fonts.generation) _prepare();
     return LayoutBuilder(

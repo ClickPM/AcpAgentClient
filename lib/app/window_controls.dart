@@ -12,18 +12,19 @@ abstract final class AppWindow {
 
   static bool get supported => Platform.isWindows;
 
-  static Future<void> minimize() => _invoke<void>('minimize');
+  static Future<void> minimize() => invoke<void>('minimize');
 
-  static Future<void> toggleMaximize() => _invoke<void>('toggleMaximize');
+  static Future<void> toggleMaximize() => invoke<void>('toggleMaximize');
 
-  static Future<void> close() => _invoke<void>('close');
+  static Future<void> close() => invoke<void>('close');
 
-  static Future<bool> isMaximized() async => await _invoke<bool>('isMaximized') ?? false;
+  static Future<bool> isMaximized() async => await invoke<bool>('isMaximized') ?? false;
 
   /// 顶栏空白处按下鼠标时调用：把拖拽交回系统。
-  static Future<void> startDragging() => _invoke<void>('startDragging');
+  static Future<void> startDragging() => invoke<void>('startDragging');
 
-  static Future<T?> _invoke<T>(String method) async {
+  /// 调 runner 的一个方法；没有实现（flutter test / 其他平台）时回 null。壳之外也用它（剪贴板读取）。
+  static Future<T?> invoke<T>(String method) async {
     if (!supported) return null;
     try {
       return await _channel.invokeMethod<T>(method);

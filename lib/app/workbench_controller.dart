@@ -162,7 +162,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   late final TurnController turn = TurnController(bridge: bridge, session: session, composer: composer);
 
   /// agent 终端（`acp/terminal_output` source = agent / auth）的分块 UTF-8 解码：跨块的多字节字符不能逐块 `utf8.decode`。
-  final Map<String, ChunkedUtf8> _agentTerminalText = <String, ChunkedUtf8>{};
+  final Map<String, _ChunkedUtf8> _agentTerminalText = <String, _ChunkedUtf8>{};
 
   /// 核心给的几个路径（画板 70）：`core_init` / `registry_list` 的 `paths`。
   String? dataDir;
@@ -308,7 +308,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     }
     final id = json['terminalId'];
     if (id is! String) return;
-    sessions.applyTerminalOutputEvent(json, decode: (b64) => _agentTerminalText.putIfAbsent(id, ChunkedUtf8.new).decode(b64));
+    sessions.applyTerminalOutputEvent(json, decode: (b64) => _agentTerminalText.putIfAbsent(id, _ChunkedUtf8.new).decode(b64));
     if (json['exitStatus'] is Map) _agentTerminalText.remove(id);
   }
 
@@ -334,8 +334,8 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
 }
 
 /// 一个终端的 base64 字节流 → 文本：分块 UTF-8 解码，跨块的多字节字符不会被切成 U+FFFD（R3 逐块 `utf8.decode` 的隐患）。
-class ChunkedUtf8 {
-  ChunkedUtf8() {
+class _ChunkedUtf8 {
+  _ChunkedUtf8() {
     _sink = const Utf8Decoder(allowMalformed: true).startChunkedConversion(StringConversionSink.fromStringSink(_out));
   }
 

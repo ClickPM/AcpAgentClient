@@ -15,6 +15,7 @@ use acp_core::error::CoreError;
 use acp_core::events::{EventChannel, EventSink};
 use agent_client_protocol::schema::v1 as acp;
 use agent_client_protocol::{Agent, Channel, Client, ConnectionTo, Responder, UntypedMessage};
+use base64::prelude::*;
 use serde_json::{Value, json};
 
 /// 事件收集器：按到达顺序存 `(channel, payload)`，支持等待某条件。
@@ -478,7 +479,7 @@ struct EventTerminals(Arc<Events>);
 
 impl pty::TerminalSink for EventTerminals {
     fn output(&self, id: &str, source: pty::TerminalSource, bytes: &[u8]) {
-        let payload = json!({ "terminalId": id, "source": source.as_str(), "bytes": acp_core::core::base64_encode(bytes) });
+        let payload = json!({ "terminalId": id, "source": source.as_str(), "bytes": BASE64_STANDARD.encode(bytes) });
         self.0.emit(EventChannel::TerminalOutput, payload.to_string());
     }
 

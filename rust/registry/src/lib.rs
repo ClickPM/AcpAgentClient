@@ -90,6 +90,12 @@ impl From<settings::SettingsError> for RegistryError {
     }
 }
 
+impl From<fs::FsError> for RegistryError {
+    fn from(e: fs::FsError) -> Self {
+        RegistryError::Io(e.to_string())
+    }
+}
+
 pub type Result<T> = std::result::Result<T, RegistryError>;
 
 /// `registry/progress` 的一条（docs/design.md § 3）：`agent_id` 为 `None` 是受管 Node。

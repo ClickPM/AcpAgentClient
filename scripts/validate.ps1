@@ -170,7 +170,7 @@ try {
         # R7.5 组合根拆分（rounds/round-7.5/round-7.5.md 验收 5）：组合根 ≤ 450 行，lib/app 下任何文件 ≤ 900 行，
         # 防止组合根再长回上帝对象。改阈值先改任务卡再改这里。
         # 行数按原始行计（与 wc -l 同口径，空行也算）。两处显式放宽，都是本轮只改了引用路径的既有文件：
-        # headless_run.dart 是 R3 / R5 / R6 三个无头实跑模式的驱动（基线 1186 行），不是产品代码；
+        # headless_run.dart 是 R3 / R5 / R6 三个无头实跑模式的驱动（基线 1186 行），不是产品代码（入口 lib/main_headless.dart）；
         # workbench_screen.dart 在画板 43 之后就是 946 行（任务卡「2026-09-20 复核」记为观察项）。
         # 拆它们的事记 rounds/BACKLOG.md 等裁定；再长就得回来动这两个数字。
         $limits = @{ "workbench_controller.dart" = 450; "headless_run.dart" = 1300; "workbench_screen.dart" = 1000 }
