@@ -13,7 +13,7 @@ import '../../ui/shell/composer.dart';
 import '../../ui/shell/right_panel.dart';
 import '../../ui/shell/shell_common.dart';
 import '../../ui/shell/sidebar.dart';
-import '../../ui/shell/thread_header.dart';
+import '../../ui/shell/session_header.dart';
 import '../../ui/shell/topbar.dart';
 import '../../ui/shell/transcript_empty.dart';
 import '../../ui/terminal/local_terminal.dart';
@@ -118,7 +118,7 @@ String _agentTitle(FixtureReplay r) {
   return a?.agentTitle ?? a?.agentName ?? 'Agent';
 }
 
-String _threadTitle(FixtureReplay r) => r.session.title ?? 'New ${_agentTitle(r)} Thread';
+String _sessionTitle(FixtureReplay r) => r.session.title ?? 'New ${_agentTitle(r)} Session';
 
 String? _currentName(FixtureReplay r, String category) {
   for (final o in r.session.configOptions) {
@@ -174,8 +174,8 @@ Widget _mainColumn(FixtureReplay r, {bool menuSelected = true}) {
   final s = r.session;
   return WorkbenchColumn(
     topBar: const TopBar(projectName: galleryProject, branch: galleryBranch, windowControls: false),
-    threadHeader: ThreadHeader(title: _threadTitle(r), menuSelected: menuSelected),
-    body: NewThreadEmpty(title: _threadTitle(r)),
+    sessionHeader: SessionHeader(title: _sessionTitle(r), menuSelected: menuSelected),
+    body: NewSessionEmpty(title: _sessionTitle(r)),
     composer: Composer(
       controller: _c(),
       focusNode: FocusNode(),

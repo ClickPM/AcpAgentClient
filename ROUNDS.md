@@ -39,11 +39,11 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 | 画板 | 名称 | 轮 | widget 文件（拟） |
 |---|---|---|---|
 | 00 | Token 表 | R0 | `lib/theme/tokens.dart`（不是 widget；gallery 里有一张 token 样板页） |
-| 01 | 工作台 · 新会话 | R3 | `lib/ui/shell/app_shell.dart` + `sidebar.dart` + `topbar.dart` + `thread_header.dart` + `composer.dart` + `transcript_empty.dart`（另有三张以上画板共用的 `shell_common.dart`、`popover_anchor.dart`、`splitter.dart`；2026-09-17 起加 `app_logo.dart`（正式标记），2026-09-18 起加 `composer_attachments.dart`（附件芯片条）与 `tooltip.dart`（悬停提示）——后三者是设计稿之外的增补，见 BACKLOG「设计稿补注记」） |
+| 01 | 工作台 · 新会话 | R3 | `lib/ui/shell/app_shell.dart` + `sidebar.dart` + `topbar.dart` + `session_header.dart` + `composer.dart` + `transcript_empty.dart`（另有三张以上画板共用的 `shell_common.dart`、`popover_anchor.dart`、`splitter.dart`；2026-09-17 起加 `app_logo.dart`（正式标记），2026-09-18 起加 `composer_attachments.dart`（附件芯片条）与 `tooltip.dart`（悬停提示）——后三者是设计稿之外的增补，见 BACKLOG「设计稿补注记」） |
 | 02 | 工作台 · 进行中的一轮 | R3 | 同上（状态由投影层驱动） |
 | 03 | 工作台 · 回合结束 + 右栏展开 | R3（右栏内容 R4） | 同上 + `lib/ui/shell/right_panel.dart` |
 | 04 | 侧栏与顶栏状态 | R3 | `sidebar.dart`、`topbar.dart`（会话项、搜索、折叠态） |
-| 05 | 转场规格 | main 直改（2026-09-17） | `lib/ui/shell/motion.dart`（`MotionEnter`，A / B / C / D 四组共用）+ 接线点 `workbench_screen.dart`、`workbench_controller.dart`、`thread_header.dart`、`transcript_empty.dart`、`popover_anchor.dart`；数值在 `tokens.dart` 的 `Motion` / `Opacities` |
+| 05 | 转场规格 | main 直改（2026-09-17） | `lib/ui/shell/motion.dart`（`MotionEnter`，A / B / C / D 四组共用）+ 接线点 `workbench_screen.dart`、`workbench_controller.dart`、`session_header.dart`、`transcript_empty.dart`、`popover_anchor.dart`；数值在 `tokens.dart` 的 `Motion` / `Opacities` |
 | 06 | 侧栏会话活动指示 | main 直改（2026-09-18） | `sidebar.dart`（`SessionSweepLine` / `SessionUnreadDot` + 会话项的 running / unread 两态）+ 接线点 `workbench_controller.dart`（`runningSessionIds` / `unreadSessionIds`）、`workbench_screen.dart`；数值在 `tokens.dart` 的 `Sweep` / `UnreadDot` / `Geometry` |
 | 07 | 深色 Token 对位表 | `dark-mode-toggle-implementation` 分支（2026-09-20） | `lib/theme/tokens.dart`（`AppTheme` / `ThemeColors` / `Theming` + 颜色 token 全部改 getter）+ `lib/app/appearance_prefs.dart`（原 `font_prefs.dart`，`AppearanceController` 一并管字体与主题）；切换按钮在 `sidebar.dart` 的 `SidebarTitleBar`，接线点 `workbench_screen.dart` / `app.dart`；落盘在 `rust/settings` 的 `Appearance.theme` |
 | 10 | ~~Restore Checkpoint 分隔线~~ 已废弃（2026-09-17） | R2 | 已删除（与画板 11 的 Restore 同一动作） |
@@ -74,7 +74,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 | 40 | 输入框弹层合集 | R3 | `lib/ui/popovers/composer_popovers.dart`（+ 40 / 41 / 42 共用的 `lib/ui/popovers/menu.dart`） |
 | 41 | 顶栏与侧栏弹层合集 | R3（会话菜单动作 R6） | `lib/ui/popovers/topbar_popovers.dart` |
 | 42 | 输入框内联菜单 | R3 | `lib/ui/popovers/inline_menus.dart` |
-| 43 | 会话时间线弹层 | main 直改（2026-09-20） | `lib/ui/popovers/session_timeline.dart` + 派生层 `lib/projection/timeline.dart`；接线点 `thread_header.dart`（history 按钮）、`workbench_screen.dart`（弹层与跳转）、`transcript_list.dart` / `user_message.dart`（行键与落点聚焦态）；数值在 `tokens.dart` 的 `Timeline` |
+| 43 | 会话时间线弹层 | main 直改（2026-09-20） | `lib/ui/popovers/session_timeline.dart` + 派生层 `lib/projection/timeline.dart`；接线点 `session_header.dart`（history 按钮）、`workbench_screen.dart`（弹层与跳转）、`transcript_list.dart` / `user_message.dart`（行键与落点聚焦态）；数值在 `tokens.dart` 的 `Timeline` |
 | 50 | Agents 面板（ACP Registry） | R5 | `lib/ui/registry/registry_panel.dart` |
 | 51 | Registry 条目状态 | R5 | `lib/ui/registry/registry_entry.dart` |
 | 52 | agent 认证 | R5 | `lib/ui/registry/auth_page.dart` |
@@ -204,8 +204,8 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 
 - `lib/ui/shell/`、`lib/ui/popovers/`、`lib/ui/traffic/`（§ 2）；`lib/app/` 组合根：数据源默认 bridge，`--dart-define=DATA_SOURCE=fixtures` 供 gallery 与开发。
 - 本地会话索引 `%APPDATA%/AcpAgentClient/sessions.json`（agentId + sessionId + 标题 + cwd + 时间 + 消息计数；临时文件 + rename）；侧栏：搜索、会话项默认 / 悬浮（重命名、删除）/ 选中 / 行内重命名、折叠态；「N 条消息」由投影层分组计数得出。
-- 线程头：标题（`session_info_update.title`，缺省用 `New <agent> Thread`）、重命名（本地索引）、新建（41 选 agent → `session/new`，cwd = 当前项目）、重载 agent（断开 + 重拉 + 新会话，本地转录保留只读；R6 接 `session/load` 后改为重载后自动 load）、≡ 菜单按 `sessionCapabilities` 裁剪（Resume / Close / Delete 无能力不渲染；动作本身 R6 接）。
-- 输入框：占位文案、`+` 弹层（Files & Directories → `file_selector` → `resource_link`；Image → `image` 块，受 `promptCapabilities.image` 门；Threads → 本地转录文本作 embedded resource；Branch Diff → `git diff` 输出作 embedded resource；Symbols / Selection 已按裁定从画板 40 删除）、`@` 提及（42；文件 / 文件夹 / 最近，用 `fs_search` 按名过滤，本轮把 `fs_list_dir` / `fs_search` 的最小实现拉进 `rust/fs`）、`/` 命令（`available_commands_update` 全量列表；`input: unstructured` 时命令名后的整段文本原样作参数）、模型 / 思考强度 / 模式三个下拉与布尔开关行（`config_option_update` 按 `category` 分配，未知 category 扁平兜底，未知 type 整条忽略；同时有 modes 时只用 configOptions）、用量圆环与浮窗（30；`usage_update`）、发送 / 停止（`session/cancel`）、Awaiting 悬浮条（26；Scroll 定位）。
+- 会话头：标题（`session_info_update.title`，缺省用 `New <agent> Session`）、重命名（本地索引）、新建（41 选 agent → `session/new`，cwd = 当前项目）、重载 agent（断开 + 重拉 + 新会话，本地转录保留只读；R6 接 `session/load` 后改为重载后自动 load）、≡ 菜单按 `sessionCapabilities` 裁剪（Resume / Close / Delete 无能力不渲染；动作本身 R6 接）。
+- 输入框：占位文案、`+` 弹层（Files & Directories → `file_selector` → `resource_link`；Image → `image` 块，受 `promptCapabilities.image` 门；Sessions → 本地转录文本作 embedded resource；Branch Diff → `git diff` 输出作 embedded resource；Symbols / Selection 已按裁定从画板 40 删除）、`@` 提及（42；文件 / 文件夹 / 最近，用 `fs_search` 按名过滤，本轮把 `fs_list_dir` / `fs_search` 的最小实现拉进 `rust/fs`）、`/` 命令（`available_commands_update` 全量列表；`input: unstructured` 时命令名后的整段文本原样作参数）、模型 / 思考强度 / 模式三个下拉与布尔开关行（`config_option_update` 按 `category` 分配，未知 category 扁平兜底，未知 type 整条忽略；同时有 modes 时只用 configOptions）、用量圆环与浮窗（30；`usage_update`）、发送 / 停止（`session/cancel`）、Awaiting 悬浮条（26；Scroll 定位）。
 - 顶栏：侧栏开关、项目名与切换弹层（This Window = 已打开的项目、Recent Projects = 本地列表、Open Local Folders = `file_selector` 目录选择）、分支名与切换弹层（`git branch` 列表、搜索、`git switch`、`git switch -c` 新建；非 git 目录整块隐藏）、窗口控制（裁定）。
 - 34 agent 状态条（spawned / initialized / auth_required 列认证入口 / exited 带 stderr 尾巴与重启 / 丢弃告警 / `-32000` 错误条）；80 流量面板（方向与方法过滤、变体标签、原文展开、暂停跟随、复制行、丢弃计数告警行、stderr 尾巴区）。
 - Windows runner 侧的自绘窗口控制（若裁定为平台通道方案）。
@@ -214,7 +214,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 
 1. 画板阶段：gallery 01（两状态）/ 02 / 03（右栏用占位）/ 04 / 40 / 41 / 42 / 34 / 80 与 PNG 逐张对照。
 2. 接线阶段：`git diff <画板阶段收口提交>..HEAD -- lib/theme lib/ui` 为空（含 R2 的 `lib/ui/transcript/`）。
-3. dsh 真跑：新会话 → 一轮含权限（允许 / 拒绝 / 范围下拉；画板 25 上的 Alt-Shift-A / Alt-Shift-X / Ctrl-Alt-A 标签从未接过按键，2026-09-18 已裁定去掉、不做快捷键）→ elicitation form 提交 → 计划卡折叠 / 展开 → 回合结束行 → 第二轮中途停止 → 重载 agent；改一个 config option 后弹层与线程头同步刷新。
+3. dsh 真跑：新会话 → 一轮含权限（允许 / 拒绝 / 范围下拉；画板 25 上的 Alt-Shift-A / Alt-Shift-X / Ctrl-Alt-A 标签从未接过按键，2026-09-18 已裁定去掉、不做快捷键）→ elicitation form 提交 → 计划卡折叠 / 展开 → 回合结束行 → 第二轮中途停止 → 重载 agent；改一个 config option 后弹层与会话头同步刷新。
 4. 流量面板对同一轮的行数与 `acp-smoke` 一致，密钥打码；注入 `notice` 后 34 与 80 的告警同时出现。
 5. 项目切换后新会话的 cwd 正确；分支列表与 `git branch` 一致，新建分支后顶栏立即更新；非 git 目录分支区隐藏。
 6. 杀掉 agent → 34 的 exited 条 + 重启可用；应用整体不崩。
@@ -289,7 +289,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 
 ### R6 会话生命周期与五 agent 全通
 
-**目标**：`session/list` / `load` / `resume` / `close` / `delete` 接通，侧栏与线程头菜单的动作全部可用，modes 回退路径真跑；五个一等 agent 按 `docs/requirements.md` § 必须 第 3 条的七步全通，矩阵见 § 4。参照 pi-acp（`session/load`、slash 命令、不用客户端 fs 与 terminal、`--terminal-login`）。
+**目标**：`session/list` / `load` / `resume` / `close` / `delete` 接通，侧栏与会话头菜单的动作全部可用，modes 回退路径真跑；五个一等 agent 按 `docs/requirements.md` § 必须 第 3 条的七步全通，矩阵见 § 4。参照 pi-acp（`session/load`、slash 命令、不用客户端 fs 与 terminal、`--terminal-login`）。
 
 **交付物**
 
@@ -426,4 +426,5 @@ R6 的逐格证据（报告 JSON 路径、能力声明、重放 digest 比对、
 | 画板 43（会话时间线） | 已完成 | `session-timeline` | `42ad9fc`（画板 43 拉回 + 01 / 02 / 03 补 history 按钮） | `867251b` | 3 轮 / cursor CLI `--mode ask`（第 1–2 轮全量 `main...HEAD`：各 1 条 P2；第 3 轮只审整改 diff `e44620d..HEAD`：0 条；2 条全部采纳整改） | 简报 `design/round-design/input/revision-03.md`；两条 P2 是同一条路径的两半 —— 弹层原用 `HardwareKeyboard` 全局处理器接键，而全局处理器**挡不住焦点链**（`KeyEventManager` 跑完它还会无条件再发给焦点链），Enter 因此落到输入框被当成「发送」把草稿发出去；改成弹层自己拿焦点后，Tab / 左右键又经默认 Shortcuts 把焦点交回输入框，最终改为除 Esc 外一律 `handled`。`autofocus` 在这里不兑现的真因是域里已有 `focusedChild`（复审订正）。validate 13 项全绿、`flutter test` 294 项通过（新增 37 项）；**未构建、未手测** |
 | 画板 07（深色模式） | 待合并 `main` | `claude/dark-mode-toggle-implementation-e028d0`（Claude Code 桌面端 worktree 分支） | `0977cde`（画板 07 拉回 + 实现） | — | 4 轮 / cursor CLI `cursor-grok-4.6-high-fast`（第 1–2 轮全量 `main...HEAD`：2 条 high 1 / P3 1，1 条 high；第 3 轮起只审整改 diff：1 条 high，第 4 轮 0 条收口；4 条全部采纳整改） | 三条 high 是同一处的三层：`AppearanceController` 在读盘未落定 / 读盘失败 / 补读之后拿错基线时，都会把 `appearance` 段整段覆盖成缺省，抹掉盘上已存的字体轴或主题（`appearance` 段在 Rust 侧是整段替换的）。各带一条回归用例，去掉整改都会红（逐条实测过）。P3 是两处文档还指着改名前的 `font_prefs.dart`。`validate.ps1` 全绿（flutter test 334 项）。并发落盘后发先至（R7.6 就有）与终端当前搜索命中的前景色记 `rounds/BACKLOG.md` |
 | R7.6 | 已完成 | `font-switching`（worktree `AcpAgentClient-fonts`） | —（设计稿待补，见下） | — | 3 轮 / cursor CLI `cursor-grok-4.6-high`（第 1 轮全量 `main...HEAD`：3 条 high 1 / P2 2，全部采纳整改；第 2 轮全量复审：**0 条**；第 3 轮合并 `main`（画板 43）之后再全量：**0 条**） | 字体切换四轴（界面西文 / 界面中文 / 代码等宽西文 / 代码等宽中文），所有者裁定 2026-09-20「字体属聚合物 + 随包直选 + 两组互不重叠的下拉」；任务卡 `rounds/round-7.6/round-7.6.md`；validate 全绿（281 测试）；第 1 轮审查抓到 high 1 条：`CardText` 等 14 个 `static final` 样式缓存会把 family 冻在首次访问那一刻，导致「全局生效」原本是假的（自测只断言 `TextStyles.*` 故假通过），已改 getter 并加扫源码的回归测试；**画板 70 的「外观」小节属实现先行、设计稿待补**；随包字体文件需所有者本人下载后放 `assets/fonts/optional/`（协议的点击同意不可由工具绕过），在此之前验收 9 待完成 |
+| Thread → Session 收敛 | 已完成 | `claude/thread-to-session-unify-fb9f63` | —（设计稿待补，见 BACKLOG） | — | —（所有者指定直接合并，未走独立审查） | UI 文案与前端 Dart 符号从 `Thread` 统一收敛为 `Session`（中文「会话」）：默认会话标题 `New <agent> Thread` → `New <agent> Session`、`+` 弹层 `Threads` → `Sessions`；`ThreadHeader` / `NewThreadEmpty` / `ThreadMenuPopover` / `ThreadHeaderRunning` → `SessionHeader` / `NewSessionEmpty` / `SessionMenuPopover` / `SessionHeaderRunning`（`lib/ui/shell/thread_header.dart` → `session_header.dart`）、`threadTitle` → `sessionTitle`、`threadMenuAnchor` → `sessionMenuAnchor`、`WorkbenchColumn.threadHeader` → `sessionHeader`、`+` 加入的转录 URI `acp-thread:` → `acp-session:`；注释与文档里的「线程头 / 线程区」改「会话头 / 会话区」。起因是协议层与状态层本就是 `session/*`、中文文案本就是「会话」，只有临摹 Zed 原型留下的几处英文还写着 `Thread`。零布局 / 零 token 值改动（`tokens.dart` 只动一行注释），31 文件 +166 -165；validate 13 项全绿、`flutter test` 319 项通过、`flutter analyze` 0 error 0 warning。Zed 上游的 `ThreadEvent` / `ThreadStore` / `threads.db` / `acp_thread.rs` 不在收敛范围。**画板 00 / 01 / 02 / 03 / 06 / 31 / 40 / 50 / 60 / 61 仍是旧文案，属实现先行**，注记记 BACKLOG「设计稿补注记（Thread → Session 收敛）」；**未构建 / 未审查（所有者指定）** |
 | R8 | 未开始 | `round-08` | — | — | — | 前置 R7 已完成；打包时注意 sidecar 体积（release 176.7 MB） |

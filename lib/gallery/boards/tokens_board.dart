@@ -406,7 +406,7 @@ class _TypeScale extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        _TypeLine(sample: Text('New Thread', style: t.TextStyles.display), note: 'text.display 20 / 500 · 空态'),
+        _TypeLine(sample: Text('New Session', style: t.TextStyles.display), note: 'text.display 20 / 500 · 空态'),
         const SizedBox(height: t.Spacing.s8),
         _TypeLine(sample: Text('ACP Registry', style: t.TextStyles.title), note: 'text.title 15 / 500'),
         const SizedBox(height: t.Spacing.s8),

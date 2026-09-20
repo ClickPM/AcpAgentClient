@@ -102,7 +102,7 @@ abstract final class AcpIcons {
   /// 34：禁止（exited）。
   static const String slashCircle = '<circle cx="12" cy="12" r="9"/><line x1="18" y1="6" x2="6" y2="18"/>';
 
-  /// 31：线程头菱形（画板 31 线程标题前的图标，原稿是填充菱形）。
+  /// 31：会话头菱形（画板 31 会话标题前的图标，原稿是填充菱形）。
   static const String diamond = '<path d="M12 3l9 9-9 9-9-9z"/>';
 
   // ---- R3 新增（画板 01–04 / 40 / 41 / 42 / 80，路径取自各画板的 <svg>）
@@ -119,19 +119,19 @@ abstract final class AcpIcons {
   /// 01 / 03 / 04 / 42：文件夹（侧栏「文件」、右栏标签、@ 菜单的目录行、项目弹层的 Open Local Folders）。
   static const String folder = '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>';
 
-  /// 01–03：线程头「新建会话」。
+  /// 01–03：会话头「新建会话」。
   static const String plusSquare = '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>';
 
-  /// 01–03：线程头「重载 agent」。
+  /// 01–03：会话头「重载 agent」。
   static const String reload = '<path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>';
 
   /// 41：≡ 菜单里的 Reload Agent。
   static const String rotateCw = '<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"/>';
 
-  /// 01–03 / 43：线程头「会话时间线」（表盘 + 逆时针箭头）。
+  /// 01–03 / 43：会话头「会话时间线」（表盘 + 逆时针箭头）。
   static const String history = '<path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/>';
 
-  /// 01–03：线程头 ≡ 菜单（右栏开关）。
+  /// 01–03：会话头 ≡ 菜单（右栏开关）。
   static const String menuLines = '<line x1="3" y1="6" x2="16" y2="6"/><line x1="3" y1="12" x2="16" y2="12"/><line x1="3" y1="18" x2="16" y2="18"/><line x1="20" y1="4" x2="20" y2="20"/>';
 
   /// 01–03 / 40：输入框的 Follow（跟随 agent 定位）。
@@ -144,7 +144,7 @@ abstract final class AcpIcons {
   static const String arrowRight = '<line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/>';
   static const String arrowLeft = '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="11 6 5 12 11 18"/>';
 
-  /// 40：+ 弹层的 Threads。
+  /// 40：+ 弹层的 Sessions。
   static const String messageSquare = '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>';
 
   /// 40：+ 弹层的 Image。

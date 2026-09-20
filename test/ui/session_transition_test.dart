@@ -1,8 +1,8 @@
 // 画板 05 B 组「带等待期的替换」的接线回归测试。
-// 所有者手测 2026-09-18：线程头 + 选完 agent 之后，到新会话真的出来这几秒界面一动不动
+// 所有者手测 2026-09-18：会话头 + 选完 agent 之后，到新会话真的出来这几秒界面一动不动
 // （「比较生硬」「reload 会话至少能看到灰色蒙层和 loading」）。成因是等待态只接到 reloadAgent 上，
 // newSession 那条路从头到尾不翻任何标志，于是拉进程 + initialize + session/new 全程零反馈。
-// 这里守两件事：等待期内转录区降到 opacity.pending 且不可交互、线程头转 spinner；会话到手后全部收掉。
+// 这里守两件事：等待期内转录区降到 opacity.pending 且不可交互、会话头转 spinner；会话到手后全部收掉。
 
 import 'dart:async';
 
@@ -11,7 +11,7 @@ import 'package:acp_agent_client/app/workbench_screen.dart';
 import 'package:acp_agent_client/projection/wire.dart';
 import 'package:acp_agent_client/theme/tokens.dart' as t;
 import 'package:acp_agent_client/ui/popovers/topbar_popovers.dart';
-import 'package:acp_agent_client/ui/shell/thread_header.dart';
+import 'package:acp_agent_client/ui/shell/session_header.dart';
 import 'package:acp_agent_client/ui/transcript/card_chrome.dart';
 import 'package:acp_agent_client/ui/transcript/icons.dart';
 import 'package:flutter/material.dart';
@@ -24,7 +24,7 @@ const Size _window = Size(1440, 900);
 
 final Finder _plus = find.byWidgetPredicate((w) => w is IconButtonGhost && w.icon == AcpIcons.plusSquare);
 final Finder _body = find.byType(AnimatedOpacity);
-final Finder _headerSpinner = find.descendant(of: find.byType(ThreadHeader), matching: find.byType(Spinner));
+final Finder _headerSpinner = find.descendant(of: find.byType(SessionHeader), matching: find.byType(Spinner));
 
 /// `agent_connect` 挂在 [gate] 上不返回：拉起 agent 进程那几秒就是这个样子。
 class _GatedCore extends FakeCore {
@@ -74,7 +74,7 @@ bool _bodyIgnoring(WidgetTester tester) => tester
     .widgetList<IgnorePointer>(find.ancestor(of: _body, matching: find.byType(IgnorePointer)))
     .any((IgnorePointer w) => w.ignoring);
 
-/// 线程头 + → 弹层里点一个 agent。返回后 `newSession` 已经在途（门关着就停在 `agent_connect` 上）。
+/// 会话头 + → 弹层里点一个 agent。返回后 `newSession` 已经在途（门关着就停在 `agent_connect` 上）。
 Future<void> _pickAgent(WidgetTester tester) async {
   await tester.tap(_plus);
   await tester.pump();
@@ -100,7 +100,7 @@ Future<WorkbenchController> _pumpShell(WidgetTester tester, _GatedCore core) asy
 }
 
 void main() {
-  testWidgets('线程头 + 选完 agent：会话还没到手就先进等待态（转录变暗不可点 + 线程头 spinner）', (tester) async {
+  testWidgets('会话头 + 选完 agent：会话还没到手就先进等待态（转录变暗不可点 + 会话头 spinner）', (tester) async {
     final core = _GatedCore();
     final c = await _pumpShell(tester, core);
 
@@ -159,7 +159,7 @@ void main() {
     expect(c.waitingForAgent, isTrue);
     expect(core.connects, 1);
 
-    // 等待期里线程头的 `+` 仍可点：再选一次。没有守卫的话第二条会再 `agent_connect` 一次（把第一条刚拉起的进程断掉），
+    // 等待期里会话头的 `+` 仍可点：再选一次。没有守卫的话第二条会再 `agent_connect` 一次（把第一条刚拉起的进程断掉），
     // 而且它存下的 wasWaiting 是 true，后返回时把等待态永久留在 true（发布前审查 P2，2026-09-18）。
     await _pickAgent(tester);
     expect(core.connects, 1, reason: '第二条 newSession 被重入守卫挡在门外');

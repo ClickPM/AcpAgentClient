@@ -5,13 +5,13 @@
 // 偏移量随窗口宽度与文本长度变，单看一张图不容易认出来，所以在这里钉死数值。
 //
 // 二、三列头两行的行高：分割线是横穿整窗的，侧栏搜索行与右栏标签条取了 `Controls.input`（32）、
-//     顶栏与线程头取条高（36），两条分割线就各错开 4px。这条在静态图上更难看出来，同样钉住。
+//     顶栏与会话头取条高（36），两条分割线就各错开 4px。这条在静态图上更难看出来，同样钉住。
 
 import 'package:acp_agent_client/theme/tokens.dart' as t;
 import 'package:acp_agent_client/ui/shell/right_panel.dart';
 import 'package:acp_agent_client/ui/shell/shell_common.dart';
 import 'package:acp_agent_client/ui/shell/sidebar.dart';
-import 'package:acp_agent_client/ui/shell/thread_header.dart';
+import 'package:acp_agent_client/ui/shell/session_header.dart';
 import 'package:acp_agent_client/ui/shell/topbar.dart';
 import 'package:acp_agent_client/ui/transcript/card_chrome.dart';
 import 'package:acp_agent_client/ui/transcript/icons.dart';
@@ -34,7 +34,7 @@ void main() {
     );
   }
 
-  group('线程头（画板 01）', () {
+  group('会话头（画板 01）', () {
     const double width = 700;
     // ≡ 图标在 standard 见方的按钮里居中，所以动作组贴右时图标右边缘落在这里。
     const double iconRight = width - t.Spacing.s8 - (t.Controls.standard - t.IconSizes.toolbar) / 2;
@@ -44,13 +44,13 @@ void main() {
         .dx;
 
     testWidgets('动作组贴右，且不随标题长短移动', (tester) async {
-      await pump(tester, const ThreadHeader(title: '短'), width: width, height: t.Geometry.barHeight);
+      await pump(tester, const SessionHeader(title: '短'), width: width, height: t.Geometry.barHeight);
       final short = menuIconRight(tester);
       expect(short, closeTo(iconRight, 0.5), reason: '画板 01 的动作组是 margin-left:auto，必须贴右');
 
       await pump(
         tester,
-        const ThreadHeader(title: 'New DeepSeek Harness Thread · 一个很长很长的会话标题'),
+        const SessionHeader(title: 'New DeepSeek Harness Session · 一个很长很长的会话标题'),
         width: width,
         height: t.Geometry.barHeight,
       );
@@ -120,8 +120,8 @@ void main() {
         width: t.Geometry.sidebarWidth,
       );
       row2['侧栏搜索'] = tester.getSize(find.byType(SidebarSearchField)).height;
-      await pump(tester, const ThreadHeader(title: 'New Thread'), width: 700);
-      row2['线程头'] = tester.getSize(find.byType(ThreadHeader)).height;
+      await pump(tester, const SessionHeader(title: 'New Session'), width: 700);
+      row2['会话头'] = tester.getSize(find.byType(SessionHeader)).height;
 
       expect(row1.values.toSet(), hasLength(1), reason: '第 1 条分割线由这三行的高度决定：$row1');
       expect(row2.values.toSet(), hasLength(1), reason: '第 2 条分割线：$row2');

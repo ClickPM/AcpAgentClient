@@ -261,7 +261,7 @@ void main() {
     c.dispose();
   });
 
-  test('session/prompt 失败也要收轮，否则线程头一直转 spinner（审查第 2 轮 finding P2）', () async {
+  test('session/prompt 失败也要收轮，否则会话头一直转 spinner（审查第 2 轮 finding P2）', () async {
     final core = FailingCore();
     final c = WorkbenchController(source: DataSource.bridge, bridge: core)
       ..agentId = _agent
@@ -287,8 +287,8 @@ void main() {
     await c.start();
 
     expect(c.installedAgents, isEmpty);
-    expect(c.hasAgent, isFalse, reason: '画板 01 状态 2：线程头 No Agent、输入框禁用');
-    expect(c.threadTitle, 'No Agent');
+    expect(c.hasAgent, isFalse, reason: '画板 01 状态 2：会话头 No Agent、输入框禁用');
+    expect(c.sessionTitle, 'No Agent');
     expect(c.composerPlaceholder, '安装并选择一个 agent 后即可输入');
     expect(c.rightTab, isNull);
 
@@ -306,7 +306,7 @@ void main() {
     expect(c.hasAgent, isTrue, reason: '状态 2 只在一个 agent 都没装时出现');
     expect(c.agentId, 'zed', reason: '本地索引里最近用过、且还装着的那个');
     expect(c.hasSession, isFalse, reason: '启动不拉 agent 进程');
-    expect(c.threadTitle, 'New Zed Agent Thread', reason: '展示名从已安装列表来，不是裸 id');
+    expect(c.sessionTitle, 'New Zed Agent Session', reason: '展示名从已安装列表来，不是裸 id');
     expect(c.canCompose, isTrue);
     expect(c.composerPlaceholder, 'Message to Zed Agent , @ to include context , / for commands');
 
@@ -337,7 +337,7 @@ void main() {
     c.dispose();
   });
 
-  test('换项目：侧栏只留当前目录下的会话，正开着的别的目录的会话从线程区放下', () async {
+  test('换项目：侧栏只留当前目录下的会话，正开着的别的目录的会话从会话区放下', () async {
     final core = _InstalledCore()
       ..sessionIndex.add(<String, dynamic>{
         'agentId': 'zed',
@@ -359,7 +359,7 @@ void main() {
 
     await c.openProject(const ProjectRef(path: r'D:\other', name: 'other'));
     expect(c.sidebarSessions.map((s) => s.id), <String>['other']);
-    expect(c.sessionId, isNull, reason: '正开着的会话属于旧目录：线程区回到空态，下一条消息在新目录里现开');
+    expect(c.sessionId, isNull, reason: '正开着的会话属于旧目录：会话区回到空态，下一条消息在新目录里现开');
     expect(c.canCompose, isTrue, reason: '空态下照样能发：agent 与项目都在');
 
     await c.openProject(const ProjectRef(path: r'D:\proj', name: 'proj'));
@@ -482,6 +482,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('还没有已安装的 agent'), findsNothing, reason: '所有者 2026-09-17 报的：装了 agent 还画状态 2');
-    expect(find.text('New Zed Agent Thread'), findsWidgets, reason: '线程头与空态标题都是它');
+    expect(find.text('New Zed Agent Session'), findsWidgets, reason: '会话头与空态标题都是它');
   });
 }
