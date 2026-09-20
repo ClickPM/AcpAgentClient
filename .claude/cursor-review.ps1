@@ -4,12 +4,13 @@
   [string]$Scope = "branch",
   [ValidateSet("review", "adversarial")]
   [string]$Kind = "review",
-  [string]$Model = "cursor-grok-4.6-high",
+  [string]$Model = "cursor-grok-4.6-high-fast",
   [string]$Note = "",
   [switch]$Wait
 )
 
 # cursor CLI 独立审查的启动脚本(所有者裁定 2026-09-10:codex 被限流,审查切到 cursor CLI + grok 4.6 high)。
+# 2026-09-20 所有者裁定:默认档改为 fast 变体 cursor-grok-4.6-high-fast(同一模型,推理更快)。
 # 契约(职责边界 / 判据 / 严重级 / 输出格式)在同目录的 cursor-review-prompt.md;流程与坑在 docs/review-workflow.md。
 #
 # 用法(在仓库根跑):

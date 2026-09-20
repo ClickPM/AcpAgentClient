@@ -48,7 +48,7 @@ AcpAgentClient/
 
 **Claude Code solo 开发，独立审查做缺陷门禁**；不做视觉 review（规则 3 管住样式即可），有 UI 的轮次按设计稿逐画板对照。
 **审查执行器两级**（所有者裁定 2026-09-11，与 agent-xray 一致）：
-① **cursor CLI（`cursor-agent`）+ 模型 `cursor-grok-4.6-high`**，首选；
+① **cursor CLI（`cursor-agent`）+ 模型 `cursor-grok-4.6-high-fast`**，首选；
 ② cursor 硬失败 → **主会话委派 Claude Code 子代理**做只读审查，读同一份任务书 `.claude/cursor-review-prompt.md`。
 回落原因写进任务卡；同一轮审查只用一个执行器，不混两份 findings。发起命令、结果取回与坑清单在 [`docs/review-workflow.md`](docs/review-workflow.md)。
 

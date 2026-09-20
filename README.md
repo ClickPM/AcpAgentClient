@@ -22,7 +22,7 @@ Agent 一律经 [Agent Client Protocol（ACP）](https://agentclientprotocol.com
 | [`docs/research.md`](docs/research.md) | 源码级研究结论：Zed 的 ACP 代码、rust-sdk v2、registry、五个 agent、sidecar 接入点、被排除的路线、Flutter + Rust 桥接、Claude Design 交付链路 |
 | [`docs/acp-projection.md`](docs/acp-projection.md) | 可投影内容清单：15 个 `session/update` 变体、能力门总表、协议不给必须客户端自造的 8 项、容错与丢失风险 |
 | [`docs/design.md`](docs/design.md) | 进程模型、分层来源、核心与前端契约、认证、registry（含内置条目）、终端与 fs、sidecar、前端（Flutter）既定决策、数据目录 |
-| [`docs/review-workflow.md`](docs/review-workflow.md) | 独立审查：cursor CLI + grok 4.6 high 首选，硬失败回落 Claude Code 子代理；发起、取回与回落条件 |
+| [`docs/review-workflow.md`](docs/review-workflow.md) | 独立审查：cursor CLI + grok 4.6 high fast 首选，硬失败回落 Claude Code 子代理；发起、取回与回落条件 |
 | [`ROUNDS.md`](ROUNDS.md) | 轮次拆解：R0–R8 各轮目标 / 交付物 / 验收 / 裁定门，画板 → 轮次 → widget 文件对应表，五 agent 全通矩阵，进度表 |
 | [`design/README.md`](design/README.md) | 画板索引：42 张画板（含已废弃的 10）的 `.dc.html` 源、PNG 基准与实现状态；`design/brand/` 是应用图标与标记，不是画板 |
 | [`rounds/BACKLOG.md`](rounds/BACKLOG.md) | 跨轮次问题与待裁定项；「设计稿补注记」条目记录实现先行、设计稿待补的部分 |

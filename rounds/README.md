@@ -22,7 +22,7 @@ rounds/
 - 任务卡范围**不得超出 ROUNDS.md 的功能边界**（设计稿全部画板，清单与计数以 `design/README.md` 为准；`docs/requirements.md` 的必须与不做；`docs/design.md` 的既定决策）。
 - 设计轮的产出放 `design/round-NN/`（简报 `design-prompt.md`、每画板一个 `.dc.html` 源、`canvas.json` 与每画板一张 PNG 快照；画布 URL 记在 `design/README.md`），任务卡里只引用路径。
 - 实测记录默认回填任务卡；内容过长时拆成同目录独立 Markdown 并从任务卡链接。
-- 独立审查的 findings 处理记录（逐条：采纳整改 / 不采纳及理由）回填任务卡「代码审查」段；审查器与发起方式见 [`docs/review-workflow.md`](../docs/review-workflow.md)（cursor CLI + grok 4.6 high），运行日志落 `.claude/reviews/`（gitignored），不复制进轮次目录。
+- 独立审查的 findings 处理记录（逐条：采纳整改 / 不采纳及理由）回填任务卡「代码审查」段；审查器与发起方式见 [`docs/review-workflow.md`](../docs/review-workflow.md)（cursor CLI + grok 4.6 high fast），运行日志落 `.claude/reviews/`（gitignored），不复制进轮次目录。
 - 阻塞报告固定为 `rounds/round-NN/BLOCKED.md`：同一验收项针对性整改后连续 2 次验证仍不过 → 写 BLOCKED 停下呼人，禁止放宽验收自我通过。
 - 源码、脚本、测试放各自标准位置（`rust/`、`lib/`、`test/`、`sidecar/`、`scripts/`），不复制进轮次目录；大日志放 gitignored 位置，任务卡只记结论与路径。
 - 跨轮次发现的问题写进 `BACKLOG.md`，不当场顺手改。
