@@ -61,16 +61,16 @@ void main() {
   test('索引的 updatedAt 只在用户发消息时打：收轮、改名都不动它', () async {
     final core = _GatedCore();
     final c = WorkbenchController(source: DataSource.bridge, bridge: core, scheduler: WorkbenchController.scheduleOnMicrotask)
-      ..project = const ProjectRef(path: 'D:/repo', name: 'repo');
-    await c.newSession(const AgentRef(id: 'a', name: 'a'));
-    final sid = c.sessionId!;
+      ..workspace.project = const ProjectRef(path: 'D:/repo', name: 'repo');
+    await c.session.newSession(const AgentRef(id: 'a', name: 'a'));
+    final sid = c.session.sessionId!;
     expect(_updatedAtOf(core, sid), 0, reason: '刚建的会话控制器不传 updatedAt（核心打创建时间；假核心记 0）');
 
     // 发第一条：session/prompt 挂着不回，索引里已经打上发消息的时间。
     core.gate = Completer<JsonMap>();
     final before = DateTime.now().millisecondsSinceEpoch;
-    c.composer.text = '第一条';
-    final sending = c.send();
+    c.composer.editor.text = '第一条';
+    final sending = c.turn.send();
     await _untilPromptSent(core);
     final t1 = _updatedAtOf(core, sid);
     expect(t1, greaterThanOrEqualTo(before), reason: '发出去之前就该打好时间');
@@ -83,16 +83,16 @@ void main() {
     expect(core.sessionIndex.single['messageCount'], 1);
 
     // 改名不动时间。
-    c.startRename(sid);
-    await c.commitRename('改了名');
+    c.session.startRename(sid);
+    await c.session.commitRename('改了名');
     expect(core.sessionIndex.single['title'], '改了名');
     expect(_updatedAtOf(core, sid), t1, reason: '改名不是发消息');
 
     // 再发一条才再打。
     core.gate = null;
     await Future<void>.delayed(const Duration(milliseconds: 20));
-    c.composer.text = '第二条';
-    await c.send();
+    c.composer.editor.text = '第二条';
+    await c.turn.send();
     expect(_updatedAtOf(core, sid), greaterThan(t1));
     expect(core.sessionIndex.single['messageCount'], 2);
     c.dispose();
@@ -101,15 +101,15 @@ void main() {
   test('发消息那次索引写还没回来、这一轮就收了：收轮不把时间盖回旧值（合并复审 2026-09-18）', () async {
     final core = _LaggyIndexCore();
     final c = WorkbenchController(source: DataSource.bridge, bridge: core, scheduler: WorkbenchController.scheduleOnMicrotask)
-      ..project = const ProjectRef(path: 'D:/repo', name: 'repo');
-    await c.newSession(const AgentRef(id: 'a', name: 'a'));
-    final sid = c.sessionId!;
+      ..workspace.project = const ProjectRef(path: 'D:/repo', name: 'repo');
+    await c.session.newSession(const AgentRef(id: 'a', name: 'a'));
+    final sid = c.session.sessionId!;
 
     final hold = core.holdNextUpsert = Completer<void>();
     final before = DateTime.now().millisecondsSinceEpoch;
-    c.composer.text = '一轮秒回';
+    c.composer.editor.text = '一轮秒回';
     // 发消息那次 upsert 已落地但还没回来；prompt 立刻返回，收轮那次 upsert 先跑。
-    await c.send();
+    await c.turn.send();
     expect(core.prompts, hasLength(1));
     expect(_updatedAtOf(core, sid), greaterThanOrEqualTo(before), reason: '收轮那次不能把发消息时打的时间盖回去');
     hold.complete();

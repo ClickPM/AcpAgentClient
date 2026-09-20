@@ -1,0 +1,336 @@
+{
+  "ok": true,
+  "steps": {
+    "capabilities": {
+      "loadSession": true,
+      "declared": [
+        "list",
+        "delete",
+        "resume",
+        "close"
+      ],
+      "menuNow": {
+        "list": true,
+        "resume": false,
+        "close": true,
+        "delete": true
+      },
+      "raw": {
+        "list": {},
+        "delete": {},
+        "resume": {},
+        "close": {}
+      }
+    },
+    "newSession": {
+      "agentId": "fake-r6",
+      "sessionId": "sess_220a06bc-1beb-4255-8999-2e3774708f1c",
+      "cwd": "D:\\cargo-target\\AcpAgentClient\\r75\\run\\proj",
+      "agentName": "fake-agent",
+      "sessionTitle": "New Fake Agent Session",
+      "commands": [],
+      "modeDropdown": {
+        "id": "mode",
+        "source": "configOptions",
+        "current": "ask",
+        "values": [
+          "ask",
+          "code"
+        ]
+      }
+    },
+    "turn1": {
+      "prompt": "r75 first",
+      "stopReason": "end_turn",
+      "usage": {
+        "totalTokens": 42,
+        "inputTokens": 30,
+        "outputTokens": 12,
+        "thoughtTokens": null,
+        "cachedReadTokens": null,
+        "cachedWriteTokens": null
+      },
+      "elapsedMs": 17,
+      "entries": {
+        "TurnEntry": 1,
+        "MessageEntry": 3,
+        "ToolCallEntry": 1,
+        "PermissionEntry": 1,
+        "PlanCardEntry": 1,
+        "ElicitationEntry": 1
+      },
+      "seen": {
+        "available_commands_update": 1,
+        "agent_message_chunk": 2,
+        "tool_call": 1,
+        "tool_call_update": 2,
+        "plan": 1,
+        "config_option_update": 1,
+        "usage_update": 1
+      },
+      "plans": 1,
+      "sessionUsage": {
+        "used": 1200,
+        "size": 128000,
+        "costAmount": null,
+        "costCurrency": null
+      },
+      "pendingLeft": 0,
+      "title": null,
+      "lastAgentMessage": "Done (form={\"action\":\"accept\",\"content\":{}}, url={\"action\":\"accept\",\"content\":{}}).",
+      "answers": [
+        {
+          "kind": "permission",
+          "requestId": "100",
+          "title": null,
+          "options": [
+            "allow-once/allow_once",
+            "reject-once/reject_once"
+          ],
+          "answered": "allow-once"
+        },
+        {
+          "kind": "elicitation",
+          "requestId": "101",
+          "mode": "form",
+          "scope": "session",
+          "message": "Commit after editing?",
+          "answered": "accept"
+        },
+        {
+          "kind": "elicitation",
+          "requestId": "102",
+          "mode": "url",
+          "scope": "request",
+          "message": "Open the login page",
+          "answered": "accept"
+        }
+      ]
+    },
+    "setMode": {
+      "requested": "ask",
+      "via": "session/set_config_option",
+      "currentModeId": "ask",
+      "dropdown": {
+        "id": "mode",
+        "source": "configOptions",
+        "current": "ask",
+        "values": [
+          "ask",
+          "code"
+        ]
+      },
+      "error": null
+    },
+    "sessionList": {
+      "pages": [
+        {
+          "cursor": null,
+          "sessions": [
+            "sess_220a06bc-1beb-4255-8999-2e3774708f1c｜"
+          ],
+          "nextCursor": null
+        }
+      ],
+      "containsCurrent": true,
+      "sidebar": [
+        "sess_220a06bc-1beb-4255-8999-2e3774708f1c｜New Fake Agent Session"
+      ],
+      "missingOnAgent": []
+    },
+    "reloadAgent": {
+      "sessionIdBefore": "sess_220a06bc-1beb-4255-8999-2e3774708f1c",
+      "sessionIdAfter": "sess_220a06bc-1beb-4255-8999-2e3774708f1c",
+      "sameSession": true,
+      "digestMatches": false,
+      "beforeDigest": "turn:1:end_turn\nuser:r75 first\nagent:Let me edit the file.\ntool:call_edit_1:completed:edit README\npermission:call_edit_1\nplan:__stable__:1\nelicitation:form\nagent:Done (form={\"action\":\"accept\",\"content\":{}}, url={\"action\":\"accept\",\"content\":{}}).",
+      "afterDigest": "agent:Let me edit the file.\ntool:call_edit_1:completed:edit README\nplan:__stable__:1\nagent:Done (form={\"action\":\"accept\",\"content\":{}}, url={\"action\":\"accept\",\"content\":{}}).",
+      "error": null
+    },
+    "reopen": {
+      "loadSessionDeclared": true,
+      "sessionId": "sess_220a06bc-1beb-4255-8999-2e3774708f1c",
+      "beforeEntries": 4,
+      "afterEntries": 4,
+      "digestMatches": true,
+      "beforeDigest": "agent:Let me edit the file.\ntool:call_edit_1:completed:edit README\nplan:__stable__:1\nagent:Done (form={\"action\":\"accept\",\"content\":{}}, url={\"action\":\"accept\",\"content\":{}}).",
+      "afterDigest": "agent:Let me edit the file.\ntool:call_edit_1:completed:edit README\nplan:__stable__:1\nagent:Done (form={\"action\":\"accept\",\"content\":{}}, url={\"action\":\"accept\",\"content\":{}}).",
+      "title": null,
+      "commandsAtReturn": [
+        "review",
+        "compact"
+      ],
+      "commands": [
+        "review",
+        "compact"
+      ],
+      "modeDropdown": {
+        "id": "mode",
+        "source": "configOptions",
+        "current": "ask",
+        "values": [
+          "ask",
+          "code"
+        ]
+      },
+      "error": null
+    },
+    "turn2AfterLoad": {
+      "prompt": "r75 second",
+      "stopReason": "end_turn",
+      "usage": {
+        "totalTokens": 42,
+        "inputTokens": 30,
+        "outputTokens": 12,
+        "thoughtTokens": null,
+        "cachedReadTokens": null,
+        "cachedWriteTokens": null
+      },
+      "elapsedMs": 19,
+      "entries": {
+        "MessageEntry": 5,
+        "ToolCallEntry": 1,
+        "PlanCardEntry": 1,
+        "TurnEntry": 1,
+        "PermissionEntry": 1,
+        "ElicitationEntry": 1
+      },
+      "seen": {
+        "available_commands_update": 1,
+        "agent_message_chunk": 4,
+        "tool_call": 2,
+        "tool_call_update": 4,
+        "plan": 2,
+        "config_option_update": 2,
+        "usage_update": 2
+      },
+      "plans": 1,
+      "sessionUsage": {
+        "used": 1200,
+        "size": 128000,
+        "costAmount": null,
+        "costCurrency": null
+      },
+      "pendingLeft": 0,
+      "title": null,
+      "lastAgentMessage": "Done (form={\"action\":\"accept\",\"content\":{}}, url={\"action\":\"accept\",\"content\":{}}).",
+      "answers": [
+        {
+          "kind": "permission",
+          "requestId": "100",
+          "title": null,
+          "options": [
+            "allow-once/allow_once",
+            "reject-once/reject_once"
+          ],
+          "answered": "allow-once"
+        },
+        {
+          "kind": "elicitation",
+          "requestId": "101",
+          "mode": "form",
+          "scope": "session",
+          "message": "Commit after editing?",
+          "answered": "accept"
+        },
+        {
+          "kind": "elicitation",
+          "requestId": "102",
+          "mode": "url",
+          "scope": "request",
+          "message": "Open the login page",
+          "answered": "accept"
+        },
+        {
+          "kind": "permission",
+          "requestId": "100",
+          "title": null,
+          "options": [
+            "allow-once/allow_once",
+            "reject-once/reject_once"
+          ],
+          "answered": "allow-once"
+        },
+        {
+          "kind": "elicitation",
+          "requestId": "101",
+          "mode": "form",
+          "scope": "session",
+          "message": "Commit after editing?",
+          "answered": "accept"
+        },
+        {
+          "kind": "elicitation",
+          "requestId": "102",
+          "mode": "url",
+          "scope": "request",
+          "message": "Open the login page",
+          "answered": "accept"
+        }
+      ]
+    },
+    "cancelledTurn": {
+      "prompt": "r75 third",
+      "stopReason": "end_turn",
+      "usage": {
+        "totalTokens": 42,
+        "inputTokens": 30,
+        "outputTokens": 12,
+        "thoughtTokens": null,
+        "cachedReadTokens": null,
+        "cachedWriteTokens": null
+      },
+      "elapsedMs": 15,
+      "entries": {
+        "MessageEntry": 8,
+        "ToolCallEntry": 1,
+        "PlanCardEntry": 1,
+        "TurnEntry": 2,
+        "PermissionEntry": 2,
+        "ElicitationEntry": 2
+      },
+      "seen": {
+        "available_commands_update": 1,
+        "agent_message_chunk": 6,
+        "tool_call": 3,
+        "tool_call_update": 6,
+        "plan": 3,
+        "config_option_update": 3,
+        "usage_update": 3
+      },
+      "plans": 1,
+      "sessionUsage": {
+        "used": 1200,
+        "size": 128000,
+        "costAmount": null,
+        "costCurrency": null
+      },
+      "pendingLeft": 0,
+      "title": null,
+      "lastAgentMessage": "Done (form={\"action\":\"accept\",\"content\":{}}, url={\"action\":\"accept\",\"content\":{}}).",
+      "cancelAfterSeconds": 2,
+      "cancelledToolCalls": []
+    },
+    "close": {
+      "sessionIdAfter": "sess_220a06bc-1beb-4255-8999-2e3774708f1c",
+      "closed": true,
+      "canResumeNow": true,
+      "canCloseNow": false,
+      "error": null
+    },
+    "resume": {
+      "entriesBefore": 16,
+      "entriesAfter": 16,
+      "noReplay": true,
+      "closedAfter": false,
+      "error": null
+    },
+    "delete": {
+      "sentToAgent": true,
+      "inSidebar": false,
+      "inAgentList": false,
+      "agentListAfter": [],
+      "error": null
+    }
+  }
+}

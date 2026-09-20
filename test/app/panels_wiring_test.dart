@@ -205,33 +205,33 @@ void main() {
       final core = PanelsCore();
       final c = controller(core);
       await c.start();
-      c.project = const ProjectRef(path: root, name: 'proj');
+      c.workspace.project = const ProjectRef(path: root, name: 'proj');
 
-      c.openTab(ShellTab.files);
-      expect(c.activePanel, const PanelTab.shell(ShellTab.files));
-      expect(c.activeNavTab, ShellTab.files);
+      c.shell.openTab(ShellTab.files);
+      expect(c.shell.activePanel, const PanelTab.shell(ShellTab.files));
+      expect(c.shell.activeNavTab, ShellTab.files);
 
-      c.openTab(ShellTab.terminal);
+      c.shell.openTab(ShellTab.terminal);
       await Future<void>.delayed(Duration.zero);
-      expect(c.activeTerminalId, 'term_fake_1');
-      expect(c.activePanel!.isTerminal, isTrue);
-      expect(c.activeNavTab, ShellTab.terminal);
-      expect(c.panelTabs, <PanelTab>[const PanelTab.shell(ShellTab.files), const PanelTab.terminal('term_fake_1', 'proj')]);
+      expect(c.shell.activeTerminalId, 'term_fake_1');
+      expect(c.shell.activePanel!.isTerminal, isTrue);
+      expect(c.shell.activeNavTab, ShellTab.terminal);
+      expect(c.shell.panelTabs, <PanelTab>[const PanelTab.shell(ShellTab.files), const PanelTab.terminal('term_fake_1', 'proj')]);
       // 再点侧栏「终端」：切到已有的，不再开一个。
-      c.openTab(ShellTab.terminal);
+      c.shell.openTab(ShellTab.terminal);
       await Future<void>.delayed(Duration.zero);
       expect(core.openedTerminals, 1);
 
-      c.selectPanel(const PanelTab.shell(ShellTab.files));
-      expect(c.activePanel, const PanelTab.shell(ShellTab.files));
-      expect(c.panelTabs.length, 2, reason: '切走不关终端');
+      c.shell.selectPanel(const PanelTab.shell(ShellTab.files));
+      expect(c.shell.activePanel, const PanelTab.shell(ShellTab.files));
+      expect(c.shell.panelTabs.length, 2, reason: '切走不关终端');
 
-      await c.closePanel(const PanelTab.terminal('term_fake_1', 'proj'));
+      await c.shell.closePanel(const PanelTab.terminal('term_fake_1', 'proj'));
       expect(core.closedTerminals, <String>['term_fake_1']);
-      expect(c.panelTabs, <PanelTab>[const PanelTab.shell(ShellTab.files)]);
+      expect(c.shell.panelTabs, <PanelTab>[const PanelTab.shell(ShellTab.files)]);
 
-      await c.closeRightPanel();
-      expect(c.rightPanelOpen, isFalse);
+      await c.shell.closeRightPanel();
+      expect(c.shell.rightPanelOpen, isFalse);
       c.dispose();
     });
 
@@ -239,23 +239,23 @@ void main() {
       final core = PanelsCore();
       final c = controller(core);
       await c.start();
-      c.project = const ProjectRef(path: root, name: 'proj');
+      c.workspace.project = const ProjectRef(path: root, name: 'proj');
 
-      c.toggleNavTab(ShellTab.files);
-      expect(c.rightPanelOpen, isTrue);
-      expect(c.activeNavTab, ShellTab.files);
+      c.shell.toggleNavTab(ShellTab.files);
+      expect(c.shell.rightPanelOpen, isTrue);
+      expect(c.shell.activeNavTab, ShellTab.files);
 
       // 点别的面板是切过去，不是收起。
-      c.toggleNavTab(ShellTab.agents);
-      expect(c.rightPanelOpen, isTrue);
-      expect(c.activeNavTab, ShellTab.agents);
+      c.shell.toggleNavTab(ShellTab.agents);
+      expect(c.shell.rightPanelOpen, isTrue);
+      expect(c.shell.activeNavTab, ShellTab.agents);
 
-      c.toggleNavTab(ShellTab.agents);
-      expect(c.rightPanelOpen, isFalse);
-      expect(c.panelTabs, isEmpty, reason: '收起 = 整个右栏关掉，与原来的面板关闭键同义');
+      c.shell.toggleNavTab(ShellTab.agents);
+      expect(c.shell.rightPanelOpen, isFalse);
+      expect(c.shell.panelTabs, isEmpty, reason: '收起 = 整个右栏关掉，与原来的面板关闭键同义');
 
-      c.toggleNavTab(ShellTab.agents);
-      expect(c.rightPanelOpen, isTrue);
+      c.shell.toggleNavTab(ShellTab.agents);
+      expect(c.shell.rightPanelOpen, isTrue);
       c.dispose();
     });
 
@@ -263,10 +263,10 @@ void main() {
       final core = PanelsCore();
       final c = controller(core);
       await c.start();
-      c.project = const ProjectRef(path: root, name: 'proj');
-      c.sessionId = 'sess_1';
-      c.agentId = 'a';
-      await c.openTerminalTab(forceNew: true);
+      c.workspace.project = const ProjectRef(path: root, name: 'proj');
+      c.session.sessionId = 'sess_1';
+      c.session.agentId = 'a';
+      await c.shell.openTerminalTab(forceNew: true);
       final local = c.terminals.byId('term_fake_1')!;
 
       core.emit(CoreEvent.terminalOutput, <String, dynamic>{'terminalId': 'term_fake_1', 'source': 'local', 'bytes': base64Encode(utf8.encode('shell\r\n'))});
@@ -288,10 +288,10 @@ void main() {
       final core = PanelsCore();
       final c = controller(core);
       await c.start();
-      c.project = const ProjectRef(path: root, name: 'proj');
+      c.workspace.project = const ProjectRef(path: root, name: 'proj');
       await c.files.setProject(root);
-      c.sessionId = 'sess_1';
-      c.agentId = 'a';
+      c.session.sessionId = 'sess_1';
+      c.session.agentId = 'a';
       final store = c.sessions.session('sess_1', agentId: 'a');
       store.applyUpdateJson(<String, dynamic>{
         'sessionUpdate': 'tool_call',
@@ -301,12 +301,12 @@ void main() {
         'status': 'in_progress',
         'content': <JsonMap>[<String, dynamic>{'type': 'terminal', 'terminalId': 'term_agent'}],
       });
-      await c.killTerminal('term_agent');
+      await c.turn.killTerminal('term_agent');
       expect(core.killedTerminals, <String>['term_agent']);
       expect(store.terminals['term_agent']!.killed, isTrue);
 
-      expect(c.follow, isFalse);
-      c.toggleFollow();
+      expect(c.shell.follow, isFalse);
+      c.shell.toggleFollow();
       core.emit(CoreEvent.sessionUpdate, <String, dynamic>{
         'agentId': 'a',
         'sessionId': 'sess_1',
@@ -320,7 +320,7 @@ void main() {
         },
       });
       await Future<void>.delayed(const Duration(seconds: 1));
-      expect(c.rightTab, ShellTab.files);
+      expect(c.shell.rightTab, ShellTab.files);
       expect(c.files.selectedPath, '$root/docs/design.md');
       expect(c.files.highlightLine, 3);
       expect(c.files.viewMode, FileViewMode.source);
@@ -362,8 +362,8 @@ void main() {
 
       final c = controller(core);
       await c.start();
-      c.sessionId = 'sess_1';
-      c.agentId = 'a';
+      c.session.sessionId = 'sess_1';
+      c.session.agentId = 'a';
       final store = c.sessions.session('sess_1', agentId: 'a');
       store.applyUpdateJson(<String, dynamic>{
         'sessionUpdate': 'tool_call',
@@ -373,8 +373,8 @@ void main() {
         'status': 'in_progress',
         'content': <JsonMap>[<String, dynamic>{'type': 'terminal', 'terminalId': 'toolu_1'}],
       });
-      await c.killTerminal('toolu_1');
-      expect(c.lastError, isNull);
+      await c.turn.killTerminal('toolu_1');
+      expect(c.turn.lastError, isNull);
       // 没有 `_meta.terminal_output` 到达前缓冲都不存在；有也不该被标 killed。
       expect(store.terminals['toolu_1']?.killed ?? false, isFalse);
       c.dispose();

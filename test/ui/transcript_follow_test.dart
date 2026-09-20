@@ -72,8 +72,8 @@ Future<(WorkbenchController, SessionStore)> _pumpShell(WidgetTester tester) asyn
 
   final core = FakeCore();
   final c = WorkbenchController(source: DataSource.bridge, bridge: core, scheduler: WorkbenchController.scheduleOnMicrotask)
-    ..agentId = _agent
-    ..sessionId = _session;
+    ..session.agentId = _agent
+    ..session.sessionId = _session;
   final store = c.sessions.session(_session, agentId: _agent);
   addTearDown(c.dispose);
   _say(store, 0, 8);
@@ -131,11 +131,11 @@ void main() {
     await _wheel(tester, -300);
     expect(_pos(tester).pixels, lessThan(_pos(tester).maxScrollExtent - 32));
 
-    c.composer.text = '继续';
+    c.composer.editor.text = '继续';
     await tester.tap(_send);
     await _settle(tester);
 
-    expect(c.store!.entries.whereType<TurnEntry>(), hasLength(1), reason: '这一轮真的发出去了');
+    expect(c.session.store!.entries.whereType<TurnEntry>(), hasLength(1), reason: '这一轮真的发出去了');
     expect(_pos(tester).pixels, moreOrLessEquals(_pos(tester).maxScrollExtent, epsilon: 0.5));
   });
 }

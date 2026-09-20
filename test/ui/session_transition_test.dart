@@ -90,8 +90,8 @@ Future<WorkbenchController> _pumpShell(WidgetTester tester, _GatedCore core) asy
   await tester.runAsync(loadGalleryFonts);
 
   final c = WorkbenchController(source: DataSource.bridge, bridge: core, scheduler: WorkbenchController.scheduleOnMicrotask)
-    ..project = const ProjectRef(path: 'D:/repo', name: 'repo')
-    ..installedAgents = const <AgentRef>[AgentRef(id: 'zed', name: 'Zed Agent')];
+    ..workspace.project = const ProjectRef(path: 'D:/repo', name: 'repo')
+    ..agents.installed = const <AgentRef>[AgentRef(id: 'zed', name: 'Zed Agent')];
   addTearDown(c.dispose);
 
   await tester.pumpWidget(MaterialApp(home: WorkbenchScreen(controller: c)));
@@ -112,8 +112,8 @@ void main() {
     // 弹层收起、等待态摆出来：`agent_connect` 还挂在门上，会话一时半会儿不会到。
     await tester.pump(t.Motion.fast);
 
-    expect(c.waitingForAgent, isTrue);
-    expect(c.sessionId, isNull, reason: '门还没开，会话确实还没建出来');
+    expect(c.session.waitingForAgent, isTrue);
+    expect(c.session.sessionId, isNull, reason: '门还没开，会话确实还没建出来');
     expect(_bodyOpacity(tester), t.Opacities.pending, reason: '所有者报的就是这一下没有：选完 agent 之后界面一动不动');
     expect(_bodyIgnoring(tester), isTrue, reason: '等待期不响应点击（画板 05 B 组阶段 ①）');
     expect(_headerSpinner, findsOneWidget, reason: '借用已有那只 spinner，不新增元素');
@@ -122,8 +122,8 @@ void main() {
     await tester.pump();
     await tester.pump(t.Motion.transition);
 
-    expect(c.sessionId, 'sess_fake');
-    expect(c.waitingForAgent, isFalse);
+    expect(c.session.sessionId, 'sess_fake');
+    expect(c.session.waitingForAgent, isFalse);
     expect(_bodyOpacity(tester), 1, reason: '阶段 ③：等待态收掉，亮度回 1');
     expect(_headerSpinner, findsNothing);
   });
@@ -135,19 +135,19 @@ void main() {
     // 先有一条会话在手（重载按钮要 `hasSession` 才画出来），再开第二条把等待期支起来。
     await _pickAgent(tester);
     await tester.pump(t.Motion.transition);
-    expect(c.sessionId, 'sess_fake');
+    expect(c.session.sessionId, 'sess_fake');
 
     core.hold();
     await _pickAgent(tester);
-    expect(c.waitingForAgent, isTrue);
+    expect(c.session.waitingForAgent, isTrue);
 
-    await c.reloadAgent();
+    await c.session.reloadAgent();
     expect(core.disconnects, isEmpty, reason: '守卫判据换成 waitingForAgent 之后，新会话在途也算等待期');
 
     core.release();
     await tester.pump();
     await tester.pump(t.Motion.transition);
-    expect(c.waitingForAgent, isFalse);
+    expect(c.session.waitingForAgent, isFalse);
   });
 
   testWidgets('新会话在途时再选一次 agent：第二条被守卫挡住，只拉一次进程，等待态在会话到手后收掉', (tester) async {
@@ -156,7 +156,7 @@ void main() {
 
     core.hold();
     await _pickAgent(tester);
-    expect(c.waitingForAgent, isTrue);
+    expect(c.session.waitingForAgent, isTrue);
     expect(core.connects, 1);
 
     // 等待期里会话头的 `+` 仍可点：再选一次。没有守卫的话第二条会再 `agent_connect` 一次（把第一条刚拉起的进程断掉），
@@ -167,7 +167,7 @@ void main() {
     core.release();
     await tester.pump();
     await tester.pump(t.Motion.transition);
-    expect(c.sessionId, 'sess_fake');
-    expect(c.waitingForAgent, isFalse, reason: '等待态不能被交叠的第二条留在 true');
+    expect(c.session.sessionId, 'sess_fake');
+    expect(c.session.waitingForAgent, isFalse, reason: '等待态不能被交叠的第二条留在 true');
   });
 }

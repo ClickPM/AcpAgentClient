@@ -1,0 +1,426 @@
+{
+  "ok": true,
+  "steps": {
+    "start": {
+      "agents": [
+        "dsh-acp-interactive",
+        "fake-r3",
+        "fake-r5",
+        "fake-r6"
+      ],
+      "project": null,
+      "branchAreaVisible": false,
+      "branch": null,
+      "branches": [],
+      "rulesCount": 0,
+      "sidebarSessions": 0
+    },
+    "openProject": {
+      "path": "D:\\cargo-target\\AcpAgentClient\\r75\\run\\proj",
+      "branchAreaVisible": true,
+      "branch": "main",
+      "branches": [
+        "main"
+      ],
+      "rulesCount": 1
+    },
+    "branches": {
+      "before": "main",
+      "afterCreate": "r75-branch",
+      "createdIsCurrent": true,
+      "afterSwitchBack": "main",
+      "list": [
+        "main",
+        "r75-branch"
+      ],
+      "error": null
+    },
+    "newSession": {
+      "agentId": "fake-r3",
+      "sessionId": "sess_fake_1",
+      "cwd": "D:\\cargo-target\\AcpAgentClient\\r75\\run\\proj",
+      "cwdMatchesProject": true,
+      "agentName": "fake-agent",
+      "agentTitle": "Fake Agent",
+      "sessionTitle": "New Fake Agent Session",
+      "capabilities": [
+        "loadSession",
+        "promptCapabilities",
+        "mcpCapabilities",
+        "sessionCapabilities",
+        "auth"
+      ],
+      "configOptions": {
+        "mode": {
+          "category": "mode",
+          "type": "select"
+        },
+        "auto_approve_reads": {
+          "category": null,
+          "type": "boolean"
+        }
+      },
+      "configValues": {
+        "mode": {
+          "current": "ask",
+          "options": [
+            "ask",
+            "code"
+          ]
+        },
+        "auto_approve_reads": {
+          "current": false,
+          "options": []
+        }
+      },
+      "commands": [
+        "review",
+        "compact"
+      ],
+      "modelDropdown": null,
+      "thoughtDropdown": null,
+      "modeDropdown": "mode"
+    },
+    "setConfigOption": {
+      "mode": {
+        "requested": "code",
+        "afterwards": {
+          "mode": "code"
+        }
+      }
+    },
+    "turn1": {
+      "prompt": "r75 first turn",
+      "stopReason": "end_turn",
+      "usage": {
+        "totalTokens": 42,
+        "inputTokens": 30,
+        "outputTokens": 12,
+        "thoughtTokens": null,
+        "cachedReadTokens": null,
+        "cachedWriteTokens": null
+      },
+      "elapsedMs": 2824,
+      "entries": {
+        "TurnEntry": 1,
+        "MessageEntry": 3,
+        "ToolCallEntry": 5,
+        "PermissionEntry": 1,
+        "PlanCardEntry": 1,
+        "ElicitationEntry": 1
+      },
+      "seen": {
+        "available_commands_update": 1,
+        "tool_call": 5,
+        "tool_call_update": 8,
+        "agent_message_chunk": 2,
+        "plan": 1,
+        "config_option_update": 1,
+        "usage_update": 1
+      },
+      "plans": 1,
+      "sessionUsage": {
+        "used": 1200,
+        "size": 128000,
+        "costAmount": null,
+        "costCurrency": null
+      },
+      "pendingLeft": 0,
+      "title": null,
+      "lastAgentMessage": "Done (form={\"action\":\"accept\",\"content\":{}}, url={\"action\":\"accept\",\"content\":{}}).",
+      "answers": [
+        {
+          "kind": "permission",
+          "requestId": "110",
+          "title": null,
+          "options": [
+            "allow-once/allow_once",
+            "reject-once/reject_once"
+          ],
+          "answered": "allow-once"
+        },
+        {
+          "kind": "elicitation",
+          "requestId": "111",
+          "mode": "form",
+          "scope": "session",
+          "message": "Commit after editing?",
+          "answered": "accept"
+        },
+        {
+          "kind": "elicitation",
+          "requestId": "112",
+          "mode": "url",
+          "scope": "request",
+          "message": "Open the login page",
+          "answered": "accept"
+        }
+      ]
+    },
+    "r4Turn1": {
+      "terminals": {
+        "term_1": {
+          "outputChars": 102,
+          "outputHead": "\u001b[?9001h\u001b[?1004h\u001b[m\u001b]0;C:\\Program Files\\PowerShell\\7\\pwsh.exe\u0007\u001b[?25hfake-terminal-ok\r\n\u001b[?9001l\u001b[?1004l",
+          "exitCode": 0,
+          "signal": null,
+          "killed": false,
+          "released": false,
+          "truncated": false
+        },
+        "term_2": {
+          "outputChars": 107,
+          "outputHead": "\u001b[?9001h\u001b[?1004h\u001b[m\u001b]0;C:\\Program Files\\PowerShell\\7\\pwsh.exe\u0007\u001b[?25hbackground started \r\n^\u001b[?9001l\u001b[?1004lC",
+          "exitCode": 1,
+          "signal": null,
+          "killed": true,
+          "released": false,
+          "truncated": false
+        }
+      },
+      "killedByStopButton": [
+        "term_2"
+      ],
+      "toolCallsWithTerminal": {
+        "call_term_fg": {
+          "status": "completed",
+          "terminals": [
+            "term_1"
+          ]
+        },
+        "call_term_bg": {
+          "status": "failed",
+          "terminals": [
+            "term_2"
+          ]
+        }
+      },
+      "toolCallsWithLocations": {
+        "call_fs_write": [
+          "D:\\cargo-target\\AcpAgentClient\\r75\\run\\proj\\fake-agent.txt:"
+        ],
+        "call_fs_read": [
+          "D:\\cargo-target\\AcpAgentClient\\r75\\run\\proj\\fake-agent.txt:2"
+        ]
+      },
+      "toolCallContent": {
+        "call_fs_write": {
+          "kind": "edit",
+          "status": "completed",
+          "content": {
+            "diff": 1
+          }
+        },
+        "call_fs_read": {
+          "kind": "read",
+          "status": "completed",
+          "content": {
+            "content": 1
+          }
+        },
+        "call_term_fg": {
+          "kind": "execute",
+          "status": "completed",
+          "content": {
+            "terminal": 1
+          }
+        },
+        "call_term_bg": {
+          "kind": "execute",
+          "status": "failed",
+          "content": {
+            "terminal": 1
+          }
+        },
+        "call_edit_1": {
+          "kind": "edit",
+          "status": "completed",
+          "content": {
+            "diff": 1
+          }
+        }
+      },
+      "follow": {
+        "on": true,
+        "rightTab": "agents",
+        "selectedPath": "D:\\cargo-target\\AcpAgentClient\\r75\\run\\proj\\fake-agent.txt",
+        "highlightLine": 2,
+        "viewMode": "source"
+      }
+    },
+    "afterTurn1": {
+      "trafficLines": 55,
+      "trafficDropped": 1,
+      "agentDroppedUpdates": 1,
+      "bothWarningsVisible": true
+    },
+    "turn2Cancelled": {
+      "prompt": "r75 second turn",
+      "stopReason": "cancelled",
+      "usage": null,
+      "elapsedMs": 60503,
+      "entries": {
+        "TurnEntry": 2,
+        "MessageEntry": 5,
+        "ToolCallEntry": 5,
+        "PermissionEntry": 1,
+        "PlanCardEntry": 1,
+        "ElicitationEntry": 1
+      },
+      "seen": {
+        "available_commands_update": 1,
+        "tool_call": 10,
+        "tool_call_update": 14,
+        "agent_message_chunk": 3,
+        "plan": 1,
+        "config_option_update": 1,
+        "usage_update": 1
+      },
+      "plans": 1,
+      "sessionUsage": {
+        "used": 1200,
+        "size": 128000,
+        "costAmount": null,
+        "costCurrency": null
+      },
+      "pendingLeft": 0,
+      "title": null,
+      "lastAgentMessage": "Let me edit the file. fs={\"write\":{},\"read\":{\"content\":\"第二行\\n\"}} terminal={\"exit\":{\"exitCode\":0},\"truncated\":false,\"sawOutput\":true} background={\"exit\":{\"exitCode\":0},\"sawOutput\":true}",
+      "answers": [],
+      "cancelledToolCalls": [
+        "call_term_bg"
+      ]
+    },
+    "files": {
+      "root": "D:\\cargo-target\\AcpAgentClient\\r75\\run\\proj",
+      "rootLoaded": true,
+      "topLevel": [
+        "docs",
+        "AGENTS.md",
+        "fake-agent.txt",
+        "README.md"
+      ],
+      "visibleRows": 4,
+      "gitAvailable": true,
+      "badges": {
+        "fake-agent.txt": "?"
+      },
+      "goToFile": "D:\\cargo-target\\AcpAgentClient\\r75\\run\\proj\\fake-agent.txt",
+      "goToLine": null,
+      "rightTab": "files",
+      "selectedPath": "D:\\cargo-target\\AcpAgentClient\\r75\\run\\proj\\fake-agent.txt",
+      "viewer": {
+        "name": "fake-agent.txt",
+        "relPath": "/fake-agent.txt",
+        "lines": 3,
+        "size": 30,
+        "language": "text",
+        "mode": "source",
+        "highlightLine": null,
+        "textHead": "第一行\n第二行\n第三行\n"
+      },
+      "error": "fs: fs: not found: D:\\cargo-target\\AcpAgentClient\\r75\\run\\proj\\fake-agent.txt"
+    },
+    "localShell": {
+      "terminalId": "term_5",
+      "title": "proj",
+      "cwd": "D:\\cargo-target\\AcpAgentClient\\r75\\run\\proj",
+      "openError": null,
+      "prompted": true,
+      "echoed": true,
+      "screenTail": [
+        "PS D:\\cargo-target\\AcpAgentClient\\r75\\run\\proj> echo r4-local-shell-ok",
+        "r4-local-shell-ok",
+        "PS D:\\cargo-target\\AcpAgentClient\\r75\\run\\proj>"
+      ],
+      "panelTabs": [
+        "PanelTab.shell(ShellTab.files)",
+        "PanelTab.shell(ShellTab.agents)",
+        "PanelTab.terminal(term_5)"
+      ],
+      "stoppedExited": true,
+      "exitCode": 1,
+      "signal": null,
+      "restartedId": "term_6",
+      "restartedRunning": true,
+      "tabsAfterClose": 0,
+      "rightPanelOpen": true
+    },
+    "killAgent": {
+      "taskkill": {
+        "pid": 37588,
+        "exitCode": 0,
+        "stdout": "成功: 已终止 PID 31540 (属于 PID 37588 子进程)的进程。\r\n成功: 已终止 PID 37588 (属于 PID 16976 子进程)的进程。"
+      },
+      "state": "exited",
+      "exitCode": 1,
+      "stderrTail": "[fake-agent] turn started; token=***\n[fake-agent] turn started; token=***\n",
+      "stderrLines": 0
+    },
+    "reloadAgent": {
+      "sessionBefore": "sess_fake_1",
+      "sessionAfter": "sess_fake_1",
+      "newSession": false,
+      "agentState": "initialized",
+      "transcriptOfOldSessionKept": true,
+      "error": null
+    },
+    "traffic": {
+      "lines": 98,
+      "droppedCount": 2,
+      "byLabel": {
+        "request": 31,
+        "response": 29,
+        "available_commands_update": 2,
+        "tool_call": 10,
+        "tool_call_update": 14,
+        "agent_message_chunk": 3,
+        "unknown · dropped": 2,
+        "plan": 1,
+        "config_option_update": 1,
+        "notification": 2,
+        "usage_update": 1,
+        "response · stopReason end_turn": 1,
+        "response · stopReason cancelled": 1
+      },
+      "byMethod": {
+        "out:initialize": 2,
+        "in:initialize": 2,
+        "out:session/new": 2,
+        "in:session/new": 2,
+        "in:session/update": 34,
+        "out:session/set_config_option": 1,
+        "in:session/set_config_option": 1,
+        "out:session/prompt": 2,
+        "in:fs/write_text_file": 2,
+        "out:fs/write_text_file": 2,
+        "in:fs/read_text_file": 2,
+        "out:fs/read_text_file": 2,
+        "in:terminal/create": 4,
+        "out:terminal/create": 4,
+        "in:terminal/wait_for_exit": 4,
+        "out:terminal/wait_for_exit": 4,
+        "in:terminal/output": 4,
+        "out:terminal/output": 4,
+        "in:terminal/release": 4,
+        "out:terminal/release": 4,
+        "in:session/request_permission": 2,
+        "out:session/request_permission": 2,
+        "in:elicitation/create": 2,
+        "out:elicitation/create": 2,
+        "in:elicitation/complete": 1,
+        "in:session/prompt": 2,
+        "out:session/cancel": 1
+      },
+      "stderrTails": {
+        "fake-r3": 2
+      },
+      "looksRedacted": true
+    },
+    "droppedUpdates": 0,
+    "shutdown": {
+      "agentState": "exited",
+      "terminalTabs": 0
+    }
+  }
+}

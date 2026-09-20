@@ -2,7 +2,7 @@
 
 > 设计稿已于 2026-09-14 收口（40 张画板；2026-09-17 增画板 05「转场规格」、2026-09-18 增画板 06「侧栏会话活动指示」，现 42 张。清单与计数以 [`design/README.md`](design/README.md) 为准），本文据此把实现拆成 **R0–R8（含 R1.5 spike）**，取代 `docs/design.md` § 11 的草案（2026-09-15）。
 > 本文只管三件事：**哪一轮做什么画板与协议面、验收什么、开工前要所有者裁定什么**。流程、审查与硬性规则在 [`CLAUDE.md`](CLAUDE.md)，任务卡模板在 [`rounds/TEMPLATE.md`](rounds/TEMPLATE.md)，每轮开工 `cp rounds/TEMPLATE.md rounds/round-NN/round-NN.md` 后按本文对应节填。
-> 轮次编号只增不改；R1.5 沿用 CLAUDE.md 规则 1 的写法（Markdown 库 spike）。R7 = sidecar、R8 = 打包，与 CLAUDE.md 仓库结构里的标注一致。
+> 轮次编号只增不改；R1.5 沿用 CLAUDE.md 规则 1 的写法（Markdown 库 spike）。R7 = sidecar、R8 = 打包，与 CLAUDE.md 仓库结构里的标注一致。R7.5 = 组合根拆分（纯代码结构轮，无画板；2026-09-18 起草、2026-09-20 按 main 新合并提交复核，裁定门待所有者拍板）、R7.6 = 字体切换（已完成，见 § 7）；拆完后的缺陷轮拟叫 R7.7。
 
 ## 0. 拆解原则
 
@@ -28,6 +28,7 @@
 | R5 | registry、安装、受管 Node、认证页与设置页 | 50、51、52、70 | codex-acp、Cursor | R3（R4 的右栏框架） | L |
 | R6 | 会话生命周期（list / load / resume / close / delete）、modes 回退、五 agent 全通矩阵收口 | 41（会话菜单与删除确认）、04 复核 | pi-acp + 全部五个 | R4、R5 | M |
 | R7 | zed-agent-acp sidecar | （无新画板；41 新建会话列表出现 Zed Agent） | Zed 内置 agent | R3；建议在 R6 后 | XL |
+| R7.5 | 组合根拆分：`lib/app/workbench_controller.dart`（2645 行单类）拆成组合根 + 8 个对象，行为零变化，`lib/ui` / `lib/theme` / `lib/projection` 零 diff | —（无画板） | fake-agent（无头等价）+ dsh、claude-agent-acp 各一次真跑 | R7、画板 43、R7.6 已合入 main（5a001bf） | L |
 | R8 | 打包与发布：Windows zip + 安装器、macOS、LICENSE、干净机验收 | 01 状态 2（首次启动） | 全部 | R6、R7 | M |
 
 体量只是相对量（S < M < L < XL），不是工时承诺。R7 只依赖 R1 与 R3，若 Zed 构建环境先就绪可提前，但冷编译 30–60 分钟且与主程序无耦合，默认放在 R6 之后。
@@ -83,7 +84,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 | 70 | 设置 | R5 | `lib/ui/settings/settings_page.dart`（2026-09-17 起是右栏的一个标签，与文件 / Agents 并列，不再占会话区） |
 | 80 | ACP 流量调试 | R3 | `lib/ui/traffic/traffic_page.dart`（数据源 `lib/projection/traffic.dart`） |
 
-前端其余目录（R0 定型）：`lib/app/`（组合根：R3 落 `workbench_controller.dart` 状态与动作、`workbench_screen.dart` widget 装配、`window_controls.dart` 平台通道、`headless_run.dart` 无头实跑；R4 加 `files_state.dart` 与 `local_terminals.dart`；2026-09-18 加 `clipboard_image.dart`（剪贴板图片，Windows 借 `powershell.exe` 读）；数据源选择 fixtures / bridge）、`lib/bridge/`（frb 生成物，入库）、`lib/projection/`（投影状态层，纯 Dart，无 widget 依赖）、`lib/theme/tokens.dart`、`lib/gallery/`（画板对照，debug 构建才编入）。
+前端其余目录（R0 定型）：`lib/app/`（组合根：R3 落 `workbench_controller.dart` 状态与动作、`workbench_screen.dart` widget 装配、`window_controls.dart` 平台通道、`headless_run.dart` 无头实跑；R4 加 `files_state.dart` 与 `local_terminals.dart`；2026-09-18 加 `clipboard_image.dart`（剪贴板图片，Windows 借 `powershell.exe` 读）；数据源选择 fixtures / bridge；R7.5（2026-09-20）把 `workbench_controller.dart` 拆成组合根 + 8 个对象：`shell_state` / `workspace_state` / `agents_state` / `auth_state` / `composer_state` 按画板分组管本地态，`session_controller` / `turn_controller` 驱动协议，`session_index` 是本地索引镜像，`guarded` 是共用的通知与错误边界；依赖方向见 `rounds/round-7.5/round-7.5.md` 附录 B）、`lib/bridge/`（frb 生成物，入库）、`lib/projection/`（投影状态层，纯 Dart，无 widget 依赖）、`lib/theme/tokens.dart`、`lib/gallery/`（画板对照，debug 构建才编入）。
 
 ## 3. 各轮拆解
 
@@ -332,6 +333,18 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 
 **契约变更**：无（sidecar 走标准 ACP）。
 
+### R7.5 组合根拆分（纯代码结构轮）
+
+**目标**：`lib/app/workbench_controller.dart`（基线 `5a001bf`：2645 行、1 个 `ChangeNotifier`、103 个公有方法、19 段）拆成组合根 + 8 个各管一段的对象（`shell` / `workspace` / `index` / `agents` / `auth` / `composer` / `turn` / `session` + 共用的 `GuardedNotifier` mixin），**行为零变化**；拆完组合根 ≤ 450 行、`lib/app` 无文件超 900 行、子对象只允许单向依赖、没有子对象 import 组合根。依据：R3 起的增长曲线（901 → 2642）、19 段耦合矩阵两极分化（约 1250 行咬合 / 约 700 行合租）、BACKLOG 17 条相关项里 8 条逻辑缺陷全出在共享 `agentId` / `sessionId` / `store` 的段落。
+
+**交付物**：`lib/app/` 新增 `guarded.dart` / `shell_state.dart` / `workspace_state.dart` / `session_index.dart` / `agents_state.dart` / `auth_state.dart` / `composer_state.dart` / `turn_controller.dart` / `session_controller.dart`；`workbench_controller.dart` 只剩接线与生命周期；`workbench_screen.dart` / `headless_run.dart` / `test/` 只改成员引用路径（改名表在任务卡附录 A）。不产出新桥命令、新 `_meta` 键、新依赖。
+
+**验收要点**：① `git diff main...HEAD -- lib/ui lib/theme lib/projection lib/bridge rust test/fixtures pubspec.yaml` 为空；② validate 全绿；③ 测试只改路径、用例数与 `expect(` 不变；④ fake-agent 的 `ACP_R3/R5/R6_REPORT` 与基线逐步骤等价；⑤ 行数门与依赖方向门；⑥ Windows 真跑 + 所有者手测弹层锚点搬家后的画板 40 / 41 / 42 / 25 / 05 / 06。
+
+**裁定（开工前，任务卡「裁定门」六项，各有推荐 + 备选）**：编号 R7.5 还是 R9；粒度 8 对象还是保守 3 对象；直接访问子对象还是保留转发门面；通知策略阶段 B 先量后动还是必做；本轮是否顺手修缺陷（推荐不修，紧接 R7.7 修 8 条；R7.6 已被字体切换占用）；validate 是否加行数门与依赖方向门。
+
+**契约变更**：无。文档同步：CLAUDE.md 仓库结构 `lib/app/` 行、本文 § 2 的 `lib/app/` 描述、`docs/design.md` § 9 加「组合根分层」一条。
+
 ### R8 打包与发布
 
 **目标**：Windows 免安装 zip 与安装器，sidecar 随包；macOS 构建；LICENSE 与派生文件清单；在只有系统 Node 的干净 Windows 上，从 registry 安装到发出第一条 prompt 不看文档（`docs/requirements.md` 验收视角）。
@@ -384,6 +397,7 @@ R6 的逐格证据（报告 JSON 路径、能力声明、重放 digest 比对、
 | R5 | § 3 `registry/progress` 与四命令；§ 5 requestScope 落点 | — |
 | R6 | § 3 `session_resume` / `session_delete` / 分页 | — |
 | R7 | § 8 `threads.db` 裁定结果（已落 2026-09-17：配置共用、数据隔离，待所有者确认） | `rounds/BACKLOG.md` 争用条目已关闭；新增 6 条 R7 已知限制 |
+| R7.5 | § 9 加「组合根分层」一条（收口时） | CLAUDE.md 仓库结构 `lib/app/` 行；本文 § 2 `lib/app/` 描述；`rounds/BACKLOG.md` 立项条目关闭、17 条相关条目各补「新家」；若裁定加门则 `scripts/validate.ps1` 两个 Step |
 | R8 | — | README、LICENSE、NOTICE |
 
 ## 6. 设计稿之外与待裁定汇总
@@ -427,4 +441,5 @@ R6 的逐格证据（报告 JSON 路径、能力声明、重放 digest 比对、
 | 画板 07（深色模式） | 已完成 | `claude/dark-mode-toggle-implementation-e028d0`（Claude Code 桌面端 worktree 分支） | `0977cde`（画板 07 拉回 + 实现） | `1420556`（合 main 前先 `46d3952` 把 main 的 Thread → Session 收敛合进分支，唯一冲突是 `design/README.md` 变更记录顶部） | 4 轮 / cursor CLI `cursor-grok-4.6-high-fast`（第 1–2 轮全量 `main...HEAD`：2 条 high 1 / P3 1，1 条 high；第 3 轮起只审整改 diff：1 条 high，第 4 轮 0 条收口；4 条全部采纳整改） | 三条 high 是同一处的三层：`AppearanceController` 在读盘未落定 / 读盘失败 / 补读之后拿错基线时，都会把 `appearance` 段整段覆盖成缺省，抹掉盘上已存的字体轴或主题（`appearance` 段在 Rust 侧是整段替换的）。各带一条回归用例，去掉整改都会红（逐条实测过）。P3 是两处文档还指着改名前的 `font_prefs.dart`。`validate.ps1` 全绿（flutter test 334 项）。并发落盘后发先至（R7.6 就有）与终端当前搜索命中的前景色记 `rounds/BACKLOG.md` |
 | R7.6 | 已完成 | `font-switching`（worktree `AcpAgentClient-fonts`） | —（设计稿待补，见下） | — | 3 轮 / cursor CLI `cursor-grok-4.6-high`（第 1 轮全量 `main...HEAD`：3 条 high 1 / P2 2，全部采纳整改；第 2 轮全量复审：**0 条**；第 3 轮合并 `main`（画板 43）之后再全量：**0 条**） | 字体切换四轴（界面西文 / 界面中文 / 代码等宽西文 / 代码等宽中文），所有者裁定 2026-09-20「字体属聚合物 + 随包直选 + 两组互不重叠的下拉」；任务卡 `rounds/round-7.6/round-7.6.md`；validate 全绿（281 测试）；第 1 轮审查抓到 high 1 条：`CardText` 等 14 个 `static final` 样式缓存会把 family 冻在首次访问那一刻，导致「全局生效」原本是假的（自测只断言 `TextStyles.*` 故假通过），已改 getter 并加扫源码的回归测试；**画板 70 的「外观」小节属实现先行、设计稿待补**；随包字体文件需所有者本人下载后放 `assets/fonts/optional/`（协议的点击同意不可由工具绕过），在此之前验收 9 待完成 |
 | Thread → Session 收敛 | 已完成 | `claude/thread-to-session-unify-fb9f63` | —（设计稿待补，见 BACKLOG） | — | —（所有者指定直接合并，未走独立审查） | UI 文案与前端 Dart 符号从 `Thread` 统一收敛为 `Session`（中文「会话」）：默认会话标题 `New <agent> Thread` → `New <agent> Session`、`+` 弹层 `Threads` → `Sessions`；`ThreadHeader` / `NewThreadEmpty` / `ThreadMenuPopover` / `ThreadHeaderRunning` → `SessionHeader` / `NewSessionEmpty` / `SessionMenuPopover` / `SessionHeaderRunning`（`lib/ui/shell/thread_header.dart` → `session_header.dart`）、`threadTitle` → `sessionTitle`、`threadMenuAnchor` → `sessionMenuAnchor`、`WorkbenchColumn.threadHeader` → `sessionHeader`、`+` 加入的转录 URI `acp-thread:` → `acp-session:`；注释与文档里的「线程头 / 线程区」改「会话头 / 会话区」。起因是协议层与状态层本就是 `session/*`、中文文案本就是「会话」，只有临摹 Zed 原型留下的几处英文还写着 `Thread`。零布局 / 零 token 值改动（`tokens.dart` 只动一行注释），31 文件 +166 -165；validate 13 项全绿、`flutter test` 319 项通过、`flutter analyze` 0 error 0 warning。Zed 上游的 `ThreadEvent` / `ThreadStore` / `threads.db` / `acp_thread.rs` 不在收敛范围。**画板 00 / 01 / 02 / 03 / 06 / 31 / 40 / 50 / 60 / 61 仍是旧文案，属实现先行**，注记记 BACKLOG「设计稿补注记（Thread → Session 收敛）」；**未构建 / 未审查（所有者指定）** |
+| R7.5 | 代码与文档已完成，main 已两次合进本分支（到 `32d372f`）；等所有者：验收 8 真跑、验收 9 手测、合回 main 的时机 | `claude/r7-5-composition-root-refactor-7600bf`（独立 worktree，基线 `f62520f`；`round-7.5` 收口时 fast-forward 到它） | —（无画板阶段） | — | 3 轮 / cursor CLI `cursor-grok-4.6-high-fast`（第 1 轮全量 `main...HEAD` 到第 6 步：**0 条**；第 2 轮全量到第 9 步：**0 条**；第 3 轮 `fd5b7a9..HEAD` 合并 main 之后：**0 条**；第 4 轮合 main@32d372f 后按所有者指示本会话自审：合并本身 0 条，main 那两个直改提交 1 条 P3 记 BACKLOG） | 任务卡 `rounds/round-7.5/round-7.5.md`；9 步各一个提交，每步 validate 全绿 + 三份 fake-agent 无头报告与基线逐步骤等价（比对脚本随基线入库）；拆完组合根 356 行、`lib/app` 九个新文件（thread 848 / shell 348 / turn 345 / composer 327 / agents 317 / auth 288 / workspace 196 / index 144 / guarded 50）；validate 加行数门与依赖方向门（13 → 15 项）；阶段 B 只量不动（一次 batch 壳级 build = 1，不触发，数字记 BACKLOG）；不修 BACKLOG 缺陷，17 条相关条目已各补新家，缺陷轮开 R7.7。main 的后续 11 个提交（Thread → Session 收敛 `44d256d`、画板 07 深色模式 `1420556`、v1.2.0 `7c9c592`）已于 2026-09-20 按所有者指示合进本分支（合并提交 `4e17300`，解冲突脚本 `rounds/round-7.5/merge-main-7c9c592.py`；validate 15 项全绿、三份无头报告与 main@7c9c592 的构建等价、第 3 轮审查 **0 条**；同日再合 main@32d372f 的两个 main 直改提交，无冲突，合并提交 `97ebfe8`，自审 1 条 P3 记 BACKLOG）；`ThreadController` 已按裁定改名 `SessionController`（2026-09-20） |
 | R8 | 未开始 | `round-08` | — | — | — | 前置 R7 已完成；打包时注意 sidecar 体积（release 176.7 MB） |

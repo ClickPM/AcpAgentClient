@@ -5,7 +5,9 @@
 
 import 'dart:async';
 
+import 'package:acp_agent_client/app/agents_state.dart';
 import 'package:acp_agent_client/app/core_bridge.dart';
+import 'package:acp_agent_client/app/shell_state.dart';
 import 'package:acp_agent_client/app/workbench_controller.dart';
 import 'package:acp_agent_client/projection/entries.dart';
 import 'package:acp_agent_client/projection/registry.dart';
@@ -133,7 +135,7 @@ void main() {
     final before = core.listCalls;
     core.emit(CoreEvent.registryProgress, <String, dynamic>{'agentId': 'amp-acp', 'kind': 'npx', 'step': 'resolve', 'detail': '@sourcegraph/amp-acp@0.9.0'});
     await Future<void>.delayed(Duration.zero);
-    final entry = c.registry.byId('amp-acp')!;
+    final entry = c.agents.registry.byId('amp-acp')!;
     expect(entry.isInstalling, isTrue);
     expect(entry.progress!.step, 'resolve');
     expect(entry.progress!.detail, '@sourcegraph/amp-acp@0.9.0');
@@ -147,59 +149,59 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     await Future<void>.delayed(Duration.zero);
     expect(core.listCalls, greaterThan(before), reason: 'done 之后要重读 registry_list');
-    expect(c.registry.byId('amp-acp')!.installed, isTrue);
-    expect(c.registry.byId('amp-acp')!.isInstalling, isFalse);
+    expect(c.agents.registry.byId('amp-acp')!.installed, isTrue);
+    expect(c.agents.registry.byId('amp-acp')!.isInstalling, isFalse);
 
     // 失败：条目进失败态并自动展开日志。
     core.emit(CoreEvent.registryProgress, <String, dynamic>{'agentId': 'amp-acp', 'kind': 'npx', 'step': 'failed', 'error': 'npm error E404'});
     await Future<void>.delayed(Duration.zero);
-    expect(c.registry.byId('amp-acp')!.isFailed, isTrue);
-    expect(c.registryShowLog, contains('amp-acp'));
+    expect(c.agents.registry.byId('amp-acp')!.isFailed, isTrue);
+    expect(c.agents.showLog, contains('amp-acp'));
     c.dispose();
   });
 
   test('session/new 回 -32000：进认证页，agent 型认证成功后自动重试并回到工作台', () async {
     final core = AuthCore();
     final c = await _start(core);
-    await c.newSession(const AgentRef(id: 'codex-acp', name: 'Codex'));
-    expect(c.sessionId, isNull);
-    expect(c.authAgentId, 'codex-acp');
-    expect(c.rightTab, ShellTab.agents);
-    expect(c.authPhase, AuthPhase.choose);
-    expect(c.authMethods.length, 2, reason: 'authMethods 来自 initialize');
-    expect(c.authMethodId, 'chat-gpt-device-code');
-    expect(c.authAgentName, 'Codex');
+    await c.session.newSession(const AgentRef(id: 'codex-acp', name: 'Codex'));
+    expect(c.session.sessionId, isNull);
+    expect(c.auth.agentId, 'codex-acp');
+    expect(c.shell.rightTab, ShellTab.agents);
+    expect(c.auth.phase, AuthPhase.choose);
+    expect(c.auth.methods.length, 2, reason: 'authMethods 来自 initialize');
+    expect(c.auth.methodId, 'chat-gpt-device-code');
+    expect(c.auth.agentName, 'Codex');
 
-    await c.startAuth();
+    await c.auth.start();
     expect(core.calls, contains('authenticate:chat-gpt-device-code'));
     expect(core.calls.where((x) => x == 'session_new').length, 2, reason: '认证成功后自动重试 session/new');
-    expect(c.sessionId, 'sess_after_auth');
-    expect(c.authAgentId, isNull, reason: '回到工作台，认证页关掉');
-    expect(c.page, MainPage.workbench);
+    expect(c.session.sessionId, 'sess_after_auth');
+    expect(c.auth.agentId, isNull, reason: '回到工作台，认证页关掉');
+    expect(c.shell.page, MainPage.workbench);
     c.dispose();
   });
 
   test('terminal 型：走 terminal_auth_run 并接管它返回的会话；失败态可换方式', () async {
     final core = AuthCore(terminal: true);
     final c = await _start(core);
-    await c.newSession(const AgentRef(id: 'codex-acp', name: 'Codex'));
-    c.selectAuthMethod('cli-login');
-    await c.startAuth();
+    await c.session.newSession(const AgentRef(id: 'codex-acp', name: 'Codex'));
+    c.auth.selectMethod('cli-login');
+    await c.auth.start();
     expect(core.calls, contains('terminal_auth_run:cli-login'));
-    expect(c.sessionId, 'sess_from_terminal');
+    expect(c.session.sessionId, 'sess_from_terminal');
     expect(core.calls.where((x) => x == 'session_new').length, 1, reason: '核心已经重试过，前端不再发第二次');
 
     // 失败态：authenticate 抛错 → failed，换一种方式回到选方法。
     final failing = AuthCore();
     final c2 = await _start(failing);
-    await c2.newSession(const AgentRef(id: 'codex-acp', name: 'Codex'));
+    await c2.session.newSession(const AgentRef(id: 'codex-acp', name: 'Codex'));
     failing.authed = false;
-    c2.selectAuthMethod('chat-gpt-device-code');
+    c2.auth.selectMethod('chat-gpt-device-code');
     // 让 authenticate 通过但 session/new 仍回 -32000（agent 认证了却仍没权限）：
     failing.calls.clear();
-    await c2.startAuth();
+    await c2.auth.start();
     // authenticate 成功后 session/new 放行（authed = true），所以这里成功；改成模拟 authenticate 抛错：
-    expect(c2.sessionId, 'sess_after_auth');
+    expect(c2.session.sessionId, 'sess_after_auth');
     c.dispose();
     c2.dispose();
   });
@@ -220,14 +222,14 @@ void main() {
       },
     });
     await Future<void>.delayed(Duration.zero);
-    expect(c.authAgentId, 'codex-acp', reason: '没开认证页也要为它打开');
-    expect(c.rightTab, ShellTab.agents);
-    expect(c.authElicitations.length, 1);
-    final e = c.authElicitations.single;
+    expect(c.auth.agentId, 'codex-acp', reason: '没开认证页也要为它打开');
+    expect(c.shell.rightTab, ShellTab.agents);
+    expect(c.auth.elicitations.length, 1);
+    final e = c.auth.elicitations.single;
     expect(e.isRequestScope, isTrue);
     expect(e.status, PendingStatus.pending);
 
-    final url = await c.acceptElicitationUrl(e);
+    final url = await c.auth.acceptUrl(e);
     expect(url, 'https://auth.example/device');
     expect(core.responded.single.$1, '7');
     expect(core.responded.single.$2, <String, dynamic>{'action': 'accept', 'content': <String, dynamic>{}});
@@ -243,7 +245,7 @@ void main() {
     });
     await Future<void>.delayed(Duration.zero);
     expect(e.status, PendingStatus.completed);
-    expect(c.authElicitations.length, 1);
+    expect(c.auth.elicitations.length, 1);
     c.dispose();
   });
 
@@ -258,26 +260,26 @@ void main() {
         };
     core.emit(CoreEvent.clientRequest, request('7', 'login_1'));
     await Future<void>.delayed(Duration.zero);
-    expect(c.authElicitations.single.status, PendingStatus.pending);
+    expect(c.auth.elicitations.single.status, PendingStatus.pending);
 
     // 选择卡上的「取消」：回 registry 列表之前先回应挂起的那条。
-    await c.cancelAuth();
+    await c.auth.cancel();
     await Future<void>.delayed(Duration.zero);
-    expect(c.authAgentId, isNull);
-    expect(c.authElicitations, isEmpty);
+    expect(c.auth.agentId, isNull);
+    expect(c.auth.elicitations, isEmpty);
     expect(core.responded.single.$1, '7');
     expect(core.responded.single.$2, <String, dynamic>{'action': 'cancel'});
 
     // 从另一条入口重开认证页同样不丢：新的挂起项也回 cancel；已 accept 的（浏览器已开）没有第二个响应，只从页上拿掉。
     core.emit(CoreEvent.clientRequest, request('8', 'login_2'));
     await Future<void>.delayed(Duration.zero);
-    await c.acceptElicitationUrl(c.authElicitations.single);
+    await c.auth.acceptUrl(c.auth.elicitations.single);
     core.emit(CoreEvent.clientRequest, request('9', 'login_3'));
     await Future<void>.delayed(Duration.zero);
-    expect(c.authElicitations.length, 2);
-    await c.openAuth('codex-acp');
+    expect(c.auth.elicitations.length, 2);
+    await c.auth.open('codex-acp');
     await Future<void>.delayed(Duration.zero);
-    expect(c.authElicitations, isEmpty);
+    expect(c.auth.elicitations, isEmpty);
     expect(core.responded.map((r) => r.$1).toList(), <String>['7', '8', '9']);
     expect(core.responded.last.$2, <String, dynamic>{'action': 'cancel'});
     c.dispose();
@@ -287,39 +289,39 @@ void main() {
     // 失败路径：旧的 authenticate 在页收起后才失败，新页不该画出失败卡。
     final failing = GatedAuthCore(succeed: false);
     final c = await _start(failing);
-    await c.openAuth('codex-acp');
-    final first = c.startAuth();
-    expect(c.authPhase, AuthPhase.running);
-    await c.cancelAuth();
-    await c.openAuth('codex-acp');
-    expect(c.authPhase, AuthPhase.choose);
+    await c.auth.open('codex-acp');
+    final first = c.auth.start();
+    expect(c.auth.phase, AuthPhase.running);
+    await c.auth.cancel();
+    await c.auth.open('codex-acp');
+    expect(c.auth.phase, AuthPhase.choose);
     failing.gate.complete();
     await first;
-    expect(c.authAgentId, 'codex-acp');
-    expect(c.authPhase, AuthPhase.choose);
-    expect(c.authError, isNull);
+    expect(c.auth.agentId, 'codex-acp');
+    expect(c.auth.phase, AuthPhase.choose);
+    expect(c.auth.error, isNull);
     c.dispose();
 
     // 成功路径：旧的 authenticate 在页收起后才成功，不再 closeAuth、不建会话、不切工作台。
     final succeeding = GatedAuthCore(succeed: true);
     final c2 = await _start(succeeding);
-    await c2.openAuth('codex-acp');
-    final second = c2.startAuth();
-    await c2.cancelAuth();
-    await c2.openAuth('codex-acp');
+    await c2.auth.open('codex-acp');
+    final second = c2.auth.start();
+    await c2.auth.cancel();
+    await c2.auth.open('codex-acp');
     succeeding.gate.complete();
     await second;
-    expect(c2.authAgentId, 'codex-acp');
-    expect(c2.authPhase, AuthPhase.choose);
+    expect(c2.auth.agentId, 'codex-acp');
+    expect(c2.auth.phase, AuthPhase.choose);
     expect(succeeding.calls.where((x) => x == 'session_new'), isEmpty);
-    expect(c2.rightTab, ShellTab.agents);
+    expect(c2.shell.rightTab, ShellTab.agents);
     c2.dispose();
   });
 
   test('设置面板：保存 custom 条目时 args / env 的切分；侧栏「设置」开右栏的设置标签', () async {
-    expect(WorkbenchController.splitArgs('--stdio --interactive'), <String>['--stdio', '--interactive']);
-    expect(WorkbenchController.splitArgs('"D:/a b/x.mjs" --flag  '), <String>['D:/a b/x.mjs', '--flag']);
-    expect(WorkbenchController.splitArgs(''), <String>[]);
+    expect(AgentsState.splitArgs('--stdio --interactive'), <String>['--stdio', '--interactive']);
+    expect(AgentsState.splitArgs('"D:/a b/x.mjs" --flag  '), <String>['D:/a b/x.mjs', '--flag']);
+    expect(AgentsState.splitArgs(''), <String>[]);
 
     final core = AuthCore();
     core.registry = <String, dynamic>{
@@ -340,22 +342,22 @@ void main() {
     };
     final saved = <(String, JsonMap)>[];
     final c = await _start(_SettingsCore(core, saved));
-    c.openTab(ShellTab.settings);
+    c.shell.openTab(ShellTab.settings);
     // 设置是右栏的一个标签（与文件 / Agents 一致），不占主区。
-    expect(c.page, MainPage.workbench);
-    expect(c.rightTab, ShellTab.settings);
-    expect(c.rightPanelOpen, isTrue);
-    expect(c.activeNavTab, ShellTab.settings);
-    expect(c.installedEntries.map((e) => e.id), <String>['dsh']);
+    expect(c.shell.page, MainPage.workbench);
+    expect(c.shell.rightTab, ShellTab.settings);
+    expect(c.shell.rightPanelOpen, isTrue);
+    expect(c.shell.activeNavTab, ShellTab.settings);
+    expect(c.agents.installedEntries.map((e) => e.id), <String>['dsh']);
 
-    c.editAgent('dsh');
-    expect(c.settingsEditingId, 'dsh');
-    expect(c.settingsEdit.command.text, 'dsh.cmd');
-    expect(c.settingsEdit.args.text, '--acp');
-    expect(c.settingsEdit.env.text, 'A=1');
-    c.settingsEdit.args.text = '--acp "--name=a b"';
-    c.settingsEdit.env.text = 'A=2 DSH_LOG=info';
-    await c.saveCustomAgent('dsh');
+    c.agents.editAgent('dsh');
+    expect(c.agents.editingId, 'dsh');
+    expect(c.agents.edit.command.text, 'dsh.cmd');
+    expect(c.agents.edit.args.text, '--acp');
+    expect(c.agents.edit.env.text, 'A=1');
+    c.agents.edit.args.text = '--acp "--name=a b"';
+    c.agents.edit.env.text = 'A=2 DSH_LOG=info';
+    await c.agents.saveCustomAgent('dsh');
     expect(saved.single.$1, 'dsh');
     expect(saved.single.$2, <String, dynamic>{
       'type': 'custom',
@@ -363,10 +365,10 @@ void main() {
       'args': <String>['--acp', '--name=a b'],
       'env': <String, String>{'A': '2', 'DSH_LOG': 'info'},
     });
-    expect(c.settingsEditingId, isNull);
+    expect(c.agents.editingId, isNull);
 
-    await c.selectSession('x');
-    expect(c.rightTab, ShellTab.settings, reason: '选会话不动右栏那一侧的标签');
+    await c.session.selectSession('x');
+    expect(c.shell.rightTab, ShellTab.settings, reason: '选会话不动右栏那一侧的标签');
     c.dispose();
   });
 
@@ -375,16 +377,16 @@ void main() {
     final c = await _start(core);
 
     // `agent_settings_get` 里内置条目自带 `name`，列表按它显示；普通 custom 条目仍退回 id。
-    await c.refreshAgents();
-    expect(c.installedAgents.map((AgentRef a) => '${a.id}|${a.name}').toList(), <String>['dsh|dsh', 'zed|Zed Agent']);
+    await c.agents.refreshAgents();
+    expect(c.agents.installed.map((AgentRef a) => '${a.id}|${a.name}').toList(), <String>['dsh|dsh', 'zed|Zed Agent']);
 
     // `registry_list` 的 `builtin` 透到投影层：设置页 / registry 卡据此不画「编辑」与 Remove。
-    await c.refreshRegistry();
-    final RegistryEntryData? zed = c.registry.byId('zed');
+    await c.agents.refreshRegistry();
+    final RegistryEntryData? zed = c.agents.registry.byId('zed');
     expect(zed, isNotNull);
     expect(zed!.builtin, isTrue);
     expect(zed.isCustom, isTrue);
-    expect(c.registry.byId('dsh')!.builtin, isFalse, reason: '普通 custom 条目照常可删');
+    expect(c.agents.registry.byId('dsh')!.builtin, isFalse, reason: '普通 custom 条目照常可删');
 
     c.dispose();
   });

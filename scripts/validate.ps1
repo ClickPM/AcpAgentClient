@@ -4,6 +4,7 @@
 # 检查项：cargo build / test / clippy -D warnings、unsafe 字面扫描（规则 6）、cargo tree 无 gpui（规则 5）、
 # flutter analyze / test、pubspec 依赖 ⊆ 白名单（规则 1）、Assert-NoStyleLiteral（规则 3）、
 # rust/ 的 _meta 键 ⊆ docs/design.md § 4（规则 2）、Zed 派生文件头注释（规则 5）、fetch-upstream -Check（规则 4）。
+# R7.5 起另有两道门：lib/app 行数门（组合根 ≤ 450、其余 ≤ 900）与 lib/app 依赖方向门（任务卡附录 B 的边）。
 param(
     [switch]$Quick,
     [string]$CargoTargetDir = "D:\cargo-target\AcpAgentClient"
@@ -163,6 +164,56 @@ try {
         }
         if ($hits) { throw ("style literals outside tokens.dart:`n" + ($hits -join "`n")) }
         Write-Host ("scanned " + $files.Count + " dart files")
+    }
+
+    Step "lib/app 行数门 (R7.5)" {
+        # R7.5 组合根拆分（rounds/round-7.5/round-7.5.md 验收 5）：组合根 ≤ 450 行，lib/app 下任何文件 ≤ 900 行，
+        # 防止组合根再长回上帝对象。改阈值先改任务卡再改这里。
+        # 行数按原始行计（与 wc -l 同口径，空行也算）。两处显式放宽，都是本轮只改了引用路径的既有文件：
+        # headless_run.dart 是 R3 / R5 / R6 三个无头实跑模式的驱动（基线 1186 行），不是产品代码；
+        # workbench_screen.dart 在画板 43 之后就是 946 行（任务卡「2026-09-20 复核」记为观察项）。
+        # 拆它们的事记 rounds/BACKLOG.md 等裁定；再长就得回来动这两个数字。
+        $limits = @{ "workbench_controller.dart" = 450; "headless_run.dart" = 1300; "workbench_screen.dart" = 1000 }
+        $default = 900
+        $bad = @()
+        foreach ($f in (Get-ChildItem (Join-Path $root "lib\app") -File -Filter *.dart)) {
+            $n = @(Get-Content $f.FullName -Encoding UTF8).Count
+            $limit = if ($limits.ContainsKey($f.Name)) { $limits[$f.Name] } else { $default }
+            if ($n -gt $limit) { $bad += "$($f.Name): $n > $limit" }
+        }
+        if ($bad) { throw ("lib/app files over the line limit:`n" + ($bad -join "`n")) }
+        Write-Host ("lib/app files: " + (Get-ChildItem (Join-Path $root "lib\app") -File -Filter *.dart).Count)
+    }
+
+    Step "lib/app 依赖方向门 (R7.5)" {
+        # R7.5 任务卡附录 B：只有 app.dart / workbench_screen.dart / headless_run.dart 可以 import 组合根；
+        # 八个子对象之间只允许下面列出的边（谁 → 谁），反向一律走组合根接的回调。
+        $allowed = @{
+            "shell_state.dart"       = @("files_state.dart", "local_terminals.dart", "guarded.dart", "core_bridge.dart")
+            "workspace_state.dart"   = @("files_state.dart", "guarded.dart", "core_bridge.dart")
+            "session_index.dart"     = @("core_bridge.dart")
+            "agents_state.dart"      = @("guarded.dart", "core_bridge.dart")
+            "auth_state.dart"        = @("guarded.dart", "core_bridge.dart")
+            "composer_state.dart"    = @("guarded.dart", "core_bridge.dart", "clipboard_image.dart")
+            "turn_controller.dart"   = @("session_controller.dart", "composer_state.dart", "guarded.dart", "core_bridge.dart")
+            "session_controller.dart" = @("session_index.dart", "agents_state.dart", "workspace_state.dart", "guarded.dart", "core_bridge.dart")
+        }
+        $appDir = Join-Path $root "lib\app"
+        $bad = @()
+        foreach ($f in (Get-ChildItem $appDir -File -Filter *.dart)) {
+            $imports = Select-String -Path $f.FullName -Pattern "^import '([^']+)';" | ForEach-Object { $_.Matches[0].Groups[1].Value }
+            $local = $imports | Where-Object { $_ -notmatch '^(package:|dart:|\.\./)' }
+            if ($local -contains "workbench_controller.dart" -and $f.Name -notin @("app.dart", "workbench_screen.dart", "headless_run.dart")) {
+                $bad += "$($f.Name) imports workbench_controller.dart"
+            }
+            if ($allowed.ContainsKey($f.Name)) {
+                foreach ($imp in $local) {
+                    if ($allowed[$f.Name] -notcontains $imp) { $bad += "$($f.Name) -> $imp is not an allowed edge (task card appendix B)" }
+                }
+            }
+        }
+        if ($bad) { throw ("dependency direction violated:`n" + ($bad -join "`n")) }
+        Write-Host ("checked " + $allowed.Count + " sub-objects")
     }
 
     if (-not $Quick) {

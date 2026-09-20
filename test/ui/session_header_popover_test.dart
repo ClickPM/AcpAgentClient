@@ -29,8 +29,8 @@ Future<WorkbenchController> _pumpShell(WidgetTester tester) async {
   await tester.runAsync(loadGalleryFonts);
 
   final c = WorkbenchController(source: DataSource.bridge, bridge: FakeCore(), scheduler: WorkbenchController.scheduleOnMicrotask)
-    ..project = const ProjectRef(path: 'D:/repo', name: 'repo')
-    ..installedAgents = const <AgentRef>[AgentRef(id: 'zed', name: 'Zed Agent')];
+    ..workspace.project = const ProjectRef(path: 'D:/repo', name: 'repo')
+    ..agents.installed = const <AgentRef>[AgentRef(id: 'zed', name: 'Zed Agent')];
   addTearDown(c.dispose);
 
   await tester.pumpWidget(MaterialApp(home: WorkbenchScreen(controller: c)));
@@ -50,13 +50,13 @@ void main() {
     await tester.tap(find.text('Zed Agent'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    expect(c.hasAgent, isTrue);
-    expect(c.newSessionAnchor.isShowing, isFalse, reason: '建完会话要收起来');
+    expect(c.session.hasAgent, isTrue);
+    expect(c.session.newSessionAnchor.isShowing, isFalse, reason: '建完会话要收起来');
     expect(_popover, findsNothing);
 
     await tester.tap(_plus);
     await tester.pump();
-    expect(c.newSessionAnchor.isShowing, isTrue);
+    expect(c.session.newSessionAnchor.isShowing, isTrue);
     expect(_popover, findsOneWidget, reason: 'controller 被旧元素解绑的话这里只翻标志位、不渲染');
   });
 

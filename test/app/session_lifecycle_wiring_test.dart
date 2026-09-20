@@ -83,11 +83,11 @@ Future<(WorkbenchController, _LifecycleCore)> _connected({
     'messageCount': 3,
   });
   final c = WorkbenchController(source: DataSource.bridge, bridge: core, scheduler: WorkbenchController.scheduleOnMicrotask)
-    ..project = const ProjectRef(path: _cwd, name: 'repo');
-  await c.refreshSessionIndex();
+    ..workspace.project = const ProjectRef(path: _cwd, name: 'repo');
+  await c.index.refresh();
   if (!indexOnly) {
     c.sessions.agents.applyInitializeResult(_agent, core.initialize);
-    c.agentId = _agent;
+    c.session.agentId = _agent;
   }
   return (c, core);
 }
@@ -122,23 +122,23 @@ void main() {
     var notifications = 0;
     c.addListener(() => notifications++);
 
-    await c.selectSession(_session);
+    await c.session.selectSession(_session);
 
     expect(core.calls, contains('connect:$_agent'));
     expect(core.loadedSessions, <(String, String, String)>[(_agent, _session, _cwd)]);
     final store = c.sessions.maybe(_session)!;
     expect(store.entries, hasLength(40), reason: '整段历史都在');
     expect(store.currentModeId, 'ask', reason: 'LoadSessionResponse 的 modes 落进来了');
-    expect(c.sessionId, _session);
+    expect(c.session.sessionId, _session);
     // 40 条更新 + 一次重置合并成一次投影层通知（另外几次是 selectSession / _ensureLoaded 自己的 _touch）。
     expect(notifications, lessThan(5), reason: '重放不得逐条刷新，实得 $notifications');
   });
 
   test('agent 没声明 loadSession：点会话只切过去，不发 session/load', () async {
     final (c, core) = await _connected(indexOnly: true, initialize: _initialize(loadSession: false, caps: <String>[]));
-    await c.selectSession(_session);
+    await c.session.selectSession(_session);
     expect(core.loadedSessions, isEmpty);
-    expect(c.sessionId, _session);
+    expect(c.session.sessionId, _session);
     c.dispose();
   });
 
@@ -146,42 +146,42 @@ void main() {
     final (c, core) = await _connected();
     c.sessions.session(_session, agentId: _agent).cwd = _cwd;
 
-    await c.selectSession(_session);
+    await c.session.selectSession(_session);
     expect(core.loadedSessions, isEmpty, reason: '内存里已经有转录了');
 
-    await c.closeSession();
+    await c.session.closeSession();
     expect(core.closedSessions, <(String, String)>[(_agent, _session)]);
-    expect(c.sessionId, _session, reason: '关掉之后转录留着只读，还是当前会话');
-    expect(c.sessionClosed, isTrue);
+    expect(c.session.sessionId, _session, reason: '关掉之后转录留着只读，还是当前会话');
+    expect(c.session.sessionClosed, isTrue);
 
-    c.sessionId = null; // 换到别处再点回来（等价于点侧栏另一条再点回这条）
-    await c.selectSession(_session);
+    c.session.sessionId = null; // 换到别处再点回来（等价于点侧栏另一条再点回这条）
+    await c.session.selectSession(_session);
     expect(core.loadedSessions, hasLength(1), reason: '关过的会话要重新 load');
-    expect(c.sessionClosed, isFalse, reason: 'load 成功后不再是关闭态');
+    expect(c.session.sessionClosed, isFalse, reason: 'load 成功后不再是关闭态');
     c.dispose();
   });
 
   test('Close / Resume 的能力门跟会话是死是活走（dsh 对活着的会话 resume 回 -32602）', () async {
     final (c, _) = await _connected();
-    c.sessionId = _session;
+    c.session.sessionId = _session;
     c.sessions.session(_session, agentId: _agent).cwd = _cwd;
-    expect(c.canCloseSession, isTrue);
-    expect(c.canResumeSession, isFalse, reason: '还活着的会话不给 Resume');
+    expect(c.session.canCloseSession, isTrue);
+    expect(c.session.canResumeSession, isFalse, reason: '还活着的会话不给 Resume');
 
-    await c.closeSession();
-    expect(c.canCloseSession, isFalse, reason: '关过了不再给 Close');
-    expect(c.canResumeSession, isTrue);
+    await c.session.closeSession();
+    expect(c.session.canCloseSession, isFalse, reason: '关过了不再给 Close');
+    expect(c.session.canResumeSession, isTrue);
 
-    await c.resumeSession();
-    expect(c.sessionClosed, isFalse);
-    expect(c.canResumeSession, isFalse);
-    expect(c.canCloseSession, isTrue);
+    await c.session.resumeSession();
+    expect(c.session.sessionClosed, isFalse);
+    expect(c.session.canResumeSession, isFalse);
+    expect(c.session.canCloseSession, isTrue);
     c.dispose();
   });
 
   test('没有 loadSession 但有 resume 的 agent：点会话用 session/resume 挂回上下文（不重放）', () async {
     final (c, core) = await _connected(indexOnly: true, initialize: _initialize(loadSession: false, caps: <String>['resume']));
-    await c.selectSession(_session);
+    await c.session.selectSession(_session);
     expect(core.loadedSessions, isEmpty);
     expect(core.resumedSessions, <(String, String, String)>[(_agent, _session, _cwd)]);
     c.dispose();
@@ -190,17 +190,17 @@ void main() {
   test('load 失败（内存里本来就没有）：空壳收回去，下次点击还能重试', () async {
     final (c, core) = await _connected(indexOnly: true);
     core.onSessionLoad = (_, _) async => throw const CoreCommandError('acp', 'gone');
-    await c.selectSession(_session);
+    await c.session.selectSession(_session);
     expect(c.sessions.maybe(_session), isNull);
-    expect(c.lastError, contains('gone'));
-    await c.selectSession(_session);
+    expect(c.session.lastError, contains('gone'));
+    await c.session.selectSession(_session);
     expect(core.loadedSessions, hasLength(2), reason: '失败之后还能再试');
     c.dispose();
   });
 
   test('load 失败（内存里已有转录、一条历史都没重放）：转录原样留着，不丢本地唯一一份', () async {
     final (c, core) = await _connected();
-    c.sessionId = _session;
+    c.session.sessionId = _session;
     final store = c.sessions.session(_session, agentId: _agent)..cwd = _cwd;
     store.applyUpdateJson(<String, dynamic>{
       'sessionUpdate': 'agent_message_chunk',
@@ -209,39 +209,39 @@ void main() {
     });
     expect(store.entries, hasLength(1));
 
-    await c.closeSession();
-    c.sessionId = null;
+    await c.session.closeSession();
+    c.session.sessionId = null;
     core.onSessionLoad = (_, _) async => throw const CoreCommandError('acp', 'gone');
-    await c.selectSession(_session);
+    await c.session.selectSession(_session);
 
     expect(core.loadedSessions, hasLength(1));
     expect(c.sessions.maybe(_session), isNotNull, reason: '原先就在内存里的不该被摘掉');
     expect(c.sessions.maybe(_session)!.entries, hasLength(1), reason: '一条都没重放就失败 → 转录原样');
-    expect(c.sessionClosed, isTrue, reason: 'load 没成，还是关闭态');
+    expect(c.session.sessionClosed, isTrue, reason: 'load 没成，还是关闭态');
     c.dispose();
   });
 
   test('load 与 close 并发：load 回来时不把刚关掉的会话又标成活的', () async {
     final (c, core) = await _connected();
-    c.sessionId = _session;
+    c.session.sessionId = _session;
     c.sessions.session(_session, agentId: _agent).cwd = _cwd;
-    await c.closeSession();
-    c.sessionId = null;
+    await c.session.closeSession();
+    c.session.sessionId = null;
     // load 在途时又被关了一次。
     core.onSessionLoad = (_, _) async {
-      c.sessionId = _session;
-      await c.closeSession();
+      c.session.sessionId = _session;
+      await c.session.closeSession();
       return <String, dynamic>{};
     };
-    await c.selectSession(_session);
+    await c.session.selectSession(_session);
     expect(core.loadedSessions, hasLength(1));
-    expect(c.sessionClosed, isTrue, reason: '在途期间的 close 不能被 load 的成功路径抹掉');
+    expect(c.session.sessionClosed, isTrue, reason: '在途期间的 close 不能被 load 的成功路径抹掉');
     c.dispose();
   });
 
   test('close / delete 之前把挂起的 elicitation 回 cancel（核心只管权限请求）', () async {
     final (c, core) = await _connected();
-    c.sessionId = _session;
+    c.session.sessionId = _session;
     c.sessions.session(_session, agentId: _agent).cwd = _cwd;
     c.sessions.applyClientRequestEnvelope(<String, dynamic>{
       'agentId': _agent,
@@ -256,7 +256,7 @@ void main() {
     });
     expect(c.sessions.pending.forSession(_session), hasLength(1));
 
-    await c.closeSession();
+    await c.session.closeSession();
 
     expect(core.responded.map((r) => r.$1), <String>['req_elic']);
     expect(core.responded.single.$2, <String, dynamic>{'action': 'cancel'});
@@ -266,7 +266,7 @@ void main() {
 
   test('关掉的会话是只读的：prompt / Restore / Regenerate / 三个下拉全都发不出去', () async {
     final (c, core) = await _connected();
-    c.sessionId = _session;
+    c.session.sessionId = _session;
     final store = c.sessions.session(_session, agentId: _agent)..cwd = _cwd;
     store.startTurn(<ContentBlockWire>[
       const ContentBlockWire(<String, dynamic>{'type': 'text', 'text': '关闭前的那一轮'}),
@@ -274,16 +274,16 @@ void main() {
     final bubble = store.entries.whereType<MessageEntry>().first;
     store.endTurn(stopReason: 'end_turn');
     final entriesBefore = store.entries.length;
-    await c.closeSession();
+    await c.session.closeSession();
 
-    c.composer.text = '还想说点什么';
-    await c.send();
-    await c.restore(bubble);
-    await c.restore(bubble, newText: '换个说法');
-    await c.selectConfigValue('model', 'gpt');
-    await c.toggleConfigBoolean('auto_approve', true);
-    await c.setMode('code');
-    await c.cancel();
+    c.composer.editor.text = '还想说点什么';
+    await c.turn.send();
+    await c.turn.restore(bubble);
+    await c.turn.restore(bubble, newText: '换个说法');
+    await c.turn.selectConfigValue('model', 'gpt');
+    await c.turn.toggleConfigBoolean('auto_approve', true);
+    await c.turn.setMode('code');
+    await c.turn.cancel();
 
     // 逐个命令面分别断言：只看 `lastError` 会假通过（`send()` 先跑就已经把它写成同一句，
     // 审查第 3 轮 P3）。
@@ -292,21 +292,21 @@ void main() {
     expect(core.modeCalls, isEmpty, reason: '模式下拉不该发 session/set_mode');
     expect(core.cancels, 0, reason: '停止方块不该把 session/cancel 打到已释放的会话上');
     expect(store.entries, hasLength(entriesBefore), reason: 'Restore 不能把本地转录截断了却发不出去');
-    expect(c.lastError, contains('已经关闭'));
+    expect(c.turn.lastError, contains('已经关闭'));
     c.dispose();
   });
 
   test('没关闭的会话不受这道门影响：prompt / 下拉 / 停止都照常发', () async {
     final (c, core) = await _connected();
-    c.sessionId = _session;
+    c.session.sessionId = _session;
     final store = c.sessions.session(_session, agentId: _agent)..cwd = _cwd;
 
-    c.composer.text = '正常发一条';
-    await c.send();
-    await c.selectConfigValue('model', 'gpt');
-    await c.setMode('code');
+    c.composer.editor.text = '正常发一条';
+    await c.turn.send();
+    await c.turn.selectConfigValue('model', 'gpt');
+    await c.turn.setMode('code');
     store.startTurn(const <ContentBlockWire>[]);
-    await c.cancel();
+    await c.turn.cancel();
 
     expect(core.prompts, hasLength(1));
     expect(core.configOptionCalls.map((e) => e.$1), <String>['model']);
@@ -317,7 +317,7 @@ void main() {
 
   test('close 把挂起的权限卡也标成 cancelled（核心那边已经回过 cancelled 了）', () async {
     final (c, core) = await _connected();
-    c.sessionId = _session;
+    c.session.sessionId = _session;
     final store = c.sessions.session(_session, agentId: _agent)..cwd = _cwd;
     c.sessions.applyClientRequestEnvelope(<String, dynamic>{
       'agentId': _agent,
@@ -333,7 +333,7 @@ void main() {
     });
     expect(store.pending.forSession(_session), hasLength(1));
 
-    await c.closeSession();
+    await c.session.closeSession();
 
     expect(store.pending.forSession(_session), isEmpty, reason: '卡还停在 pending 的话用户点 Allow 会撞 unknown_request');
     expect((store.pending.byRequestId('req_perm')! as PermissionEntry).status, PendingStatus.cancelled);
@@ -344,9 +344,9 @@ void main() {
 
   test('Resume：不重放，响应为空也不能把已有的 modes / configOptions 抹掉', () async {
     final (c, core) = await _connected();
-    c.sessionId = _session;
+    c.session.sessionId = _session;
     final store = c.sessions.session(_session, agentId: _agent)..cwd = _cwd;
-    await c.closeSession(); // 产品路径：Resume 只在 Close 之后给
+    await c.session.closeSession(); // 产品路径：Resume 只在 Close 之后给
     store.applyNewSession(<String, dynamic>{
       'modes': <String, dynamic>{
         'currentModeId': 'code',
@@ -356,7 +356,7 @@ void main() {
       },
     });
 
-    await c.resumeSession();
+    await c.session.resumeSession();
 
     expect(core.resumedSessions, <(String, String, String)>[(_agent, _session, _cwd)]);
     expect(store.currentModeId, 'code');
@@ -367,16 +367,16 @@ void main() {
   group('删除（验收 4）', () {
     test('声明了 delete：先删 agent 侧，成功后才删本地索引', () async {
       final (c, core) = await _connected();
-      c.sessionId = _session;
+      c.session.sessionId = _session;
       c.sessions.session(_session, agentId: _agent);
 
-      await c.deleteSession(_session);
+      await c.session.deleteSession(_session);
 
       expect(core.deletedSessions, <(String, String)>[(_agent, _session)]);
       expect(core.sessionIndex, isEmpty);
-      expect(c.sidebarSessions, isEmpty);
+      expect(c.session.sidebarSessions, isEmpty);
       expect(c.sessions.maybe(_session), isNull);
-      expect(c.sessionId, isNull);
+      expect(c.session.sessionId, isNull);
       c.dispose();
     });
 
@@ -384,11 +384,11 @@ void main() {
       final (c, core) = await _connected();
       core.indexRemoveFailsOnce = true;
 
-      await c.deleteSession(_session);
+      await c.session.deleteSession(_session);
       expect(core.deletedSessions, hasLength(1));
       expect(core.sessionIndex, hasLength(1), reason: '本地那步失败了');
 
-      await c.deleteSession(_session);
+      await c.session.deleteSession(_session);
       expect(core.deletedSessions, hasLength(1), reason: 'agent 侧已经没有这条了，再发一次只会被拒');
       expect(core.sessionIndex, isEmpty, reason: '重试要能把本地这条删掉');
       c.dispose();
@@ -398,22 +398,22 @@ void main() {
       final (c, core) = await _connected();
       core.deleteFails = true;
 
-      await c.deleteSession(_session);
+      await c.session.deleteSession(_session);
 
       expect(core.deletedSessions, isEmpty, reason: 'agent 侧那一下没成');
       expect(core.sessionIndex, isEmpty, reason: 'agent 侧没有这条会话时也要能把本地这条清掉');
-      expect(c.sidebarSessions, isEmpty);
-      expect(c.lastError, contains('no such session'));
+      expect(c.session.sidebarSessions, isEmpty);
+      expect(c.session.lastError, contains('no such session'));
       c.dispose();
     });
 
     test('没声明 delete 的 agent：不发 session/delete，只删本地索引；侧栏照给删除图标', () async {
       final (c, core) = await _connected(initialize: _initialize(caps: <String>['list', 'close']));
-      await c.refreshSessionIndex();
-      expect(c.sidebarSessions.single.canDelete, isTrue, reason: '本地记录不被 agent 的能力声明锁住');
-      expect(c.canDeleteSession, isFalse);
+      await c.index.refresh();
+      expect(c.session.sidebarSessions.single.canDelete, isTrue, reason: '本地记录不被 agent 的能力声明锁住');
+      expect(c.session.canDeleteSession, isFalse);
 
-      await c.deleteSession(_session);
+      await c.session.deleteSession(_session);
 
       expect(core.deletedSessions, isEmpty);
       expect(core.sessionIndex, isEmpty);
@@ -422,8 +422,8 @@ void main() {
 
     test('能力未知（agent 本次没连过）：侧栏照给删除图标，删除只动本地索引', () async {
       final (c, core) = await _connected(indexOnly: true);
-      expect(c.sidebarSessions.single.canDelete, isTrue);
-      await c.deleteSession(_session);
+      expect(c.session.sidebarSessions.single.canDelete, isTrue);
+      await c.session.deleteSession(_session);
       expect(core.deletedSessions, isEmpty);
       expect(core.sessionIndex, isEmpty);
       c.dispose();
@@ -432,23 +432,23 @@ void main() {
 
   test('≡ 菜单按 sessionCapabilities 裁剪', () async {
     final (full, _) = await _connected();
-    full.sessionId = _session;
-    expect(<bool>[full.canResumeSession, full.canCloseSession, full.canDeleteSession], <bool>[false, true, true]);
-    await full.closeSession();
-    expect(<bool>[full.canResumeSession, full.canCloseSession], <bool>[true, false]);
+    full.session.sessionId = _session;
+    expect(<bool>[full.session.canResumeSession, full.session.canCloseSession, full.session.canDeleteSession], <bool>[false, true, true]);
+    await full.session.closeSession();
+    expect(<bool>[full.session.canResumeSession, full.session.canCloseSession], <bool>[true, false]);
     full.dispose();
 
     // pi-acp 的声明：loadSession + list + delete，没有 resume / close。
     final (pi, _) = await _connected(initialize: _initialize(caps: <String>['list', 'delete']));
-    pi.sessionId = _session;
-    expect(<bool>[pi.canResumeSession, pi.canCloseSession, pi.canDeleteSession], <bool>[false, false, true]);
-    expect(pi.canListSessions, isTrue);
-    expect(pi.canLoadSession, isTrue);
+    pi.session.sessionId = _session;
+    expect(<bool>[pi.session.canResumeSession, pi.session.canCloseSession, pi.session.canDeleteSession], <bool>[false, false, true]);
+    expect(pi.session.canListSessions, isTrue);
+    expect(pi.session.canLoadSession, isTrue);
     pi.dispose();
 
     // 没有会话时三个动作都不给（菜单挂在当前会话上）。
     final (none, _) = await _connected();
-    expect(<bool>[none.canResumeSession, none.canCloseSession, none.canDeleteSession], <bool>[false, false, false]);
+    expect(<bool>[none.session.canResumeSession, none.session.canCloseSession, none.session.canDeleteSession], <bool>[false, false, false]);
     none.dispose();
   });
 
@@ -470,31 +470,31 @@ void main() {
             _ => <String, dynamic>{'sessions': <Object?>[]},
           };
 
-      await c.reconcileSessions();
+      await c.session.reconcileSessions();
 
       expect(core.listedSessions.map((e) => e.$3), <String?>[null, 'p2'], reason: 'nextCursor 要取完');
-      expect(c.sidebarSessions.map((s) => s.id), <String>[_session], reason: 'agent 有、本地没有的不自动出现');
-      expect(c.sidebarSessions.single.title, 'agent 侧的标题', reason: '本地没标题（占位等于 id）时用 agent 的补上');
-      expect(c.missingOnAgent, isEmpty);
+      expect(c.session.sidebarSessions.map((s) => s.id), <String>[_session], reason: 'agent 有、本地没有的不自动出现');
+      expect(c.session.sidebarSessions.single.title, 'agent 侧的标题', reason: '本地没标题（占位等于 id）时用 agent 的补上');
+      expect(c.session.missingOnAgent, isEmpty);
       c.dispose();
     });
 
     test('本地改过的名字不被 agent 的标题盖回去；agent 侧没有的记进 missingOnAgent', () async {
       final (c, core) = await _connected();
-      c.startRename(_session);
-      await c.commitRename('我改的名字');
+      c.session.startRename(_session);
+      await c.session.commitRename('我改的名字');
       core.sessionListResult = (_) => <String, dynamic>{'sessions': <Object?>[]};
 
-      await c.reconcileSessions();
+      await c.session.reconcileSessions();
 
-      expect(c.sidebarSessions.single.title, '我改的名字');
-      expect(c.missingOnAgent, <String>{_session});
+      expect(c.session.sidebarSessions.single.title, '我改的名字');
+      expect(c.session.missingOnAgent, <String>{_session});
       c.dispose();
     });
 
     test('没声明 list 的 agent 不发 session/list', () async {
       final (c, core) = await _connected(initialize: _initialize(caps: <String>['delete']));
-      await c.reconcileSessions();
+      await c.session.reconcileSessions();
       expect(core.listedSessions, isEmpty);
       c.dispose();
     });
@@ -502,7 +502,7 @@ void main() {
 
   test('modes 回退：模式下拉选中走 session/set_mode，不当成 configId 发出去', () async {
     final (c, core) = await _connected();
-    c.sessionId = _session;
+    c.session.sessionId = _session;
     final store = c.sessions.session(_session, agentId: _agent);
     store.applyNewSession(<String, dynamic>{
       'modes': <String, dynamic>{
@@ -513,60 +513,60 @@ void main() {
         ],
       },
     });
-    final option = c.optionOf('mode')!;
+    final option = c.turn.optionOf('mode')!;
     expect(option.id, SessionStore.modeFallbackId);
 
-    await c.selectConfigValue(option.id!, 'code');
+    await c.turn.selectConfigValue(option.id!, 'code');
 
     expect(store.currentModeId, 'code');
-    expect(c.optionOf('mode')!.currentValue, 'code');
+    expect(c.turn.optionOf('mode')!.currentValue, 'code');
     c.dispose();
   });
 
   test('重载 agent：声明 loadSession 的重连后自动 load 回原会话；没声明的退回新会话', () async {
     final (c, core) = await _connected();
-    c.sessionId = _session;
+    c.session.sessionId = _session;
     c.sessions.session(_session, agentId: _agent).cwd = _cwd;
 
-    await c.reloadAgent();
+    await c.session.reloadAgent();
 
     expect(core.calls, <String>['disconnect:$_agent', 'connect:$_agent']);
     expect(core.loadedSessions, <(String, String, String)>[(_agent, _session, _cwd)]);
-    expect(c.sessionId, _session, reason: '还是原来那个会话');
+    expect(c.session.sessionId, _session, reason: '还是原来那个会话');
     c.dispose();
 
     final (plain, plainCore) = await _connected(initialize: _initialize(loadSession: false, caps: <String>[]));
-    plain.sessionId = _session;
+    plain.session.sessionId = _session;
     plain.sessions.session(_session, agentId: _agent).cwd = _cwd;
 
-    await plain.reloadAgent();
+    await plain.session.reloadAgent();
 
     expect(plainCore.loadedSessions, isEmpty);
     expect(plainCore.calls, contains('new:$_agent'));
-    expect(plain.sessionId, 'sess_new');
+    expect(plain.session.sessionId, 'sess_new');
     plain.dispose();
   });
 
   test('新建会话：已经连着就不重连（在途那轮不能被杀）；进程死了才重连', () async {
     final (c, core) = await _connected();
-    c.sessionId = _session;
+    c.session.sessionId = _session;
     c.sessions.session(_session, agentId: _agent).cwd = _cwd;
     core.calls.clear();
 
-    await c.newSession(const AgentRef(id: _agent, name: _agent));
+    await c.session.newSession(const AgentRef(id: _agent, name: _agent));
 
     expect(
       core.calls,
       <String>['new:$_agent'],
       reason: '只发 session/new：`agent_connect` 会先断开旧连接，把这个 agent 上所有会话（含正在跑的那轮）一起杀掉',
     );
-    expect(c.sessionId, 'sess_new');
+    expect(c.session.sessionId, 'sess_new');
 
     // 进程真的没了（`acp/agent_state: exited`）：下一次新建会话照常重连。
     c.sessions.agents.apply(<String, dynamic>{'agentId': _agent, 'state': 'exited', 'code': 1});
     core.calls.clear();
 
-    await c.newSession(const AgentRef(id: _agent, name: _agent));
+    await c.session.newSession(const AgentRef(id: _agent, name: _agent));
 
     expect(core.calls, <String>['connect:$_agent', 'new:$_agent']);
     c.dispose();

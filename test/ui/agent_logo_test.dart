@@ -64,22 +64,22 @@ void main() {
   test('侧栏会话项与会话头拿的是所属 agent 的 icon.svg', () async {
     final core = FakeCore()..registry = _registry(<Object?>[_entry(_agent, icon: _svg)]);
     final c = await _start(core);
-    expect(c.sidebarSessions.single.iconSvg, _svg);
-    expect(c.agentIconSvgOf(_agent), _svg);
+    expect(c.session.sidebarSessions.single.iconSvg, _svg);
+    expect(c.agents.iconSvgOf(_agent), _svg);
     // registry 里没有这条（custom 条目 / 没缓存到图标）→ null，widget 退回占位。
-    expect(c.agentIconSvgOf('not-in-registry'), isNull);
-    expect(c.agentIconSvgOf(null), isNull);
+    expect(c.agents.iconSvgOf('not-in-registry'), isNull);
+    expect(c.agents.iconSvgOf(null), isNull);
     c.dispose();
   });
 
   test('registry 后到（首启时图标是联网刷新才落盘的）：侧栏重投影，不停在占位上', () async {
     final core = FakeCore()..registry = _registry(<Object?>[_entry(_agent)]);
     final c = await _start(core);
-    expect(c.sidebarSessions.single.iconSvg, isNull, reason: '这轮 registry 还没有图标');
+    expect(c.session.sidebarSessions.single.iconSvg, isNull, reason: '这轮 registry 还没有图标');
 
     core.registry = _registry(<Object?>[_entry(_agent, icon: _svg)]);
-    await c.refreshRegistry(network: true);
-    expect(c.sidebarSessions.single.iconSvg, _svg, reason: 'registry 一变就要重投影侧栏');
+    await c.agents.refreshRegistry(network: true);
+    expect(c.session.sidebarSessions.single.iconSvg, _svg, reason: 'registry 一变就要重投影侧栏');
     c.dispose();
   });
 
@@ -87,7 +87,7 @@ void main() {
     final core = _TwoAgentsCore()
       ..registry = _registry(<Object?>[_entry(_agent, icon: _svg), _entry('zed', icon: '<svg viewBox="0 0 16 16"/>')]);
     final c = await _start(core);
-    final byId = <String, AgentRef>{for (final a in c.installedAgents) a.id: a};
+    final byId = <String, AgentRef>{for (final a in c.agents.installed) a.id: a};
     expect(byId[_agent]!.iconSvg, _svg);
     expect(byId['zed']!.iconSvg, '<svg viewBox="0 0 16 16"/>', reason: '内置条目的 iconSvg 由 builtin.rs 放进 registry_list');
     c.dispose();
