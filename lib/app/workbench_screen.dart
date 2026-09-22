@@ -5,7 +5,6 @@
 // 顶栏里的按钮与芯片在上层先吃掉点击，只有空白处才落到 Listener 上、去调 `startDragging`。
 
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/gestures.dart' show kPrimaryButton;
@@ -663,8 +662,9 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     const group = XTypeGroup(label: 'images', extensions: <String>['png', 'jpg', 'jpeg', 'gif', 'webp']);
     final file = await openFile(acceptedTypeGroups: <XTypeGroup>[group]);
     if (file == null) return;
-    final bytes = await file.readAsBytes();
-    c.composer.addImage(base64Encode(bytes), file.mimeType ?? imageMimeOf(file.path), path: file.path);
+    // 大小门与 base64 编码都在 ComposerState 里（超了不编码、记 composer.lastError）：这里一处都不写
+    // lastError，门做在这边就是新的分层（BACKLOG 定的落点）。
+    c.composer.addImageBytes(await file.readAsBytes(), file.mimeType ?? imageMimeOf(file.path), path: file.path);
   }
 
   void _addSession() {

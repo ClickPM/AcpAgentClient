@@ -4,13 +4,18 @@
 // 另外核对：`session/cancel` 由核心自动回 cancelled，前端不得再回一遍（api.rs 的契约）。
 
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:acp_agent_client/app/app.dart';
+import 'package:acp_agent_client/app/clipboard_image.dart';
+import 'package:acp_agent_client/app/composer_state.dart';
+import 'package:acp_agent_client/app/core_bridge.dart';
 import 'package:acp_agent_client/app/workbench_controller.dart';
 import 'package:acp_agent_client/app/workbench_screen.dart';
 import 'package:acp_agent_client/projection/entries.dart';
 import 'package:acp_agent_client/theme/tokens.dart' as t;
 import 'package:acp_agent_client/projection/wire.dart';
+import 'package:acp_agent_client/ui/popovers/inline_menus.dart';
 import 'package:acp_agent_client/ui/popovers/topbar_popovers.dart';
 import 'package:acp_agent_client/ui/shell/shell_common.dart';
 import 'package:flutter/widgets.dart';
@@ -200,6 +205,27 @@ const String _session = 'sess_1';
   });
   if (!running) store.endTurn(stopReason: 'end_turn');
   return (c, core, bubble);
+}
+
+/// `@` 菜单的过期判据用：`fs_search` 回结果**之前**先跑一下 [beforeReturn]，
+/// 用来复现「用户在等 fs 的这几十到几百毫秒里改了词 / 点走了」。
+class _StaleFsCore extends FakeCore {
+  _StaleFsCore(this.beforeReturn);
+
+  final void Function() beforeReturn;
+  int searches = 0;
+
+  @override
+  Future<JsonMap> fsSearch(String root, String query, {int limit = 10}) async {
+    searches++;
+    beforeReturn();
+    return <String, dynamic>{
+      'files': <Object?>[
+        <String, dynamic>{'path': r'D:\proj\a.dart', 'name': 'a.dart', 'parent': 'proj', 'isDir': false},
+      ],
+      'directories': <Object?>[],
+    };
+  }
 }
 
 void main() {
@@ -613,5 +639,80 @@ void main() {
 
     expect(find.text('还没有已安装的 agent'), findsNothing, reason: '所有者 2026-09-17 报的：装了 agent 还画状态 2');
     expect(find.text('New Zed Agent Session'), findsWidgets, reason: '会话头与空态标题都是它');
+  });
+
+  // ---------------------------------------------------------------- 输入框（ComposerState）的两条回归
+
+  ComposerState composerOn(CoreCommands bridge) => ComposerState(
+        bridge: bridge,
+        store: () => null, // 没有会话：`@` 的根回落到下面这个项目目录
+        cwd: () => r'D:\proj',
+        canCompose: () => true,
+        canPromptImage: () => true,
+      );
+
+  group('从文件选择器加图的大小门（BACKLOG P0，门在 ComposerState、判在 base64 之前）', () {
+    test('超上限：不进 pendingBlocks，记 lastError', () {
+      final c = composerOn(FakeCore());
+
+      c.addImageBytes(Uint8List(clipboardImageSizeLimit + 1), 'image/png', path: r'D:\proj\huge.png');
+
+      expect(c.pendingBlocks, isEmpty, reason: '超了就不该整块塞进 session/prompt');
+      expect(c.lastError, '图片太大，没有加进输入框', reason: '与剪贴板那条路同一句、不写死 MB 数');
+      c.dispose();
+    });
+
+    test('刚好不超（= 上限）：照常加进去，lastError 不动', () {
+      final c = composerOn(FakeCore());
+
+      c.addImageBytes(Uint8List(clipboardImageSizeLimit), 'image/png', path: r'D:\proj\ok.png');
+
+      expect(c.pendingBlocks, hasLength(1), reason: '门是「严格大于」才拦，边界这一张要放行');
+      expect(c.pendingBlocks.single['type'], 'image');
+      expect(c.pendingBlocks.single['mimeType'], 'image/png');
+      expect((c.pendingBlocks.single['data'] as String).isNotEmpty, isTrue, reason: '放行的这张才编码');
+      expect(c.lastError, isNull);
+      c.dispose();
+    });
+  });
+
+  // 锁的是「正文里的 token 变了就丢结果」这一条，不是整条 BACKLOG 症状：Esc / 点外面不动正文，
+  // 一个字没改时这条判据判不出来，那半边仍记在 BACKLOG（审查 P2，2026-09-22）。
+  group('`@` 菜单的过期判据（改词 / 清空之后回来的 fs 结果要丢掉）', () {
+    // 产品里 `onChanged` 是 `EditableText` 在把新值写进 controller **之后**回调的，两者永远一致；
+    // 过期判据就是拿回调时的 token 和事后的 `editor.text` 比，所以这里也得照这个顺序来。
+    Future<void> type(ComposerState c, String text) {
+      c.editor.text = text;
+      return c.onChanged(text);
+    }
+
+    test('fs 结果回来时光标处的 token 已经变了：丢掉结果，不开菜单也不通知', () async {
+      late final ComposerState c;
+      // 等结果的这段时间里用户把 `@ab` 改成了别的话：回来的这份属于已经不存在的那个 token。
+      final core = _StaleFsCore(() => c.editor.text = '换个说法 ');
+      c = composerOn(core);
+      var notifications = 0;
+      c.addListener(() => notifications++);
+
+      await type(c, '@ab');
+
+      expect(core.searches, 1, reason: '查询本身照发，改的只是回来之后写不写回');
+      expect(c.inlineMenuOpen, isFalse, reason: '结果属于已经不存在的那个 token，菜单不该自己弹出来');
+      expect(c.inlineMenu, isNull);
+      expect(notifications, 0, reason: '丢掉的结果不写回也不 touch');
+      c.dispose();
+    });
+
+    test('词没变：同一条路照常把菜单开出来（反面，锁住上面那桩不是「永远不写回」）', () async {
+      final core = _StaleFsCore(() {});
+      final c = composerOn(core);
+
+      await type(c, '@ab');
+
+      expect(core.searches, 1);
+      expect(c.inlineMenuOpen, isTrue);
+      expect(c.inlineMenu, isA<MentionMenu>());
+      c.dispose();
+    });
   });
 }

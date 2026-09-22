@@ -133,7 +133,7 @@ class ComposerState extends ChangeNotifier with GuardedNotifier {
       touch();
       return;
     }
-    await _updateMentionMenu(token.substring(1));
+    await _updateMentionMenu(token);
   }
 
   /// 菜单开着（有东西可选）。
@@ -187,7 +187,8 @@ class ComposerState extends ChangeNotifier with GuardedNotifier {
   /// `@` 菜单一组最多几条（裸 `@` 列根目录、有词时是 `fs_search` 的 limit）。
   static const int _mentionLimit = 10;
 
-  Future<void> _updateMentionMenu(String query) async {
+  /// `token` 是发起这次查询时光标处的整个 `@…`（含 `@`）：fs 回来之后要拿它复核，见下面的过期判据。
+  Future<void> _updateMentionMenu(String token) async {
     final b = bridge;
     // 提及的根用当前会话的 cwd（agent 按它解析路径），没有才回落到当前项目。
     final cwd = _store()?.cwd ?? _cwd();
@@ -196,7 +197,8 @@ class ComposerState extends ChangeNotifier with GuardedNotifier {
       touch();
       return;
     }
-    await guard(() async {
+    final query = token.substring(1);
+    final applied = await guard(() async {
       final List<MentionItem> files;
       final List<MentionItem> dirs;
       if (query.isEmpty) {
@@ -211,11 +213,19 @@ class ComposerState extends ChangeNotifier with GuardedNotifier {
         files = _toMentions(result['files']);
         dirs = _toMentions(result['directories']);
       }
+      // 等 fs 的这几十到几百毫秒里用户可能已经改词、清空或把整句删掉：光标处的 token 不再是发起这次
+      // 查询的那个就把结果丢掉，不写回也不通知——旧词的菜单不该盖在新词上，更不该在整句删完之后弹出来。
+      // **只认正文**：Esc（[closeInlineMenu]）与点输入框外都不动正文，所以「一个字没改就按 Esc / 点走」
+      // 那一下这里判不出来，结果照样写回；那半边要立「已被撤掉」的态，属机制类改动，仍记在
+      // `rounds/BACKLOG.md` 壳与交互里（审查 P2，2026-09-22）。
+      if (_activeToken(editor.text) != token) return false;
       _clearInlineMenu();
       _mentionFiles = files;
       _mentionDirs = dirs;
+      return true;
     });
-    touch();
+    // 过期（false）不通知；桥抛错（null）由 `guard` 自己通知过了。
+    if (applied == true) touch();
   }
 
   List<MentionItem> _toMentions(Object? raw) => <MentionItem>[
@@ -285,6 +295,19 @@ class ComposerState extends ChangeNotifier with GuardedNotifier {
       if (path != null) 'uri': _fileUri(path),
     });
     touch();
+  }
+
+  /// 拿到原始字节的那条路（`+` → Image 从文件选择器挑的图）：大小门在这里，**判在 base64 之前**。
+  /// 超 [clipboardImageSizeLimit] 的直接回报、不编码——base64 出来的字符串比原字节还大三分之一，
+  /// 在 UI isolate 上同步建那一下正是界面卡住的原因，判在 [addImage] 里就已经晚了。
+  /// 文案与剪贴板那条路同一句、不写死 MB 数（两条路的门不是同一个数，见 [clipboardImageSizeLimit]）。
+  void addImageBytes(Uint8List bytes, String mimeType, {String? path}) {
+    if (bytes.length > clipboardImageSizeLimit) {
+      lastError = '图片太大，没有加进输入框';
+      touch();
+      return;
+    }
+    addImage(base64Encode(bytes), mimeType, path: path);
   }
 
   /// Ctrl/Cmd+V（输入框的按键回调只管调这里，判断全在这）：剪贴板里是文本就什么都不做——

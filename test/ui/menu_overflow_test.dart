@@ -138,6 +138,9 @@ void main() {
     final c = tester.widget<WorkbenchScreen>(find.byType(WorkbenchScreen)).controller;
 
     // 先按下鼠标把焦点从输入框挪走（所有者手测的那一步），再按 Esc。
+    // `editor.text` 要跟着敲的内容一起给：产品里 `onChanged` 是 `EditableText` 写完 controller 才回调的，
+    // 而 fs 结果回来时的过期判据就拿 `editor.text` 复核（留空的话结果会被判成过期丢掉）。
+    c.composer.editor.text = '@';
     await c.composer.onChanged('@');
     await tester.pump();
     expect(find.byType(MentionMenu), findsOneWidget);
@@ -155,6 +158,7 @@ void main() {
     expect(find.byType(MentionMenu), findsNothing, reason: '焦点已不在输入框，Esc 也得关掉菜单');
 
     // 点页面空白（转录区）：直接关。
+    c.composer.editor.text = '@';
     await c.composer.onChanged('@');
     await tester.pump();
     expect(find.byType(MentionMenu), findsOneWidget);
