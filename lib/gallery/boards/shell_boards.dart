@@ -420,7 +420,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
             child: _left(SizedBox(width: _foldWidth, child: TurnFoldRow(fold: _foldOf(twoLine), collapsed: true, forceHover: true)))),
         BoardSection('B · 无模型信息时 · 单行',
             child: _left(SizedBox(width: _foldWidth, child: TurnFoldRow(fold: _foldOf(oneLine), collapsed: true)))),
-        BoardSection('B · 有失败项（首行末尾追加「N 项失败」，该回合不自动折叠）',
+        BoardSection('B · 有失败项（首行末尾追加「N 项失败」，回合正常收轮时照常自动折叠）',
             child: _left(SizedBox(width: _foldWidth, child: TurnFoldRow(fold: _foldOf(failed), collapsed: true)))),
         BoardSection('B · 展开态标题行（无容器无底色，chevron 换成向下 + 一行 11px 摘要）',
             child: _left(SizedBox(width: _foldWidth, child: TurnFoldRow(fold: _foldOf(twoLine), collapsed: false)))),

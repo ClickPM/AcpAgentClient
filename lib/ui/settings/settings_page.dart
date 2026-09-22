@@ -184,7 +184,7 @@ class SettingsPage extends StatelessWidget {
                       Text('回合结束后折叠处理过程', style: CardText.strong),
                       const SizedBox(height: t.Spacing.s4),
                       Text(
-                        '拿到 stop_reason 时，把本回合的思考、工具调用、终端、子代理、压缩收进一行摘要；含失败与取消的回合不自动折叠。',
+                        '拿到 stop_reason 时，把本回合的思考、工具调用、终端、子代理、压缩收进一行摘要；被取消与出错的回合不自动折叠，含失败项的照折、摘要行上标出失败数。',
                         style: t.TextStyles.meta,
                       ),
                     ],

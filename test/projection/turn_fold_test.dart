@@ -123,21 +123,7 @@ void main() {
     });
   });
 
-  group('不自动折叠的回合', () {
-    test('有失败的工具调用 -> autoCollapsible 为假，且摘要行给出失败数', () {
-      final s = newStore();
-      startTurn(s, '跑一下');
-      toolCall(s, 'tc-1');
-      toolCall(s, 'tc-2', status: 'failed');
-      agent(s, '出错了。');
-      s.endTurn(stopReason: 'end_turn');
-
-      final fold = foldOf(s)!;
-      expect(fold.failures, 1);
-      expect(fold.toolCalls, 2, reason: '失败的也计进「次工具调用」');
-      expect(fold.autoCollapsible, isFalse);
-    });
-
+  group('自动折叠的判定', () {
     test('stopReason = cancelled -> 不自动折叠', () {
       final s = newStore();
       startTurn(s, '跑一下');
@@ -152,6 +138,34 @@ void main() {
       toolCall(s, 'tc-1');
       s.endTurn(error: '连接断了');
       expect(foldOf(s)!.autoCollapsible, isFalse);
+    });
+
+    test('有失败的工具调用但正常收轮 -> 照常自动折叠，失败数留在摘要行上（所有者裁定 2026-09-22）', () {
+      final s = newStore();
+      startTurn(s, '跑一下');
+      toolCall(s, 'tc-1');
+      toolCall(s, 'tc-2', status: 'failed');
+      agent(s, '出错了。');
+      s.endTurn(stopReason: 'end_turn');
+
+      final fold = foldOf(s)!;
+      expect(fold.failures, 1);
+      expect(fold.toolCalls, 2, reason: '失败的也计进「次工具调用」');
+      expect(fold.autoCollapsible, isTrue, reason: '跑到了结论就收起来；失败只体现在摘要行的「N 项失败」上');
+    });
+
+    test('失败 + 取消同时在 -> 仍不自动折叠（取消那一条独立拦住）', () {
+      final s = newStore();
+      startTurn(s, '跑一下');
+      toolCall(s, 'tc-1', status: 'failed');
+      toolCall(s, 'tc-2', status: 'in_progress');
+      s.cancel();
+      s.endTurn(stopReason: 'end_turn');
+
+      final fold = foldOf(s)!;
+      expect(fold.failures, 1);
+      expect(fold.cancelled, 1);
+      expect(fold.autoCollapsible, isFalse);
     });
 
     test('max_tokens / refusal 照常自动折叠（坏消息在回合页脚，页脚不参与折叠）', () {

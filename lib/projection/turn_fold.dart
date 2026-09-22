@@ -3,6 +3,8 @@
 //
 // 折叠范围照画板 08 的「折叠范围与例外」表：
 // - **折叠**：思考 / 工具调用（含 diff / 终端 / 子代理）/ 压缩标记，外加**工具调用之间穿插的 agent 文本**。
+// - **整轮不自动折叠**：还在跑 / 被取消 / 本地出错的回合（见 [TurnFold.autoCollapsible]）。含失败工具调用
+//   但正常收轮的回合**照常折叠**，失败数留在摘要行上（所有者裁定 2026-09-22）。
 // - **不折叠**：用户消息、该回合**最后一段连续的 agent 文本**、回合页脚（页脚不是条目，由列表另外出行）、
 //   Plan 条与检查点标记（画板 29 / 10 的常驻元素，不属于某一回合的过程）。
 // - **偏离（画板未写）**：权限卡与 elicitation 卡不折叠。画板的两列都没列到它们；挂起的那张必须看得见，
@@ -35,6 +37,7 @@ class TurnFold {
   final int toolCalls;
 
   /// 「N 项失败」：折叠块里 `failed` 的工具调用数。取消**不**算失败（它有自己的一列）。
+  /// 只喂摘要行上那一段红字，**不再参与** [autoCollapsible]（所有者裁定 2026-09-22）。
   final int failures;
 
   /// 折叠块里被取消的工具调用数。只用于判「不自动折叠」，不出现在摘要行上。
@@ -49,10 +52,14 @@ class TurnFold {
   /// 折叠块的第一条：摘要行插在它前面。
   TranscriptEntry get anchor => folded.first;
 
-  /// 这一轮可不可以**自动**折叠。含失败 / 被取消 / 出错的回合保持展开（画板：不藏坏消息；用户仍可手动折叠）。
-  /// `max_tokens` / `refusal` 不在此列：它们是协议给的正常结束值，画板 31 的页脚本来就会标出来，而页脚不参与折叠。
+  /// 这一轮可不可以**自动**折叠。只有**没走到结束值**的回合保持展开：还在跑、被取消（本地标的工具卡，或
+  /// `stop_reason == 'cancelled'`）、本地出错（[TurnEntry.error]）——那几种情况下过程就是现场；用户仍可手动折叠。
+  ///
+  /// **含失败工具调用、但正常收轮的回合照常折叠**（所有者裁定 2026-09-22，画板 08 已同步）：跑到了结论就收起来，
+  /// 坏消息不藏——摘要行上的「N 项失败」照出，不必把整段过程摊开。
+  /// `max_tokens` / `refusal` 同样照常折叠：它们是协议给的正常结束值，画板 31 的页脚本来就会标出来，而页脚不参与折叠。
   bool get autoCollapsible =>
-      !turn.isRunning && failures == 0 && cancelled == 0 && turn.error == null && turn.stopReason != 'cancelled';
+      !turn.isRunning && cancelled == 0 && turn.error == null && turn.stopReason != 'cancelled';
 
   /// 本回合的条目属不属于折叠块（列表折叠态据此跳过）。
   bool contains(TranscriptEntry e) => _folded.contains(e);

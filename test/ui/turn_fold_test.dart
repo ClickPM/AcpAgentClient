@@ -129,7 +129,7 @@ void main() {
       expect(find.descendant(of: row, matching: find.byType(Text)), findsNWidgets(2), reason: '「处理详情」+ 计数');
     });
 
-    testWidgets('有失败项时首行末尾追加「N 项失败」，且不自动折叠', (tester) async {
+    testWidgets('有失败项时首行末尾追加「N 项失败」，回合正常收轮则照常折叠', (tester) async {
       final s = newStore();
       startTurn(s, '跑一下');
       toolCall(s, 'tc-1');
@@ -138,8 +138,20 @@ void main() {
       s.endTurn(stopReason: 'end_turn');
 
       await pump(tester, _list(s));
-      expect(find.text('1 项失败'), findsOneWidget);
-      expect(find.byType(ToolCallCard), findsNWidgets(2), reason: '含失败的回合保持展开');
+      expect(find.text('1 项失败'), findsOneWidget, reason: '折起来了也要看得见失败数（所有者裁定 2026-09-22）');
+      expect(find.byType(ToolCallCard), findsNothing, reason: '跑到了结论，过程收进摘要行');
+      expect(find.text('出错了。'), findsOneWidget, reason: '最终助手文本不参与折叠');
+    });
+
+    testWidgets('被取消的回合保持展开（摘要行在，但过程不收起）', (tester) async {
+      final s = newStore();
+      startTurn(s, '跑一下');
+      toolCall(s, 'tc-1');
+      s.endTurn(stopReason: 'cancelled');
+
+      await pump(tester, _list(s));
+      expect(find.byType(TurnFoldRow), findsOneWidget);
+      expect(find.byType(ToolCallCard), findsOneWidget, reason: '没走到结束值，过程就是现场');
     });
 
     testWidgets('可及性：button + expanded，整行可点', (tester) async {

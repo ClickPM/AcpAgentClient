@@ -111,7 +111,7 @@
             <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">计数口径</div>
             <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">条消息 = 本回合被折叠的块数（含思考块与中间的 agent 文本段）· 次工具调用 = tool_call 块数（失败与取消计入）</div>
             <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">失败计数</div>
-            <div style="padding:5px 0;color:#bc4e39;border-bottom:1px solid #e2e2e7">有失败项时首行末尾追加「N 项失败」（#bc4e39），该回合不自动折叠</div>
+            <div style="padding:5px 0;color:#bc4e39;border-bottom:1px solid #e2e2e7">有失败项时首行末尾追加「N 项失败」（#bc4e39）；回合正常收轮的话照常自动折叠，失败数就留在摘要行上</div>
             <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">可及性</div>
             <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">role=button · aria-expanded · Enter / Space 切换 · 是 tab 停靠点 · 整行可点（非只有 chevron）</div>
           </div>
@@ -132,9 +132,12 @@
             <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">Plan 条 / 检查点标记</div>
             <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">不折叠</div>
             <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">画板 29 / 10 的常驻元素，不属于某一回合的过程</div>
-            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">含失败 / 被取消 / 出错的回合</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">含失败项、但正常收轮的回合</div>
+            <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">折叠</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">跑到了结论就收起来；坏消息不藏——摘要行上的「N 项失败」（#bc4e39）照出（所有者裁定 2026-09-22）</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">被取消 / 出错的回合</div>
             <div style="padding:5px 8px 5px 0;color:#bc4e39;border-bottom:1px solid #e2e2e7">保持展开</div>
-            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">不藏坏消息；用户可手动折叠</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">没走到结束值（本地 error 或 stop_reason = cancelled），过程就是现场；用户可手动折叠</div>
             <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">只有文本、无过程块的回合</div>
             <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">无摘要行</div>
             <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">不渲染空的「处理详情 · 0 条消息」</div>
@@ -311,7 +314,7 @@
     </div>
   </div>
 
-  <div style="background:#fbeeea;border:1px solid #e2e2e7;border-radius:4px;padding:6px 8px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#bc4e39;line-height:1.7">反例：回合折叠不得连最终助手文本或回合页脚一起收起，不得自动折叠含失败与取消的回合，不得做高度过渡或让视口跳到顶部，不得把摘要行做成只有 chevron 可点，不得在摘要行里塞成本 / 耗时（那是回合页脚的事）；在跑数徽标不得旋转图标、不得呼吸或闪烁、不得用红色（它不是错误）、不得为 0 时显示灰底 0，不得让有在跑会话的工作区置顶或加粗。</div>
+  <div style="background:#fbeeea;border:1px solid #e2e2e7;border-radius:4px;padding:6px 8px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#bc4e39;line-height:1.7">反例：回合折叠不得连最终助手文本或回合页脚一起收起，不得自动折叠被取消或出错的回合，也不得在折叠含失败项的回合时把「N 项失败」一并隐去，不得做高度过渡或让视口跳到顶部，不得把摘要行做成只有 chevron 可点，不得在摘要行里塞成本 / 耗时（那是回合页脚的事）；在跑数徽标不得旋转图标、不得呼吸或闪烁、不得用红色（它不是错误）、不得为 0 时显示灰底 0，不得让有在跑会话的工作区置顶或加粗。</div>
 
   <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;line-height:1.6">两处共用一套判定：「回合未结束 = 运行中」。B 表达跑完之后过程收起来，C 表达别的工作区还有多少在跑。</div>
 </div>
