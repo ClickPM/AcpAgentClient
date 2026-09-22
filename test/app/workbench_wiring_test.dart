@@ -676,7 +676,9 @@ void main() {
     });
   });
 
-  group('`@` 菜单的过期判据（BACKLOG P1「菜单会在用户点走之后自己弹出来」）', () {
+  // 锁的是「正文里的 token 变了就丢结果」这一条，不是整条 BACKLOG 症状：Esc / 点外面不动正文，
+  // 一个字没改时这条判据判不出来，那半边仍记在 BACKLOG（审查 P2，2026-09-22）。
+  group('`@` 菜单的过期判据（改词 / 清空之后回来的 fs 结果要丢掉）', () {
     // 产品里 `onChanged` 是 `EditableText` 在把新值写进 controller **之后**回调的，两者永远一致；
     // 过期判据就是拿回调时的 token 和事后的 `editor.text` 比，所以这里也得照这个顺序来。
     Future<void> type(ComposerState c, String text) {
@@ -686,7 +688,7 @@ void main() {
 
     test('fs 结果回来时光标处的 token 已经变了：丢掉结果，不开菜单也不通知', () async {
       late final ComposerState c;
-      // 等结果的这段时间里用户改了词（点走 / 按 Esc 时菜单还没开，两条关闭路径都是空操作）。
+      // 等结果的这段时间里用户把 `@ab` 改成了别的话：回来的这份属于已经不存在的那个 token。
       final core = _StaleFsCore(() => c.editor.text = '换个说法 ');
       c = composerOn(core);
       var notifications = 0;
