@@ -15,7 +15,7 @@
 | 2 | fix | 回合折叠对 `session/load` 重放回来的历史不生效：切轮加一条退路——**没有轮边界时按顶层用户消息切**（`isTurnStart`，与画板 43 时间线、Restore 截断点同口径）。`TurnFold` 随之拆成 `owner`（身份）+ 可空 `turn`（轮边界） | 所有者报障 2026-09-22；BACKLOG P1「壳与交互」（已剪进 BACKLOG-CLOSED.md） | `main` 直改 → 待提交 | validate 全绿（`flutter test` 408 项） | 4 轮 / cursor CLI `grok-4.7-high-fast`：1 → 1 → 1 → **0**（high 0 / P2 3 / P3 0，三条全部采纳整改） | 待提交 |
 | 3 | fix | 从文件选择器加图没有大小门：门与 base64 一起收进 `ComposerState.addImageBytes`，**判在编码之前**，超了记 `lastError` 不编码 | BACKLOG P0「附件与剪贴板」第 2 条 | `claude/composer-image-mention-fixes-f2eb2d` → `0778403`（快进） | validate 全绿 | 2 轮（high 0；第 1 轮 P2 1 已采纳整改） | 已合并 |
 | 4 | fix | `@` 菜单在用户点走之后自己弹出来：`_updateMentionMenu` 的 await 之后用 `_activeToken(editor.text)` 复核 token，不一致就丢结果。**只关掉「改词 / 清空」那半**，Esc / 点外面那半放回 BACKLOG | BACKLOG P1「壳与交互」第 7 条 | 同上 | 同上 | 同上 | 已合并 |
-| 5 | fix | 会话索引（`sessions.json`）写回取错源的三处同根因缺陷：① `SessionIndex.upsert` 的标题退回索引里已有的（含会话头 `sessionTitle` 那一半）；② `saveIndex` 收一个 `SessionStore`，收轮时由 `TurnController._runTurn` 传刚跑完那条；③ `session/list` 校对的 cwd 过滤改走 `WorkspaceState.normalizeCwd` | BACKLOG P0「会话身份与生命周期」1 条 + P1「数据一致性」2 条（iteration-01 候选 A 的 13 / 14 / 15） | `claude/session-index-write-bugs-3c53b0` → 待填 | validate 全绿 | 2 轮，2 条（high 1 / P2 1）→ 0 high | 已合并 |
+| 5 | fix | 会话索引（`sessions.json`）写回取错源的三处同根因缺陷：① `SessionIndex.upsert` 的标题退回索引里已有的（含会话头 `sessionTitle` 那一半）；② `saveIndex` 收一个 `SessionStore`，收轮时由 `TurnController._runTurn` 传刚跑完那条；③ `session/list` 校对的 cwd 过滤改走 `WorkspaceState.normalizeCwd` | BACKLOG P0「会话身份与生命周期」1 条 + P1「数据一致性」2 条（iteration-01 候选 A 的 13 / 14 / 15） | `claude/session-index-write-bugs-3c53b0` → `7264fd5`（快进） | validate 全绿 | 2 轮，2 条（high 1 / P2 1）→ 0 high | 已合并 |
 
 ## 收口
 
@@ -131,3 +131,5 @@
   - `rounds/BACKLOG-CLOSED.md`：两边追加的各三行都留，`main` 那三行在前。
 - **`rounds/BACKLOG.md` 的计数 git 自动合并给错了**，与上一组遇到的是同一个坑：两边各自从 81 减，git 只留一边的数字。按合并后的真实条数重算——`main` 已到 P0 11 / P1 25 / 总计 79，本项再关 2 条（P0 1 + P1 1）、新开 1 条（P1 数据一致性的不采纳项）→ **P0 10、P1 24、会话身份与生命周期 4、数据一致性 6、总计 77**。改完用脚本逐档数过一遍 `- [ ]`，六个档位声明数与实际条数全部相符（上一组留的「代码质量（quality 批）」那条存疑也复核了，现在是 4 = 4）。
 - 合并后在分支上重跑全量 `validate.ps1`：全绿（`flutter test` 417 项）。
+- **反过来那一下**：分支已含 `main`，所以是**快进**——`main` 由 `eac3a91` 直接前进到 `7264fd5`，没有新的合并提交。合并前 `main` 工作副本干净（只有那个未跟踪的 `design/round-design/input/revision-04.md`，快进不碰它）；快进不改内容，树与刚验过的那份逐字节相同，未在 `main` 上重跑 validate。
+- **主题重建那组还没合**（`claude/theme-font-partial-rebuild-471573`）：本文件与 `rounds/BACKLOG.md` 还会再冲突一次，计数照样要按真实条数重算，别取任一边。
