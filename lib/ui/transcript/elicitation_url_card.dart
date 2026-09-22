@@ -44,7 +44,7 @@ class ElicitationUrlCard extends StatelessWidget {
                     children: <Widget>[
                       const Spinner(),
                       const SizedBox(width: t.Spacing.s4),
-                      Text('Waiting for completion...', style: CardText.secondary),
+                      Text('等待授权完成...', style: CardText.secondary),
                     ],
                   )
                 : Text('等待输入', style: CardText.secondary);
@@ -55,7 +55,7 @@ class ElicitationUrlCard extends StatelessWidget {
         children: <Widget>[
           CardHeader(
             leading: AcpIcon(AcpIcons.info, color: t.Accent.base),
-            title: 'Sign in requested by $who',
+            title: '$who 请求登录认证',
             titleStyle: CardText.cardTitle,
             trailing: <Widget>[status],
             height: t.Controls.input + t.Spacing.s8,
@@ -72,7 +72,7 @@ class ElicitationUrlCard extends StatelessWidget {
                   if (completed)
                     Text('已收到 elicitation/complete，登录完成', style: t.TextStyles.body.copyWith(color: t.Semantic.success))
                   else if (opened)
-                    AcpButton(label: 'Cancel', onTap: onCancel),
+                    AcpButton(label: '取消', onTap: onCancel),
                 ],
               ),
             ],

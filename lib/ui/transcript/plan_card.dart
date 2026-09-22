@@ -38,7 +38,7 @@ class _PlanCardState extends State<PlanCard> {
     };
   }
 
-  Widget _title(PlanCardEntry p) => Text('Plan', style: CardText.cardTitle);
+  Widget _title(PlanCardEntry p) => Text('执行计划', style: CardText.cardTitle);
 
   Widget _planId(PlanCardEntry p, {String? suffix}) =>
       Text(p.isStable ? '' : (suffix == null ? p.planId : 'planId ${p.planId} · $suffix'), style: t.TextStyles.monoMeta);
@@ -51,13 +51,13 @@ class _PlanCardState extends State<PlanCard> {
         children: <Widget>[
           CardHeader(
             leading: const Chevron(expanded: true),
-            title: 'Plan',
+            title: '执行计划',
             titleStyle: CardText.cardTitle,
             subtitleWidget: Row(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 if (!p.isStable) ...<Widget>[Text(p.planId, style: t.TextStyles.monoMeta), const SizedBox(width: t.Spacing.s8)],
-                Text('${p.items.length} Tasks', style: CardText.secondary),
+                Text('${p.items.length} 项任务', style: CardText.secondary),
                 const SizedBox(width: t.Spacing.s8),
                 Text('${p.completedCount}/${p.items.length}', style: t.TextStyles.monoMeta),
               ],
@@ -136,10 +136,10 @@ class _PlanCardState extends State<PlanCard> {
           ),
           const SizedBox(width: t.Spacing.s8),
           Expanded(
-            child: Text(current == null ? '全部完成' : 'Current: ${current.content}', style: CardText.headerTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+            child: Text(current == null ? '全部完成' : '当前: ${current.content}', style: CardText.headerTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
           ),
           const SizedBox(width: t.Spacing.s8),
-          Text('${p.leftCount} left', style: CardText.secondary),
+          Text('剩余 ${p.leftCount} 项', style: CardText.secondary),
           const SizedBox(width: t.Spacing.s4),
           IconButtonGhost(icon: AcpIcons.x, size: t.Controls.compact, onTap: widget.onDismiss),
         ],

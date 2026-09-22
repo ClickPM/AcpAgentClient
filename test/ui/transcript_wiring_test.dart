@@ -57,7 +57,7 @@ void main() {
     final el = s.pending.byRequestId('u1')! as ElicitationEntry;
     expect(el.opened, isTrue);
     expect(el.status, PendingStatus.answered);
-    expect(find.text('Waiting for completion...'), findsOneWidget);
+    expect(find.text('等待授权完成...'), findsOneWidget);
 
     // 再点 Open 只是再打开，不再回应。
     await tester.tap(find.text('在浏览器中打开'));
@@ -65,12 +65,12 @@ void main() {
     expect(links, hasLength(2));
     expect(answers, hasLength(1));
 
-    await tester.tap(find.text('Cancel'));
+    await tester.tap(find.text('取消'));
     await tester.pump();
     expect(answers, hasLength(1)); // 没有第二个响应
     expect(el.status, PendingStatus.cancelled);
     expect(find.text('Cancelled'), findsOneWidget);
-    expect(find.text('Cancel'), findsNothing);
+    expect(find.text('取消'), findsNothing);
   });
 
   // 截断点是气泡自己（不是轮边界）：`session/load` 重放回来的历史一条轮边界都没有，

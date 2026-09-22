@@ -45,7 +45,7 @@ void main() {
   }
 
   AcpButton openButton(WidgetTester tester) =>
-      tester.widget<AcpButton>(find.byWidgetPredicate((w) => w is AcpButton && w.label == 'Open in browser'));
+      tester.widget<AcpButton>(find.byWidgetPredicate((w) => w is AcpButton && w.label == '在浏览器中打开'));
 
   testWidgets('agent 退出（withdrawn）：Open 不可点、不出 Cancel、状态行写明 agent 已不再等待', (tester) async {
     final sessions = Sessions(clock: () => DateTime.utc(2026, 9, 22));
@@ -53,15 +53,15 @@ void main() {
     final ElicitationEntry e = urlRequest(sessions, requestId: 'r1');
     await pump(tester, ElicitationUrlCard(e, agentName: 'agent'));
     expect(openButton(tester).enabled, isTrue, reason: '挂起时照常可点');
-    expect(find.text('Waiting for input'), findsOneWidget);
+    expect(find.text('等待输入'), findsOneWidget);
 
     sessions.applyAgentState(<String, dynamic>{'agentId': 'a', 'state': 'exited', 'code': 1});
     expect(e.status, PendingStatus.withdrawn);
     await pump(tester, ElicitationUrlCard(e, agentName: 'agent'));
     expect(openButton(tester).enabled, isFalse, reason: '进程没了，点下去只会白开一个浏览器，回应发不出去');
     expect(find.text('agent 已不再等待'), findsOneWidget);
-    expect(find.widgetWithText(AcpButton, 'Cancel'), findsNothing);
-    expect(find.text('Waiting for input'), findsNothing);
+    expect(find.widgetWithText(AcpButton, '取消'), findsNothing);
+    expect(find.text('等待输入'), findsNothing);
   });
 
   testWidgets('已打开浏览器后 agent 才退出：spinner 收掉，Cancel 也不再给', (tester) async {
@@ -70,14 +70,14 @@ void main() {
     final ElicitationEntry e = urlRequest(sessions, requestId: 'r1');
     sessions.pending.markOpened('r1');
     await pump(tester, ElicitationUrlCard(e, agentName: 'agent'));
-    expect(find.text('Waiting for completion...'), findsOneWidget);
-    expect(find.widgetWithText(AcpButton, 'Cancel'), findsOneWidget);
+    expect(find.text('等待授权完成...'), findsOneWidget);
+    expect(find.widgetWithText(AcpButton, '取消'), findsOneWidget);
 
     sessions.applyAgentState(<String, dynamic>{'agentId': 'a', 'state': 'exited', 'code': 1});
     await pump(tester, ElicitationUrlCard(e, agentName: 'agent'));
-    expect(find.text('Waiting for completion...'), findsNothing, reason: '不会再有 elicitation/complete 了');
+    expect(find.text('等待授权完成...'), findsNothing, reason: '不会再有 elicitation/complete 了');
     expect(find.text('agent 已不再等待'), findsOneWidget);
-    expect(find.widgetWithText(AcpButton, 'Cancel'), findsNothing, reason: 'cancelRequest 对 withdrawn 是空操作，按钮留着只会点不动');
+    expect(find.widgetWithText(AcpButton, '取消'), findsNothing, reason: 'cancelRequest 对 withdrawn 是空操作，按钮留着只会点不动');
     expect(openButton(tester).enabled, isFalse);
   });
 }

@@ -210,11 +210,11 @@ class _ElicitationFormCardState extends State<ElicitationFormCard> {
             padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12, vertical: t.Spacing.s8),
             child: Row(
               children: <Widget>[
-                AcpButton(label: 'Submit', kind: ButtonKind.primary, icon: AcpIcons.check, enabled: !answered && (valid || !_showValidation), onTap: _submit),
+                AcpButton(label: '提交', kind: ButtonKind.primary, icon: AcpIcons.check, enabled: !answered && (valid || !_showValidation), onTap: _submit),
                 const SizedBox(width: t.Spacing.s8),
-                AcpButton(label: 'Decline', icon: AcpIcons.x, iconColor: t.Semantic.error, labelColor: t.Semantic.error, enabled: !answered, onTap: () => widget.onAnswer?.call('decline', null)),
+                AcpButton(label: '拒绝', icon: AcpIcons.x, iconColor: t.Semantic.error, labelColor: t.Semantic.error, enabled: !answered, onTap: () => widget.onAnswer?.call('decline', null)),
                 const SizedBox(width: t.Spacing.s4),
-                AcpButton(label: 'Cancel', enabled: !answered, onTap: () => widget.onAnswer?.call('cancel', null)),
+                AcpButton(label: '取消', enabled: !answered, onTap: () => widget.onAnswer?.call('cancel', null)),
               ],
             ),
           ),
@@ -227,8 +227,8 @@ class _ElicitationFormCardState extends State<ElicitationFormCard> {
         PendingStatus.answered => '已${e.action == 'accept' ? '提交' : (e.action == 'decline' ? '拒绝' : '取消')}',
         PendingStatus.withdrawn => 'agent 已不再等待',
         PendingStatus.cancelled => '已取消',
-        PendingStatus.completed => 'Completed',
-        PendingStatus.pending => 'Waiting for input',
+        PendingStatus.completed => '已完成',
+        PendingStatus.pending => '等待输入',
       };
 
   Widget _label(_ElicitationField f, {required bool showRequired}) {
