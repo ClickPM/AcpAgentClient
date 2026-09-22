@@ -503,9 +503,12 @@ class _SessionSweepLineState extends State<_SessionSweepLine> with SingleTickerP
   Widget build(BuildContext context) {
     // 降级为同位置、同内缩的静态 1px accent 实线（亮点不移动），运行中依然可辨。
     if (_reduced) return CustomPaint(painter: _SweepPainter(null));
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) => CustomPaint(painter: _SweepPainter(_controller.value)),
+    // RepaintBoundary：与 icons.dart 的 Spinner 同一个理由——常驻动画没有边界就是每帧整窗重栅格。
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) => CustomPaint(painter: _SweepPainter(_controller.value)),
+      ),
     );
   }
 }

@@ -238,9 +238,13 @@ class _SpinnerState extends State<Spinner> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return RotationTransition(
-      turns: _controller,
-      child: AcpIcon(AcpIcons.spinnerArc, color: widget.color ?? t.Spinner.color, size: widget.size, strokeWidth: t.Spinner.strokeWidth),
+    // RepaintBoundary：这只永远在转。没有边界时每一帧弄脏的是它上面最近的图层——整个应用没别的边界，就是整窗，
+    // 2880×1800 @ 120Hz 的核显上会话运行中实测 GPU 44–64%（2026-09-22，风扇常转）。有了边界只重栅格这一小块。
+    return RepaintBoundary(
+      child: RotationTransition(
+        turns: _controller,
+        child: AcpIcon(AcpIcons.spinnerArc, color: widget.color ?? t.Spinner.color, size: widget.size, strokeWidth: t.Spinner.strokeWidth),
+      ),
     );
   }
 }

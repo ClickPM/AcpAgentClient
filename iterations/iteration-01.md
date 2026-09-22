@@ -12,6 +12,7 @@
 | 2 | tidy | 副产物梳理：`scripts/README.md`、`test/README.md` 两份索引；`rounds/README.md` 补与迭代的关系与允许的子目录；`design/README.md` 补画板修订简报（`input/revision-NN.md`）的约定 | 同上 | 同上 | 同上 | 同上 | 待合并 |
 | 3 | tidy | 文档与源码对齐（清单见「备注」）：`docs/design.md` § 1 / § 3 / § 9 / § 10、`docs/background.md` 时间线、`docs/review-workflow.md`、README、AGENTS.md 与审查任务书的白名单口径、`test/fixtures/README.md` 的失效路径、五张任务卡的过期状态行、BACKLOG 三条已消解的条目 | 同上 | 同上 | 同上 | 同上 | 待合并 |
 | 4 | tidy | 合入 `main@2650a2f`（v1.4.1 复审轮），解 README 冲突并按 v1.4.1 的内容更新文档（详见「备注 · 合并 main」） | main 前进 | 同上 | validate -Quick | 同上 | 待合并 |
+| 5 | fix | 风扇狂转：① 文件树 git 徽章自激空转——`git status` 自己建删 `.git/index.lock`（Windows 还连带一条 `.git` 目录的 Modified），watcher 把它当 `.git` 变化上报，前端据此再跑 `git status`，仓库零改动时每秒起 2–6 个 `git.exe`；② `Spinner` 与侧栏扫掠线两处常驻动画没有 `RepaintBoundary`，会话运行中整窗每帧重栅格（2880×1800 @ 120Hz 核显实测 GPU 44–64%）。修：`rust/fs/src/watch.rs` 的 `classify` 跳过 `.git` 目录自身与其下 `*.lock` 的事件（两条新测试，其一用真 git 复现）；两处动画包 `RepaintBoundary`。实测见「备注 · 风扇狂转」 | 所有者报障 2026-09-22 | `fix-fs-watch-loop`（worktree `AcpAgentClient-fswatch`）→ 待合并 | validate 全绿（2026-09-22）；未构建 | 待审查 | 待审查 |
 
 ## 候选清单（待所有者圈定进本迭代或下一个）
 
@@ -87,3 +88,12 @@
 - 按 v1.4.1 的内容更新的文档：`docs/background.md` 时间线的 2026-09-22 一条补上复审轮与 v1.4.1；`iterations/README.md` 开头的「v1.4.0 发布之后」改成 v1.4.1，§ 5 补一段说明 `round-1.4.1` 为何仍按轮次走完（本流程建立之前已立项，不回改编号；封存的是 § 7「main 直改」行，轮次自己的行照旧）。
 - 候选清单按 1.4.1 复核：移除已被它收掉的「回合折叠的滚动锚点离开已建窗口不校正」；并入它新记的两条（认证终端释放 → A 档，剪贴板读取在平台线程 → 需裁定档）；原「待核对是否已被 main 直改修掉」那一档的三项**逐项查过合并后的代码，确认全部仍未修**，各自最小修复已写明并升进 A 档，该档撤掉。
 - 核过但未受影响：`docs/` 里没有出现 `withdrawn` / 墓碑 / 索引删除顺序这类被 1.4.1 改动的实现细节，所以第 3 项对齐过的文档陈述无一条被推翻；`docs/design.md` § 10 关于 `transcript` 段默认值的写法与 1.4.1 修掉的「读盘排在 `core_init` 之前」是两回事（那是接线缺陷，不是契约），保持原样。
+
+**风扇狂转（第 5 项）的实测（2026-09-22，Windows 11，规则 9）**
+
+- 现象：安装版 `D:\tools\AcpAgentClient\acp_agent_client.exe`（PID 37236，打开的项目 `D:\variFlight_work\VariFlightWork`，61001 个文件）GPU 3D 引擎 44–64%（另一会话先测到 64%；本会话 `Get-Counter '\GPU Engine(*)\Utilization Percentage'` 抓到一次 44%，其余采样 1.2–1.8%），CPU 不高。不是 WebView（这个应用没有 WebView）。
+- 闭环证据：① `Get-CimInstance Win32_Process -Filter "ParentProcessId=37236 AND Name='git.exe'"` 轮询：12 秒 24 个、20 秒 54 个、15 秒 96 个 `git.exe`，命令构成 `rev-parse --is-inside-work-tree` / `rev-parse --show-toplevel` / `status --porcelain` 三者数量相当（= `git_status` 的三个子进程，`refreshBadges` 在空转，不是 `git_branches`）；② 同期仓库工作区**零文件改动**（`Get-ChildItem -Recurse` 前后快照，8 秒与 10 分钟两档均为 0）；③ `System.IO.FileSystemWatcher` 挂在 `.git` 上 8 秒抓 46 条事件，**全部**是 `index.lock` 的 Created / Deleted；④ 25ms 高频探测 400 次采样有 5 次抓到 `index.lock` 存在、`.git/index` 的 mtime 0 次变化（前后快照法查不出锁文件，所以最初漏判）；`core.fsmonitor` / `core.untrackedCache` 均未设（`.git/fsmonitor--daemon` 目录是残留）。
+- 单测揭示的第二条路径：合成建删 `index.lock` 的测试在只滤 `*.lock` 时仍 `git: true`——Windows 的 ReadDirectoryChangesW 在目录里建删文件时会给 **`.git` 目录本身**报一条 Modified（③ 挂在 `.git` 上看不到它自己的事件，所以没抓到）；生产环境同样如此，光滤锁文件循环照样闭合。`classify` 两条都跳过；`.git/HEAD` 写入与 `index.lock → index` 的改名仍打标志（测试断言）。
+- 真 git 测试的 racy 坑：刚写的文件与索引落在同一秒时 git 每次 `status` 都补写索引（真变化，照常打标志）直到时钟跨秒，测试三跑两挂；让文件比索引老 1.1 秒后连跑五轮稳定。
+- GPU 一侧：`lib/` 里 `RepaintBoundary` 出现 0 次（全仓 6 处都在 `test/`）；显示器 2880×1800 @ 120Hz、Radeon 780M 核显。机制成立，但爆发当下没抓到对应的 UI 状态，效果要构建后手测（会话运行中看 GPU 引擎占用）。
+- 立刻止血的办法：把项目从那个 6 万文件的仓库切走或关掉应用；git 风暴与会话是否在跑无关。
