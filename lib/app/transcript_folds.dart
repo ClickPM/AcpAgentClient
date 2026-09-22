@@ -1,14 +1,12 @@
 // 画板 08 B「回合折叠」的状态：一个全局开关（画板 70「转录」小节，落 `settings.json` 的 `transcript` 段）
 // 加每个回合各自的展开态。分组规则本身在 `lib/projection/turn_fold.dart`，这一层只管「折不折」。
 //
-// **展开态用 [Expando] 按 `TurnEntry` 实例记**，不按 `sessionId + turnId` 记：
-// - 回合 id 是每个 store 自己的本地序号（`turn_1`、`turn_2`…），两条会话会撞；
-// - 会话重开 / `session/load` 重放会把旧的 [TurnEntry] 整批换掉，按 id 记就会把旧选择套到新回合上，
+// **展开态用 [Expando] 按轮的 owner 实例记**（`TurnFold.owner`：实时轮是 `TurnEntry`，
+// `session/load` 重放回来的历史轮是那条顶层用户消息），不按 `sessionId + turnId` 记：
+// - 回合 id 是每个 store 自己的本地序号（`turn_1`、`msg_3`…），两条会话会撞；
+// - 会话重开 / `session/load` 重放会把旧的条目整批换掉，按 id 记就会把旧选择套到新回合上，
 //   而画板要的正是「重开会话回到默认折叠」；
 // - Expando 持弱引用，store 一丢，这里不用任何清理代码就跟着没了。
-//
-// **已知限制**：`session/load` 的重放不带回轮边界（R6 裁定，docs/design.md § 3），重放出来的历史里
-// 没有 [TurnEntry]，所以也不会有摘要行——折叠只对本次会话里真正跑过的回合生效。
 
 import 'package:flutter/foundation.dart';
 
@@ -124,15 +122,15 @@ class TranscriptFolds extends ChangeNotifier {
   /// 这一轮此刻折不折。运行中的回合永远展开（画板：流式期间必须可见），也不出摘要行——
   /// 摘要行是 `stop_reason` 到达之后才有的东西（见 `lib/ui/transcript/transcript_list.dart`）。
   bool isCollapsed(TurnFold fold) {
-    if (fold.turn.isRunning) return false;
-    final bool? explicit = _explicit[fold.turn];
+    if (fold.isRunning) return false;
+    final bool? explicit = _explicit[fold.owner];
     if (explicit != null) return explicit;
     return autoCollapse && fold.autoCollapsible;
   }
 
   /// 点摘要行：折 ↔ 展，并记住（会话打开期间保持）。
   void toggle(TurnFold fold) {
-    _explicit[fold.turn] = !isCollapsed(fold);
+    _explicit[fold.owner] = !isCollapsed(fold);
     notifyListeners();
   }
 
@@ -140,7 +138,7 @@ class TranscriptFolds extends ChangeNotifier {
   /// 返回真表示这次确实展开了：调用方据此知道布局会变、要等下一帧再量位置。
   bool expand(TurnFold fold) {
     if (!isCollapsed(fold)) return false;
-    _explicit[fold.turn] = false;
+    _explicit[fold.owner] = false;
     notifyListeners();
     return true;
   }

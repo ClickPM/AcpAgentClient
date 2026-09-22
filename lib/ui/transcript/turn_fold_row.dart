@@ -56,7 +56,7 @@ class TurnFoldRow extends StatelessWidget {
 
   Widget _collapsed({required bool highlighted}) {
     final Widget first = _firstLine();
-    final String? model = fold.turn.model;
+    final String? model = fold.model;
     return Container(
       padding: t.Fold.rowPadding,
       decoration: BoxDecoration(
@@ -98,7 +98,7 @@ class TurnFoldRow extends StatelessWidget {
   // ---------------------------------------------------------------- 展开态
 
   Widget _expanded({required bool highlighted}) {
-    final String? model = fold.turn.model;
+    final String? model = fold.model;
     final String meta = model == null ? _counts : '$model · $_counts';
     return Container(
       padding: t.Fold.headerPadding,

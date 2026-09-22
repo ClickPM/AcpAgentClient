@@ -81,7 +81,13 @@ class SessionIndex {
   /// （所有者裁定 2026-09-18）：只在 `session/prompt` 发出时打新时间（[promptSent]），收轮、改名、补标题都沿用
   /// 索引里已有的值——按收轮时间打的话，一条早发出去、晚跑完的会话会在收轮时跳到刚发过消息的那条前面。
   /// 索引里还没有这条（刚 `session/new`）时不传，核心打当前时间：新会话按创建时间排最上面。
-  /// [agentFallback] / [titleFallback]：store 上没有时用的 agentId 与标题（会话控制器给当前 agent 与会话头标题）。
+  /// [agentFallback] / [titleFallback]：store 上没有时用的 agentId 与标题（会话控制器给这条会话的 agent 与占位标题）。
+  ///
+  /// 标题退三级 `store → 索引 → 占位串`：`session/load` **不重放 `session_info`**，载回来的会话 `store.title`
+  /// 一直是 null，而核心的 upsert 是整行替换（`rust/settings/src/index.rs`）——直接写 [titleFallback] 就是拿
+  /// 「`New <agent> Session`」把索引里原来有意义的标题盖掉，重开应用点进旧会话聊一句，侧栏那条就变成占位串
+  /// （BACKLOG「载回来的会话下一轮之后丢标题」，2026-09-18 记，iteration-02 修）。中间这级退回**不会把用户改过的
+  /// 名字搞反**：改名与 agent 的 `session_info_update.title` 都会先写进 `store.title`，第一级就命中。
   Future<void> upsert(
     SessionStore s, {
     required String agentFallback,
@@ -95,7 +101,7 @@ class SessionIndex {
     final result = await _upsertTracked(b, <String, dynamic>{
       'agentId': s.agentId ?? agentFallback,
       'sessionId': s.sessionId,
-      'title': s.title ?? titleFallback,
+      'title': s.title ?? titleOf(s.sessionId) ?? titleFallback,
       'cwd': s.cwd,
       'messageCount': s.entries.whereType<MessageEntry>().length,
       'updatedAt': ?updatedAt,
@@ -140,6 +146,13 @@ class SessionIndex {
       if (e['sessionId'] == sessionId) return e;
     }
     return null;
+  }
+
+  /// 本地索引里这条记录的标题（非空才算有）。`session/load` 不重放 `session_info`，载回来的会话
+  /// 只有这里还记着标题，[upsert] 与会话头都退回它（见 [upsert] 的三级退回）。
+  String? titleOf(String sessionId) {
+    final title = entryOf(sessionId)?['title'];
+    return title is String && title.isNotEmpty ? title : null;
   }
 
   /// 本地索引里这条记录登记的 agentId（删 / 改索引都按 (agentId, sessionId) 匹配）。

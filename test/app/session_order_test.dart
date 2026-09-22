@@ -86,10 +86,10 @@ class _SlowRemoveCore extends FakeCore {
   }
 }
 
-int _updatedAtOf(FakeCore core, String sessionId) {
-  final entry = core.sessionIndex.singleWhere((e) => e['sessionId'] == sessionId);
-  return (entry['updatedAt'] as num).toInt();
-}
+JsonMap _entryOf(FakeCore core, String sessionId) =>
+    core.sessionIndex.singleWhere((e) => e['sessionId'] == sessionId);
+
+int _updatedAtOf(FakeCore core, String sessionId) => (_entryOf(core, sessionId)['updatedAt'] as num).toInt();
 
 Future<void> _untilPromptSent(FakeCore core) async {
   for (var i = 0; i < 100 && core.prompts.isEmpty; i++) {
@@ -136,6 +136,63 @@ void main() {
     await c.turn.send();
     expect(_updatedAtOf(core, sid), greaterThan(t1));
     expect(core.sessionIndex.single['messageCount'], 2);
+    c.dispose();
+  });
+
+  test('后台跑完那一轮刷的是它自己那条，不是前台选中的（BACKLOG「后台跑完的那轮，侧栏消息数不刷新」，iteration-02）', () async {
+    final core = _GatedCore();
+    final c = WorkbenchController(source: DataSource.bridge, bridge: core, scheduler: WorkbenchController.scheduleOnMicrotask)
+      ..workspace.project = const ProjectRef(path: 'D:/repo', name: 'repo');
+    // A：侧栏里另一条会话，索引里记着 3 条消息。
+    await core.sessionIndexUpsert(<String, dynamic>{
+      'agentId': 'a',
+      'sessionId': 'sess_a',
+      'title': 'A',
+      'cwd': 'D:/repo',
+      'messageCount': 3,
+    });
+    await c.index.refresh();
+
+    // B：新建一条并发出去，`session/prompt` 挂着不回。
+    await c.session.newSession(const AgentRef(id: 'a', name: 'a'));
+    final b = c.session.sessionId!;
+    expect(b, isNot('sess_a'));
+    core.gate = Completer<JsonMap>();
+    c.composer.editor.text = '后台这条';
+    final sending = c.turn.send();
+    await _untilPromptSent(core);
+
+    // 用户切去看 A（2026-09-18 起新建会话不再重连，B 在后台照跑）。
+    c.sessions.session('sess_a', agentId: 'a').cwd = 'D:/repo';
+    c.session.sessionId = 'sess_a';
+
+    core.gate!.complete(<String, dynamic>{'stopReason': 'end_turn'});
+    await sending;
+
+    expect(_entryOf(core, b)['messageCount'], 1, reason: '刷的是刚跑完那一轮的会话');
+    expect(_entryOf(core, 'sess_a')['messageCount'], 3, reason: '前台那条没被动过');
+    c.dispose();
+  });
+
+  test('删掉正在跑的会话：那一轮收轮时不把它写回索引（复审 high 2026-09-22 / iteration-02）', () async {
+    // `deleteSession` 不发 `session/cancel`，在途那一轮照样会收；收轮那次 `saveIndex` 手里握着的是
+    // 开轮时那个 store，会话表里已经没有它了（`sessions.forget`），写了就是把删掉的行写回去。
+    final core = _GatedCore();
+    final c = WorkbenchController(source: DataSource.bridge, bridge: core, scheduler: WorkbenchController.scheduleOnMicrotask)
+      ..workspace.project = const ProjectRef(path: 'D:/repo', name: 'repo');
+    await c.session.newSession(const AgentRef(id: 'a', name: 'a'));
+    final sid = c.session.sessionId!;
+    core.gate = Completer<JsonMap>();
+    c.composer.editor.text = '跑着的那一轮';
+    final sending = c.turn.send();
+    await _untilPromptSent(core);
+
+    await c.session.deleteSession(sid);
+    expect(core.sessionIndex, isEmpty);
+
+    core.gate!.complete(<String, dynamic>{'stopReason': 'end_turn'});
+    await sending;
+    expect(core.sessionIndex, isEmpty, reason: '删掉的会话不能被收轮那次写回来（侧栏幽灵条目）');
     c.dispose();
   });
 
