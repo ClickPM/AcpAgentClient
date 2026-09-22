@@ -111,6 +111,24 @@ pub struct Appearance {
     pub buffer_cjk_font_family: Option<String>,
 }
 
+/// 转录偏好（画板 70「转录」小节 / 画板 08 B）。纯客户端行为，不走协议。
+///
+/// 与 [`Appearance`] 同口径：字段 `Option`，缺省 `None` = 用前端的默认值（画板写的是「默认开」，
+/// 那个默认值在 `lib/app/transcript_folds.dart`，这里不复制一份）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct Transcript {
+    /// 「回合结束后折叠处理过程」。没存过 = None = 前端落到默认开。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub collapse_finished_turns: Option<bool>,
+}
+
+impl Transcript {
+    /// 全空时不写 `transcript` 键，省得给没动过这一项的用户平白多一段。
+    fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
 /// family 名的最大长度。真实字体家族名远短于此，这里只挡住把整个文件塞进来那种输入。
 const MAX_FAMILY_LEN: usize = 128;
 
@@ -160,6 +178,8 @@ pub struct Settings {
     pub agent_servers: BTreeMap<String, AgentServer>,
     #[serde(default, skip_serializing_if = "Appearance::is_default")]
     pub appearance: Appearance,
+    #[serde(default, skip_serializing_if = "Transcript::is_default")]
+    pub transcript: Transcript,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -222,6 +242,19 @@ impl SettingsStore {
         settings.appearance = appearance.sanitized();
         self.save(&settings)?;
         Ok(settings.appearance)
+    }
+
+    /// 读转录偏好。与 [`Self::appearance`] 同口径：读不动 / 不是合法 JSON 时不报错，回默认（字段全空）。
+    pub fn transcript(&self) -> Transcript {
+        self.load().map(|s| s.transcript).unwrap_or_default()
+    }
+
+    /// 覆盖转录偏好并落盘，返回落盘后的值。整段替换（这一段只有一个写者：`lib/app/transcript_folds.dart`）。
+    pub fn set_transcript(&self, transcript: Transcript) -> Result<Transcript> {
+        let mut settings = self.load()?;
+        settings.transcript = transcript;
+        self.save(&settings)?;
+        Ok(settings.transcript)
     }
 
     /// 删掉一条并落盘（不存在也算成功），返回落盘后的全量设置。
@@ -338,6 +371,35 @@ mod tests {
         store.set_appearance(Appearance::default()).expect("clear");
         let text = std::fs::read_to_string(&store.path).expect("read");
         assert!(!text.contains("appearance"), "空外观不该落键: {text}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn transcript_round_trip_and_defaults() {
+        let dir = temp_dir("transcript");
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        let store = SettingsStore::new(dir.clone());
+
+        // 没存过 -> 空，前端据此落回「默认开」。
+        assert_eq!(store.transcript(), Transcript::default());
+        assert_eq!(store.transcript().collapse_finished_turns, None);
+
+        let off = Transcript { collapse_finished_turns: Some(false) };
+        assert_eq!(store.set_transcript(off).expect("set"), off);
+        assert_eq!(store.transcript(), off);
+
+        // 与 `appearance` 段互不影响：写转录不该抹掉外观。
+        let appearance = Appearance { theme: Some("dark".into()), ..Default::default() };
+        store.set_appearance(appearance.clone()).expect("set appearance");
+        let on = Transcript { collapse_finished_turns: Some(true) };
+        store.set_transcript(on).expect("set");
+        assert_eq!(store.appearance(), appearance);
+        assert_eq!(store.transcript(), on);
+
+        // 全空时不写 `transcript` 键。
+        store.set_transcript(Transcript::default()).expect("clear");
+        let text = std::fs::read_to_string(&store.path).expect("read");
+        assert!(!text.contains("transcript"), "空转录偏好不该落键: {text}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

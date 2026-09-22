@@ -327,6 +327,26 @@ class ConfigOptionWire {
   String? get type => _asString(json['type']);
   Object? get currentValue => json['currentValue'];
   List<JsonMap> get options => _asMapList(json['options']);
+
+  /// `currentValue` 对应的**显示名**。`SessionConfigSelectOptions` 两种形状都认：扁平的
+  /// `{value, name, description?}` 数组，或 `{group, name, options}` 数组。
+  /// 匹配不上就回 `currentValue` 原文（当作 id 显示，照画板 40 的兜底）；不是 select 型（`currentValue`
+  /// 不是字符串）回 null。画板 40 的下拉与画板 08 摘要行第二行的模型名都走这一条。
+  String? get currentOptionName {
+    final current = currentValue;
+    if (current is! String) return null;
+    for (final o in options) {
+      final nested = o['options'];
+      if (o.containsKey('group') && nested is List) {
+        for (final c in nested) {
+          if (c is Map && c['value'] == current) return _asString(c['name']) ?? current;
+        }
+        continue;
+      }
+      if (o['value'] == current) return _asString(o['name']) ?? current;
+    }
+    return current;
+  }
 }
 
 class UsageCostWire {

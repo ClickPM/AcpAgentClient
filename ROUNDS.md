@@ -47,6 +47,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 | 05 | 转场规格 | main 直改（2026-09-17） | `lib/ui/shell/motion.dart`（`MotionEnter`，A / B / C / D 四组共用）+ 接线点 `workbench_screen.dart`、`workbench_controller.dart`、`session_header.dart`、`transcript_empty.dart`、`popover_anchor.dart`；数值在 `tokens.dart` 的 `Motion` / `Opacities` |
 | 06 | 侧栏会话活动指示 | main 直改（2026-09-18） | `sidebar.dart`（`SessionSweepLine` / `SessionUnreadDot` + 会话项的 running / unread 两态）+ 接线点 `workbench_controller.dart`（`runningSessionIds` / `unreadSessionIds`）、`workbench_screen.dart`；数值在 `tokens.dart` 的 `Sweep` / `UnreadDot` / `Geometry` |
 | 07 | 深色 Token 对位表 | `dark-mode-toggle-implementation` 分支（2026-09-20） | `lib/theme/tokens.dart`（`AppTheme` / `ThemeColors` / `Theming` + 颜色 token 全部改 getter）+ `lib/app/appearance_prefs.dart`（原 `font_prefs.dart`，`AppearanceController` 一并管字体与主题）；切换按钮在 `sidebar.dart` 的 `SidebarTitleBar`，接线点 `workbench_screen.dart` / `app.dart`；落盘在 `rust/settings` 的 `Appearance.theme` |
+| 08 | 交互增强（回合折叠 / 跨工作区在跑数） | `claude/new-session-c0ff9d` 分支（2026-09-22） | B：`lib/projection/turn_fold.dart`（分组规则）+ `lib/ui/transcript/turn_fold_row.dart`（摘要行）+ `lib/app/transcript_folds.dart`（全局开关 + 每回合展开态）+ `transcript_list.dart`（行装配与滚动锚点）+ `entries.dart` / `session_store.dart`（`TurnEntry.model` 快照）+ `settings_page.dart`「转录」分组+ `rust/settings` 的 `Transcript` 段与 `transcript_prefs_get/set`；C：`lib/ui/shell/running_badge.dart` + `topbar.dart` + `topbar_popovers.dart` + `session_controller.dart`（`runningByWorkspace` / `runningTotal`）。**A 段（token 速度标签）设计阶段已删除，不实现** |
 | 10 | ~~Restore Checkpoint 分隔线~~ 已废弃（2026-09-17） | R2 | 已删除（与画板 11 的 Restore 同一动作） |
 | 11 | 用户消息气泡 | R2 | `lib/ui/transcript/user_message.dart` |
 | 12 | 助手富文本正文 | R2 | `lib/ui/transcript/assistant_text.dart` |
@@ -81,7 +82,7 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 | 52 | agent 认证 | R5 | `lib/ui/registry/auth_page.dart` |
 | 60 | 文件面板 | R4 | `lib/ui/files/files_panel.dart` + `file_tree.dart`（2026-09-17 起树列可拖、「缩小」改为收起整列） |
 | 61 | 终端面板 | R4 | `lib/ui/terminal/terminal_panel.dart` + `local_terminal.dart` + `terminal_ime.dart`（2026-09-17，中文输入法；键盘输入走硬件按键） |
-| 70 | 设置 | R5 | `lib/ui/settings/settings_page.dart`（2026-09-17 起是右栏的一个标签，与文件 / Agents 并列，不再占会话区） |
+| 70 | 设置 | R5（2026-09-22 加「转录」分组，见画板 08） | `lib/ui/settings/settings_page.dart`（2026-09-17 起是右栏的一个标签，与文件 / Agents 并列，不再占会话区） |
 | 80 | ACP 流量调试 | R3 | `lib/ui/traffic/traffic_page.dart`（数据源 `lib/projection/traffic.dart`） |
 
 前端其余目录（R0 定型）：`lib/app/`（组合根：R3 落 `workbench_controller.dart` 状态与动作、`workbench_screen.dart` widget 装配、`window_controls.dart` 平台通道、`headless_run.dart` 无头实跑；R4 加 `files_state.dart` 与 `local_terminals.dart`；2026-09-18 加 `clipboard_image.dart`（剪贴板图片，Windows 借 `powershell.exe` 读）；数据源选择 fixtures / bridge；R7.5（2026-09-20）把 `workbench_controller.dart` 拆成组合根 + 8 个对象：`shell_state` / `workspace_state` / `agents_state` / `auth_state` / `composer_state` 按画板分组管本地态，`session_controller` / `turn_controller` 驱动协议，`session_index` 是本地索引镜像，`guarded` 是共用的通知与错误边界；依赖方向见 `rounds/round-7.5/round-7.5.md` 附录 B）、`lib/bridge/`（frb 生成物，入库）、`lib/projection/`（投影状态层，纯 Dart，无 widget 依赖）、`lib/theme/tokens.dart`、`lib/gallery/`（画板对照，debug 构建才编入）。

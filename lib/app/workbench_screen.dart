@@ -15,6 +15,7 @@ import 'package:flutter/widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../projection/entries.dart';
+import '../projection/turn_fold.dart';
 import '../projection/session_store.dart';
 import '../projection/timeline.dart';
 import '../theme/tokens.dart' as t;
@@ -45,6 +46,7 @@ import 'clipboard_image.dart';
 import 'appearance_prefs.dart';
 import 'shell_state.dart';
 import 'transcript_jump.dart';
+import 'workspace_state.dart';
 import 'window_controls.dart';
 import 'workbench_controller.dart';
 
@@ -82,10 +84,14 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   String? _focusedEntryId;
 
   /// 画板 43 的时间线跳转（惰性列表里的单向步进，见 [TranscriptJump]）。
-  late final TranscriptJump _jump = TranscriptJump(
-    controller: _transcript,
-    rows: () => buildRows(c.session.store?.entries ?? const <TranscriptEntry>[]),
-  );
+  late final TranscriptJump _jump = TranscriptJump(controller: _transcript, rows: _rows);
+
+  /// 转录的行列表。**必须与 `TranscriptList` 算出来的那一份一致**——跳转是按行定位的，
+  /// 折叠态（画板 08 B）把折叠块里的条目整批拿掉，两边口径不同就会跳错位。
+  List<TranscriptRow> _rows() {
+    final List<TranscriptEntry> entries = c.session.store?.entries ?? const <TranscriptEntry>[];
+    return buildRows(entries, folds: foldsOf(entries), collapsed: c.folds.isCollapsed);
+  }
 
   WorkbenchController get c => widget.controller;
 
@@ -283,6 +289,9 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       projectAnchor: c.workspace.projectAnchor,
       branchAnchor: c.workspace.branchAnchor,
       dragArea: _dragArea(),
+      // 画板 08 C：全部工作区在跑会话合计。
+      runningTotal: c.session.runningTotal,
+      runningWorkspaces: c.session.runningWorkspaceCount,
     );
   }
 
@@ -314,6 +323,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
             searchController: c.workspace.projectSearch,
             searchFocusNode: c.workspace.projectSearchFocus,
             query: c.workspace.projectSearch.text,
+            // 画板 08 C：每一行的在跑会话数。归一化那条规则只有 `WorkspaceState.normalizeCwd` 一份。
+            runningOf: (p) => c.session.runningByWorkspace[WorkspaceState.normalizeCwd(p.path)] ?? 0,
             onQueryChanged: (_) => c.refresh(),
             onSelect: c.workspace.openProject,
             onOpenLocalFolders: _pickProjectDirectory,
@@ -442,6 +453,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
               onAnswerElicitation: c.turn.answerElicitation,
               // 画板 23 的停止方块：terminal_kill。
               onKillTerminal: c.turn.killTerminal,
+              // 画板 08 B：回合结束后过程折叠为一行摘要。
+              folds: c.folds,
             ),
           ),
         ],
@@ -722,7 +735,16 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   void _jumpToEntry(String entryId, {required bool focus}) {
     final store = c.session.store;
     if (store == null) return;
-    if (!buildRows(store.entries).any((r) => r is EntryRow && r.entry.id == entryId)) return;
+    TranscriptEntry? target;
+    for (final e in store.entries) {
+      if (e is! TurnEntry && e.id == entryId) target = e;
+    }
+    if (target == null) return;
+    // 画板 08 B：目标落在折叠块里就先展开那一轮——折着的时候它根本没有行，跳过去没有落点。
+    // 展开按「展开态记忆」照常记住。展开会改变行数与高度，但 [TranscriptJump] 每帧重新取行、按真实几何步进，
+    // 下一帧自然按展开后的布局算。
+    final TurnFold? fold = foldContaining(foldsOf(store.entries).values, target);
+    if (fold != null) c.folds.expand(fold);
     // 跳到旧内容 = 用户自己翻上去，跟随底部要停掉，否则下一条流式块又把视口拽回最底下。
     _stick = false;
     setState(() => _focusedEntryId = focus ? entryId : null);
@@ -830,6 +852,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         onCopyPath: (path) => Clipboard.setData(ClipboardData(text: path)),
         appearance: widget.appearance,
         onOpenUrl: (url) => launchUrl(Uri.parse(url)),
+        folds: c.folds,
       );
 
   Widget _rightPanel() {

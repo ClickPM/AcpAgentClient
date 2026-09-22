@@ -358,6 +358,15 @@ Future<String> appearanceGet() => RustLib.instance.api.crateApiAppearanceGet();
 Future<String> appearanceSet({required String patch}) =>
     RustLib.instance.api.crateApiAppearanceSet(patch: patch);
 
+/// 转录偏好（画板 70「转录」小节）：`{collapse_finished_turns?}`。没设过是 null，默认值在前端
+/// （`lib/app/transcript_folds.dart`，画板写的是「默认开」）。
+Future<String> transcriptPrefsGet() =>
+    RustLib.instance.api.crateApiTranscriptPrefsGet();
+
+/// 整段覆盖转录偏好（`patch` 是上面那个形状的 JSON 字符串）；返回落盘后的值。
+Future<String> transcriptPrefsSet({required String patch}) =>
+    RustLib.instance.api.crateApiTranscriptPrefsSet(patch: patch);
+
 /// 窗口 UI 状态：`{sidebarWidth?, rightPanelWidth?}`。没存过的字段是 null，缺省宽度在前端 token 里。
 Future<String> uiStateGet() => RustLib.instance.api.crateApiUiStateGet();
 

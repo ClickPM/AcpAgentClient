@@ -434,6 +434,18 @@ pub async fn appearance_set(patch: String) -> Result<String, BridgeError> {
     on_core(|core| async move { core.appearance_set(patch) }).await
 }
 
+/// 转录偏好（画板 70「转录」小节）：`{collapse_finished_turns?}`。没设过是 null，默认值在前端
+/// （`lib/app/transcript_folds.dart`，画板写的是「默认开」）。
+pub async fn transcript_prefs_get() -> Result<String, BridgeError> {
+    on_core(|core| async move { core.transcript_prefs_get() }).await
+}
+
+/// 整段覆盖转录偏好（`patch` 是上面那个形状的 JSON 字符串）；返回落盘后的值。
+pub async fn transcript_prefs_set(patch: String) -> Result<String, BridgeError> {
+    let patch = parse_json("patch", &patch)?;
+    on_core(|core| async move { core.transcript_prefs_set(patch) }).await
+}
+
 /// 窗口 UI 状态：`{sidebarWidth?, rightPanelWidth?}`。没存过的字段是 null，缺省宽度在前端 token 里。
 pub async fn ui_state_get() -> Result<String, BridgeError> {
     on_core(|core| async move { core.ui_state_get() }).await

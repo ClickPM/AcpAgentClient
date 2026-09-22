@@ -7,7 +7,9 @@
 import 'package:flutter/widgets.dart';
 
 import '../../theme/tokens.dart' as t;
+import '../shell/running_badge.dart';
 import '../shell/shell_common.dart';
+import '../shell/tooltip.dart';
 import '../transcript/card_chrome.dart';
 import '../transcript/icons.dart';
 import 'menu.dart';
@@ -61,6 +63,7 @@ class ProjectSwitcherPopover extends StatelessWidget {
     this.onSelect,
     this.onQueryChanged,
     this.onOpenLocalFolders,
+    this.runningOf,
   });
 
   /// 本窗口已打开的项目。
@@ -77,6 +80,12 @@ class ProjectSwitcherPopover extends StatelessWidget {
   final ValueChanged<String>? onQueryChanged;
   final VoidCallback? onOpenLocalFolders;
 
+  /// 画板 08 C：这一行的工作区里有几条会话在跑。**路径归一化由调用方做**（`WorkspaceState.normalizeCwd`）——
+  /// 那条规则只该有一份，弹层是纯 widget，不在这里再抄一遍。
+  /// 不分 This Window 与 Recent Projects：本次运行里打开过、内存里还有在跑会话的行都挂徽标；
+  /// 为 0 的行一律不渲染徽标、不留占位。
+  final int Function(ProjectRef project)? runningOf;
+
   @override
   Widget build(BuildContext context) {
     bool match(ProjectRef p) => query.isEmpty || p.name.toLowerCase().contains(query.toLowerCase());
@@ -92,14 +101,43 @@ class ProjectSwitcherPopover extends StatelessWidget {
           onChanged: onQueryChanged,
         ),
         if (open.isNotEmpty) const MenuGroupLabel('This Window'),
-        for (final p in open)
-          MenuRow(label: p.name, selected: p.path == currentPath, onTap: onSelect == null ? null : () => onSelect!(p)),
+        for (final p in open) _row(p),
         if (recent.isNotEmpty) const MenuGroupLabel('Recent Projects'),
-        for (final p in recent)
-          MenuRow(label: p.name, selected: p.path == currentPath, onTap: onSelect == null ? null : () => onSelect!(p)),
+        for (final p in recent) _row(p),
         const MenuDivider(),
         MenuRow(icon: AcpIcons.folder, label: 'Open Local Folders', onTap: onOpenLocalFolders),
       ],
+    );
+  }
+
+  /// 一行工作区。选中那一行的对勾由 `MenuRow.selected` 自己画（`trailing` 给了就不画对勾），
+  /// 所以在跑数徽标只挂在**没被选中**的行上时不会顶掉对勾——当前工作区的徽标与对勾并排，见下。
+  /// 一行工作区。`MenuRow` 只在 `trailing == null` 时自己画对勾，所以选中行带徽标时要把对勾一起放进来。
+  /// 画板 08 把对勾画在路径左侧，而画板 41 定的这个弹层对勾在右侧；本次「行高、缩进、分隔线都不动」，
+  /// 所以沿用画板 41 的位置，徽标排在对勾左边。
+  Widget _row(ProjectRef p) {
+    final int running = runningOf?.call(p) ?? 0;
+    final Widget? badge = RunningBadge.maybe(running);
+    final bool selected = p.path == currentPath;
+    return MenuRow(
+      label: p.name,
+      selected: selected,
+      trailing: badge == null
+          ? null
+          : AcpTooltip(
+              message: '该工作区 $running 个会话在运行',
+              child: selected
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        badge,
+                        const SizedBox(width: t.Spacing.s8),
+                        AcpIcon(AcpIcons.check, color: t.Accent.text, size: t.IconSizes.toolbar),
+                      ],
+                    )
+                  : badge,
+            ),
+      onTap: onSelect == null ? null : () => onSelect!(p),
     );
   }
 }

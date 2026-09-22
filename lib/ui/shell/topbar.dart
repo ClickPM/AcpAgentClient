@@ -8,6 +8,7 @@ import '../../theme/tokens.dart' as t;
 import '../transcript/card_chrome.dart';
 import '../transcript/icons.dart';
 import 'popover_anchor.dart';
+import 'running_badge.dart';
 import 'shell_common.dart';
 import 'tooltip.dart';
 
@@ -30,6 +31,8 @@ class TopBar extends StatelessWidget {
     this.projectAnchor,
     this.branchAnchor,
     this.dragArea,
+    this.runningTotal = 0,
+    this.runningWorkspaces = 0,
   });
 
   final String projectName;
@@ -46,6 +49,11 @@ class TopBar extends StatelessWidget {
   final VoidCallback? onMinimize;
   final VoidCallback? onMaximize;
   final VoidCallback? onClose;
+
+  /// 画板 08 C：全部工作区在跑会话合计与「有在跑会话的工作区个数」（后者只进 tooltip 文案）。
+  /// 合计为 0 时整个徽标不渲染、不留占位。
+  final int runningTotal;
+  final int runningWorkspaces;
 
   /// gallery 出悬浮样张用（画板 04）。
   final bool hoverProject;
@@ -92,7 +100,9 @@ class TopBar extends StatelessWidget {
               children: <Widget>[
                 Flexible(
                   child: AcpTooltip(
-                    message: 'Recent workspace',
+                    // 画板 08 C 给触发钮定的 tooltip 是在跑数那句。**偏离**：这里不另套一层 tooltip 挂在徽标上——
+                    // `AcpTooltip` 是 `MouseRegion`，套两层会两条一起弹；没有徽标时仍是原来的 `Recent workspace`。
+                    message: runningTotal > 0 ? '$runningTotal 个会话在运行 · $runningWorkspaces 个工作区' : 'Recent workspace',
                     child: PopoverAnchor(
                       handle: projectAnchor,
                       child: Hoverable(
@@ -100,6 +110,7 @@ class TopBar extends StatelessWidget {
                         forceHover: hoverProject,
                         builder: (context, hovered) => _chip(
                           hovered: hovered,
+                          trailing: RunningBadge.maybe(runningTotal),
                           child: Text(projectName, style: CardText.headerTitle.copyWith(color: t.Neutral.strong), maxLines: 1, overflow: TextOverflow.ellipsis),
                         ),
                       ),
@@ -139,12 +150,19 @@ class TopBar extends StatelessWidget {
     );
   }
 
-  static Widget _chip({required bool hovered, required Widget child}) => Container(
+  /// [trailing]：跟在主内容右边、**不参与挤压**的一小块（画板 08 C 的在跑数徽标：路径 ellipsis 优先让位于它）。
+  static Widget _chip({required bool hovered, required Widget child, Widget? trailing}) => Container(
         height: t.Controls.compact,
         padding: t.Controls.padCompact,
         decoration: BoxDecoration(color: hovered ? t.Overlays.hover : null, borderRadius: t.Radii.control),
         // Row 而不是 alignment：Container 一旦给了 alignment 就会撑满 Flexible 给的最大宽度。
-        child: Row(mainAxisSize: MainAxisSize.min, children: <Widget>[Flexible(child: child)]),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Flexible(child: child),
+            if (trailing != null) ...<Widget>[const SizedBox(width: t.Spacing.s8), trailing],
+          ],
+        ),
       );
 }
 

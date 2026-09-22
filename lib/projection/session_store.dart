@@ -404,7 +404,8 @@ class SessionStore extends ChangeNotifier {
     final now = this.now;
     _closeOpenThought(entries);
     turnCount++;
-    final t = TurnEntry(id: _newId('turn'), at: now, n: turnCount, prompt: List<ContentBlockWire>.unmodifiable(prompt));
+    final t = TurnEntry(id: _newId('turn'), at: now, n: turnCount, prompt: List<ContentBlockWire>.unmodifiable(prompt))
+      ..model = currentModelName;
     currentTurn = t;
     entries.add(t);
     if (prompt.isNotEmpty) {
@@ -628,6 +629,16 @@ class SessionStore extends ChangeNotifier {
   void applyModeSelected(String modeId) {
     currentModeId = modeId;
     _changed();
+  }
+
+  /// 画板 08 B 摘要行第二行的取值：会话配置里 `category == model` 那一档的当前选项显示名。
+  /// 不按 agent 名判、不猜（规则 2）——没有这一档配置的 agent 回 null，摘要行就退化成单行。
+  /// 同一 category 有多条时取**数组里的第一条**（规范：数组顺序即优先级）。
+  String? get currentModelName {
+    for (final o in configOptions) {
+      if (o.category == 'model') return o.currentOptionName;
+    }
+    return null;
   }
 
   /// `session/set_config_option` 的响应（`{configOptions}`，全量替换）。与 `config_option_update` 同一口径。

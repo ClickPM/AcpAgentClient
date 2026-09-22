@@ -648,6 +648,19 @@ impl Core {
         Ok(serde_json::to_value(self.settings.set_appearance(patch)?)?)
     }
 
+    /// 转录偏好（画板 70「转录」/ 画板 08 B 的全局开关）。与外观同口径：读不出来不报错，回空，
+    /// 由前端落到默认值上（「默认开」写在 `lib/app/transcript_folds.dart`，核心不复制一份）。
+    pub fn transcript_prefs_get(&self) -> Result<Value> {
+        Ok(serde_json::to_value(self.settings.transcript())?)
+    }
+
+    /// 整段覆盖转录偏好；返回落盘后的值。
+    pub fn transcript_prefs_set(&self, patch: Value) -> Result<Value> {
+        let patch: settings::Transcript =
+            serde_json::from_value(patch).map_err(|e| CoreError::InvalidArgument(format!("transcript: {e}")))?;
+        Ok(serde_json::to_value(self.settings.set_transcript(patch)?)?)
+    }
+
     pub fn ui_state_get(&self) -> Result<Value> {
         Ok(serde_json::to_value(self.ui_state.load())?)
     }

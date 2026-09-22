@@ -44,6 +44,7 @@ import 'paths.dart';
 import 'session_index.dart';
 import 'shell_state.dart';
 import 'session_controller.dart';
+import 'transcript_folds.dart';
 import 'turn_controller.dart';
 import 'workspace_state.dart';
 
@@ -76,6 +77,10 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   late final Sessions sessions = Sessions();
   late final UpdateBatcher batcher = UpdateBatcher(sessions, scheduler: _scheduler);
   final TrafficStore traffic = TrafficStore();
+
+  /// 回合折叠（画板 08 B）：全局开关 + 每个回合的展开态。**不转发到根**——折叠只影响转录列表，
+  /// 而 `TranscriptList` 自己听它；转发上来会让点一次摘要行重建整个工作台。
+  late final TranscriptFolds folds = TranscriptFolds(bridge: bridge);
 
   /// 文件面板（画板 60）与终端面板（画板 61）的接线状态（R4）。
   late final FilesState files = FilesState(bridge: bridge);
@@ -180,6 +185,8 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     }
     final b = bridge;
     if (b == null) return;
+    // 不 await：读一次 `settings.json` 的 `transcript` 段，读不回来也只是回到「默认开」，不该拖慢启动。
+    unawaited(folds.start());
     _subs.addAll(<StreamSubscription<CoreEventRecord>>[
       b.on(CoreEvent.sessionUpdate).listen((e) {
         final sid = e.json?['sessionId'];
@@ -290,6 +297,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     terminals.removeListener(notifyListeners);
     files.dispose();
     terminals.dispose();
+    folds.dispose();
     for (final child in <ChangeNotifier>[shell, workspace, agents, auth, composer, turn, session]) {
       child.removeListener(notifyListeners);
       child.dispose();

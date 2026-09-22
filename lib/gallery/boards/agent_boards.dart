@@ -5,6 +5,7 @@
 
 import 'package:flutter/widgets.dart';
 
+import '../../app/transcript_folds.dart';
 import '../../projection/entries.dart';
 import '../../projection/registry.dart';
 import '../../projection/tool_calls.dart';
@@ -305,6 +306,8 @@ final List<GalleryBoard> agentBoards = <GalleryBoard>[
                   env: _c(_dshCommand.envText),
                   focus: FocusNode(),
                 ),
+                // 画板 70 的「转录」分组（画板 08 B 的全局开关）：gallery 里给一个无桥的控制器，只在内存里。
+                folds: TranscriptFolds(),
               ),
             ),
           ],

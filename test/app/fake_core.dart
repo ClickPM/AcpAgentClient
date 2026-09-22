@@ -44,6 +44,29 @@ class FakeCore implements CoreCommands {
   @override
   Future<JsonMap> appearanceSet(JsonMap patch) async => appearance = <String, dynamic>{...patch};
 
+  /// 转录偏好（画板 70「转录」小节）：整段替换，与外观同口径。
+  JsonMap transcriptPrefs = <String, dynamic>{};
+
+  /// 堵住读转录偏好这一步（不设就立刻返回）：复现「读盘还没回来就改设置」。
+  Completer<void>? transcriptPrefsGetGate;
+
+  /// 让读转录偏好先失败几次（复现「核心还没 core_init 完」）：每失败一次减一，负数表示一直失败。
+  int transcriptPrefsGetFailures = 0;
+
+  @override
+  Future<JsonMap> transcriptPrefsGet() async {
+    final Completer<void>? gate = transcriptPrefsGetGate;
+    if (gate != null) await gate.future;
+    if (transcriptPrefsGetFailures != 0) {
+      if (transcriptPrefsGetFailures > 0) transcriptPrefsGetFailures--;
+      throw StateError('not_initialized: call core_init(data_dir) first');
+    }
+    return transcriptPrefs;
+  }
+
+  @override
+  Future<JsonMap> transcriptPrefsSet(JsonMap patch) async => transcriptPrefs = <String, dynamic>{...patch};
+
   @override
   Future<JsonMap> acpRespond(String agentId, String requestId, JsonMap response) async {
     responded.add((requestId, response));

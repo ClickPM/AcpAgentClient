@@ -8,8 +8,10 @@
 import 'package:flutter/widgets.dart';
 
 import '../../app/appearance_prefs.dart';
+import '../../app/transcript_folds.dart';
 import '../../projection/registry.dart';
 import '../../theme/tokens.dart' as t;
+import '../popovers/menu.dart';
 import '../registry/registry_entry.dart';
 import '../shell/shell_common.dart';
 import '../transcript/card_chrome.dart';
@@ -49,6 +51,7 @@ class SettingsPage extends StatelessWidget {
     this.onCopyPath,
     this.appearance,
     this.onOpenUrl,
+    this.folds,
   });
 
   /// 已安装的条目（registry 型 + custom 型）。
@@ -83,6 +86,9 @@ class SettingsPage extends StatelessWidget {
   /// 「去下载」用：在系统浏览器里打开候选字体的官网。
   final ValueChanged<String>? onOpenUrl;
 
+  /// 转录偏好（画板 70「转录」小节 = 画板 08 B 的全局开关）。gallery 与单测可以不给，不给就不出这一小节。
+  final TranscriptFolds? folds;
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -96,6 +102,10 @@ class SettingsPage extends StatelessWidget {
             children: <Widget>[
               _title(),
               const SizedBox(height: t.Spacing.s16),
+              if (folds != null) ...<Widget>[
+                _section('转录', child: _transcriptCard(folds!)),
+                const SizedBox(height: t.Spacing.s16),
+              ],
               if (appearance != null) ...<Widget>[
                 _section(
                   '外观',
@@ -128,7 +138,12 @@ class SettingsPage extends StatelessWidget {
           children: <Widget>[
             Text('设置', style: t.TextStyles.display),
             const SizedBox(width: t.Spacing.s8),
-            Expanded(child: Text('外观 · agent 配置 · 从 Zed 导入 · Node 运行时 · 数据目录', style: t.TextStyles.secondary.copyWith(color: t.Neutral.placeholder))),
+            Expanded(
+              child: Text(
+                '转录 · 外观 · agent 配置 · 从 Zed 导入 · Node 运行时 · 数据目录',
+                style: t.TextStyles.secondary.copyWith(color: t.Neutral.placeholder),
+              ),
+            ),
           ],
         ),
       );
@@ -148,6 +163,39 @@ class SettingsPage extends StatelessWidget {
           const SizedBox(height: t.Spacing.s8),
           child,
         ],
+      );
+
+  // ---------------------------------------------------------------- 转录（画板 70「转录」小节）
+
+  /// 「回合结束后折叠处理过程」。开关本体复用画板 40 `Session options · boolean` 那一档（[MenuToggle]），
+  /// 不另画一个控件。
+  Widget _transcriptCard(TranscriptFolds folds) => TranscriptCard(
+        child: ListenableBuilder(
+          listenable: folds,
+          builder: (context, _) => Container(
+            padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12, vertical: t.Spacing.s8),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Text('回合结束后折叠处理过程', style: CardText.strong),
+                      const SizedBox(height: t.Spacing.s4),
+                      Text(
+                        '拿到 stop_reason 时，把本回合的思考、工具调用、终端、子代理、压缩收进一行摘要；含失败与取消的回合不自动折叠。',
+                        style: t.TextStyles.meta,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: t.Spacing.s12),
+                MenuToggle(on: folds.autoCollapse, onTap: () => folds.setAutoCollapse(!folds.autoCollapse)),
+              ],
+            ),
+          ),
+        ),
       );
 
   // ---------------------------------------------------------------- agent 配置

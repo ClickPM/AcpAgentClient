@@ -102,6 +102,10 @@ abstract interface class CoreCommands {
   Future<JsonMap> appearanceGet();
   Future<JsonMap> appearanceSet(JsonMap patch);
 
+  // ---- 转录偏好（画板 70「转录」小节 / 画板 08 B）：回合结束后折不折叠处理过程，整段读写
+  Future<JsonMap> transcriptPrefsGet();
+  Future<JsonMap> transcriptPrefsSet(JsonMap patch);
+
   // ---- R4：文件面板、目录监视、git 徽章、本地 shell 与终端控制、退出收尾
   Future<JsonMap> fsRead(String root, String path);
 
@@ -308,6 +312,12 @@ class CoreBridge implements CoreCommands {
 
   @override
   Future<JsonMap> appearanceSet(JsonMap patch) => _run(() => api.appearanceSet(patch: jsonEncode(patch)));
+
+  @override
+  Future<JsonMap> transcriptPrefsGet() => _run(api.transcriptPrefsGet);
+
+  @override
+  Future<JsonMap> transcriptPrefsSet(JsonMap patch) => _run(() => api.transcriptPrefsSet(patch: jsonEncode(patch)));
 
   @override
   Future<JsonMap> uiStateGet() => _run(api.uiStateGet);

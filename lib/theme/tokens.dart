@@ -922,3 +922,62 @@ abstract final class Timeline {
   /// `timeline.turnGap` 4px：轮与轮之间的空隙（导轨竖线跨过它不断）。
   static const double turnGap = Spacing.s4;
 }
+
+/// 画板 08 B「回合折叠」的 token（画板自己列的「本画板新增 token」表；画板 00 未改，这组值只服务画板 08）。
+abstract final class Fold {
+  /// `fold.row` padding 7/10：摘要行容器的内边距。7 不在 4px 网格上，与画板 11 用户气泡同一档。
+  static const EdgeInsets rowPadding = EdgeInsets.symmetric(vertical: 7, horizontal: 10);
+
+  /// `fold.row` radius 6。
+  static const BorderRadius radius = Radii.card;
+
+  /// `fold.row` #f4f4f6：摘要行底色。#f4f4f6 就是 [Neutral.panel]，指过去而不是再写一遍十六进制——
+  /// 深色下自动跟着画板 07 的对位值走。
+  static Color get bg => Neutral.panel;
+
+  /// `fold.hover` #eeeef1：整行可点的唯一反馈（= [Neutral.surface]，同理不再写一遍）。
+  static Color get hover => Neutral.surface;
+
+  /// 第二行（模型名）左缩 22px 与首行文字对齐 = chevron 14 + gap 8。
+  static const double secondLineIndent = IconSizes.toolbar + Spacing.s8;
+
+  /// 摘要行两行之间的行距。
+  static const double lineGap = 2;
+
+  /// 展开态标题行（chevron + 处理详情 + 灰色一行摘要）的上下内边距。
+  static const EdgeInsets headerPadding = EdgeInsets.symmetric(vertical: lineGap);
+
+  /// 展开态里折叠块各项之间的间距。
+  static const double itemGap = 6;
+}
+
+/// 画板 08 C「在跑会话数徽标」的 token（同上：画板 00 未改，这组值只服务画板 08）。
+abstract final class Badge {
+  /// `badge.accent.bg` rgba(85,102,216,.12)：由 [Accent.base] 现算（照画板 07 对 `Sweep.focusGradient` 的做法）。
+  /// 浅色下 accent.base 正是 rgb(85,102,216)，算出来与画板写的那个值逐位相同；深色下跟着强调色走，
+  /// 不用在这里钉一套只对浅色成立的 alpha 混合值。
+  static Color get accentBg => Accent.base.withValues(alpha: 0.12);
+
+  /// `badge.h` 16px：徽标高（列表内那一档；画板 08 删掉 A 段后只剩这一档）。
+  static const double height = 16;
+
+  /// 圆角 3px（同芯片）。
+  static const BorderRadius radius = Radii.chip;
+
+  /// 左右 padding 5px。
+  static const EdgeInsets padding = EdgeInsets.symmetric(horizontal: 5);
+
+  /// 图标与数字 gap 4px。
+  static const double gap = Spacing.s4;
+
+  /// 11px 循环箭头，**静态不旋转**（linear 动效在本系统只留给画板 06 的扫掠）。
+  /// 画板画的是 r=8 的那版 lucide `rotate-cw`，我们用 `AcpIcons.rotateCw`（r=9 的同一个字形）；
+  /// 11px 下的差别在 1px 以内，按 ROUNDS § 0.5「像素级差异不作 finding」。
+  static const double iconSize = 11;
+
+  /// 小尺寸下描边加粗到 2（画板如此）。
+  static const double iconStroke = 2;
+
+  /// 超过这个数显示 `99+`。
+  static const int overflowAt = 99;
+}
