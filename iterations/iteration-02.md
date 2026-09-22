@@ -13,8 +13,8 @@
 |---|---|---|---|---|---|---|---|
 | 1 | board | 含失败工具调用但**正常收轮**的回合改为照常自动折叠（`autoCollapsible` 去掉 `failures == 0`），失败数仍由摘要行的「N 项失败」承担；画板 08 的三处规则文字与画板 70 / 设置页那句说明同步改字，两张 PNG 重出 | 所有者裁定 2026-09-22 | `main` 直改 → `0297393` | validate 全绿（`flutter test` 403 项） | 未审查（所有者指定） | 已合并 |
 | 2 | fix | 回合折叠对 `session/load` 重放回来的历史不生效：切轮加一条退路——**没有轮边界时按顶层用户消息切**（`isTurnStart`，与画板 43 时间线、Restore 截断点同口径）。`TurnFold` 随之拆成 `owner`（身份）+ 可空 `turn`（轮边界） | 所有者报障 2026-09-22；BACKLOG P1「壳与交互」（已剪进 BACKLOG-CLOSED.md） | `main` 直改 → 待提交 | validate 全绿（`flutter test` 408 项） | 4 轮 / cursor CLI `grok-4.7-high-fast`：1 → 1 → 1 → **0**（high 0 / P2 3 / P3 0，三条全部采纳整改） | 待提交 |
-| 3 | fix | 从文件选择器加图没有大小门：门与 base64 一起收进 `ComposerState.addImageBytes`，**判在编码之前**，超了记 `lastError` 不编码 | BACKLOG P0「附件与剪贴板」第 2 条 | `claude/composer-image-mention-fixes-f2eb2d` → 待合并 | validate 全绿 | 2 轮（high 0；第 1 轮 P2 1 已采纳整改） | 待合并 |
-| 4 | fix | `@` 菜单在用户点走之后自己弹出来：`_updateMentionMenu` 的 await 之后用 `_activeToken(editor.text)` 复核 token，不一致就丢结果。**只关掉「改词 / 清空」那半**，Esc / 点外面那半放回 BACKLOG | BACKLOG P1「壳与交互」第 7 条 | 同上 | 同上 | 同上 | 待合并 |
+| 3 | fix | 从文件选择器加图没有大小门：门与 base64 一起收进 `ComposerState.addImageBytes`，**判在编码之前**，超了记 `lastError` 不编码 | BACKLOG P0「附件与剪贴板」第 2 条 | `claude/composer-image-mention-fixes-f2eb2d` → `0778403`（快进） | validate 全绿 | 2 轮（high 0；第 1 轮 P2 1 已采纳整改） | 已合并 |
+| 4 | fix | `@` 菜单在用户点走之后自己弹出来：`_updateMentionMenu` 的 await 之后用 `_activeToken(editor.text)` 复核 token，不一致就丢结果。**只关掉「改词 / 清空」那半**，Esc / 点外面那半放回 BACKLOG | BACKLOG P1「壳与交互」第 7 条 | 同上 | 同上 | 同上 | 已合并 |
 
 ## 收口
 
@@ -69,7 +69,7 @@
 - 第 1 轮 `-Scope branch`（`main...HEAD`，提交 `dc2c588`）：**high 0 / P2 1 / P3 0**，产物 `.claude/reviews/20260922-181159-review.out.md`。
   - P2「正文没改时 Esc / 点外部之后 `@` 菜单仍会自己打开」——**采纳**。它指的不是判据本身错，而是代码注释与 BACKLOG 关闭行按整条症状写、名实不符，且用例没锁住那条路径。按它给的最小修复办：不加「已撤掉」状态，只改注释与登记口径，残余条目回 `BACKLOG.md`（见上一段）。
 - 第 2 轮 `-Scope since -Base dc2c588`（只审整改 diff，提交 `843c0d2`）：**findings 0**，产物 `.claude/reviews/20260922-182152-review.out.md`。核到「过期判据仍只比较正文 token，没有加『已撤掉』状态，BACKLOG 的三个计数与条目数一致」。
-- 收口：**0 条 high**，符合合并标准；合并 `main` 的时机由所有者定。
+- 收口：**0 条 high**，符合合并标准。
 
 **合入 `main`（第 3 / 4 项，2026-09-22，所有者指示）**
 
@@ -79,3 +79,5 @@
   - `rounds/BACKLOG-CLOSED.md`：两边各自追加的条目都留，`main` 那条在前（`d4c33a1` 先落）。
   - `rounds/BACKLOG.md`：**计数必须按合并后的真实条数重算，不能取任一边**。基线 81：`main` 关掉 1 条（P1 壳与交互），本组关掉 2 条（P0 1 + P1 1）并新开 1 条（P1 壳与交互的残余）→ P0 11、P1 25、壳与交互 7、总计 79。git 自动合并把总计留成了 80（两边各自算的巧合值），已改。改完用脚本逐档数过一遍 `- [ ]`，六个档位声明数与实际条数全部相符。
 - 顺手发现、**没动**：`### 代码质量（quality 批）（4）` 这个小节的声明数与其下条目数对不上，在 `main` 上就已如此，与本次合并无关，留给下一次动 BACKLOG 的人核。
+- **合并方向反过来那一下（所有者指示 2026-09-22）**：分支已含 `main`，所以是**快进**——`main` 由 `d4c33a1` 直接前进到 `0778403`，没有新的合并提交。合并前 `main` 工作副本干净（只有一个未跟踪的 `design/round-design/input/revision-04.md`，快进不碰它）。合并前的全量 validate 已绿（16 步全 PASS，`flutter test` 412 项），未在 `main` 上重跑——快进不改任何内容，树与刚验过的那份逐字节相同。
+- **另两组尚未合入**（`claude/session-index-write-bugs-3c53b0`、`claude/theme-font-partial-rebuild-471573` 合并时本文件与 `rounds/BACKLOG.md` 还会再冲突一次，计数照样要按真实条数重算，别取任一边）。
