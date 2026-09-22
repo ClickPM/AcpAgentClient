@@ -280,6 +280,13 @@ class TerminalStore {
   TerminalBuffer? operator [](String id) => _byId[id];
   Iterable<TerminalBuffer> get all => _byId.values;
 
-  /// `session/load` 重放前清空（R6）：终端缓冲跟着工具卡走，卡没了缓冲也不该留。
-  void clear() => _byId.clear();
+  /// `session/load` 重放前清掉这个会话的那几个（R6：终端缓冲跟着工具卡走，卡没了缓冲也不该留）。
+  /// **没有「全清」这个动作**：这张表是跨会话共享的（`acp/terminal_output` 事件不带 sessionId，
+  /// 只能按 terminalId 索引），全清会把别的会话正在跑的终端画面一起抹掉
+  /// （审查 finding high，2026-09-22）。谁的 id 是谁的由 `SessionStore.ownedTerminalIds` 认。
+  void removeAll(Iterable<String> terminalIds) {
+    for (final id in terminalIds) {
+      _byId.remove(id);
+    }
+  }
 }

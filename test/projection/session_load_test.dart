@@ -272,6 +272,86 @@ void main() {
     expect(sessions.pending.forSession('sess_other'), hasLength(1));
   });
 
+  test('resetForReplay 只清自己那几个终端缓冲，别的会话正在跑的不动（审查 finding 2026-09-22）', () {
+    final sessions = Sessions(clock: FakeClock().call);
+    final mine = sessions.session(loadedSid, agentId: 'a');
+    final other = sessions.session('sess_other', agentId: 'a');
+    // 两条会话各有一个工具卡挂着终端；输出经 `acp/terminal_output`（不带 sessionId）进共享的那张表，
+    // 归属只能从工具卡的 terminalId 认出来。
+    JsonMap toolCallWithTerminal(String terminalId) => <String, dynamic>{
+          'sessionUpdate': 'tool_call',
+          'toolCallId': 'call_' + terminalId,
+          'title': 'bash',
+          'kind': 'execute',
+          'status': 'in_progress',
+          'content': <JsonMap>[
+            <String, dynamic>{'type': 'terminal', 'terminalId': terminalId},
+          ],
+        };
+    void output(String terminalId, String text) => sessions.applyTerminalOutputEvent(
+          <String, dynamic>{'terminalId': terminalId, 'source': 'agent', 'bytes': 'x'},
+          decode: (_) => text,
+        );
+    mine.applyUpdateJson(toolCallWithTerminal('term_mine'));
+    other.applyUpdateJson(toolCallWithTerminal('term_other'));
+    output('term_mine', 'mine 的输出');
+    output('term_other', 'other 的输出');
+    expect(sessions.terminals['term_mine']!.output, 'mine 的输出');
+    expect(sessions.terminals['term_other']!.output, 'other 的输出');
+
+    mine.resetForReplay();
+    expect(sessions.terminals['term_mine'], isNull, reason: '自己那份跟着工具卡一起清掉');
+    expect(sessions.terminals['term_other']?.output, 'other 的输出', reason: '并跑的另一条会话正在跑的终端画面不能被抹掉');
+    expect(other.debugSnapshot()['terminals'], contains('term_other'));
+    expect(mine.debugSnapshot()['terminals'], isEmpty);
+  });
+
+  test('agent 退出：它还挂着的权限 / elicitation 全部标 withdrawn（审查 finding 2026-09-22）', () {
+    final sessions = Sessions(clock: FakeClock().call);
+    sessions.session(loadedSid, agentId: 'a');
+    sessions.session('sess_other', agentId: 'b');
+    sessions.applyClientRequestEnvelope(<String, dynamic>{
+      'agentId': 'a',
+      'requestId': 'r1',
+      'method': 'session/request_permission',
+      'params': <String, dynamic>{
+        'sessionId': loadedSid,
+        'toolCall': <String, dynamic>{'toolCallId': 'c1'},
+        'options': <JsonMap>[
+          <String, dynamic>{'optionId': 'allow-once', 'name': 'Allow once', 'kind': 'allow_once'},
+        ],
+      },
+    });
+    sessions.applyClientRequestEnvelope(<String, dynamic>{
+      'agentId': 'a',
+      'requestId': 'r2',
+      'method': 'elicitation/create',
+      'params': <String, dynamic>{'mode': 'url', 'requestId': 'auth-1', 'elicitationId': 'el_1', 'url': 'https://example.invalid'},
+    });
+    sessions.applyClientRequestEnvelope(<String, dynamic>{
+      'agentId': 'b',
+      'requestId': 'r3',
+      'method': 'session/request_permission',
+      'params': <String, dynamic>{
+        'sessionId': 'sess_other',
+        'toolCall': <String, dynamic>{'toolCallId': 'c2'},
+        'options': <JsonMap>[
+          <String, dynamic>{'optionId': 'allow-once', 'name': 'Allow once', 'kind': 'allow_once'},
+        ],
+      },
+    });
+    expect(sessions.pending.pending, hasLength(3));
+
+    sessions.applyAgentState(<String, dynamic>{'agentId': 'a', 'state': 'exited', 'code': 1});
+    expect((sessions.pending.byRequestId('r1')! as PermissionEntry).status, PendingStatus.withdrawn);
+    expect((sessions.pending.byRequestId('r2')! as ElicitationEntry).status, PendingStatus.withdrawn);
+    expect((sessions.pending.byRequestId('r3')! as PermissionEntry).status, PendingStatus.pending,
+        reason: '另一个 agent 的请求不受影响');
+    expect(sessions.pending.forSession(loadedSid), isEmpty, reason: '停靠条上不该再留着点不动的卡');
+    // 回应也不该再发得出去：队列项已经不是 pending，answer* 返回 null（接线侧据此不调 acp_respond）。
+    expect(sessions.session(loadedSid).answerPermission('r1', 'allow-once'), isNull);
+  });
+
   test('Sessions.forget：删掉的会话连同它的队列项一起没有', () {
     final sessions = Sessions(clock: FakeClock().call);
     sessions.session(loadedSid, agentId: 'a');

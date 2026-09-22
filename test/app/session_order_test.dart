@@ -8,7 +8,9 @@
 
 import 'dart:async';
 
+import 'package:acp_agent_client/app/session_index.dart';
 import 'package:acp_agent_client/app/workbench_controller.dart';
+import 'package:acp_agent_client/projection/session_store.dart';
 import 'package:acp_agent_client/projection/wire.dart';
 import 'package:acp_agent_client/ui/popovers/topbar_popovers.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -42,6 +44,22 @@ class _LaggyIndexCore extends FakeCore {
     holdNextUpsert = null;
     await hold.future;
     return sessionIndexList();
+  }
+}
+
+/// 发消息那次索引写**还没落地**（不是「落地了但返回晚」，那是 _LaggyIndexCore）：
+/// 核心每条命令各起一个任务，upsert 与 remove 谁先做不定，这里把 upsert 按住来固定那个最坏顺序。
+class _SlowUpsertCore extends FakeCore {
+  Completer<void>? delayNextUpsert;
+
+  @override
+  Future<JsonMap> sessionIndexUpsert(JsonMap entry) async {
+    final delay = delayNextUpsert;
+    if (delay != null) {
+      delayNextUpsert = null;
+      await delay.future;
+    }
+    return super.sessionIndexUpsert(entry);
   }
 }
 
@@ -96,6 +114,35 @@ void main() {
     expect(_updatedAtOf(core, sid), greaterThan(t1));
     expect(core.sessionIndex.single['messageCount'], 2);
     c.dispose();
+  });
+
+  test('删掉的会话不会被在途的 upsert 写回来（审查 finding 2026-09-22）', () async {
+    final core = _SlowUpsertCore();
+    final index = SessionIndex(bridge: core, onChanged: () {});
+    final store = SessionStore(sessionId: 'sess_1', agentId: 'a')..cwd = 'D:/repo';
+    // 发消息那次 `stampPromptSent` 是不 await 的：这条 upsert 还没落地，用户就在侧栏把会话删了。
+    // 核心每条命令各起一个任务、先发的不保证先做，这里按住 upsert 固定那个最坏顺序（remove 先落）。
+    final hold = core.delayNextUpsert = Completer<void>();
+    final stamping = index.upsert(store, agentFallback: 'a', titleFallback: '新会话', promptSent: true);
+    await index.remove('a', 'sess_1');
+    expect(core.sessionIndex, isEmpty);
+
+    hold.complete();
+    await stamping;
+    expect(core.sessionIndex, isEmpty, reason: '删掉的会话不能被在途的 upsert 写回来（侧栏幽灵条目）');
+    expect(index.entries, isEmpty, reason: '内存镜像也不能留着那一行');
+  });
+
+  test('删之前落地的 upsert 照常生效（墓碑不影响别的会话）', () async {
+    final core = FakeCore();
+    final index = SessionIndex(bridge: core, onChanged: () {});
+    final kept = SessionStore(sessionId: 'sess_keep', agentId: 'a');
+    final gone = SessionStore(sessionId: 'sess_gone', agentId: 'a');
+    await index.upsert(kept, agentFallback: 'a', titleFallback: '留着');
+    await index.upsert(gone, agentFallback: 'a', titleFallback: '删掉');
+    await index.remove('a', 'sess_gone');
+    await index.upsert(kept, agentFallback: 'a', titleFallback: '留着', promptSent: true);
+    expect(core.sessionIndex.map((e) => e['sessionId']), <String>['sess_keep']);
   });
 
   test('发消息那次索引写还没回来、这一轮就收了：收轮不把时间盖回旧值（合并复审 2026-09-18）', () async {
