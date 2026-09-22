@@ -2,6 +2,7 @@
 
 跨轮次发现的问题与想法都记这里，不当场顺手改；新功能类条目须经所有者裁定才可进轮次。
 格式：`- [ ] <发现轮次> <一句话> (发现日期)`
+**2026-09-22 起轮次（`rounds/`）与迭代（`iterations/`）共用本文件**：条目被迭代处理时打 `[x]` 并写 `→ iteration-NN`；撞到轮次判据的写成「立项」条目等所有者开轮。粗分档（可直接开工 / 待核对 / 需裁定 / 需先改设计稿）见 `iterations/iteration-01.md`「候选清单」。
 
 ## 功能（需所有者裁定后才可进轮次）
 
@@ -49,7 +50,7 @@
 - [x] 拆解 `CARGO_TARGET_DIR` 位置 → 所有者裁定 2026-09-15：`D:\cargo-target\AcpAgentClient`，已写 CLAUDE.md「本地开发」 (2026-09-15)
 - [ ] 立项 若 R0 在中文用户名路径下 `flutter build windows` 因 cargokit 路径失败，`CARGO_TARGET_DIR` 指 ASCII 路径仍不够时评估形态 B（独立 `acp-host.exe`），见 `docs/research.md` § 9.3 (2026-09-12)
 - [x] R1 `notice` 会话更新我们编译不出、收到即静默丢弃 → 所有者裁定 2026-09-11 取「不改 feature 集，计数 + 告警 + 落 `acp/traffic`」→ R1 复议 2026-09-15：dsh 1.3.0 真跑三轮（编辑 / 计划 / 表单）没有发过 `notice`，用 `test/fake-agent/fake-agent.mjs` 注入一条：核心 `droppedUpdates` +1、`acp/agent_state: update_dropped` 带 serde 错误文本、原文在 `acp/traffic`，进程与回合都不受影响；**裁定维持**，不改 feature 集；见 `docs/acp-projection.md` § 8.1 与 `rounds/round-01/round-01.md` (2026-09-15)
-- [ ] 截图验收：逐一验证并截图 Zed Agent 的 20 项 ACP 投影交互卡片样式 (2026-09-14)
+- [x] 截图验收：逐一验证并截图 Zed Agent 的 20 项 ACP 投影交互卡片样式 (2026-09-14) → 已完成 2026-09-14（实际 22 项，逐项截图定的交互表在 `prototype/README.md` § index.html），关闭 (2026-09-22)
 - [ ] R0 cargokit 只认 `rustup run stable`（它的 `toolchain` 选项只有 stable / beta / nightly），`rust-toolchain.toml` 钉的 1.98.1 只约束 `validate.ps1` 里的 cargo；本机 stable 升级后 Flutter 构建会用新版。要么给 cargokit 打补丁读 rust-toolchain.toml，要么接受漂移并在 validate 里比对两者版本 (2026-09-15)
 - [x] R0 Windows 开发者模式未开启：Flutter 给 pub 插件建符号链接需要它。R0 的 Rust 核心改走 runner CMake 直接 apply_cargokit 绕过 → 所有者 2026-09-15 当天已开启并验证（`flutter pub get` 对插件工程通过），R3 无障碍 (2026-09-15)
 - [ ] R0 macOS 构建（R8）要把 cargokit 挂进 Xcode（runner 级脚本阶段或 podspec），与 Windows 的 runner CMake 方式对应；frb 模板的 rust_builder 插件路径已不用 (2026-09-15)
@@ -57,7 +58,7 @@
 - [ ] R1 dsh-acp-interactive 1.3.0 的 `--setup` 在 Windows TTY 上**看不见提示**：`secretQuestion` 在 `readline.question()` 返回后立刻 `muted = true`，而 Node 在 Windows 上对 TTY 的写是异步的（`process.stderr` 文档：TTY 在 Windows 异步），readline terminal 模式的提示由多次 `write` 组成，第一段之后的都在 muted 之后才被处理而被吞掉；`TERM=dumb`（非 terminal 模式，单次写）或管道 stdin 都正常。本项目实测（`rounds/round-01/round-01.md` 验收 1）：pty 里 readline 活着、盲打密钥 + 回车能保存并自动重试 `session/new` 成功，只是用户看不到 "Enter DeepSeek API key:"。是上游（所有者自己的项目）的缺陷，客户端不做 agent 特判（规则 2）；R3 认证页出来前请上游修（把提示写完再 muted，或非 terminal 模式）(2026-09-15)
 - [x] R1 portable-pty 0.9 固定以 `PSEUDOCONSOLE_INHERIT_CURSOR` 建 ConPTY，Windows 11 26200 的 conhost 会先发 `CSI 6 n` 并阻塞子进程直到收到光标位置应答；`rust/pty` 只答启动那一次，之后的 DSR 留给渲染器。R4 接 xterm.dart 时确认它不会重复应答第一次（重复的 `CSI 1;1 R` 会当键盘输入进子进程），或统一由 pty 层应答 (2026-09-15) → R4 处理 2026-09-16：实测**会重复应答且有害**——本地 PowerShell 会话里 xterm.dart 对那条探询再答一次，PSReadLine 解析应答时把相邻的按键一起吞掉（敲 `echo` 丢了 `e`）。改成 pty 层答完就把启动探询从输出流里抠掉（`rust/pty` 读线程先攒最多 256 字节），渲染器看不到就不会再答；之后的 DSR 仍留给渲染器。agent 终端卡是只读视图本来不接 `onOutput`
 - [ ] R1 Windows 上结束 agent 进程树用 `taskkill /F /T`（Job Object 需要 unsafe，规则 6）；`.cmd` 包装（npx / npm 全局 bin）被 `taskkill /T` 一并杀掉 node 子进程已实测，但 `agent_disconnect` 的正常路径只关 stdin、等 3 s 再杀，agent 不响应 stdin EOF 时会多等 3 s；R5 做 registry 安装时复核 (2026-09-15)
-- [ ] R0 `prototype/assets/fixtures.js` 的 `elicitation/create` 缺必填字段 `message`，被 Rust 侧 fixtures 测试抓出；`test/fixtures/` 已补，原型不改（原型不维护） (2026-09-15)
+- [x] R0 `prototype/assets/fixtures.js` 的 `elicitation/create` 缺必填字段 `message`，被 Rust 侧 fixtures 测试抓出；`test/fixtures/` 已补，原型不改（原型不维护） (2026-09-15) → 关闭：裁定就是「不改原型」，`test/fixtures/` 是契约锚，原型 README 已声明不维护 (2026-09-22)
 - [x] R2 `rust/acp-core/tests/fixtures.rs` 的方法表没有 `elicitation/complete` 与 `$/cancel_request`，这两条 ACP 通知因此进不了 `test/fixtures/`（画板 28 完成态在 gallery 里用 Dart 侧 `PendingQueue.completeElicitation` 构造）；R3 接线时补方法表（`CompleteElicitationNotification` / `CancelNotification`），再把两条收进 fixtures (2026-09-15) → R3 完成 2026-09-15：`$/cancel_request` 的类型是 `CancelRequestNotification`（`CancelNotification` 是 `session/cancel` 的），两条通知与一条被撤回的请求已进 `16-elicitation.jsonl`，画板 28 完成态改为 fixtures 驱动
 - [ ] R2 画板 27 的 Other 文本框占位文案「留空表示用上面的选项」不在 elicitation 的 `requestedSchema` 里（规则 2 不自造文案，widget 里没有）；要么改设计稿删掉占位，要么裁定「string 字段无 default 时的通用占位」进 `docs/design.md` (2026-09-15)
 - [ ] R2 画板 33 第四态写作 `status: error`，协议 `CompactionStatus` 的值是 `failed`（widget 显示协议原值）；画板 34 initialized 行列的是客户端能力（fs / terminal / elicitation / plan / compaction），widget 列 `agentCapabilities` 顶层键；两处建议下个设计轮改字 (2026-09-15)
@@ -90,7 +91,7 @@
 ode.exe` 却留成孤儿（实测 PID 42768，手动 `taskkill /T`）。R4 验收 4「应用退出时子进程全部回收」要把桌面应用的关闭路径（`AcpApp.dispose` / Windows runner 的 `WM_CLOSE`）与无头口子都接到 `agent_disconnect`（`taskkill /F /T`） (2026-09-16)
 - [ ] R4 `rust/fs/src/lib.rs` 的 R3 用例 `junctions_are_not_followed_out_of_the_workspace` 在 `mklink /J` 失败时 `eprintln` + `return`，断言一行不跑也算绿（R4 第 3 轮审查顺带指出，同文件新用例已改成 `assert!`）：下次碰这个文件时同样改成建不出链接就红 (2026-09-16)
 - [ ] R4 `lib/app/workbench_controller.dart` `closeTab`：右栏标签条上「文件 + 终端」并存时，关掉最后一个面板标签会把整栏收起（`rightTab = null` 且 `activeTerminalId` 仍空 → `rightPanelOpen == false`），本地 shell 继续在后台跑、侧栏再点「终端」能找回。最小修复：`closeTab` 发现 `openTabs` 空了但 `terminals.tabs` 非空时把 `activeTerminalId` 设成最后一个终端。R4 第 4 轮审查 P2，所有者裁定 2026-09-16 非阻断记 BACKLOG (2026-09-16) → **R7.5 拆分后的新家**：`ShellState.closeTab` (2026-09-20)
-- [ ] R4 `lib/app/files_state.dart` `setProject`：换项目时 `fs_unwatch(previous)` 不等、`fsWatch(path).listen` 在两次 await 之后才挂，快速 A→B→A 会让 Dart 订到 B 的流而字段是 A、核心 `watchers` 表里 A / B 都在（B 的活到 `core_shutdown`）。最小修复：每次 await 之后若 `root != path` 或已 dispose 就直接 return 不再 listen。R4 第 4 轮审查 P2，所有者裁定 2026-09-16 非阻断记 BACKLOG (2026-09-16)
+- [x] R4 `lib/app/files_state.dart` `setProject`：换项目时 `fs_unwatch(previous)` 不等、`fsWatch(path).listen` 在两次 await 之后才挂，快速 A→B→A 会让 Dart 订到 B 的流而字段是 A、核心 `watchers` 表里 A / B 都在（B 的活到 `core_shutdown`）。最小修复：每次 await 之后若 `root != path` 或已 dispose 就直接 return 不再 listen。R4 第 4 轮审查 P2，所有者裁定 2026-09-16 非阻断记 BACKLOG (2026-09-16) → **已修（2026-09-22 切项目假死那批，main 直改）**：`setProject` 加 `_projectEpoch` 守卫，每次 await 之后核对代次，旧一轮不再挤掉新的 `_watch` 订阅（ROUNDS.md § 7「main 直改」行） (2026-09-22)
 - [ ] R6 会话头 ≡ 的语义在画板 03（右栏展开的选中态）与画板 41（会话菜单）之间冲突。所有者裁定 2026-09-16：**≡ 保持右栏开关，会话菜单要入口先改设计稿**。R6 已把菜单的动作接通并做了单测（`resumeSession` / `closeSession` / `deleteSession` + 能力裁剪），产品 UI 里 **Delete 有入口（侧栏删除图标，画板 04）、Resume / Close 没有**。下个设计轮给会话菜单定一个入口（改画板 41 / 03），再接上 `SessionMenuPopover` (2026-09-16)
 - [x] R6 `session/load` 重放不带回轮边界，所以载回来的历史上画板 10 / 11 的 Restore Checkpoint 与 Regenerate 不可用（按 `TurnEntry` 截断）。所有者裁定 2026-09-16 记已知限制、不在本地补一份轮边界（已落 `docs/design.md` § 3）。**2026-09-18 所有者报障后修掉**：不补轮边界（裁定照旧），改成按**那条用户气泡**定位截断点（`SessionStore.restoreTo` 收气泡 id，紧挨在前的轮边界一起截掉），载回来的历史照样能 ↺ / Regenerate (2026-09-16，2026-09-18 已修)
 - [ ] R6 claude-agent-acp 0.76.0 的 `session/load` 不重放 `available_commands_update`（pi-acp / codex-acp / cursor / dsh 都会），所以重开应用载回它的会话后 `/` 菜单是空的，直到下一轮对话。不做 agent 特判（规则 2），照原样呈现；要补只能等 agent 侧改 (2026-09-16)

@@ -15,6 +15,7 @@ Agent 一律经 [Agent Client Protocol（ACP）](https://agentclientprotocol.com
 - **2026-09-20 发布 v1.2.0**：v1.1.0 之后的一项功能与两项修订——画板 07「深色模式」（`lib/theme/tokens.dart` 拆浅 / 深两套取值，切换按钮在侧栏标题条右端，主题与字体切换同存在设置的 `appearance` 段）、UI 文案与前端 Dart 符号从 `Thread` 收敛为 `Session`（中文「会话」），以及字体扫描结果不通知 UI 的修复。同样只发源码。
 - **2026-09-20 发布 v1.3.0**：v1.2.0 之后的一项重构与两项修订——R7.5 组合根拆分（`lib/app/workbench_controller.dart` 2645 行的单类拆成组合根 + 8 个对象，行为零变化：契约零 diff、测试只改路径、三份 fake-agent 无头报告逐步骤与基线等价；validate 新增 `lib/app` 行数门与依赖方向门）、markdown 渲染器认行内 HTML 的 `<br>`（表格单元格里的换行）、深色下 agent 图标与应用标记看不见的修复（外来 SVG 的 `currentColor` 随主题取色）。同样只发源码。
 - **2026-09-20 发布 v1.4.0**：R8 Windows 端，**首个带安装包的 release**（前四版只发源码）—— ① **sidecar 版本与应用解耦** —— `sidecar/zed-agent-acp` 的版本改为跟 zed 钉版本走（`1.21.0`），发一次应用版本不再触发 176 MB 二进制的全量重链（实测 14 分 16 秒 → 1.5 秒），落成 CLAUDE.md 规则 11 与 `validate.ps1` 的版本门；② **打包**：`scripts/package.ps1` 出免安装 zip（含 sidecar 110.3 MB / 不含 46.7 MB）与 per-user 安装器（79.0 MB，未签名），`scripts/verify-package.ps1` 在全新空数据目录上自动验收（解压即用、随包 sidecar `--selftest`、静默装 → 跑 → 静默卸）；③ 版本与构建信息进日志首行（画板 70 没有版本位，规则 3）。release 里三件产物：`AcpAgentClient-1.4.0-windows-x64.zip`（含 sidecar，110.3 MB）、`…-nosidecar.zip`（46.7 MB）、`AcpAgentClient-1.4.0-setup.exe`（79.0 MB，per-user、未签名）。**macOS / Linux 构建留给后续一轮**。
+- **2026-09-22 进入敏捷迭代阶段**：画板 08「交互增强」（回合折叠 + 跨工作区在跑数徽标）、切项目假死修复、cursor 九条 findings 的验真与修复合入 `main`；R0–R8 主体完成，此后日常工作按 [`iterations/`](iterations/README.md) 的迭代流程走（一迭代一文件、一项一行、一轮审查），轮次流程保留给核心大迭代。
 
 ## 文档
 
@@ -25,10 +26,12 @@ Agent 一律经 [Agent Client Protocol（ACP）](https://agentclientprotocol.com
 | [`docs/research.md`](docs/research.md) | 源码级研究结论：Zed 的 ACP 代码、rust-sdk v2、registry、五个 agent、sidecar 接入点、被排除的路线、Flutter + Rust 桥接、Claude Design 交付链路 |
 | [`docs/acp-projection.md`](docs/acp-projection.md) | 可投影内容清单：15 个 `session/update` 变体、能力门总表、协议不给必须客户端自造的 8 项、容错与丢失风险 |
 | [`docs/design.md`](docs/design.md) | 进程模型、分层来源、核心与前端契约、认证、registry（含内置条目）、终端与 fs、sidecar、前端（Flutter）既定决策、数据目录 |
-| [`docs/review-workflow.md`](docs/review-workflow.md) | 独立审查：cursor CLI + grok 4.6 high fast 首选，硬失败回落 Claude Code 子代理；发起、取回与回落条件 |
+| [`docs/review-workflow.md`](docs/review-workflow.md) | 独立审查：cursor CLI + grok 4.7 high fast 首选，硬失败回落 Claude Code 子代理；发起、取回与回落条件；轮次档与迭代档 |
 | [`ROUNDS.md`](ROUNDS.md) | 轮次拆解：R0–R8 各轮目标 / 交付物 / 验收 / 裁定门，画板 → 轮次 → widget 文件对应表，五 agent 全通矩阵，进度表 |
 | [`design/README.md`](design/README.md) | 画板索引：42 张画板（含已废弃的 10）的 `.dc.html` 源、PNG 基准与实现状态；`design/brand/` 是应用图标与标记，不是画板 |
-| [`rounds/BACKLOG.md`](rounds/BACKLOG.md) | 跨轮次问题与待裁定项；「设计稿补注记」条目记录实现先行、设计稿待补的部分 |
+| [`iterations/README.md`](iterations/README.md) | 敏捷迭代流程（2026-09-22 起的日常模式：BACKLOG 收尾 / 交互优化 / 缺陷修复 / 单画板功能）与迭代清单；轮次流程保留给核心大迭代 |
+| [`rounds/BACKLOG.md`](rounds/BACKLOG.md) | 跨轮次问题与待裁定项，轮次与迭代共用的唯一入口；「设计稿补注记」条目记录实现先行、设计稿待补的部分 |
+| [`scripts/README.md`](scripts/README.md) / [`test/README.md`](test/README.md) | 脚本一句话索引；测试目录布局与共用资产 |
 | [`CLAUDE.md`](CLAUDE.md) | 开发约定、轮次流程与硬性规则（`AGENTS.md` 是给审查者的指针） |
 
 ## 架构一图

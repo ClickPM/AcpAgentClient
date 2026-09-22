@@ -27,8 +27,8 @@
 ## 3. 判据清单（命中即报，并注明是哪一条）
 
 1. **规则 1 依赖白名单**：`Cargo.toml` / `pubspec.yaml` 出现实现了 ACP 客户端、agent 会话状态或会话 UI 的第三方库（acp-components、acp-ui、pi-web 及同类），判**阻断级**。
-   通用库允许清单：Rust 侧 tokio、serde、serde_json、reqwest、sha2、portable-pty、notify、flutter_rust_bridge；Dart 侧 Flutter SDK 自带的 Material / Cupertino、flutter_rust_bridge、xterm、url_launcher、file_selector、一个 diff 库。
-   清单之外新增的通用库，任务卡没写理由的判 P2；引入第三方 UI 组件库（shadcn_ui / GetWidget / fluent_ui 及同类）或状态管理库（riverpod / bloc / getx 及同类）判阻断级；Markdown 渲染库在所有者裁定进清单之前出现判 P2（对照 CLAUDE.md 规则 1 当前文本）。
+   通用库允许清单（以 CLAUDE.md 规则 1 当前文本为准）：Rust 侧 tokio、serde、serde_json、reqwest、sha2、portable-pty、notify、flutter_rust_bridge、base64；Dart 侧 Flutter SDK 自带的 Material / Cupertino、flutter_rust_bridge、xterm、url_launcher、file_selector、flutter_svg、`markdown`（只用解析器，渲染层自写）、`re_highlight`、`flutter_math_fork`、`mermaid_flutter` + `mermaid_core`、`audioplayers`、`diffutil_dart`；传递依赖不算引入，只核对 `pubspec.yaml` / `Cargo.toml` 的直接依赖。
+   清单之外新增的通用库，任务卡没写理由的判 P2；引入第三方 UI 组件库（shadcn_ui / GetWidget / fluent_ui 及同类）或状态管理库（riverpod / bloc / getx 及同类）判阻断级。
 2. **规则 2 严格 ACP 投影**：前端里出现按 agent id 的特判、核心与前端之间出现 ACP 之外的私有消息、`_meta` 出现 `docs/design.md` § 4 清单之外的键，判阻断级。
 3. **规则 3 设计稿边界与样式零改动**：功能范围 = `design/` 的全部画板（清单与计数以 `design/README.md` 为准）。多出来的功能判超范围；接后端只许换数据源，`lib/theme/tokens.dart`、画板 widget 文件的布局 / widget 树 / token / 动画参数的 diff 一律质疑，除非任务卡写明理由与影响范围；widget 文件里出现样式字面量（颜色、字号、间距、圆角、时长）而非 `tokens.dart` 引用判 P2。
 4. **规则 4 钉版本**：`vendor/upstream/` 内出现改动、`pins/upstream.json` 变了但 `docs/research.md` 对应段没跟，判阻断级。

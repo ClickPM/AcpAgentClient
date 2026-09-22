@@ -12,6 +12,7 @@
   - `canvas.json`：画布布局清单，记各画板的位置与 frame 尺寸。桌面画板的 frame 尺寸在首轮 `design-prompt.md` 里定一次，后续画板沿用。
   - `NN-<画板短名>.png`：画板快照，由 `scripts/render-design.ps1` 从同名 `.dc.html` 渲染（headless Edge，scale 1，尺寸 = 文件内的 `$preview`），编号与 `.dc.html` 一致。画布自带的 PNG 导出件不作基准，它的字体度量与浏览器不同，会出现假换行。
   - `support.js`：Claude Design 的画板运行时，与 `.dc.html` 同目录才能直接用浏览器打开；每轮一份副本。
+  - `input/revision-NN.md`：入库之后对画板的修订简报（新增单张画板、给既有画板补一态），编号只增；缺号是别的会话占用未提交，不回填。出稿后同样走「拉回 `.dc.html` → 重渲 PNG → 更新下表与变更记录」，实现在轮次或迭代里做并记进「状态」列（画板 05 / 06 / 43 / 07 / 08 都是这条路）。
 - **首个设计轮先出 `00-tokens` 画板**（色阶 / 字阶 / 间距 / 圆角 / 动效时长），页面画板都从它取值。
 - token 提炼：只从 `00-tokens` 画板的 `.dc.html`（`<helmet><style>` 与内联样式）提炼到 `lib/theme/tokens.dart`，不从页面画板反推；该文件是样式唯一来源，每次设计轮结束时同步更新并在下表「token 变更」列记一句。
 - `.dc.html` 是 HTML 加内联样式，**只作设计源，不复用为代码**；组件全部从画板手写（CLAUDE.md 规则 1 / 3）。
