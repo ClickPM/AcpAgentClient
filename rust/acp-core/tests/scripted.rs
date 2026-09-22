@@ -301,6 +301,18 @@ fn spawn_fake_agent(state: Arc<FakeState>, transport: Channel, scenario: &'stati
                                 .unwrap_or_default()
                                 .to_string();
                             state.permission_outcomes.lock().expect("lock").push(late_outcome);
+                            // cancel 之后才到的 elicitation：核心同样必须就地回 cancel、不进前端队列。
+                            // 前端是按发 cancel 那一刻的队列快照逐条回的，这条它看不见——核心不代答就挂死
+                            // （审查 finding，2026-09-22；permission 那半边 R1 就修了，这半边一直空着）。
+                            let late_form: acp::CreateElicitationRequest = serde_json::from_value(json!({
+                                "mode": "form", "sessionId": session_id, "message": "still there?",
+                                "requestedSchema": { "type": "object", "properties": { "ok": { "type": "boolean" } } }
+                            }))
+                            .expect("late form");
+                            let late_el = cx.send_request(late_form).block_task().await.expect("late elicitation");
+                            state.elicitation_actions.lock().expect("lock").push(
+                                serde_json::to_value(&late_el).expect("json")["action"].as_str().unwrap_or_default().to_string(),
+                            );
                             responder.respond(acp::PromptResponse::new(acp::StopReason::Cancelled)).expect("respond");
                             return;
                         }
@@ -646,6 +658,8 @@ async fn cancel_auto_answers_pending_and_late_permission_requests() {
     assert_eq!(state.cancels.load(Ordering::SeqCst), 1);
     // 挂起的那条与 cancel 之后才到的那条都是 cancelled；后者从未进前端队列。
     assert_eq!(*state.permission_outcomes.lock().expect("lock"), vec!["cancelled", "cancelled"]);
+    // cancel 之后才到的 elicitation 同样就地回 cancel，也没进前端队列（所以 client_requests 还是 1 条）。
+    assert_eq!(*state.elicitation_actions.lock().expect("lock"), vec!["cancel"]);
     assert_eq!(events.client_requests().len(), 1);
     assert!(connection.shared().pending_request_ids().is_empty());
 
@@ -679,6 +693,7 @@ async fn cancel_auto_answers_pending_and_late_permission_requests() {
         vec!["cancelled", "cancelled", "selected", "cancelled"],
         "second turn's first permission must reach the frontend and be answered, not auto-cancelled"
     );
+    assert_eq!(*state.elicitation_actions.lock().expect("lock"), vec!["cancel", "cancel"]);
     assert_eq!(events.client_requests().len(), 2);
     connection.disconnect().await;
 }

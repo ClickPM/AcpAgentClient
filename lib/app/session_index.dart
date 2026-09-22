@@ -25,6 +25,25 @@ class SessionIndex {
   /// 这里记一份本地的，[updatedAtOf] 取两者里大的（合并复审 2026-09-18）。
   final Map<String, int> _promptSentAt = <String, int>{};
 
+  /// 已经发过 `session_index_remove` 的 (agentId, sessionId)（墓碑）。
+  /// 桥的每条命令在核心那边**各起一个任务**（`rust/bridge/src/api.rs` 的 `on_core`），先发的不保证先做，
+  /// 而发消息时那次 `stampPromptSent` 是不 await 的（见 `SessionController.stampPromptSent` 里为什么）：
+  /// 用户在这几毫秒里删掉这条会话，remove 可能先落、upsert 后落，被删的那行又被写回 `sessions.json`，
+  /// 侧栏多一条怎么都删不掉的幽灵条目（审查 finding，2026-09-22）。
+  /// 修法是「写完再看一眼」而不是把三条写命令排队——排队会让收轮那次 `saveIndex`（是 await 的）
+  /// 挡在发消息那次不 await 的写后面，本来解耦的两件事又绑上了。
+  final Set<(String, String)> _removed = <(String, String)>{};
+
+  /// upsert 落地之后：这条会话要是在写的过程中被删了，把刚被写回来的那行再删一次（两种到达顺序都收敛）。
+  /// 返回 true = 已经改由删除收尾，调用方不要再 [apply] 那份带着幽灵行的结果。
+  Future<bool> _undoIfRemoved(CoreCommands b, Object? agentId, Object? sessionId) async {
+    if (agentId is! String || sessionId is! String) return false;
+    if (!_removed.contains((agentId, sessionId))) return false;
+    final result = await b.sessionIndexRemove(agentId, sessionId);
+    apply(result['sessions']);
+    return true;
+  }
+
   Future<void> refresh() async {
     final b = bridge;
     if (b == null) return;
@@ -57,14 +76,16 @@ class SessionIndex {
     if (b == null) return;
     final updatedAt = promptSent ? DateTime.now().millisecondsSinceEpoch : updatedAtOf(s.sessionId);
     if (promptSent && updatedAt != null) _promptSentAt[s.sessionId] = updatedAt;
+    final agentId = s.agentId ?? agentFallback;
     final result = await b.sessionIndexUpsert(<String, dynamic>{
-      'agentId': s.agentId ?? agentFallback,
+      'agentId': agentId,
       'sessionId': s.sessionId,
       'title': s.title ?? titleFallback,
       'cwd': s.cwd,
       'messageCount': s.entries.whereType<MessageEntry>().length,
       'updatedAt': ?updatedAt,
     });
+    if (await _undoIfRemoved(b, agentId, s.sessionId)) return;
     apply(result['sessions']);
   }
 
@@ -73,6 +94,7 @@ class SessionIndex {
     final b = bridge;
     if (b == null) return;
     final result = await b.sessionIndexUpsert(entry);
+    if (await _undoIfRemoved(b, entry['agentId'], entry['sessionId'])) return;
     apply(result['sessions']);
   }
 
@@ -80,6 +102,8 @@ class SessionIndex {
   Future<void> remove(String agentId, String sessionId) async {
     final b = bridge;
     if (b == null) return;
+    // 墓碑先立、再发命令：在途的 upsert 回来时才看得见它（会话删掉就不会再回来，不用清）。
+    _removed.add((agentId, sessionId));
     final result = await b.sessionIndexRemove(agentId, sessionId);
     apply(result['sessions']);
   }

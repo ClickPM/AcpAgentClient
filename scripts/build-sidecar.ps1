@@ -81,7 +81,18 @@ Copy-Item $exe (Join-Path $drop "zed-agent-acp.exe") -Force
 Write-Host "== dropped to $drop\zed-agent-acp.exe"
 
 if ($Selftest) {
-    Write-Host "== selftest"
-    & $exe --selftest
+    # `--user-data-dir` 必须给：不给就写本机 Zed 自己的数据目录（threads.db / logs / prompts），
+    # 违反规则 7「不动用户数据」，还会和正在跑的 Zed 抢 threads.db（R7 实测 `database is locked`）。
+    # 产品路径本来就传（rust/acp-core/src/builtin.rs），开发自测得跟它一致（审查 finding，2026-09-22）。
+    $selftestData = Join-Path $root "build\sidecar\selftest-data"
+    New-Item -ItemType Directory -Force $selftestData | Out-Null
+    # `--zed-settings` 跟着一起给（= 产品路径的「配置共用、数据隔离」，见 builtin.rs 的 entry()）：
+    # 只给 --user-data-dir 的话 settings 从空目录里读，自检会报 `models: 0`，那一行就白报了。
+    # 路径口径与 `settings::zed_import::zed_settings_path()` 一致；本机没装 Zed 就不传。
+    $zedSettings = if ($env:APPDATA) { Join-Path $env:APPDATA "Zed\settings.json" } else { $null }
+    $selftestArgs = @("--user-data-dir", $selftestData)
+    if ($zedSettings -and (Test-Path $zedSettings)) { $selftestArgs += @("--zed-settings", $zedSettings) }
+    Write-Host "== selftest ($($selftestArgs -join ' '))"
+    & $exe @selftestArgs --selftest
     if ($LASTEXITCODE -ne 0) { throw "selftest failed ($LASTEXITCODE)" }
 }

@@ -362,6 +362,16 @@ impl Shared {
         let params = serde_json::to_value(&request)?;
         // sessionScope 带 sessionId；requestScope 没有（认证阶段），队列里 session 为空。
         let session_id = params.get("sessionId").and_then(Value::as_str).map(str::to_string);
+        // 与 `on_permission` 同一条规矩（审查 finding，2026-09-22）：cancel 期里到达的请求就地回掉，不进前端队列。
+        // 规范只对权限请求写了 MUST（acp-projection.md § 3.1），但 elicitation 核心**不代答**——
+        // 前端在发 cancel / close / delete 时是照着当时的队列快照逐条回的，这之后才到的那条没人认领：
+        // agent 一直等着它，连后面的 `session/close` 都不处理（R6 修掉的双边挂死，只剩 elicitation 时原样回来）。
+        // requestScope 的（无 sessionId）不在任何会话的 cancel 期里，照常入队。
+        if let Some(sid) = &session_id
+            && self.is_cancel_pending(sid)
+        {
+            return responder.respond(acp::CreateElicitationResponse::new(acp::ElicitationAction::Cancel));
+        }
         self.enqueue(METHOD_ELICITATION_CREATE, session_id, params, responder.erase_to_json());
         Ok(())
     }

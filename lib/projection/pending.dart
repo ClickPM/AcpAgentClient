@@ -176,6 +176,33 @@ class PendingQueue extends ChangeNotifier {
     return true;
   }
 
+  /// agent 进程退出 / 连接断开（`acp/agent_state: exited`）：核心那边的挂起表在 `Shared::finish` 里已经清空，
+  /// 这些请求再也回不去了。挂起项一律标 [PendingStatus.withdrawn]（口径与 `$/cancel_request` 同：agent 不再等这条），
+  /// 卡片跟着从「等你选」变成已收尾——不标的话按钮还能点，点下去只会撞核心的 unknown_request
+  /// （审查 finding，2026-09-22）。**不发 `acp_respond`**：连接已经没了。
+  /// 返回受影响的项所属 sessionId（调用方通知对应的 SessionStore 重画；requestScope 的是空串）。
+  List<String> withdrawAgent(String agentId, {required DateTime now}) {
+    final sessions = <String>[];
+    for (final e in _order) {
+      if (!_isPending(e) || _agentOf(e) != agentId) continue;
+      switch (e) {
+        case final PermissionEntry p:
+          p
+            ..status = PendingStatus.withdrawn
+            ..answeredAt = now;
+        case final ElicitationEntry el:
+          el
+            ..status = PendingStatus.withdrawn
+            ..answeredAt = now;
+        default:
+          continue;
+      }
+      sessions.add(_sessionOf(e) ?? '');
+    }
+    if (sessions.isNotEmpty) notifyListeners();
+    return sessions;
+  }
+
   /// `elicitation/complete`：URL elicitation 由 agent 收尾（已回应过的也标 completed，画板 28 第三态）。
   ElicitationEntry? completeElicitation(String elicitationId, {required DateTime now}) {
     for (final e in _order) {
@@ -228,6 +255,12 @@ class PendingQueue extends ChangeNotifier {
   static String? _sessionOf(TranscriptEntry e) => switch (e) {
         final PermissionEntry p => p.sessionId,
         final ElicitationEntry el => el.sessionId,
+        _ => null,
+      };
+
+  static String? _agentOf(TranscriptEntry e) => switch (e) {
+        final PermissionEntry p => p.agentId,
+        final ElicitationEntry el => el.agentId,
         _ => null,
       };
 
