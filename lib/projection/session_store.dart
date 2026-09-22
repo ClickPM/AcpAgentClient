@@ -94,6 +94,18 @@ class SessionStore extends ChangeNotifier {
   /// 每个变体见过的次数（流量面板 / 测试）。
   final Map<String, int> seen = <String, int>{};
 
+  /// 这个会话经手过的 terminalId（[terminals] 是跨会话共享的一张表，它不知道谁的缓冲是谁的）。
+  /// 只在本会话的入口登记：`_meta` 的三个终端事件与四个 `applyTerminal*` / `markTerminal*`；
+  /// 经 `Sessions.applyTerminalOutputEvent`（`acp/terminal_output`，不带 sessionId）进来的那些由
+  /// [ownedTerminalIds] 从工具卡的 `terminalIds` 补上。
+  final Set<String> _terminalIds = <String>{};
+
+  /// 属于这个会话的终端缓冲 id：本会话登记过的 ∪ 本会话工具卡上挂着的。
+  Set<String> get ownedTerminalIds => <String>{
+        ..._terminalIds,
+        for (final c in toolCalls.all) ...c.terminalIds,
+      };
+
   int _seq = 0;
   int _batchDepth = 0;
   bool _dirty = false;
@@ -392,7 +404,8 @@ class SessionStore extends ChangeNotifier {
     final now = this.now;
     _closeOpenThought(entries);
     turnCount++;
-    final t = TurnEntry(id: _newId('turn'), at: now, n: turnCount, prompt: List<ContentBlockWire>.unmodifiable(prompt));
+    final t = TurnEntry(id: _newId('turn'), at: now, n: turnCount, prompt: List<ContentBlockWire>.unmodifiable(prompt))
+      ..model = currentModelName;
     currentTurn = t;
     entries.add(t);
     if (prompt.isNotEmpty) {
@@ -592,12 +605,17 @@ class SessionStore extends ChangeNotifier {
   /// 不清就会和内存里已有的那份叠起来。会话身份（sessionId / agentId / cwd）与本地索引里的标题不动。
   /// **不发通知**：清空与随后的重放要在 UI 上是一步（接线侧把它排在挂起的 batcher 队列里，一起刷）。
   void resetForReplay() {
+    // 终端缓冲要在清工具卡**之前**算：这个会话的 id 有一半是从工具卡的 `terminalIds` 认出来的。
+    // 只删自己这几个——`terminals` 是跨会话共享的一张表，`clear()` 会把别的会话正在跑的
+    // 工具终端画面一起抹掉（审查 finding high，2026-09-22）。
+    final mine = ownedTerminalIds;
     entries.clear();
     toolCalls.clear();
     plans.clear();
     compactions.clear();
     pending.forgetSession(sessionId);
-    terminals.clear();
+    terminals.removeAll(mine);
+    _terminalIds.clear();
     dropped.clear();
     seen.clear();
     usage = null;
@@ -611,6 +629,16 @@ class SessionStore extends ChangeNotifier {
   void applyModeSelected(String modeId) {
     currentModeId = modeId;
     _changed();
+  }
+
+  /// 画板 08 B 摘要行第二行的取值：会话配置里 `category == model` 那一档的当前选项显示名。
+  /// 不按 agent 名判、不猜（规则 2）——没有这一档配置的 agent 回 null，摘要行就退化成单行。
+  /// 同一 category 有多条时取**数组里的第一条**（规范：数组顺序即优先级）。
+  String? get currentModelName {
+    for (final o in configOptions) {
+      if (o.category == 'model') return o.currentOptionName;
+    }
+    return null;
   }
 
   /// `session/set_config_option` 的响应（`{configOptions}`，全量替换）。与 `config_option_update` 同一口径。
@@ -697,6 +725,7 @@ class SessionStore extends ChangeNotifier {
   /// `tool_call` / `tool_call_update` 的 `_meta.terminal_info / terminal_output / terminal_exit`（docs/design.md § 4 入站识别键，R4）。
   void _applyTerminalMeta(JsonMap? meta) {
     for (final ev in TerminalMetaEvent.parse(meta)) {
+      _terminalIds.add(ev.terminalId);
       final buffer = terminals.ensure(ev.terminalId);
       switch (ev.kind) {
         case TerminalMetaKind.info:
@@ -710,28 +739,34 @@ class SessionStore extends ChangeNotifier {
   }
 
   void applyTerminalText(String terminalId, String text) {
+    _terminalIds.add(terminalId);
     terminals.ensure(terminalId).append(text);
     _changed();
   }
 
   void applyTerminalExit(String terminalId, {int? exitCode, String? signal}) {
+    _terminalIds.add(terminalId);
     terminals.ensure(terminalId).exit(code: exitCode, sig: signal);
     _changed();
   }
 
   void markTerminalReleased(String terminalId) {
+    _terminalIds.add(terminalId);
     terminals.ensure(terminalId).markReleased();
     _changed();
   }
 
   void markTerminalKilled(String terminalId) {
+    _terminalIds.add(terminalId);
     terminals.ensure(terminalId).markKilled();
     _changed();
   }
 
   // ---------------------------------------------------------------- 快照（测试：分批 vs 整批）
 
-  JsonMap debugSnapshot() => <String, dynamic>{
+  JsonMap debugSnapshot() {
+    final mineTerminals = ownedTerminalIds;
+    return <String, dynamic>{
         'sessionId': sessionId,
         'title': title,
         'updatedAt': updatedAt,
@@ -745,16 +780,19 @@ class SessionStore extends ChangeNotifier {
         'dropped': <String>[for (final d in dropped) d.reason],
         'entries': <JsonMap>[for (final e in entries) _entryJson(e)],
         'pending': pending.debugSnapshot(),
+        // 只报这个会话自己的那几个：`terminals` 是跨会话共享的（审查 finding，2026-09-22）。
         'terminals': <String, dynamic>{
           for (final t in terminals.all)
-            t.terminalId: <String, dynamic>{
-              'output': t.output,
-              'truncated': t.truncated,
-              'exitCode': t.exitCode,
-              'released': t.released,
-            },
+            if (mineTerminals.contains(t.terminalId))
+              t.terminalId: <String, dynamic>{
+                'output': t.output,
+                'truncated': t.truncated,
+                'exitCode': t.exitCode,
+                'released': t.released,
+              },
         },
       };
+  }
 
   static String _iso(DateTime? d) => d?.toIso8601String() ?? '';
 
@@ -869,6 +907,9 @@ class Sessions extends ChangeNotifier {
     if (s == null) return;
     s.removeListener(notifyListeners);
     pending.forgetSession(sessionId);
+    // 这条会话的终端缓冲一并收掉：`terminals` 是跨会话共享的一张表，删会话 / 收回空壳之后没人再引用它们，
+    // 不收就留到进程结束（审查 P3，2026-09-22）。没归属的缓冲（认证终端）不在这里，记 rounds/BACKLOG.md。
+    terminals.removeAll(s.ownedTerminalIds);
     // 不 dispose：在途的那一轮（`session/prompt` 还没返回）还握着这个 store，回来时会调 `endTurn()`；
     // 对 dispose 过的 ChangeNotifier 再 notify 会 assert。摘掉监听就够了，没有别的资源要释放。
     notifyListeners();
@@ -934,8 +975,20 @@ class Sessions extends ChangeNotifier {
     }
   }
 
-  /// `acp/agent_state` payload 原样。
-  void applyAgentState(JsonMap payload) => agents.apply(payload);
+  /// `acp/agent_state` payload 原样。`exited` 另做一件事：这个 agent 还挂着的 client 请求全部标 withdrawn
+  /// ——进程没了，核心的挂起表也清了，卡上的按钮再点只会撞 unknown_request（审查 finding，2026-09-22）。
+  void applyAgentState(JsonMap payload) {
+    agents.apply(payload);
+    if (payload['state'] != 'exited') return;
+    final agentId = payload['agentId'];
+    if (agentId is! String || agentId.isEmpty) return;
+    final touched = pending.withdrawAgent(agentId, now: _clock());
+    if (touched.isEmpty) return;
+    for (final sid in touched) {
+      _byId[sid]?._changed();
+    }
+    notifyListeners();
+  }
 
   /// `acp/terminal_output`：`{terminalId, source, bytes(base64)}` 或 `{terminalId, source, exitStatus}`。
   void applyTerminalOutputEvent(JsonMap payload, {required String Function(String base64) decode}) {

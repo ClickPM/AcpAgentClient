@@ -8,8 +8,10 @@
 import 'package:flutter/widgets.dart';
 
 import '../../app/appearance_prefs.dart';
+import '../../app/transcript_folds.dart';
 import '../../projection/registry.dart';
 import '../../theme/tokens.dart' as t;
+import '../popovers/menu.dart';
 import '../registry/registry_entry.dart';
 import '../shell/shell_common.dart';
 import '../transcript/card_chrome.dart';
@@ -49,6 +51,7 @@ class SettingsPage extends StatelessWidget {
     this.onCopyPath,
     this.appearance,
     this.onOpenUrl,
+    this.folds,
   });
 
   /// 已安装的条目（registry 型 + custom 型）。
@@ -83,6 +86,9 @@ class SettingsPage extends StatelessWidget {
   /// 「去下载」用：在系统浏览器里打开候选字体的官网。
   final ValueChanged<String>? onOpenUrl;
 
+  /// 转录偏好（画板 70「转录」小节 = 画板 08 B 的全局开关）。gallery 与单测可以不给，不给就不出这一小节。
+  final TranscriptFolds? folds;
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -96,6 +102,10 @@ class SettingsPage extends StatelessWidget {
             children: <Widget>[
               _title(),
               const SizedBox(height: t.Spacing.s16),
+              if (folds != null) ...<Widget>[
+                _section('转录', child: _transcriptCard(folds!)),
+                const SizedBox(height: t.Spacing.s16),
+              ],
               if (appearance != null) ...<Widget>[
                 _section(
                   '外观',
@@ -128,7 +138,12 @@ class SettingsPage extends StatelessWidget {
           children: <Widget>[
             Text('设置', style: t.TextStyles.display),
             const SizedBox(width: t.Spacing.s8),
-            Expanded(child: Text('外观 · agent 配置 · 从 Zed 导入 · Node 运行时 · 数据目录', style: t.TextStyles.secondary.copyWith(color: t.Neutral.placeholder))),
+            Expanded(
+              child: Text(
+                '转录 · 外观 · agent 配置 · 从 Zed 导入 · Node 运行时 · 数据目录',
+                style: t.TextStyles.secondary.copyWith(color: t.Neutral.placeholder),
+              ),
+            ),
           ],
         ),
       );
@@ -150,6 +165,39 @@ class SettingsPage extends StatelessWidget {
         ],
       );
 
+  // ---------------------------------------------------------------- 转录（画板 70「转录」小节）
+
+  /// 「回合结束后折叠处理过程」。开关本体复用画板 40 `Session options · boolean` 那一档（[MenuToggle]），
+  /// 不另画一个控件。
+  Widget _transcriptCard(TranscriptFolds folds) => TranscriptCard(
+        child: ListenableBuilder(
+          listenable: folds,
+          builder: (context, _) => Container(
+            padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12, vertical: t.Spacing.s8),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Text('回合结束后折叠处理过程', style: CardText.strong),
+                      const SizedBox(height: t.Spacing.s4),
+                      Text(
+                        '拿到 stop_reason 时，把本回合的思考、工具调用、终端、子代理、压缩收进一行摘要；被取消与出错的回合不自动折叠，含失败项的照折、摘要行上标出失败数。',
+                        style: t.TextStyles.meta,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: t.Spacing.s12),
+                MenuToggle(on: folds.autoCollapse, onTap: () => folds.setAutoCollapse(!folds.autoCollapse)),
+              ],
+            ),
+          ),
+        ),
+      );
+
   // ---------------------------------------------------------------- agent 配置
 
   Widget _agentsCard() => TranscriptCard(
@@ -164,10 +212,10 @@ class SettingsPage extends StatelessWidget {
               ),
             for (var i = 0; i < agents.length; i++) ...<Widget>[
               if (agents[i].id == editingId && editFields != null)
-                CustomEditBlock(agent: agents[i], fields: editFields!, onCancel: onCollapse, onSave: onSave == null ? null : () => onSave!(agents[i].id))
+                _CustomEditBlock(agent: agents[i], fields: editFields!, onCancel: onCollapse, onSave: onSave == null ? null : () => onSave!(agents[i].id))
               else ...<Widget>[
                 _agentRow(agents[i], last: i == agents.length - 1 && agents[i].id != expandedId),
-                if (agents[i].id == expandedId) LaunchReadOnlyBlock(agent: agents[i], onCollapse: onCollapse),
+                if (agents[i].id == expandedId) _LaunchReadOnlyBlock(agent: agents[i], onCollapse: onCollapse),
               ],
             ],
           ],
@@ -343,8 +391,8 @@ class SettingsRow extends StatelessWidget {
 }
 
 /// custom 型的行内编辑块（画板 70）：panel 底，标题行（id + custom 芯片 + 收起），cmd / args / env 三行输入，取消 / 保存。
-class CustomEditBlock extends StatelessWidget {
-  const CustomEditBlock({super.key, required this.agent, required this.fields, this.onCancel, this.onSave});
+class _CustomEditBlock extends StatelessWidget {
+  const _CustomEditBlock({required this.agent, required this.fields, this.onCancel, this.onSave});
 
   final RegistryEntryData agent;
   final CustomEditFields fields;
@@ -407,8 +455,8 @@ class CustomEditBlock extends StatelessWidget {
 }
 
 /// registry 型「编辑」展开的只读块：拉起参数来自 install.json（registry 型只读，画板 70 注）。
-class LaunchReadOnlyBlock extends StatelessWidget {
-  const LaunchReadOnlyBlock({super.key, required this.agent, this.onCollapse});
+class _LaunchReadOnlyBlock extends StatelessWidget {
+  const _LaunchReadOnlyBlock({required this.agent, this.onCollapse});
 
   final RegistryEntryData agent;
   final VoidCallback? onCollapse;

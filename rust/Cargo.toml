@@ -11,7 +11,7 @@ members = [
 ]
 
 [workspace.package]
-version = "1.4.0"
+version = "1.4.1"
 edition = "2024"
 rust-version = "1.98"
 license = "GPL-3.0-or-later"
@@ -30,6 +30,9 @@ futures = { version = "0.3", default-features = false, features = ["std", "async
 portable-pty = "0.9"
 # CLAUDE.md 规则 1 通用库清单内：文件面板的目录监视（R4）。默认后端（Windows 用 ReadDirectoryChangesW）。
 notify = "8"
+# 规则 1 清单内（所有者裁定 2026-09-20）：`acp/terminal_output` 的字节编码。0.22 早已是 reqwest 那条线的传递依赖
+# （Cargo.lock 里本来就有），直接依赖它不新增编译单元；此前 acp-core 与 acp-smoke 各手写了一份编码 / 解码。
+base64 = "0.22"
 
 acp-core = { path = "acp-core" }
 registry = { path = "registry" }

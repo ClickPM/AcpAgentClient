@@ -10,9 +10,9 @@
 <helmet data-dc-atomics><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet"><style>body{margin:0;background:#eeeef1}a{color:#4a59c9;text-decoration:none}a:hover{color:#3d4cb5}</style></helmet>
 <div style="width:1440px;min-width:1440px;box-sizing:border-box;padding:0;background:#eeeef1;font-family:Geist,'Noto Sans SC',system-ui,sans-serif;font-size:13px;color:#33333d;display:flex;flex-direction:column;gap:8px">
 
-  <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e;padding:16px 0 0">70 · 设置（1440 × 900）</div>
+  <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e;padding:16px 0 0">70 · 设置（1440 × 1010）</div>
 
-  <div data-screen-label="70" style="width:1440px;min-width:1440px;height:900px;flex:none;box-sizing:border-box;background:#fbfbfc;border:1px solid #d3d3da;display:flex;overflow:hidden">
+  <div data-screen-label="70" style="width:1440px;min-width:1440px;height:1010px;flex:none;box-sizing:border-box;background:#fbfbfc;border:1px solid #d3d3da;display:flex;overflow:hidden">
     <div style="width:280px;flex:none;background:#f4f4f6;border-right:1px solid #e2e2e7;display:flex;flex-direction:column">
       <div style="height:36px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid #e2e2e7">
         <span style="display:inline-flex;color:#62626e"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="3" y1="3" x2="21" y2="21"></line><line x1="21" y1="3" x2="3" y2="21"></line></svg></span>
@@ -74,7 +74,16 @@
 
       <div style="flex:1;min-height:0;overflow:hidden;display:flex;justify-content:center;padding:24px 24px 0">
         <div style="width:860px;display:flex;flex-direction:column;gap:16px">
-          <div style="display:flex;align-items:baseline;gap:10px;border-bottom:1px solid #e2e2e7;padding-bottom:10px"><span style="font-size:20px;font-weight:500;color:#1e1e26">设置</span><span style="font-size:12px;color:#8b8b96">agent 配置 · 从 Zed 导入 · Node 运行时 · 数据目录</span></div>
+          <div style="display:flex;align-items:baseline;gap:10px;border-bottom:1px solid #e2e2e7;padding-bottom:10px"><span style="font-size:20px;font-weight:500;color:#1e1e26">设置</span><span style="font-size:12px;color:#8b8b96">转录 · agent 配置 · 从 Zed 导入 · Node 运行时 · 数据目录</span></div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:baseline;gap:10px"><span style="font-size:13px;font-weight:500;color:#1e1e26">转录</span></div>
+          <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;">
+              <span style="flex:1;min-width:0"><span style="font-size:13px;font-weight:500;color:#1e1e26">回合结束后折叠处理过程</span><span style="display:block;font-size:11px;color:#8b8b96;margin-top:2px">拿到 stop_reason 时，把本回合的思考、工具调用、终端、子代理、压缩收进一行摘要；被取消与出错的回合不自动折叠，含失败项的照折、摘要行上标出失败数。</span></span>
+              <span style="flex:none;width:28px;height:16px;border-radius:8px;background:#5566d8;display:flex;align-items:center;padding:2px;box-sizing:border-box;justify-content:flex-end"><span style="width:12px;height:12px;border-radius:50%;background:#ffffff"></span></span>
+            </div>
+          </div>
+        </div>
         <div style="display:flex;flex-direction:column;gap:10px">
           <div style="display:flex;align-items:baseline;gap:10px"><span style="font-size:13px;font-weight:500;color:#1e1e26">agent 配置</span><span style="font-size:11px;color:#8b8b96">registry 型只读；custom 型可编辑 cmd / args / env</span></div>
           <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;overflow:hidden">
@@ -140,9 +149,9 @@
       </div>
     </div>
   </div>
-  <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;line-height:1.7;padding-bottom:16px">注：只做 agent 配置 / 从 Zed 导入 / Node 运行时 / 数据目录这四块，没有外观设置（要加先改设计稿）。走 agent_settings_get/set 与 agent_settings_import_zed。</div>
+  <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;line-height:1.7;padding-bottom:16px">注：只做转录 / agent 配置 / 从 Zed 导入 / Node 运行时 / 数据目录这五块，仍没有外观设置（要加先改设计稿）。转录是纯客户端偏好，不走协议；其余走 agent_settings_get/set 与 agent_settings_import_zed。</div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1005}}"></script>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1110}}"></script>
 </body>
 </html>

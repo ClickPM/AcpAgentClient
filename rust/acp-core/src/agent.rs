@@ -362,6 +362,16 @@ impl Shared {
         let params = serde_json::to_value(&request)?;
         // sessionScope 带 sessionId；requestScope 没有（认证阶段），队列里 session 为空。
         let session_id = params.get("sessionId").and_then(Value::as_str).map(str::to_string);
+        // 与 `on_permission` 同一条规矩（审查 finding，2026-09-22）：cancel 期里到达的请求就地回掉，不进前端队列。
+        // 规范只对权限请求写了 MUST（acp-projection.md § 3.1），但 elicitation 核心**不代答**——
+        // 前端在发 cancel / close / delete 时是照着当时的队列快照逐条回的，这之后才到的那条没人认领：
+        // agent 一直等着它，连后面的 `session/close` 都不处理（R6 修掉的双边挂死，只剩 elicitation 时原样回来）。
+        // requestScope 的（无 sessionId）不在任何会话的 cancel 期里，照常入队。
+        if let Some(sid) = &session_id
+            && self.is_cancel_pending(sid)
+        {
+            return responder.respond(acp::CreateElicitationResponse::new(acp::ElicitationAction::Cancel));
+        }
         self.enqueue(METHOD_ELICITATION_CREATE, session_id, params, responder.erase_to_json());
         Ok(())
     }
@@ -1163,7 +1173,13 @@ async fn disconnect(shared: &Shared, shutdown: &Mutex<Option<oneshot::Sender<()>
         if let Some(kill) = lock(kill).take() {
             let _ = kill.send(());
         }
-        let _ = tokio::time::timeout(DISCONNECT_GRACE, shared.wait_exit()).await;
+        if tokio::time::timeout(DISCONNECT_GRACE, shared.wait_exit()).await.is_err() {
+            // kill 之后仍等不到退出（典型是 `.cmd` 包装的孙进程还攥着 stdout）：这条连接对核心已经结束，
+            // 就地收尾 —— 清挂起表、放终端、发 `exited`。不收的话它会在**新连接**跑起来之后才迟到，前端按
+            // agentId 认领，把新连接刚挂起的权限 / elicitation 请求全标成 withdrawn、agent 从此干等
+            // （审查 finding，2026-09-22）。`finish` 只生效一次：进程真退出时那一下就是空转。
+            shared.finish(None);
+        }
     }
 }
 

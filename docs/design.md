@@ -13,7 +13,7 @@ Flutter 宿主进程（Dart）
     ├── registry    registry.json 拉取 / 缓存 / 图标；npx 与 binary 安装；受管 Node
     ├── pty         terminal/* 回调（portable-pty）；terminal auth 用的可见终端
     ├── fs          fs/read_text_file、fs/write_text_file；工作区文件树与搜索
-    └── settings    Zed 兼容的 agent_servers JSON；数据目录；从 Zed settings.json 导入
+    └── settings    settings.json（Zed 同形的 agent_servers + appearance / transcript 两段偏好）；sessions.json / projects.json 索引与 ui-state.json；从 Zed settings.json 导入
          │ stdio · ACP JSON-RPC（v1）
          ├── claude-agent-acp     npx
          ├── codex-acp            npx
@@ -25,7 +25,7 @@ Flutter 宿主进程（Dart）
 
 规则：主进程（Flutter 宿主及其加载的 Rust cdylib）里没有 gpui；所有 agent，包括 Zed 内置 agent，都是子进程；前端与核心之间只传 ACP 形状的数据。
 
-**为什么是进程内 cdylib 而不是独立 `acp-host.exe`**（所有者裁定 2026-09-12，方案 A）：单进程、打包简单；§ 3 的 payload 本来就是 JSON 字符串，跨 FFI 边界只传 `String`，frb 绑定面极小（十来个命令 + 5 个事件流），不需要为 ACP 类型做 Dart 镜像。将来若要改独立进程，Dart 侧解析层不动，只换传输。
+**为什么是进程内 cdylib 而不是独立 `acp-host.exe`**（所有者裁定 2026-09-12，方案 A）：单进程、打包简单；§ 3 的 payload 本来就是 JSON 字符串，跨 FFI 边界只传 `String`，frb 绑定面极小（裁定时估十来个命令 + 5 个事件流；2026-09-22 实际是 57 个命令 + 6 条事件流，仍只跨边界传 `String`），不需要为 ACP 类型做 Dart 镜像。将来若要改独立进程，Dart 侧解析层不动，只换传输。
 
 ## 2. 分层与来源
 
@@ -68,9 +68,10 @@ Flutter 宿主进程（Dart）
 - 文件面板与 git：`fs_list_dir`、`fs_read`（查看器：`{path, text, size, lines, binary, truncated}`，超 2 MiB 只给前一段）、`fs_watch` / `fs_unwatch`（R4：`fs_watch` 是**流命令**——frb 的 `StreamSink`，每批去抖后的变化推一条 `{root, dirs: [绝对路径…], git}`，`dirs` 是内容变了的目录、`git` = `.git` 之下有变化；取消流即停，不另开事件通道）、`fs_search`、`git_status`（文件树徽章：`{available, isRepo, root, entries: [{path, badge, code}]}`）、`git_branches`、`git_switch`、`git_create_branch`、`git_diff`（Branch Diff 上下文）
 - 本地 shell 与终端控制（终端面板）：`terminal_open`（`{terminalId, cwd, program}`，系统默认 shell）、`terminal_write`、`terminal_resize`、`terminal_close`（kill + 释放）、`terminal_kill`（R4：只结束进程不释放 = `terminal/kill` 语义；画板 23 的停止方块对 agent 建的终端也用它）；输出走 `acp/terminal_output`（`terminal_write` 在 R1 先出：terminal auth 的可见终端要接键盘输入）
 - 退出收尾：`core_shutdown`（R4：释放全部终端、断开全部 agent、停掉目录监视；Dart 在 `AppLifecycleListener.onExitRequested` 里等它回来再放行）
-- 开发期排查：`agents_status`（每个已连接 agent 的 `droppedUpdates` / 退出状态 / 挂起请求；R1，无头实跑与 `acp-smoke` 用）
+- 开发期排查：`agents_status`（每个已连接 agent 的 `droppedUpdates` / 退出状态 / 挂起请求；R1，无头实跑与 `acp-smoke` 用）、`ping`（R0 往返自检，`build.ps1 -Smoke` 与 `verify-package.ps1` 用）、`dropped_event_count`（Dart 未订阅或流已关时未送达的事件计数）
 - 项目与本地索引：`workspace_recent`、`workspace_open`、`session_index_list/upsert/remove`（会话索引：agentId + sessionId + 标题 + cwd + 时间 + 消息计数）
 - 窗口 UI 状态：`ui_state_get`、`ui_state_set`（合并写；载荷 `{sidebarWidth?, rightPanelWidth?, filesTreeWidth?, filesTreeCollapsed?}`，缺省与夹取范围都在前端 token，核心不存第二份）
+- 偏好（`settings.json` 的两段，§ 10）：`appearance_get` / `appearance_set`（`appearance` 段：`theme` 与四个字体轴，R7.6 / 画板 07）、`transcript_prefs_get` / `transcript_prefs_set`（`transcript` 段：`collapse_finished_turns`，画板 08 / 画板 70「转录」分组）；两者都是整段替换，字段一律可缺省、缺省值只在前端写一份
 
 命令名以本节为准，各轮只实现自己那部分（归属见 `ROUNDS.md` § 3 / § 5）；R3–R6 的新增项是 2026-09-15 按画板裁定后一次写入的，不再逐轮改契约。每条命令的入参形状（哪些是 JSON 字符串、哪些是标量）与返回 JSON 以 `rust/bridge/src/api.rs` 的文档注释为准；错误统一是 `BridgeError {code, message}`，`code` 是 `CoreError::code()` 的稳定短码（`auth_required` / `exited` / `not_connected` / `unknown_request` / `acp` 等）。
 
@@ -160,7 +161,7 @@ Flutter 宿主进程（Dart）
 - 通用库允许清单见 CLAUDE.md 规则 1；**不引第三方 UI 组件库与状态管理库**，组件全部从画板手写，状态用 SDK 自带的 `ChangeNotifier` / `Stream`；样式的唯一来源是从画板提炼的 `lib/theme/tokens.dart`（颜色、字号、间距、圆角、动效时长），widget 文件里不出现字面量。
 - Markdown 渲染：官方 `flutter_markdown` 已停止维护，社区替代对**流式追加**与代码高亮的支持参差。R1.5 spike（`rounds/round-1.5/spike.md`）比较了 `package:markdown` 自写渲染、`markdown_widget`、`gpt_markdown`、`flutter_markdown_plus`、`streamdown` 五个候选，所有者裁定 2026-09-15：**`package:markdown` 只用解析器，渲染层按画板自写**（每个顶层块带 key，样式全从 `tokens.dart` 来）；代码高亮 `re_highlight`，公式 `flutter_math_fork`（`$…$` / `$$…$$` 的识别在 Markdown 层做），Mermaid `mermaid_flutter` + `mermaid_core`（解析失败经 `errorBuilder` 回落源码态），音频块 `audioplayers`（内存 `BytesSource`），diff `diffutil_dart`；画板 15 / 32 不改。
 - 终端渲染用 `xterm`（pub.dev）；PTY 仍在 Rust 侧 portable-pty，`acp/terminal_output` 推字节，Dart 只渲染。文件对话框与打开 URL 用 Flutter 官方 `file_selector` / `url_launcher`，其余系统交互一律走 Rust。
-- ACP 投影的状态层自己写，约五百行，是唯一不允许第三方替代的部分；规则来自 `prototype/assets/projection.js`。
+- ACP 投影的状态层自己写（`lib/projection/`；立项时估约五百行，2026-09-22 约 4,100 行，含时间线 / 回合折叠等纯派生层与 fixtures 回放器），是唯一不允许第三方替代的部分；规则来自 `prototype/assets/projection.js`。
 - 设计稿存 `design/`：每轮一个子目录，含 `design-prompt.md`（给 Claude Design 的设计简报）、每个画板一个 `.dc.html` 源、`canvas.json` 布局与每个画板一张 PNG 快照；`design/README.md` 是画板索引（编号、名称、`.dc.html`、PNG、画布 URL），画板编号只增不改。`.dc.html` 是设计的唯一事实来源，PNG 是审查与验收的基准，画布上的后续改动不影响已开工轮次；改设计走「先拉回 `.dc.html`、重导 PNG、更新索引，再进轮次」。
 - 页面：会话工作台（消息、思考、工具卡、计划、用量、权限与 elicitation；顶栏的项目与分支切换；会话头 history 开画板 43 的会话时间线弹层）；右栏三个标签——文件面板（含终端面板）、agent 管理（registry、custom、认证状态）、设置（2026-09-17 起也是右栏标签）；ACP 流量调试（占会话区，从画板 34 的入口进、点侧栏会话返回）。
 - 画板要求、文档原本没有的几项，所有者 2026-09-15 按 `ROUNDS.md` § 6 的推荐一并裁定：
@@ -170,7 +171,7 @@ Flutter 宿主进程（Dart）
   - **`Rules` 行**（画板 30 / 40 的用量弹层）：当前项目根目录下规则文件的计数（AGENTS.md、CLAUDE.md、`.rules`；清单在 R3 任务卡定），点击在文件面板打开。
   - **文件树 git 状态徽章**（画板 60）：保留，由 `git status --porcelain` 得出。
   - **`+` 弹层**只有 Files & Directories / Sessions / Image / Branch Diff 四项；原稿的 Symbols 与 Selection 需要 LSP 与编辑器选区，与 `requirements.md`「不做」冲突，已从画板 40 删除。
-  - **图片粘贴与附件芯片条**（所有者 2026-09-18 直接要求，对齐 Zed）：输入框里 Ctrl/Cmd+V，剪贴板里是截图或图片文件就加成 ACP `image` 块（同样受 `promptCapabilities.image` 门，与 `+` 的 Image 一项共用），待发的 `image` 块以芯片显示在输入行之上、悬浮浮出原图预览、芯片上的 × 去掉它。Flutter 的 `Clipboard` 只给 text/plain，位图与文件列表读不到，第三方剪贴板包又在规则 1 的清单之外，所以 Windows（规则 9 首发）借 `powershell.exe` 读一次 `System.Windows.Forms.Clipboard`（位图存临时 PNG 再读回字节）；其他平台暂时读不到图，Ctrl+V 照旧只贴文本。**设计稿还没有这一条**，补稿记在 `rounds/BACKLOG.md`。
+  - **图片粘贴与附件芯片条**（所有者 2026-09-18 直接要求，对齐 Zed）：输入框里 Ctrl/Cmd+V，剪贴板里是截图或图片文件就加成 ACP `image` 块（同样受 `promptCapabilities.image` 门，与 `+` 的 Image 一项共用），待发的 `image` 块以芯片显示在输入行之上、悬浮浮出原图预览、芯片上的 × 去掉它。Flutter 的 `Clipboard` 只给 text/plain，位图与文件列表读不到，第三方剪贴板包又在规则 1 的清单之外，所以 Windows（规则 9 首发）由 runner 直接走 Win32 读一次剪贴板（`acp/window` 通道的 `readClipboardImages`，`windows/runner/acp_clipboard.cpp`：文件列表给路径、位图给 BGRA 像素，PNG 编码在 Dart 侧用 dart:ui 做；2026-09-20 之前是拉 `powershell.exe` 读 `System.Windows.Forms.Clipboard` 再经临时 PNG 中转）；其他平台暂时读不到图，Ctrl+V 照旧只贴文本。**设计稿还没有这一条**，补稿记在 `rounds/BACKLOG.md`。
   - **终端面板**（画板 61）含本地交互 shell、多标签；复用 `rust/pty` 与 `acp/terminal_output`，命令见 § 3。
   - **分栏宽度**（画板 01–03 的两条分栏线，所有者裁定 2026-09-16）：拖拽命中区 4px 叠在 1px 分栏线上、**不占布局**；侧栏 220–480、右栏 360–900、中栏至少留 360（窗口变窄时先压右栏、再压侧栏）；双击复位到 280 / 580；宽度记在 `ui-state.json`。把手的默认与悬停态见画板 04。文件面板（画板 60）里树列与查看器之间用同一个把手：树列 160–480、查看器至少留 240，双击复位到 240；树列头行那个「缩小」按钮把整列收起（收起后由查看器头行左侧的按钮放回来），宽度与收起态同样记在 `ui-state.json`（所有者裁定 2026-09-17）。
   - **R7 合并后按所有者手测直接定下的交互**（2026-09-17 / 18；设计稿未改的都记在 `rounds/BACKLOG.md`「设计稿补注记」里）：输入框 Enter 发送、Shift+Enter 换行；转录默认跟着底部走、用户翻上去就停，转录区左右留白也在滚动区内；会话头的铅笔就在会话头上改标题；设置是右栏的一个标签（与文件 / Agents 并列），右栏没有关闭键，开合都交给侧栏底部导航；文件面板树列可拖、「缩小」是收起整列；agent 的标记（侧栏会话项、新建会话选 agent 弹层、画板 01 空态的大图标位）都画各 agent 自己的 logo（registry 缓存的 `icon.svg`，内置条目随包带）；侧栏顶部是正式标记（`design/brand/`）；终端面板的键盘输入走硬件按键（Windows 引擎拒了 xterm 的文本输入通道），中文输入法由自建的 `TerminalIme` 接（组字串暂不画在光标处）；终端卡跑完自动收起；弹层内容区封顶 `Geometry.menuMaxHeight` 并内部滚动、搜索框钉在滚动区外，Esc 与点外面都能关，`@` / `/` 菜单支持上下键与 Enter，裸 `@` 列会话 cwd 的一层；壳上 14 个入口有悬停提示（`lib/ui/shell/tooltip.dart`）；权限卡（画板 25）的范围下拉走 `PopoverAnchor` 浮在 Overlay 上（原来画在卡片自己的 Stack 里会被下一张卡压住），三个按钮上的 Alt-Shift-A / Alt-Shift-X / Ctrl-Alt-A 标签已去掉——它们从未接过按键，不做快捷键（所有者裁定 2026-09-18）；画板 05 的转场（新建 / 切换会话、重载 agent、右栏切标签、弹层）与画板 06 的侧栏活动指示（运行中扫掠线、完成未读绿点）已接线，新建会话与重载共用 B 组等待期（转录降到 `opacity.pending`、会话头 spinner）。
@@ -180,11 +181,13 @@ Flutter 宿主进程（Dart）
 
 ## 10. 数据目录
 
-Windows：`%APPDATA%/AcpAgentClient/{settings.json, sessions.json, projects.json, ui-state.json, registry-cache/, agents/, node/, logs/, zed-agent/}`。`registry-cache/` 放 `registry.json` 与 `icons/<id>.svg`；`zed-agent/` 是 sidecar 的隔离数据目录（`threads.db` / `db/` / `prompts/`，R7，§ 8）；`agents/<id>/` 放该 agent 的安装（npx 型的 `node_modules/`、binary 型的 `<version>/`）与 `install.json`；`node/` 放受管 Node；`logs/acp-<日期>.log` 是脱敏后的 ACP 流量行（与 `acp/traffic` 同源，规则 8），设置页（画板 70）给打开 / 复制路径（R5）。每次起核心先写一行版本与构建信息（`core  AcpAgentClient <版本> (<debug|release>, <os>/<arch>) data=<数据目录> sidecar=<路径|none>`，R8）：画板 70 没有版本位，按规则 3 版本号只进日志、不进 UI；装机报障要问的「哪个版本、哪种构建、sidecar 随没随包」都在这一行。会话数据归各 agent 自己（claude、codex、pi、dsh 各有自己的存储）；本客户端只存会话索引 `sessions.json`（agentId + sessionId + 标题 + cwd + 时间 + 消息计数；「时间」= 用户最后一次发消息的时间，也是侧栏的排序键与 workspace 过滤的依据，§ 3）与最近项目列表 `projects.json`，两者都走临时文件 + rename。日志脱敏：`Authorization`、`api_key`、`token` 字段一律打码。
+Windows：`%APPDATA%/AcpAgentClient/{settings.json, sessions.json, projects.json, ui-state.json, registry-cache/, agents/, node/, fonts/, logs/, zed-agent/}`。`registry-cache/` 放 `registry.json` 与 `icons/<id>.svg`；`fonts/` 放用户自己丢进来的可选字体（下文「字体文件的三个来源」）；`zed-agent/` 是 sidecar 的隔离数据目录（`threads.db` / `db/` / `prompts/`，R7，§ 8）；`agents/<id>/` 放该 agent 的安装（npx 型的 `node_modules/`、binary 型的 `<version>/`）与 `install.json`；`node/` 放受管 Node；`logs/acp-<日期>.log` 是脱敏后的 ACP 流量行（与 `acp/traffic` 同源，规则 8），设置页（画板 70）给打开 / 复制路径（R5）。每次起核心先写一行版本与构建信息（`core  AcpAgentClient <版本> (<debug|release>, <os>/<arch>) data=<数据目录> sidecar=<路径|none>`，R8）：画板 70 没有版本位，按规则 3 版本号只进日志、不进 UI；装机报障要问的「哪个版本、哪种构建、sidecar 随没随包」都在这一行。会话数据归各 agent 自己（claude、codex、pi、dsh 各有自己的存储）；本客户端只存会话索引 `sessions.json`（agentId + sessionId + 标题 + cwd + 时间 + 消息计数；「时间」= 用户最后一次发消息的时间，也是侧栏的排序键与 workspace 过滤的依据，§ 3）与最近项目列表 `projects.json`，两者都走临时文件 + rename。日志脱敏：`Authorization`、`api_key`、`token` 字段一律打码。
 
 `ui-state.json` 是窗口的机器态（两栏宽度、文件面板树列的宽度与收起态），同样走临时文件 + rename。它与 `settings.json` 分开：后者是用户手写的配置（`agent_servers` 与 Zed 同形），不该被拖窗口改写。字段一律可缺省，缺省宽度与夹取范围只在前端 token 里（`lib/theme/tokens.dart`），核心不复制一份；读不动或不是合法 JSON 时按缺省重建，不挡启动。
 
-`settings.json` 除 `agent_servers` 外还有 **`appearance`**（R7.6，字体切换）：四个轴各一个可选的 family 名 —— `ui_font_family` / `ui_cjk_font_family` / `buffer_font_family` / `buffer_cjk_font_family`。键名与 Zed 同形取 `ui_font_family` / `buffer_font_family`（Zed `crates/settings_content/src/theme.rs`）；两个 `*_cjk_font_family` 是本客户端自己的，Zed 没有中西文分轴。字段一律可缺省，默认字体名只在前端 token 里写一份（口径同 `ui-state.json`），四个轴全空时整个 `appearance` 键不落盘。读不出来不报错、回默认，字体设置不该挡住启动。
+`settings.json` 除 `agent_servers` 外还有 **`appearance`**（R7.6 字体切换 + 画板 07 深色模式）：`theme`（`"light"` / `"dark"`；放在这一段里而不是顶层 `theme`，那个键是 Zed 的主题名，从 Zed 抄过设置的用户文件里可能已有，本客户端不解释也不改它）与四个字体轴各一个可选的 family 名 —— `ui_font_family` / `ui_cjk_font_family` / `buffer_font_family` / `buffer_cjk_font_family`。键名与 Zed 同形取 `ui_font_family` / `buffer_font_family`（Zed `crates/settings_content/src/theme.rs`）；两个 `*_cjk_font_family` 是本客户端自己的，Zed 没有中西文分轴。字段一律可缺省，默认字体名只在前端 token 里写一份（口径同 `ui-state.json`），四个轴全空时整个 `appearance` 键不落盘。读不出来不报错、回默认，字体设置不该挡住启动。
+
+`settings.json` 还有 **`transcript`**（画板 08 / 画板 70「转录」分组，2026-09-22）：`collapse_finished_turns`（回合结束后把处理过程折叠成一行摘要；没存过 = 前端默认开，默认值只在 `lib/app/transcript_folds.dart`），全空时不落这个键。口径与 `appearance` 相同，都经 `transcript_prefs_get/set` 整段替换（§ 3）。
 
 `settings.json` 顶层还保留 **`extra`**（`#[serde(flatten)]`）：这份文件是用户可手写的，而写盘是整份覆盖，没有 `extra` 的话用户加的任何未知顶层键都会被静默抹掉（规则 7）。
 

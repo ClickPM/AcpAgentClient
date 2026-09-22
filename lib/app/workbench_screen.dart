@@ -9,12 +9,13 @@ import 'dart:convert';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/gestures.dart' show kPrimaryButton;
-import 'package:flutter/rendering.dart' show RenderAbstractViewport, ScrollDirection;
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../projection/entries.dart';
+import '../projection/turn_fold.dart';
 import '../projection/session_store.dart';
 import '../projection/timeline.dart';
 import '../theme/tokens.dart' as t;
@@ -44,6 +45,9 @@ import '../ui/transcript/transcript_list.dart';
 import 'clipboard_image.dart';
 import 'appearance_prefs.dart';
 import 'shell_state.dart';
+import 'transcript_fold_anchor.dart';
+import 'transcript_jump.dart';
+import 'workspace_state.dart';
 import 'window_controls.dart';
 import 'workbench_controller.dart';
 
@@ -80,11 +84,23 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   /// 画板 43：时间线刚跳到的那条用户气泡（进入画板 11 的点击聚焦态）。转录区里再点一下别处就撤。
   String? _focusedEntryId;
 
-  /// 正在跳的那一次已经试了几帧（见 [_scheduleJump]）。
-  int _jumpTries = 0;
+  /// 画板 43 的时间线跳转（惰性列表里的单向步进，见 [TranscriptJump]）。
+  late final TranscriptJump _jump = TranscriptJump(controller: _transcript, rows: _rows);
 
-  /// 估位最多试几帧就收手：够不着就停在估出来的位置，不在这里空转。
-  static const int _maxJumpTries = 8;
+  /// 画板 08 B 的滚动锚点：折 / 展（手动点摘要行，或 stop_reason 到达时自动折叠）前后，
+  /// 让这一轮的结论停在原地。见 [TranscriptFoldAnchor]。
+  late final TranscriptFoldAnchor _foldAnchor = TranscriptFoldAnchor(
+    controller: _transcript,
+    entries: () => c.session.store?.entries ?? const <TranscriptEntry>[],
+    folds: c.folds,
+  );
+
+  /// 转录的行列表。**必须与 `TranscriptList` 算出来的那一份一致**——跳转是按行定位的，
+  /// 折叠态（画板 08 B）把折叠块里的条目整批拿掉，两边口径不同就会跳错位。
+  List<TranscriptRow> _rows() {
+    final List<TranscriptEntry> entries = c.session.store?.entries ?? const <TranscriptEntry>[];
+    return buildRows(entries, folds: foldsOf(entries), collapsed: c.folds.isCollapsed);
+  }
 
   WorkbenchController get c => widget.controller;
 
@@ -113,6 +129,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   void dispose() {
     c.removeListener(_onControllerChanged);
     _followed?.removeListener(_onTranscriptGrew);
+    _jump.cancel();
+    _foldAnchor.dispose();
     _transcript.removeListener(_onTranscriptScrolled);
     _transcript.dispose();
     super.dispose();
@@ -130,12 +148,18 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     _followed?.removeListener(_onTranscriptGrew);
     _followed = store;
     store?.addListener(_onTranscriptGrew);
+    // 转录换了一份内容，上一条会话没跳完的那次跳转、没做完的折叠校正都不再算数。
+    _jump.cancel();
+    _foldAnchor.cancel();
     _stick = true;
     _scheduleFollow();
   }
 
   /// 转录长出新内容：流式分块、工具卡、终端输出都会通知这个 store。
+  /// **这一刻屏幕上还是旧布局**（重建在本帧稍后），所以 `stop_reason` 那一下的自动折叠要在这里
+  /// 先把锚点量下来（复审 high，2026-09-22：自动折叠不经过任何点击回调，第 1 轮实现整条没校正）。
   void _onTranscriptGrew() {
+    _foldAnchor.beforeRebuild();
     if (_stick) _scheduleFollow();
   }
 
@@ -279,6 +303,9 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       projectAnchor: c.workspace.projectAnchor,
       branchAnchor: c.workspace.branchAnchor,
       dragArea: _dragArea(),
+      // 画板 08 C：全部工作区在跑会话合计。
+      runningTotal: c.session.runningTotal,
+      runningWorkspaces: c.session.runningWorkspaceCount,
     );
   }
 
@@ -310,6 +337,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
             searchController: c.workspace.projectSearch,
             searchFocusNode: c.workspace.projectSearchFocus,
             query: c.workspace.projectSearch.text,
+            // 画板 08 C：每一行的在跑会话数。归一化那条规则只有 `WorkspaceState.normalizeCwd` 一份。
+            runningOf: (p) => c.session.runningByWorkspace[WorkspaceState.normalizeCwd(p.path)] ?? 0,
             onQueryChanged: (_) => c.refresh(),
             onSelect: c.workspace.openProject,
             onOpenLocalFolders: _pickProjectDirectory,
@@ -438,6 +467,9 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
               onAnswerElicitation: c.turn.answerElicitation,
               // 画板 23 的停止方块：terminal_kill。
               onKillTerminal: c.turn.killTerminal,
+              // 画板 08 B：回合结束后过程折叠为一行摘要；折 / 展经锚点走，结论停在原地。
+              folds: c.folds,
+              onToggleFold: _foldAnchor.toggle,
             ),
           ),
         ],
@@ -714,50 +746,38 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   }
 
   /// 画板 43：跳到某个转录条目，落点是「目标块顶边对齐转录区顶部内边距」，不做滚动动画。
-  ///
-  /// 惰性列表里目标行多半还没建出来（`ListView.builder` 只建视口附近那几行，没建的行没有 RenderObject），
-  /// 所以先按行序比例估一个落点跳过去，下一帧再看目标建出来没有；建出来了就按它的真实位置精确落位。
-  /// 与跟随底部那套多帧纠正同一个套路（见 [_scheduleFollow]），只是方向反过来。
+  /// 惰性列表里目标行多半还没建出来，怎么一步步挪过去见 [TranscriptJump]。
   void _jumpToEntry(String entryId, {required bool focus}) {
     final store = c.session.store;
     if (store == null) return;
-    final rows = buildRows(store.entries);
-    final index = rows.indexWhere((r) => r is EntryRow && r.entry.id == entryId);
-    if (index < 0) return;
-    final entry = (rows[index] as EntryRow).entry;
+    TranscriptEntry? target;
+    for (final e in store.entries) {
+      if (e is! TurnEntry && e.id == entryId) target = e;
+    }
+    if (target == null) return;
+    // 画板 08 B：目标落在折叠块里就先展开那一轮——折着的时候它根本没有行，跳过去没有落点。
+    // 展开按「展开态记忆」照常记住。
+    final TurnFold? fold = foldContaining(foldsOf(store.entries).values, target);
+    final bool expanded = fold != null && c.folds.expand(fold);
+    // 时间线跳转自己定落点：折叠锚点一律让路——它订阅着 `folds`，刚才那下 `expand` 的通知会把它武装一次
+    // （帧后把结论拽回原地、跳转再把目标拉回来，两个 jumpTo 打架）；上一次折 / 展量不到锚点时它起的找回
+    // 跳转也可能还在逐帧 jumpTo，不管这次有没有翻面都得停掉（cursor 复审 P3，2026-09-22）。
+    _foldAnchor.cancel();
     // 跳到旧内容 = 用户自己翻上去，跟随底部要停掉，否则下一条流式块又把视口拽回最底下。
     _stick = false;
     setState(() => _focusedEntryId = focus ? entryId : null);
-    _jumpTries = 0;
-    if (_revealRow(entry)) return;
-    _scheduleJump(entry, index, rows.length);
-  }
-
-  void _scheduleJump(TranscriptEntry entry, int index, int count) {
+    if (!expanded) {
+      _jump.start(entryId);
+      return;
+    }
+    // **刚展开的这一帧不能就地开跳**（发布前审查 high，2026-09-22）：`expand` 只是 notifyListeners，
+    // 列表要下一帧才按展开后的行重建，而 `TranscriptJump.start` 是当帧同步走一次 `_step` 的。
+    // 那一下 `rows()` 已经是展开后的行号，sliver 的 firstChild / lastChild 却还是折叠前的布局；
+    // 新行号一旦落进这段过期区间，`_step` 就去问目标行的 RenderObject —— 它这一帧还没建出来，
+    // 于是 `cancel()`，`_schedule` 又因为 `_target == null` 不再登记下一帧：回合展开了，滚动却原地不动。
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_transcript.hasClients) return;
-      if (_revealRow(entry)) return;
-      if (++_jumpTries > _maxJumpTries) return;
-      // 估位：按行序在总长里的比例。`maxScrollExtent` 对没建出来的那截是按已建行的平均高估的，
-      // 所以每跳一次、建出来的行换一批，估值就更贴一点——几帧内收敛到目标那一屏。
-      final p = _transcript.position;
-      _transcript.jumpTo((p.maxScrollExtent * index / count).clamp(p.minScrollExtent, p.maxScrollExtent));
-      _scheduleJump(entry, index, count);
+      if (mounted) _jump.start(entryId);
     });
-  }
-
-  /// 目标行已经建出来了：按它在视口里的真实位置精确落位。返回 false = 还没建出来。
-  bool _revealRow(TranscriptEntry entry) {
-    final context = transcriptRowKey(entry).currentContext;
-    if (context == null || !_transcript.hasClients) return false;
-    final box = context.findRenderObject();
-    if (box is! RenderBox || !box.attached) return false;
-    // `getOffsetToReveal(…, 0)` 给的是「目标顶边贴视口顶边」的偏移，再减去转录区顶部内边距，
-    // 目标上方就正好留出画板要的那 16。
-    final reveal = RenderAbstractViewport.of(box).getOffsetToReveal(box, 0).offset - t.Spacing.s16;
-    final p = _transcript.position;
-    _transcript.jumpTo(reveal.clamp(p.minScrollExtent, p.maxScrollExtent));
-    return true;
   }
 
   // ---------------------------------------------------------------- 右栏与流量面板（画板 03 / 80）
@@ -861,6 +881,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         onCopyPath: (path) => Clipboard.setData(ClipboardData(text: path)),
         appearance: widget.appearance,
         onOpenUrl: (url) => launchUrl(Uri.parse(url)),
+        folds: c.folds,
       );
 
   Widget _rightPanel() {

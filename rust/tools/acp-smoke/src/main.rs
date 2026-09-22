@@ -25,6 +25,7 @@ use std::time::Duration;
 
 use acp_core::core::Core;
 use acp_core::events::{EventChannel, EventSink};
+use base64::prelude::*;
 use serde_json::{Value, json};
 
 /// stdout JSON 行 + 转发给 `run` 的反应线程。
@@ -332,7 +333,7 @@ fn run_agent(opts: RunArgs) -> i32 {
                     EventChannel::TerminalOutput => {
                         let Some(input) = auth_input.as_ref() else { continue };
                         let Some(bytes) = v["bytes"].as_str() else { continue };
-                        let text = String::from_utf8_lossy(&base64_decode(bytes)).into_owned();
+                        let text = String::from_utf8_lossy(&BASE64_STANDARD.decode(bytes).unwrap_or_default()).into_owned();
                         let write_to = {
                             let Ok(mut r) = reactor.lock() else { continue };
                             r.auth_output.push_str(&text);
@@ -561,28 +562,4 @@ fn sample_value(schema: &Value) -> Value {
         }
         _ => json!("smoke"),
     }
-}
-
-/// 标准 base64 解码（忽略非法字符），只给 `--auth-input` 看终端输出用。
-fn base64_decode(text: &str) -> Vec<u8> {
-    let mut out = Vec::with_capacity(text.len() * 3 / 4);
-    let mut acc: u32 = 0;
-    let mut bits = 0;
-    for c in text.bytes() {
-        let v = match c {
-            b'A'..=b'Z' => c - b'A',
-            b'a'..=b'z' => c - b'a' + 26,
-            b'0'..=b'9' => c - b'0' + 52,
-            b'+' => 62,
-            b'/' => 63,
-            _ => continue,
-        };
-        acc = (acc << 6) | u32::from(v);
-        bits += 6;
-        if bits >= 8 {
-            bits -= 8;
-            out.push(((acc >> bits) & 0xff) as u8);
-        }
-    }
-    out
 }

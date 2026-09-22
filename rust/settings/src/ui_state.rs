@@ -12,7 +12,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Result, SettingsError, write_atomic};
+use crate::{Result, SettingsError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -71,7 +71,7 @@ impl UiStateStore {
             state.files_tree_collapsed = Some(collapsed);
         }
         let text = serde_json::to_string_pretty(&state).map_err(|e| SettingsError::Json(e.to_string()))?;
-        write_atomic(&self.path, text.as_bytes())?;
+        fs::write_atomic(&self.path, text.as_bytes())?;
         Ok(state)
     }
 }

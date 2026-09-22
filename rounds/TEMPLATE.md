@@ -30,11 +30,11 @@
 ## 代码审查
 
 <!-- 完成后回填。审查路由见 CLAUDE.md「开发模式」与 docs/review-workflow.md：
-     ① cursor CLI + grok 4.6 high fast → ② 硬失败回落主会话委派的 Claude Code 只读子代理（同一份任务书）。
+     ① cursor CLI + grok 4.7 high fast → ② 硬失败回落主会话委派的 Claude Code 只读子代理（同一份任务书）。
      范围：前两轮全量（-Scope branch，即 main...HEAD），第 3 轮起只审上一轮整改 diff（-Scope since -Base <上一轮已审提交>）。 -->
 
 - 审查方式：<cursor-review.ps1（默认档）| cursor-review.ps1 -Kind adversarial | Claude Code 子代理（写明 cursor 失败原因）>
-- 审查器与模型：<cursor CLI cursor-grok-4.6-high-fast | Claude Code 子代理（写明模型）>
+- 审查器与模型：<cursor CLI grok-4.7-high-fast | Claude Code 子代理（写明模型）>
 - 审查范围与基准提交：<branch main...HEAD | since <sha>..HEAD>
 - findings 处理：<逐条：采纳整改 / 不采纳及理由；或链接同目录记录文件>
 - 结论：<PASS | 整改后 PASS>

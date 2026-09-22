@@ -23,8 +23,8 @@ import 'mermaid_block.dart';
 typedef LinkCallback = void Function(String href);
 
 /// `$$…$$`（块级）与 `$…$`（行内）→ `<latex display="true|false">`。
-class LatexSyntax extends md.InlineSyntax {
-  LatexSyntax() : super(r'\$\$([\s\S]+?)\$\$|\$([^$\n]+?)\$');
+class _LatexSyntax extends md.InlineSyntax {
+  _LatexSyntax() : super(r'\$\$([\s\S]+?)\$\$|\$([^$\n]+?)\$');
 
   @override
   bool onMatch(md.InlineParser parser, Match match) {
@@ -80,7 +80,7 @@ class MarkdownBody extends StatefulWidget {
 
   static final md.ExtensionSet _extensions = md.ExtensionSet(
     md.ExtensionSet.gitHubFlavored.blockSyntaxes,
-    <md.InlineSyntax>[LatexSyntax(), HtmlLineBreakSyntax(), ...md.ExtensionSet.gitHubFlavored.inlineSyntaxes],
+    <md.InlineSyntax>[_LatexSyntax(), HtmlLineBreakSyntax(), ...md.ExtensionSet.gitHubFlavored.inlineSyntaxes],
   );
 
   static List<md.Node> parse(String data) => md.Document(extensionSet: _extensions, encodeHtml: false).parse(data);

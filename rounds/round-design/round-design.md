@@ -2,7 +2,7 @@
 
 <!-- 保存为 rounds/round-design/round-design.md；该轮其他管理产出放同一目录。 -->
 
-> 状态：已完成（2026-09-14 立项，同日两轮审核后收口并入库，尚未提交；ROUNDS.md 尚未建立，本轮边界以 `docs/design.md` § 9 五个页面 + `docs/acp-projection.md` 全部投影面为准）
+> 状态：已完成（2026-09-14 立项，同日两轮审核后收口并入库，合并提交 `72e2be1`；本轮边界以 `docs/design.md` § 9 五个页面 + `docs/acp-projection.md` 全部投影面为准，40 张画板。入库后的画板修订走 `design/round-design/input/revision-NN.md`，见 `design/README.md` 变更记录）
 
 ## 目标
 

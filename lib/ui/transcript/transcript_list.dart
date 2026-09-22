@@ -8,9 +8,12 @@ import 'dart:math' as math;
 import 'package:flutter/rendering.dart' show SelectedContent;
 import 'package:flutter/widgets.dart';
 
+import '../../app/transcript_folds.dart';
 import '../../projection/entries.dart';
 import '../../projection/session_store.dart';
+import '../../projection/turn_fold.dart';
 import '../../theme/tokens.dart' as t;
+import '../shell/motion.dart';
 import 'assistant_text.dart';
 import 'awaiting_bar.dart';
 import 'compaction_card.dart';
@@ -23,6 +26,7 @@ import 'subagent_card.dart';
 import 'terminal_card.dart';
 import 'thinking_block.dart';
 import 'tool_call_card.dart';
+import 'turn_fold_row.dart';
 import 'turn_state.dart';
 import 'user_message.dart';
 
@@ -31,6 +35,11 @@ import 'user_message.dart';
 /// `workbench_screen.dart` 的 `_jumpToEntry`）。键按 `TranscriptEntry` 实例取，不按 `entry.id` ——
 /// 两个 store 里都有 `msg-1`，按 id 取会在同屏渲染两份转录时撞成重复 GlobalKey。
 GlobalObjectKey<State<StatefulWidget>> transcriptRowKey(TranscriptEntry entry) => GlobalObjectKey<State<StatefulWidget>>(entry);
+
+/// 画板 08 B 的滚动锚点要量某一轮的**页脚**位置（折叠块之后、结论之下的那一行），所以结束行也挂一枚
+/// 按 [TurnEntry] 实例取的 GlobalKey。与 [transcriptRowKey] 同一条理由：按实例取不按 id，同屏两份转录才不撞。
+/// `TurnEntry` 从不出 `EntryRow`（[buildRows] 把它跳过），所以两个键不会取到同一个对象。
+GlobalObjectKey<State<StatefulWidget>> turnFooterKey(TurnEntry turn) => GlobalObjectKey<State<StatefulWidget>>(turn);
 
 /// 列表行：一个条目，或某轮的结束行。
 sealed class TranscriptRow {
@@ -49,22 +58,56 @@ class TurnEndRow extends TranscriptRow {
   final TurnEntry turn;
 }
 
+/// 画板 08 B 的摘要行。出在该轮**第一个被折叠的条目**那一位上，所以折叠块永远压在
+/// 「用户消息」与「最终助手文本」之间，位置不因折叠改变。
+class TurnFoldSummaryRow extends TranscriptRow {
+  const TurnFoldSummaryRow(this.fold, {required this.collapsed});
+
+  final TurnFold fold;
+  final bool collapsed;
+}
+
+/// 行的身份（画板 43 的跳转与画板 08 B 的锚点按它找行）：条目行 = 条目 id，结束行 = `<轮 id>-end`，
+/// 摘要行 = `<轮 id>-fold`。三类前缀不同，同一份转录里不会撞。
+String transcriptRowId(TranscriptRow row) => switch (row) {
+      EntryRow(:final entry) => entry.id,
+      TurnEndRow(:final turn) => '${turn.id}-end',
+      TurnFoldSummaryRow(:final fold) => '${fold.turn.id}-fold',
+    };
+
 /// 把条目列表展开成行：每个已结束的轮在其最后一个条目之后加一行结束行。
 /// `TurnEntry` 本身不出行——轮开始不画任何东西（画板 10 的分隔线已废弃，见文件头），它只用来切轮与定位 Restore。
-List<TranscriptRow> buildRows(List<TranscriptEntry> entries) {
+///
+/// 画板 08 B：给了 [folds] 就在每轮第一个被折叠的条目前插一行摘要行，[collapsed] 为真时把该轮折叠块里的条目
+/// 整批跳过。**运行中的轮不出摘要行**——流式期间过程必须可见，摘要行是 `stop_reason` 到达之后才有的东西。
+List<TranscriptRow> buildRows(
+  List<TranscriptEntry> entries, {
+  Map<String, TurnFold> folds = const <String, TurnFold>{},
+  bool Function(TurnFold fold) collapsed = _neverCollapsed,
+}) {
   final rows = <TranscriptRow>[];
   TurnEntry? open;
+  TurnFold? fold;
+  var foldCollapsed = false;
   for (final e in entries) {
     if (e is TurnEntry) {
       if (open != null && !open.isRunning) rows.add(TurnEndRow(open));
       open = e;
+      fold = e.isRunning ? null : folds[e.id];
+      foldCollapsed = fold != null && collapsed(fold);
       continue;
+    }
+    if (fold != null && fold.contains(e)) {
+      if (identical(e, fold.anchor)) rows.add(TurnFoldSummaryRow(fold, collapsed: foldCollapsed));
+      if (foldCollapsed) continue;
     }
     rows.add(EntryRow(e));
   }
   if (open != null && !open.isRunning) rows.add(TurnEndRow(open));
   return rows;
 }
+
+bool _neverCollapsed(TurnFold fold) => false;
 
 class TranscriptList extends StatelessWidget {
   const TranscriptList(
@@ -82,9 +125,20 @@ class TranscriptList extends StatelessWidget {
     this.onKillTerminal,
     this.focusedEntryId,
     this.trackRows = false,
+    this.folds,
+    this.onToggleFold,
   });
 
   final SessionStore store;
+
+  /// 画板 08 B 的回合折叠。null = 不折叠（gallery 的其它画板、单测里不关心折叠的那些）。
+  final TranscriptFolds? folds;
+
+  /// 点摘要行。工作台里接的是 `TranscriptFoldAnchor.toggle`：折 / 展前后要把视口挪回去，让这一轮的
+  /// 结论停在原地（画板 08 B「滚动锚点」），而那件事要连自动折叠一起管，所以收在
+  /// `lib/app/transcript_fold_anchor.dart`。**不给就退到直接 [TranscriptFolds.toggle]**——
+  /// 只翻面、不校正（gallery 与单测里够用）。
+  final void Function(TurnFold fold)? onToggleFold;
 
   /// 画板 43：时间线刚跳过来的那条用户气泡进入画板 11 的「点击聚焦」态；null = 没有。
   final String? focusedEntryId;
@@ -112,11 +166,15 @@ class TranscriptList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 队列项的本地态（url 已打开 / 本地 cancelled）只经 PendingQueue 通知，所以两者都听。
+    // 队列项的本地态（url 已打开 / 本地 cancelled）只经 PendingQueue 通知，所以三者都听
+    // （折叠态是本地的，变了要重排行）。
+    final TranscriptFolds? folds = this.folds;
     return ListenableBuilder(
-      listenable: Listenable.merge(<Listenable>[store, store.pending]),
+      listenable: Listenable.merge(<Listenable>[store, store.pending, ?folds]),
       builder: (context, _) {
-        final rows = buildRows(store.entries);
+        final rows = folds == null
+            ? buildRows(store.entries)
+            : buildRows(store.entries, folds: foldsOf(store.entries), collapsed: folds.isCollapsed);
         return SelectableRegion(
           selectionControls: emptyTextSelectionControls,
           onSelectionChanged: onSelectionChanged,
@@ -141,11 +199,34 @@ class TranscriptList extends StatelessWidget {
     );
   }
 
-  Widget buildRow(TranscriptRow row) => switch (row) {
-        TurnEndRow(:final turn) => KeyedSubtree(key: ValueKey<String>('${turn.id}-end'), child: TurnEndLine(turn, usage: store.usage)),
-        EntryRow(:final entry) =>
-          KeyedSubtree(key: trackRows ? transcriptRowKey(entry) : ValueKey<String>(entry.id), child: buildEntry(entry)),
-      };
+  Widget buildRow(TranscriptRow row) {
+    // 本地一份：字段是可空的，闭包里提升不了。
+    final TranscriptFolds? folds = this.folds;
+    return switch (row) {
+        TurnEndRow(:final turn) => KeyedSubtree(
+            key: trackRows ? turnFooterKey(turn) : ValueKey<String>('${turn.id}-end'),
+            child: TurnEndLine(turn, usage: store.usage),
+          ),
+        // 摘要行淡入：只淡入这一块本身，不动周围内容，也不做高度过渡（画板 08 B「动效与滚动」）。
+        TurnFoldSummaryRow(:final fold, :final collapsed) => KeyedSubtree(
+            key: ValueKey<String>('${fold.turn.id}-fold'),
+            child: MotionEnter(
+              epoch: fold.turn.id,
+              distance: 0,
+              duration: t.Motion.fast,
+              child: TurnFoldRow(
+                fold: fold,
+                collapsed: collapsed,
+                // 没给 [onToggleFold] 就退到直接翻面（gallery 的样张、不关心滚动校正的单测）：
+                // 有 `folds` 却点不动，与画板 08 的样张说明对不上（复审 P2，2026-09-22）。
+                onToggle: folds == null ? null : () => (onToggleFold ?? folds.toggle)(fold),
+              ),
+            ),
+          ),
+      EntryRow(:final entry) =>
+        KeyedSubtree(key: trackRows ? transcriptRowKey(entry) : ValueKey<String>(entry.id), child: buildEntry(entry)),
+    };
+  }
 
   Widget buildEntry(TranscriptEntry e) {
     final cwd = store.cwd;

@@ -22,7 +22,10 @@ class ElicitationUrlCard extends StatelessWidget {
     final e = entry;
     final who = agentName ?? e.agentId ?? 'agent';
     final completed = e.status == PendingStatus.completed;
-    final cancelled = e.status == PendingStatus.cancelled; // 已打开后点了 Cancel（本地态，画板 28 之外的收尾）
+    // 已打开后点了 Cancel（本地态，画板 28 之外的收尾），或 agent 撤回 / 进程退出（withdrawn）——与 permission 卡、
+    // 表单卡同一收尾：按钮不再可点（见 lib/projection/pending.dart 的 withdrawAgent；审查 P2，2026-09-22）。
+    final withdrawn = e.status == PendingStatus.withdrawn;
+    final cancelled = e.status == PendingStatus.cancelled || withdrawn;
     final opened = e.opened && !completed && !cancelled;
     final Widget status = completed
         ? Row(
@@ -34,7 +37,7 @@ class ElicitationUrlCard extends StatelessWidget {
             ],
           )
         : cancelled
-            ? Text('Cancelled', style: CardText.secondary)
+            ? Text(withdrawn ? 'agent 已不再等待' : 'Cancelled', style: CardText.secondary)
             : opened
                 ? Row(
                     mainAxisSize: MainAxisSize.min,

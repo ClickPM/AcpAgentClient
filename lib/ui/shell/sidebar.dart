@@ -384,7 +384,7 @@ class SidebarSessionRow extends StatelessWidget {
                   right: t.Sweep.inset,
                   bottom: t.Sweep.bottom,
                   height: t.Sweep.band,
-                  child: SessionSweepLine(),
+                  child: _SessionSweepLine(),
                 ),
             ],
           ),
@@ -416,7 +416,7 @@ class SidebarSessionRow extends StatelessWidget {
               ),
               // 画板 06 D「两者严格互斥：任何一帧都不得同时出现亮点线与绿点」——
               // 运行中即便还挂着未读标记也先撤掉（下一轮结束时再点亮）。
-              SessionUnreadDot(visible: unread && !running),
+              _SessionUnreadDot(visible: unread && !running),
             ],
           ),
         ],
@@ -468,14 +468,14 @@ class SidebarSessionRow extends StatelessWidget {
 /// accent 亮点自左向右匀速掠过，走完即从左侧重新进入。**亮点位置与进度无关**，单向、不回弹、不反向。
 ///
 /// 由外面的 [Positioned] 给它 [t.Sweep.band] 高的轨道带，线画在带的中线上。
-class SessionSweepLine extends StatefulWidget {
-  const SessionSweepLine({super.key});
+class _SessionSweepLine extends StatefulWidget {
+  const _SessionSweepLine();
 
   @override
-  State<SessionSweepLine> createState() => _SessionSweepLineState();
+  State<_SessionSweepLine> createState() => _SessionSweepLineState();
 }
 
-class _SessionSweepLineState extends State<SessionSweepLine> with SingleTickerProviderStateMixin {
+class _SessionSweepLineState extends State<_SessionSweepLine> with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(vsync: this, duration: t.Sweep.cycle);
 
   /// prefers-reduced-motion。关掉动效时**不能只是不画**：`AnimationController` 在这个开关下会把时长当 0，
@@ -549,16 +549,16 @@ class _SweepPainter extends CustomPainter {
 
 /// 画板 06 B ·「N 条消息」后的完成未读绿点：出现与清除都**只做 opacity**（[t.Motion.fast] · [t.Motion.curve]），
 /// 不缩放、不弹跳、不呼吸、不闪烁；淡出走完就从布局里移除，不留 [t.UnreadDot.gap] 的占位。
-class SessionUnreadDot extends StatefulWidget {
-  const SessionUnreadDot({super.key, required this.visible});
+class _SessionUnreadDot extends StatefulWidget {
+  const _SessionUnreadDot({required this.visible});
 
   final bool visible;
 
   @override
-  State<SessionUnreadDot> createState() => _SessionUnreadDotState();
+  State<_SessionUnreadDot> createState() => _SessionUnreadDotState();
 }
 
-class _SessionUnreadDotState extends State<SessionUnreadDot> with SingleTickerProviderStateMixin {
+class _SessionUnreadDotState extends State<_SessionUnreadDot> with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: t.Motion.fast,
@@ -567,7 +567,7 @@ class _SessionUnreadDotState extends State<SessionUnreadDot> with SingleTickerPr
   late final Animation<double> _opacity = _controller.drive(CurveTween(curve: t.Motion.curve));
 
   @override
-  void didUpdateWidget(SessionUnreadDot old) {
+  void didUpdateWidget(_SessionUnreadDot old) {
     super.didUpdateWidget(old);
     if (widget.visible == old.visible) return;
     if (widget.visible) {

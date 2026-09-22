@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Result, SettingsError, write_atomic};
+use crate::{Result, SettingsError};
 
 /// 最近项目列表的上限（画板 41 的 Recent Projects）。
 pub const RECENT_PROJECTS_LIMIT: usize = 20;
@@ -84,7 +84,7 @@ fn load<T: Default + for<'de> Deserialize<'de>>(path: &Path) -> T {
 
 fn save<T: Serialize>(path: &Path, value: &T) -> Result<()> {
     let text = serde_json::to_string_pretty(value).map_err(|e| SettingsError::Json(e.to_string()))?;
-    write_atomic(path, text.as_bytes())
+    Ok(fs::write_atomic(path, text.as_bytes())?)
 }
 
 impl IndexStore {

@@ -87,8 +87,8 @@ class ToolStatusIcon extends StatelessWidget {
 }
 
 /// 副标题位置的路径芯片：悬浮出 6% 底 + 「Go to File」提示（落右栏文件面板，R4 接 onGoToFile）。
-class PathChip extends StatefulWidget {
-  const PathChip(this.text, {super.key, this.onGoToFile, this.hoveredInitially = false, this.onHoverChanged});
+class _PathChip extends StatefulWidget {
+  const _PathChip(this.text, {this.onGoToFile, this.hoveredInitially = false, this.onHoverChanged});
 
   final String text;
   final VoidCallback? onGoToFile;
@@ -96,10 +96,10 @@ class PathChip extends StatefulWidget {
   final ValueChanged<bool>? onHoverChanged;
 
   @override
-  State<PathChip> createState() => _PathChipState();
+  State<_PathChip> createState() => _PathChipState();
 }
 
-class _PathChipState extends State<PathChip> {
+class _PathChipState extends State<_PathChip> {
   late bool _hover = widget.hoveredInitially;
 
   @override
@@ -181,7 +181,7 @@ class _ToolCallCardState extends State<ToolCallCard> {
             title: e.title,
             subtitleWidget: subtitle.isEmpty
                 ? null
-                : PathChip(
+                : _PathChip(
                     subtitle,
                     hoveredInitially: widget.pathHoveredInitially,
                     onHoverChanged: (h) => setState(() => _pathHover = h),

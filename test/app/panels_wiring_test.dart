@@ -98,6 +98,22 @@ class PanelsCore extends FakeCore {
   }
 }
 
+/// `git_status` 挂在 [gate] 上：用来验徽章刷新的防重入（大仓库上一次刷新跑不完、下一批变化已经到了）。
+class GatedStatusCore extends PanelsCore {
+  Completer<void>? gate;
+
+  /// 发出去的次数（`PanelsCore.gitStatusCalls` 只数跑完的，堵着的那次数不进去）。
+  int gitStatusStarts = 0;
+
+  @override
+  Future<JsonMap> gitStatus(String cwd) async {
+    gitStatusStarts++;
+    final g = gate;
+    if (g != null) await g.future;
+    return super.gitStatus(cwd);
+  }
+}
+
 /// 核心不认识的终端 id（`_meta` 通道喂出来的 toolUseId）：`terminal_kill` 报 unknown terminal。
 class UnknownKillCore extends PanelsCore {
   @override
@@ -145,6 +161,34 @@ void main() {
       expect(core.read.length, reads + 1, reason: '打开着的文件在变化目录下，重读一次');
       expect(f.viewer!.text, contains('print(1)'));
       expect(core.gitStatusCalls, greaterThan(statuses));
+      f.dispose();
+    });
+
+    test('徽章刷新防重入：在跑的时候再来只记一笔，这一轮完了补跑一次最新状态', () async {
+      final core = GatedStatusCore();
+      final f = FilesState(bridge: core);
+      await f.setProject(root);
+      final base = core.gitStatusStarts;
+
+      final gate = Completer<void>();
+      core.gate = gate;
+      final first = f.refreshBadges();
+      await pumpEventQueue();
+      expect(core.gitStatusStarts, base + 1, reason: '第一次照常发出去');
+
+      // 刷新在飞的时候又来两批变化：只该记一笔，不该再开两个 git_status。
+      core.badges = <String, String>{'$root/README.md': 'M'};
+      final second = f.refreshBadges();
+      final third = f.refreshBadges();
+      await pumpEventQueue();
+      expect(core.gitStatusStarts, base + 1, reason: 'Windows 上几路 git.exe 抢磁盘正是要避免的');
+
+      core.gate = null;
+      gate.complete();
+      await Future.wait(<Future<void>>[first, second, third]);
+      await pumpEventQueue();
+      expect(core.gitStatusStarts, base + 2, reason: '挂起的那两笔合成一次补跑');
+      expect(f.tree!.badgeOf('$root/README.md'), 'M', reason: '补跑拿到的是最新状态');
       f.dispose();
     });
 

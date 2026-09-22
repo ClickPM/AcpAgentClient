@@ -152,7 +152,7 @@ class Composer extends StatelessWidget {
     // 一律 `ignored`：这一下是不是文本粘贴要读完剪贴板才知道，而按键回调必须同步返回，
     // 所以文本粘贴照旧交给 `EditableText`，`onPaste` 那边先看剪贴板里是不是文本、是就什么都不做。
     // Shift / Alt 一起按的不算：Ctrl+Shift+V（「粘贴为纯文本」的习惯键）Flutter 自己不认，
-    // 不排掉的话它也会拉一次 powershell 读剪贴板、剪贴板里有位图时还静默多出一枚芯片。
+    // 不排掉的话它也会读一次剪贴板、剪贴板里有位图时还静默多出一枚芯片。
     if (key == LogicalKeyboardKey.keyV &&
         (HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed) &&
         !HardwareKeyboard.instance.isShiftPressed &&
@@ -255,10 +255,10 @@ class Composer extends StatelessWidget {
             if (o.on == null)
               PopoverAnchor(
                 handle: o.anchor,
-                child: ComposerDropdown(label: o.label, onTap: o.onTap, maxWidth: o.maxWidth),
+                child: _ComposerDropdown(label: o.label, onTap: o.onTap, maxWidth: o.maxWidth),
               )
             else
-              ComposerToggle(label: o.label, on: o.on!, onTap: o.onToggle),
+              _ComposerToggle(label: o.label, on: o.on!, onTap: o.onToggle),
           const SizedBox(width: t.Spacing.s4),
           if (running) _StopButton(onTap: onStop) else _SendButton(enabled: enabled, onTap: onSend),
         ],
@@ -294,8 +294,8 @@ class ComposerOption {
 }
 
 /// 输入框右下的下拉芯片（会话配置里的 select 型）。
-class ComposerDropdown extends StatelessWidget {
-  const ComposerDropdown({super.key, required this.label, this.onTap, this.maxWidth});
+class _ComposerDropdown extends StatelessWidget {
+  const _ComposerDropdown({required this.label, this.onTap, this.maxWidth});
 
   final String label;
   final VoidCallback? onTap;
@@ -330,8 +330,8 @@ class ComposerDropdown extends StatelessWidget {
 
 /// 输入框右下的开关格（会话配置里的 boolean 型）：标签在左、开关在右，与下拉芯片同排同高
 /// （照 Zed 的做法，不再单开一个面板）。
-class ComposerToggle extends StatelessWidget {
-  const ComposerToggle({super.key, required this.label, required this.on, this.onTap});
+class _ComposerToggle extends StatelessWidget {
+  const _ComposerToggle({required this.label, required this.on, this.onTap});
 
   final String label;
   final bool on;

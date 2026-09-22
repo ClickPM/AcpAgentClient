@@ -11,7 +11,7 @@ import 'package:flutter/widgets.dart';
 import '../../projection/wire.dart';
 import '../../theme/tokens.dart' as t;
 import '../transcript/card_chrome.dart';
-import '../transcript/content_blocks.dart' show formatBytes;
+import '../format.dart';
 import '../transcript/icons.dart';
 import 'motion.dart';
 import 'shell_common.dart';

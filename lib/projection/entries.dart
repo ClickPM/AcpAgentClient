@@ -381,6 +381,11 @@ class TurnEntry extends TranscriptEntry {
   TurnUsage? usage;
   DateTime? endedAt;
 
+  /// 画板 08 B 摘要行第二行：**本回合开始那一刻**的模型显示名（会话配置里 `category == model` 那一档的
+  /// 当前选项名，含 agent 自己给的通道后缀）。所有者裁定 2026-09-22：回合中途换模型这一行不改，所以只在
+  /// `startTurn` 写一次。agent 没有 model 这一档配置时是 null，摘要行退化成单行。
+  String? model;
+
   bool get isRunning => endedAt == null;
   Duration? get elapsed => endedAt?.difference(at);
 }

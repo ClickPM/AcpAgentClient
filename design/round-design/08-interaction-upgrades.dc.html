@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet"><style>body{margin:0;background:#fbfbfc}a{color:#4a59c9;text-decoration:none}a:hover{color:#3d4cb5}@keyframes acpSweep{from{background-position-x:-96px,0}to{background-position-x:calc(100% + 96px),0}}@media (prefers-reduced-motion:reduce){.acp-sweep{animation:none!important;background-image:linear-gradient(#5566d8,#5566d8)!important;background-size:100% 1px!important;background-position:0 50%!important}}</style></helmet>
+<div data-screen-label="08" style="width:1440px;min-width:1440px;box-sizing:border-box;padding:24px;background:#fbfbfc;color:#33333d;font-family:Geist,'Noto Sans SC',system-ui,sans-serif;font-size:13px;display:flex;flex-direction:column;gap:18px">
+
+  <div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #e2e2e7;padding-bottom:10px">
+    <span style="font-size:15px;font-weight:500;color:#1e1e26">08 · 交互增强 · 回合折叠 / 跨工作区在跑数</span>
+    <span style="font-size:11px;color:#8b8b96">协议来源：stop_reason · session/prompt 在途 · 会话所属工作区（本地）</span>
+    <span style="margin-left:auto;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">解决的问题：长回合的过程把结论挤出屏幕 · 切工作区前看不出别处还有活在跑</span>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:baseline;gap:10px">
+      <span style="font-size:13px;font-weight:500;color:#1e1e26">B · 回合结束后，过程默认折叠为一行摘要</span>
+      <span style="font-size:11px;color:#62626e">拿到 stop_reason 时，本回合的思考 / 工具调用 / 终端 / 子代理 / 压缩标记收进折叠块；用户消息、最终助手文本、回合页脚不参与折叠。折叠行可点，展开态在会话生命周期内记住。</span>
+    </div>
+
+    <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
+      <div style="width:580px">
+        <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">实时 · 点摘要行展开 / 折叠</div>
+        <div style="background:#fbfbfc;border:1px solid #d3d3da;border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;justify-content:flex-end"><span style="max-width:80%;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px;padding:7px 10px;font-size:13px;color:#33333d">开始做第二阶段</span></div>
+
+          <sc-if value="{{ collapsed }}" hint-placeholder-val="{{ true }}">
+            <div onClick="{{ toggle }}" style="cursor:pointer;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px;padding:7px 10px;display:flex;flex-direction:column;gap:2px" style-hover="background:#eeeef1">
+              <span style="display:flex;align-items:center;gap:8px">
+                <span style="display:inline-flex;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"></polyline></svg></span>
+                <span style="font-size:13px;color:#33333d">处理详情</span>
+                <span style="font-size:13px;color:#8b8b96">·</span>
+                <span style="font-size:13px;color:#62626e;font-variant-numeric:tabular-nums">27 条消息</span>
+                <span style="font-size:13px;color:#8b8b96">·</span>
+                <span style="font-size:13px;color:#62626e;font-variant-numeric:tabular-nums">27 次工具调用</span>
+              </span>
+              <span style="font-size:11px;color:#8b8b96;padding-left:22px">Gemini 3.8 Flash High (CLIProxy)</span>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ expanded }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div onClick="{{ toggle }}" style="cursor:pointer;display:flex;align-items:center;gap:8px;padding:2px 0 2px 0">
+                <span style="display:inline-flex;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+                <span style="font-size:13px;color:#33333d">处理详情</span>
+                <span style="font-size:11px;color:#8b8b96">Gemini 3.8 Flash High (CLIProxy) · 27 条消息 · 27 次工具调用</span>
+              </div>
+              <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;padding:7px 10px;display:flex;align-items:center;gap:8px">
+                <span style="display:inline-flex;color:#8a6f12"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M12 2a7 7 0 0 0-4 12.7V18h8v-3.3A7 7 0 0 0 12 2z"></path></svg></span>
+                <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;color:#62626e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">先复核最新提交，确认 v0.4.0 的改动范围…</span>
+                <span style="margin-left:auto;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">1s</span>
+              </div>
+              <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;height:32px;display:flex;align-items:center;gap:8px;padding:0 10px">
+                <span style="display:inline-flex;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg></span>
+                <span style="font-size:13px;color:#33333d;white-space:nowrap">Read file</span>
+                <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;color:#62626e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">plugins\toolkit-diff\index.ts</span>
+                <span style="margin-left:auto;display:inline-flex"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#477f40" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><polyline points="8.4 12.2 11 14.8 15.8 9.6"></polyline></svg></span>
+                <span style="display:inline-flex;color:#8b8b96"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+              </div>
+              <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;height:32px;display:flex;align-items:center;gap:8px;padding:0 10px">
+                <span style="display:inline-flex;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg></span>
+                <span style="font-size:13px;color:#33333d;white-space:nowrap">Run</span>
+                <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:12.5px;color:#62626e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">npm run check</span>
+                <span style="margin-left:auto;display:inline-flex"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#477f40" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><polyline points="8.4 12.2 11 14.8 15.8 9.6"></polyline></svg></span>
+                <span style="display:inline-flex;color:#8b8b96"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+              </div>
+              <div style="font-size:11px;color:#8b8b96;padding-left:2px">… 其余 24 项同样收在这里</div>
+            </div>
+          </sc-if>
+
+          <div style="font-size:13px;line-height:1.5;color:#33333d">第二阶段（吸纳核心开源插件）已全部开发完毕，并通过完整的 TypeScript 类型检查和自动化测试。以下是落地的核心成果与详细说明。</div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:#8b8b96">
+            <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#477f40;border:1px solid #e2e2e7;border-radius:3px;padding:1px 5px;background:#ecf3ea">end_turn</span>
+            <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e;font-variant-numeric:tabular-nums">46,298 tokens（in 43,510 / out 2,788）· $0.084 · 3m 12s</span>
+            <span style="flex:1;height:1px;background:#e2e2e7"></span>
+          </div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">折叠块永远压在「用户消息」与「最终助手文本」之间，位置不因折叠改变</div>
+      </div>
+
+      <div style="flex:1;min-width:420px;display:flex;flex-direction:column;gap:14px">
+        <div style="width:420px">
+          <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">无模型信息时 · 单行</div>
+          <div style="background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px;padding:7px 10px;display:flex;align-items:center;gap:8px">
+            <span style="display:inline-flex;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"></polyline></svg></span>
+            <span style="font-size:13px;color:#33333d">处理详情</span>
+            <span style="font-size:13px;color:#8b8b96">·</span>
+            <span style="font-size:13px;color:#62626e;font-variant-numeric:tabular-nums">12 条消息</span>
+            <span style="font-size:13px;color:#8b8b96">·</span>
+            <span style="font-size:13px;color:#62626e;font-variant-numeric:tabular-nums">9 次工具调用</span>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">摘要行解剖（两行 · 整块 padding 7/10 · radius 6 · 背景 #f4f4f6）</div>
+          <div style="display:grid;grid-template-columns:150px 1fr;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;border-top:1px solid #e2e2e7">
+            <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">位</div>
+            <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">内容与取值</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">chevron</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">14px · #62626e · 折叠 › / 展开 ⌄（换图标，不做旋转动画）</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">第一行</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">「处理详情」13px #33333d · 「N 条消息」「N 次工具调用」13px #62626e，tabular-nums，· 分隔</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">第二行</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">本回合开始时的模型名（含 agent 自己给的通道后缀）11px #8b8b96，左缩 22px 与首行文字对齐；来源是会话配置里 model 那一档的当前选项显示名（画板 40），回合中途换模型不改这一行</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">无模型信息</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">agent 没有 model 这一档配置时不渲染第二行，摘要行退化成单行（样张见上）</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">计数口径</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">条消息 = 本回合被折叠的块数（含思考块与中间的 agent 文本段）· 次工具调用 = tool_call 块数（失败与取消计入）</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">失败计数</div>
+            <div style="padding:5px 0;color:#bc4e39;border-bottom:1px solid #e2e2e7">有失败项时首行末尾追加「N 项失败」（#bc4e39）；回合正常收轮的话照常自动折叠，失败数就留在摘要行上</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">可及性</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">role=button · aria-expanded · Enter / Space 切换 · 是 tab 停靠点 · 整行可点（非只有 chevron）</div>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">折叠范围与例外</div>
+          <div style="display:grid;grid-template-columns:230px 90px 1fr;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;border-top:1px solid #e2e2e7">
+            <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">块类型</div>
+            <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">默认</div>
+            <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">理由</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">思考 / 工具调用 / diff / 终端 / 子代理 / 压缩</div>
+            <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">折叠</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">过程，回看时才需要</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">用户消息 / 最终助手文本 / 回合页脚</div>
+            <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">不折叠</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">结论与账单，永远直出；工具调用之间穿插的 agent 文本属于过程，进折叠块</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">Plan 条 / 检查点标记</div>
+            <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">不折叠</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">画板 29 / 10 的常驻元素，不属于某一回合的过程</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">含失败项、但正常收轮的回合</div>
+            <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">折叠</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">跑到了结论就收起来；坏消息不藏——摘要行上的「N 项失败」（#bc4e39）照出（所有者裁定 2026-09-22）</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">被取消 / 出错的回合</div>
+            <div style="padding:5px 8px 5px 0;color:#bc4e39;border-bottom:1px solid #e2e2e7">保持展开</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">没走到结束值（本地 error 或 stop_reason = cancelled），过程就是现场；用户可手动折叠</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">只有文本、无过程块的回合</div>
+            <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">无摘要行</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">不渲染空的「处理详情 · 0 条消息」</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">运行中的当前回合</div>
+            <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">展开</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">流式期间必须可见；stop_reason 到达后才收起</div>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">动效与滚动</div>
+          <div style="display:grid;grid-template-columns:200px 220px 190px 1fr;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;border-top:1px solid #e2e2e7">
+            <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">属性</div>
+            <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">起 → 止</div>
+            <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">时长 / 曲线</div>
+            <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">备注</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">自动折叠触发</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">展开 → 折叠</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">0ms · 无</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">stop_reason 同帧切换，不做高度过渡（长转录做高度动画必抽动）</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">摘要行淡入</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">opacity 0 → 1</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">motion.fast 120ms · ease</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">只淡入文字块本身，不动周围内容</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">滚动锚点</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">锚在回合页脚</div>
+            <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">—</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">折叠 / 展开后视口中该回合的结论文本保持原位，不跳顶也不跳底</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">时间线跳转</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">折叠 → 展开</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">0ms · 无</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">画板 43 的时间线跳到的目标块在折叠块里时，先展开该回合再滚；展开按「展开态记忆」照常记住。画板 43 的跳转规格本身不变</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">展开态记忆</div>
+            <div style="grid-column:2 / -1;padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">每回合独立，会话打开期间保持；重开会话 / 重启应用回到默认折叠</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">全局开关</div>
+            <div style="grid-column:2 / -1;padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">设置项「回合结束后折叠处理过程」（默认开），落在画板 70 的转录区分组</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:1px;background:#e2e2e7"></div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:baseline;gap:10px">
+      <span style="font-size:13px;font-weight:500;color:#1e1e26">C · 工作区切换里的「在跑会话数」</span>
+      <span style="font-size:11px;color:#62626e">切换器触发钮显示全部工作区在跑会话合计；展开后每个工作区行右侧显示各自的数字。为 0 时不渲染徽标、不留占位。</span>
+    </div>
+
+    <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
+      <div style="width:300px">
+        <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">实时 · 点触发钮开合</div>
+        <div onClick="{{ toggleMenu }}" style="cursor:pointer;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;background:#f4f4f6;border:1px solid #e2e2e7" style-hover="background:#eeeef1">
+          <span style="display:inline-flex;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg></span>
+          <span style="font-size:12px;color:#33333d;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">…ariFlight_work\pi-cordis-toolbox</span>
+          <span style="margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:4px;height:16px;padding:0 5px;border-radius:3px;background:rgba(85,102,216,.12);font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#4a59c9;font-variant-numeric:tabular-nums">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 4 21 10 15 10"></polyline><path d="M19.4 15a8 8 0 1 1-1.9-8.3L21 10"></path></svg>
+            <span>{{ total }}</span>
+          </span>
+          <span style="display:inline-flex;color:#8b8b96"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+        </div>
+        <sc-if value="{{ open }}" hint-placeholder-val="{{ true }}">
+          <div style="margin-top:4px;background:#ffffff;border:1px solid #e2e2e7;border-radius:6px;box-shadow:0 4px 12px rgba(28,28,35,.10);padding:4px">
+            <div style="height:22px;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:500;letter-spacing:.06em;color:#8b8b96">This Window</div>
+            <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;background:rgba(30,30,38,.10)">
+              <span style="display:inline-flex;color:#4a59c9"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+              <span style="font-size:12px;color:#4a59c9;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">…t_work\pi-cordis-toolbox</span>
+              <span style="margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:4px;height:16px;padding:0 5px;border-radius:3px;background:rgba(85,102,216,.12);font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#4a59c9;font-variant-numeric:tabular-nums"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 4 21 10 15 10"></polyline><path d="M19.4 15a8 8 0 1 1-1.9-8.3L21 10"></path></svg>1</span>
+            </div>
+            <div style="height:22px;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:500;letter-spacing:.06em;color:#8b8b96">Recent Projects</div>
+            <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px">
+              <span style="width:14px"></span>
+              <span style="font-size:12px;color:#33333d;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">…ariFlight_work\VariFlightWork</span>
+              <span style="margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:4px;height:16px;padding:0 5px;border-radius:3px;background:rgba(85,102,216,.12);font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#4a59c9;font-variant-numeric:tabular-nums"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 4 21 10 15 10"></polyline><path d="M19.4 15a8 8 0 1 1-1.9-8.3L21 10"></path></svg>2</span>
+            </div>
+            <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px">
+              <span style="width:14px"></span>
+              <span style="font-size:12px;color:#33333d;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">…ariFlight_work\AcpAgentClient</span>
+            </div>
+            <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px">
+              <span style="width:14px"></span>
+              <span style="font-size:12px;color:#33333d;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">…9ffdc02c\scratchpad\probe-cwd</span>
+            </div>
+            <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px">
+              <span style="width:14px"></span>
+              <span style="font-size:12px;color:#33333d;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">…o-target\AcpAgentClient\r6-pi</span>
+            </div>
+            <div style="height:1px;background:#e2e2e7;margin:4px 0"></div>
+            <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px">
+              <span style="display:inline-flex;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg></span>
+              <span style="font-size:12px;color:#33333d">Open Local Folders</span>
+            </div>
+          </div>
+        </sc-if>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">徽标右对齐；路径 ellipsis 优先让位于徽标</div>
+      </div>
+
+      <div style="width:300px">
+        <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">徽标三态与几何（放大示意）</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px;height:28px;padding:0 8px;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px">
+            <span style="flex:none;display:inline-flex;align-items:center;gap:4px;height:16px;padding:0 5px;border-radius:3px;background:rgba(85,102,216,.12);font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#4a59c9;font-variant-numeric:tabular-nums"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 4 21 10 15 10"></polyline><path d="M19.4 15a8 8 0 1 1-1.9-8.3L21 10"></path></svg>1</span>
+            <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">1 条在跑</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;height:28px;padding:0 8px;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px">
+            <span style="flex:none;display:inline-flex;align-items:center;gap:4px;height:16px;padding:0 5px;border-radius:3px;background:rgba(85,102,216,.12);font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#4a59c9;font-variant-numeric:tabular-nums"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 4 21 10 15 10"></polyline><path d="M19.4 15a8 8 0 1 1-1.9-8.3L21 10"></path></svg>12</span>
+            <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">两位数照排，宽度自增；&gt; 99 显示 99+</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;height:28px;padding:0 8px;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px">
+            <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">0 条在跑 · 无徽标、无灰底 0、不留占位</span>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:110px 1fr;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;border-top:1px solid #e2e2e7;margin-top:10px">
+          <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">项</div>
+          <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">值</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">高 / 圆角</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">16px / 3px · 左右 padding 5px · 图标与数字 gap 4px</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">底 / 字</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">rgba(85,102,216,.12) / accent.text #4a59c9 · mono 11px tabular-nums</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">图标</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">11px 循环箭头 · 静态不旋转（linear 动效在本系统只留给画板 06 的扫掠）</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">tooltip</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">触发钮：「3 个会话在运行 · 2 个工作区」；行内：「该工作区 2 个会话在运行」</div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-width:360px;display:flex;flex-direction:column;gap:14px">
+        <div>
+          <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">口径与行为</div>
+          <div style="display:grid;grid-template-columns:170px 1fr;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;border-top:1px solid #e2e2e7">
+            <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">问题</div>
+            <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">裁定</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">什么算「在跑」</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">该会话有在途 prompt（含等待授权 / 等待追问），与画板 06 的运行中判定完全一致</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">数谁</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">按会话计数，不按 agent 进程；一个工作区里 3 条会话在跑就是 3</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">触发钮的数字</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">所有工作区合计（含当前）；为 0 时整个徽标不渲染</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">排序</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">不因有在跑会话置顶或重排，仍是 This Window / Recent 分组内的原顺序</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">徽标挂在哪一行</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">本次运行里打开过、内存里还有在跑会话的工作区都挂，不分 This Window 还是 Recent Projects。这不是后台探活：换工作区只是把当前会话放下，它的 agent 连接还在本进程里活着，在跑与否我们本来就知道。本次运行从没打开过的工作区恒无徽标</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">重启之后</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">应用重启后没有任何 agent 连接，所有徽标从零开始，不从磁盘恢复在跑状态</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">刷新</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">由会话运行态变化驱动即时更新；不轮询、不做过渡动画（数字直切）</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">与侧栏的分工</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">侧栏扫掠线回答「这个工作区里哪条在跑」；本徽标回答「别处还有多少在跑」，两者不互相替代，也不在切换器里放扫掠线</div>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">本画板新增 token（画板 00 不改，这组值只服务画板 08，实现回写 tokens.dart）</div>
+          <div style="display:grid;grid-template-columns:190px 230px 1fr;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;border-top:1px solid #e2e2e7">
+            <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">token</div>
+            <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">值</div>
+            <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">用途</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">badge.accent.bg</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">rgba(85,102,216,.12)</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">在跑数徽标底色</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">badge.h</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">16px</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">徽标高（圆角 3px · 左右 padding 5px · 图标与数字 gap 4px）</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">fold.row</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">padding 7/10 · radius 6 · #f4f4f6</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">回合折叠摘要行容器</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">fold.hover</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">#eeeef1</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">摘要行悬浮底色（整行可点的唯一反馈）</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="background:#fbeeea;border:1px solid #e2e2e7;border-radius:4px;padding:6px 8px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#bc4e39;line-height:1.7">反例：回合折叠不得连最终助手文本或回合页脚一起收起，不得自动折叠被取消或出错的回合，也不得在折叠含失败项的回合时把「N 项失败」一并隐去，不得做高度过渡或让视口跳到顶部，不得把摘要行做成只有 chevron 可点，不得在摘要行里塞成本 / 耗时（那是回合页脚的事）；在跑数徽标不得旋转图标、不得呼吸或闪烁、不得用红色（它不是错误）、不得为 0 时显示灰底 0，不得让有在跑会话的工作区置顶或加粗。</div>
+
+  <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;line-height:1.6">两处共用一套判定：「回合未结束 = 运行中」。B 表达跑完之后过程收起来，C 表达别的工作区还有多少在跑。</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1586},&quot;autoCollapse&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;回合折叠&quot;},&quot;runningTotal&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:3,&quot;min&quot;:0,&quot;max&quot;:99,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;在跑数&quot;}}">
+class Component extends DCLogic {
+  state = { collapsed: null, open: true };
+  renderVals() {
+    const auto = this.props.autoCollapse !== false;
+    const collapsed = this.state.collapsed === null ? auto : this.state.collapsed;
+    return {
+      collapsed,
+      expanded: !collapsed,
+      toggle: () => this.setState({ collapsed: !collapsed }),
+      open: this.state.open,
+      toggleMenu: () => this.setState(s => ({ open: !s.open })),
+      total: String(this.props.runningTotal ?? 3)
+    };
+  }
+}</script>
+</body>
+</html>

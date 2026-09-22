@@ -61,7 +61,7 @@ R2 起的文件由 `scratchpad` 里的生成脚本一次性产出后入库（脚
 
 ## 不进 fixtures 的两类数据（R2）
 
-- **`acp/agent_state`**（画板 34）是核心自己的事件，不是 ACP 线上行，`fixtures.rs` 不会去解析；gallery 场景在 Dart 侧按 `docs/design.md` § 3 的 payload 形状构造（`lib/gallery/scenarios.dart`）。
+- **`acp/agent_state`**（画板 34）是核心自己的事件，不是 ACP 线上行，`fixtures.rs` 不会去解析；gallery 场景在 Dart 侧按 `docs/design.md` § 3 的 payload 形状构造（`lib/gallery/boards/transcript_boards*.dart` 里画板 34 的场景）。
 - ~~**`elicitation/complete`**~~（R3 已收进 fixtures）：`fixtures.rs` 的方法表已补 `elicitation/complete` → `CompleteElicitationNotification` 与 `$/cancel_request` → `CancelRequestNotification`（BACKLOG 里写的是 `CancelNotification`，那是 `session/cancel` 的类型，实际要的是 `CancelRequestNotification`）；画板 28 的完成态改为回放 `16-elicitation.jsonl` 到 `elicitation/complete` 为止。
 
 ## 回放器

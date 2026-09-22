@@ -185,6 +185,55 @@ mod tests {
         assert!(matches!(kind_for_url("https://example.test/"), Err(RegistryError::Unsupported(_))));
     }
 
+    /// 成员路径不能逃出解压目录（审查 finding，2026-09-22：「tar 不解成员路径」）。
+    /// 我们不自己解 tar，挡这件事的是系统 tar 本身——bsdtar（Windows 自带的 tar.exe / macOS）默认
+    /// `SECURE_NODOTDOT`，含 `..` 的成员报错、退出码非零；GNU tar 自 1.29（2016，CVE-2016-6321）起同样
+    /// 跳过这类成员并以 2 退出（更老的 GNU tar 是剥掉 `../` 后照常解出，也逃不出目标目录，但本用例会红）；
+    /// 两者都剥掉开头的 `/`。这条用例把这个**隐式依赖**钉成回归：换了解压器或加了 `-P` 都会红。
+    /// 造包用 `tar -cf` 造不出来（它自己就不让打这种成员），所以按 tar 格式手写两个 512 字节头。
+    #[tokio::test]
+    async fn extraction_refuses_members_that_escape_the_destination() {
+        let base = std::env::temp_dir().join(format!("acp-registry-escape-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let dest = base.join("dest");
+        std::fs::create_dir_all(&dest).expect("mkdir");
+
+        fn tar_entry(name: &str, body: &[u8]) -> Vec<u8> {
+            let mut header = [0u8; 512];
+            header[..name.len()].copy_from_slice(name.as_bytes());
+            header[100..107].copy_from_slice(b"0000644");
+            header[108..115].copy_from_slice(b"0000000");
+            header[116..123].copy_from_slice(b"0000000");
+            header[124..135].copy_from_slice(format!("{:011o}", body.len()).as_bytes());
+            header[136..147].copy_from_slice(b"00000000000");
+            header[148..156].copy_from_slice(b"        "); // 校验和先填空格再算
+            header[156] = b'0';
+            let checksum: u32 = header.iter().map(|b| u32::from(*b)).sum();
+            // 校验和字段是「6 位八进制 + NUL + 空格」。
+            header[148..154].copy_from_slice(format!("{checksum:06o}").as_bytes());
+            header[154] = 0;
+            header[155] = b' ';
+            let mut out = header.to_vec();
+            out.extend_from_slice(body);
+            out.resize(out.len().next_multiple_of(512), 0);
+            out
+        }
+
+        let mut tar = Vec::new();
+        tar.extend_from_slice(&tar_entry("../escaped.txt", b"pwned"));
+        tar.extend_from_slice(&tar_entry("ok.txt", b"fine"));
+        tar.extend_from_slice(&[0u8; 1024]); // 结束标记
+        // `.tar` 不在支持列表里（kind_for_url 会拒），但 bsdtar 的 `-xf` 按内容认格式，直接喂未压缩的 tar 即可。
+        let archive = base.join("evil.tar.gz");
+        std::fs::write(&archive, &tar).expect("write archive");
+
+        let result = extract(&ArchiveKind::TarGz, &archive, &dest).await;
+        assert!(result.is_err(), "含 `..` 的成员必须让解压整体失败，实际 {result:?}");
+        assert!(!base.join("escaped.txt").exists(), "解压逃到了目标目录外面");
+        assert!(!dest.join("escaped.txt").exists());
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
     /// Windows 实测项（规则 9）：系统 tar 解一个 zip，路径含空格与中文。
     #[tokio::test]
     async fn system_tar_extracts_a_zip_into_a_non_ascii_dir() {

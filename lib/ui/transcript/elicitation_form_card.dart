@@ -11,8 +11,8 @@ import 'card_chrome.dart';
 import 'icons.dart';
 
 /// 一个字段的 schema 视图。
-class ElicitationField {
-  ElicitationField(this.name, this.schema, {required this.required});
+class _ElicitationField {
+  _ElicitationField(this.name, this.schema, {required this.required});
 
   final String name;
   final JsonMap schema;
@@ -91,15 +91,15 @@ class ElicitationField {
     return parts.join(' · ');
   }
 
-  static List<ElicitationField> parse(JsonMap? requestedSchema) {
-    if (requestedSchema == null) return const <ElicitationField>[];
+  static List<_ElicitationField> parse(JsonMap? requestedSchema) {
+    if (requestedSchema == null) return const <_ElicitationField>[];
     final props = requestedSchema['properties'];
     final req = requestedSchema['required'];
     final required = req is List ? req.map((e) => e.toString()).toSet() : const <String>{};
-    if (props is! Map) return const <ElicitationField>[];
-    return <ElicitationField>[
+    if (props is! Map) return const <_ElicitationField>[];
+    return <_ElicitationField>[
       for (final entry in props.entries)
-        if (entry.value is Map) ElicitationField(entry.key.toString(), (entry.value as Map).cast<String, dynamic>(), required: required.contains(entry.key)),
+        if (entry.value is Map) _ElicitationField(entry.key.toString(), (entry.value as Map).cast<String, dynamic>(), required: required.contains(entry.key)),
     ];
   }
 }
@@ -129,7 +129,7 @@ class ElicitationFormCard extends StatefulWidget {
 }
 
 class _ElicitationFormCardState extends State<ElicitationFormCard> {
-  late final List<ElicitationField> _fields = ElicitationField.parse(widget.entry.wire.requestedSchema).where((f) => f.isSupported).toList();
+  late final List<_ElicitationField> _fields = _ElicitationField.parse(widget.entry.wire.requestedSchema).where((f) => f.isSupported).toList();
   late final Map<String, Object?> _values = <String, Object?>{
     for (final f in _fields) f.name: f.defaultValue,
     ...?widget.initialValues,
@@ -149,7 +149,7 @@ class _ElicitationFormCardState extends State<ElicitationFormCard> {
     super.dispose();
   }
 
-  bool _missing(ElicitationField f) {
+  bool _missing(_ElicitationField f) {
     if (!f.required) return false;
     final v = _values[f.name];
     if (v == null) return true;
@@ -158,7 +158,7 @@ class _ElicitationFormCardState extends State<ElicitationFormCard> {
     return false;
   }
 
-  List<ElicitationField> get _missingFields => _fields.where(_missing).toList();
+  List<_ElicitationField> get _missingFields => _fields.where(_missing).toList();
 
   JsonMap _content() => <String, dynamic>{
         for (final f in _fields)
@@ -225,13 +225,13 @@ class _ElicitationFormCardState extends State<ElicitationFormCard> {
 
   static String _statusLabel(ElicitationEntry e) => switch (e.status) {
         PendingStatus.answered => '已${e.action == 'accept' ? '提交' : (e.action == 'decline' ? '拒绝' : '取消')}',
-        PendingStatus.withdrawn => 'agent 已撤回',
+        PendingStatus.withdrawn => 'agent 已不再等待',
         PendingStatus.cancelled => '已取消',
         PendingStatus.completed => 'Completed',
         PendingStatus.pending => 'Waiting for input',
       };
 
-  Widget _label(ElicitationField f, {required bool showRequired}) {
+  Widget _label(_ElicitationField f, {required bool showRequired}) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.baseline,
       textBaseline: TextBaseline.alphabetic,
@@ -247,7 +247,7 @@ class _ElicitationFormCardState extends State<ElicitationFormCard> {
     );
   }
 
-  Widget _field(ElicitationField f, {required bool showRequired}) {
+  Widget _field(_ElicitationField f, {required bool showRequired}) {
     final children = <Widget>[_label(f, showRequired: showRequired)];
     if (f.description != null) {
       children.add(Padding(padding: const EdgeInsets.only(top: t.Spacing.s4), child: Text(f.description!, style: t.TextStyles.secondary)));
@@ -315,7 +315,7 @@ class _ElicitationFormCardState extends State<ElicitationFormCard> {
         ],
       );
 
-  Widget _textInput(ElicitationField f, {required bool error}) {
+  Widget _textInput(_ElicitationField f, {required bool error}) {
     final v = _values[f.name];
     final controller = _controllers.putIfAbsent(f.name, () => TextEditingController(text: v == null ? '' : v.toString()));
     final focus = _focus.putIfAbsent(f.name, FocusNode.new);

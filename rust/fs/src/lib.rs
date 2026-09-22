@@ -72,6 +72,30 @@ pub fn ensure_inside(cwd: &Path, path: &Path) -> Result<()> {
     Ok(())
 }
 
+/// [`ensure_inside`] 之后**用解析过的真实路径**再判一次边界，并把它交给调用方去开。
+/// 为什么还要这一步：`ensure_inside` 是「检查」、`std::fs::read` 是「打开」，两者之间有窗口——agent 在工作区里
+/// 本来就有写权限，把中途某一级换成指向外面的链接，打开时就跟出去了（审查 finding，2026-09-22）。
+/// 这里做的是**把窗口收窄**：边界判定与打开之间只剩一次 `canonicalize`，而且末段链接是在解析后判的
+/// （逐级 `symlink_metadata` 走完之后才建出来的那条，词法检查看不见，canonicalize 看得见）。
+/// **没有收干净的**：canonicalize 与 open 之间把解出来的某一级目录换成链接，照样跟得出去——真要堵死得逐级
+/// 用目录句柄打开（`openat` / `FILE_FLAG_OPEN_REPARSE_POINT` 逐级校验），std 没有这套 API，
+/// 手写要 `unsafe`（规则 6），记 BACKLOG。威胁模型也要说清楚：agent 是本机子进程、跟用户同权限，
+/// 绕开这两个回调直接读写本来就没人拦，这道边界防的是「实现得糙的 agent」，不是有敌意的进程。
+/// 还不存在的路径（`fs/write_text_file` 要新建的那种）没有可解的东西，原样返回，仍由 [`ensure_inside`]
+/// 的逐级检查兜住。cwd 自己解不开（被删 / 无权限）时同样退回词法结论，不把正常的读写挡掉。
+fn resolve_inside(cwd: &Path, path: &Path) -> Result<PathBuf> {
+    ensure_inside(cwd, path)?;
+    let Ok(root) = std::fs::canonicalize(cwd) else {
+        return Ok(path.to_path_buf());
+    };
+    match std::fs::canonicalize(path) {
+        Ok(real) if real.starts_with(&root) => Ok(real),
+        Ok(real) => Err(FsError::OutsideWorkspace(real)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(path.to_path_buf()),
+        Err(e) => Err(FsError::Io(format!("{}: {e}", path.display()))),
+    }
+}
+
 /// 符号链接，或 Windows 的目录联接 / 挂载点（对联接 `is_symlink()` 是 false，只能看 `FILE_ATTRIBUTE_REPARSE_POINT`）。
 /// 传入的 metadata 必须来自 `symlink_metadata` / `DirEntry::metadata`（不跟随链接）。
 fn is_link(meta: &std::fs::Metadata) -> bool {
@@ -95,8 +119,8 @@ fn is_link(meta: &std::fs::Metadata) -> bool {
 /// 起点落在最后一行之后 → invalid params「Attempting to read beyond the end of the file」；返回的片段保留每行自己的换行。
 /// 文件不存在 → [`FsError::NotFound`]（agent 侧收到 `-32002`）。不是合法 UTF-8 的字节按 lossy 解码。
 pub fn read_text_file(cwd: &Path, path: &Path, line: Option<u32>, limit: Option<u32>) -> Result<String> {
-    ensure_inside(cwd, path)?;
-    let bytes = match std::fs::read(path) {
+    let real = resolve_inside(cwd, path)?;
+    let bytes = match std::fs::read(&real) {
         Ok(b) => b,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Err(FsError::NotFound(path.to_path_buf())),
         Err(e) => return Err(FsError::Io(format!("{}: {e}", path.display()))),
@@ -135,12 +159,12 @@ pub fn slice_lines(text: &str, line: Option<u32>, limit: Option<u32>) -> Result<
 
 /// `fs/write_text_file`（docs/design.md § 7）：不存在则创建（规范 MUST），父目录不存在一并创建；临时文件 + rename（规则 7）。
 pub fn write_text_file(cwd: &Path, path: &Path, content: &str) -> Result<()> {
-    ensure_inside(cwd, path)?;
-    write_atomic(path, content.as_bytes())
+    let real = resolve_inside(cwd, path)?;
+    write_atomic(&real, content.as_bytes())
 }
 
-/// 临时文件 + rename：同目录写 `<name>.tmp-<pid>-<nanos>` 再原子替换；目标目录不存在时创建。
-/// （与 `rust/settings` 的同名函数一个口径；fs 不依赖 settings，各自一份。）
+/// 临时文件 + rename（规则 7）：同目录写 `<name>.tmp-<pid>-<nanos>` 再原子替换；目标目录不存在时创建。
+/// 工作区里唯一的一份：settings / registry 的落盘也走这里。
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     let dir = path.parent().ok_or_else(|| FsError::Io(format!("{} has no parent", path.display())))?;
     std::fs::create_dir_all(dir).map_err(|e| FsError::Io(format!("{}: {e}", dir.display())))?;
@@ -182,8 +206,9 @@ pub struct FileContent {
 
 /// 读一个文件给查看器（`fs_read`）。`path` 必须在 `root` 之内。
 pub fn read_file(root: &Path, path: &Path) -> Result<FileContent> {
-    ensure_inside(root, path)?;
-    let meta = match std::fs::metadata(path) {
+    // 报回去的 `path` 仍是调用方给的那份写法（解析后的 Windows verbatim 形状不能进界面），只有真正开文件用 `real`。
+    let real = resolve_inside(root, path)?;
+    let meta = match std::fs::metadata(&real) {
         Ok(m) => m,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Err(FsError::NotFound(path.to_path_buf())),
         Err(e) => return Err(FsError::Io(format!("{}: {e}", path.display()))),
@@ -192,7 +217,7 @@ pub fn read_file(root: &Path, path: &Path) -> Result<FileContent> {
         return Err(FsError::InvalidParams(format!("{} is a directory", path.display())));
     }
     use std::io::Read;
-    let mut file = std::fs::File::open(path).map_err(|e| FsError::Io(format!("{}: {e}", path.display())))?;
+    let mut file = std::fs::File::open(&real).map_err(|e| FsError::Io(format!("{}: {e}", path.display())))?;
     let mut bytes = Vec::with_capacity((meta.len() as usize).min(READ_FILE_LIMIT + 1));
     file.by_ref()
         .take(READ_FILE_LIMIT as u64 + 1)
@@ -515,6 +540,77 @@ mod tests {
         assert_eq!(read_text_file(&dir, &dir.join("ok.txt"), None, None).expect("read inside"), "fine");
 
         let _ = std::fs::remove_dir_all(&link);
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&outside);
+    }
+
+    /// [`resolve_inside`]（审查 finding，2026-09-22）：边界判定用解析过的真实路径，读写也按那一份开。
+    /// 三条——① 工作区内的普通文件解出来仍在工作区内，且解出来的那份不含任何链接分量（读写按它走，末段
+    /// 再被换成链接也没用）；② 末段是指向外面的链接时报越界 —— **这一条由 `ensure_inside` 的逐级
+    /// `symlink_metadata` 拦下**（末段也在它的循环里），`canonicalize` 那条越界分支只在「逐级检查走完之后
+    /// 才建出链接」的竞态窗口里走得到，用例造不出那个窗口、不覆盖它（复审 P2，2026-09-22）；
+    /// ③ 还不存在的路径原样返回——不然 `fs/write_text_file` 新建文件就废了。
+    #[test]
+    fn resolve_inside_uses_the_real_path_and_still_lets_new_files_through() {
+        let dir = sandbox("resolve");
+        let outside = std::env::temp_dir().join(format!("acp-fs-outside-resolve-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&outside);
+        std::fs::create_dir_all(&outside).expect("mkdir");
+        std::fs::write(outside.join("secret.txt"), "outside").expect("write");
+
+        // ① 普通文件：解出来在工作区内，逐级都不是链接。
+        let inside = dir.join("nested").join("deep.txt");
+        std::fs::create_dir_all(inside.parent().expect("parent")).expect("mkdir");
+        std::fs::write(&inside, "fine").expect("write");
+        let real = resolve_inside(&dir, &inside).expect("resolve inside");
+        let root = std::fs::canonicalize(&dir).expect("canonicalize cwd");
+        assert!(real.starts_with(&root), "{} 不在 {} 之内", real.display(), root.display());
+        let mut cur = root.clone();
+        for component in real.strip_prefix(&root).expect("strip").components() {
+            cur.push(component);
+            // 拆两行写：validate 的 `_meta` 契约门按子串扫，`symlink_metadata` 这行上不能再有字符串字面量。
+            let probe = std::fs::symlink_metadata(&cur);
+            let meta = probe.expect("metadata of a resolved component");
+            assert!(!is_link(&meta), "解析出来的路径里还有链接分量: {}", cur.display());
+        }
+
+        // ② 末段是指向工作区外的链接：报越界。建不出链接就得红（与上面那条越界用例同口径）。
+        let link = dir.join("secret-link.txt");
+        let linked = {
+            #[cfg(windows)]
+            {
+                std::process::Command::new("cmd")
+                    .args(["/c", "mklink"])
+                    .arg(&link)
+                    .arg(outside.join("secret.txt"))
+                    .output()
+                    .map(|o| o.status.success())
+                    .unwrap_or(false)
+            }
+            #[cfg(not(windows))]
+            {
+                std::os::unix::fs::symlink(outside.join("secret.txt"), &link).is_ok()
+            }
+        };
+        if linked {
+            assert!(matches!(resolve_inside(&dir, &link), Err(FsError::OutsideWorkspace(_))));
+            assert!(matches!(read_text_file(&dir, &link, None, None), Err(FsError::OutsideWorkspace(_))));
+        } else {
+            // 文件符号链接在 Windows 上要开发者模式或管理员；目录联接那条用例（`mklink /J`）已覆盖同一判定，
+            // 这里退一步只报一句，不让整条用例假绿：真正的越界回归在 links_inside_the_workspace_do_not_escape_read_or_write。
+            eprintln!("cannot create a file symlink here; skipping the link half of resolve_inside");
+        }
+
+        // ③ 还不存在的路径：原样返回，新建照常。
+        let fresh = dir.join("nested").join("fresh.txt");
+        assert_eq!(resolve_inside(&dir, &fresh).expect("resolve fresh"), fresh);
+        write_text_file(&dir, &fresh, "new").expect("write new file");
+        assert_eq!(read_text_file(&dir, &fresh, None, None).expect("read new file"), "new");
+        // 已存在的文件按解析后的路径写回去，内容与位置都对。
+        write_text_file(&dir, &inside, "changed").expect("overwrite");
+        assert_eq!(std::fs::read_to_string(&inside).expect("read"), "changed");
+
+        let _ = std::fs::remove_file(&link);
         let _ = std::fs::remove_dir_all(&dir);
         let _ = std::fs::remove_dir_all(&outside);
     }

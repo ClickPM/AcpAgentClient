@@ -61,17 +61,9 @@ ConfigChoice _choice(Map<String, dynamic> json) => ConfigChoice(
       description: json['description'] as String?,
     );
 
-/// 当前值对应的 `name`（找不到就原样显示 id）。
-String configCurrentName(ConfigOptionWire option) {
-  final current = option.currentValue;
-  if (current is! String) return '';
-  for (final g in configGroups(option)) {
-    for (final c in g.choices) {
-      if (c.value == current) return c.name;
-    }
-  }
-  return current;
-}
+/// 当前值对应的 `name`（找不到就原样显示 id）。两种 options 形状的遍历在投影层
+/// [ConfigOptionWire.currentOptionName]（画板 08 摘要行的模型名也用它），这里只补一个空串兜底。
+String configCurrentName(ConfigOptionWire option) => option.currentOptionName ?? '';
 
 /// select 型下拉（模型 / 思考强度 / 模式 / 未知分类里的某一条）。
 /// `searchable` 时顶部出过滤框（画板 40 的模型选择器）；`showLeadingMark` 给模型行的中性图标占位。

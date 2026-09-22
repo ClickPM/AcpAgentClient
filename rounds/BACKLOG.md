@@ -16,29 +16,25 @@
 
 | 档 | 条数 | 这档是什么 |
 |---|---|---|
-| **P0 真缺陷** | 14 | 会丢内容、作用到错对象、吃光资源、静默失败。撞上就是事故，排进最近的轮次。 |
-| **P1 看得见的粗糙** | 20 | 用户看得见的不一致、缺等待态、行为不符直觉。能用，膈应；攒批做。 |
+| **P0 真缺陷** | 12 | 会丢内容、作用到错对象、吃光资源、静默失败。撞上就是事故，排进最近的轮次。 |
+| **P1 看得见的粗糙** | 26 | 用户看得见的不一致、缺等待态、行为不符直觉。能用，膈应；攒批做。 |
 | **P2 功能缺口** | 11 | 该有没有的能力。**全部需所有者裁定才能进轮次**，多数还要先改设计稿。 |
 | P3 设计稿欠账 | — | **已整体释放**到 `design/DIVERGENCE.md`，见下面的占位小节 |
 | **P4 平台与分发** | 7 | macOS / Linux、构建链、sidecar 打包。跟 R8 走。 |
-| **P5 内部工程与验收** | 14 | 用户无感：测试、行数门、文档措辞、验收自动化。有空就做。 |
+| **P5 内部工程与验收** | 19 | 用户无感：测试、行数门、文档措辞、验收自动化。有空就做。 |
 | **X 卡在上游 / 协议** | 6 | 我们动不了，等 agent 侧或 zed 升版本。只盯着，不排期。 |
-| | **72** | |
+| | **81** | |
 
 **新增条目**：挑一档追在该档末尾，照同样的三行格式写。不新开档位；一条只进一档。
-**关闭条目**：整条（三行）剪到 `BACKLOG-CLOSED.md` 对应位置，并把 `- [ ]` 改成 `- [x]`。
+**关闭条目**：把**技术行连同结论压成一行** `- [x]` 剪到 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md) 末尾（那份是平铺存档，不分档），本文删掉这三行。
 
-## P0 · 真缺陷（14）
+## P0 · 真缺陷（12）
 
-### 附件与剪贴板（5）
+### 附件与剪贴板（3）
 
 - [ ] **编辑带图的消息会把图弄丢**
   - **产品**：用户改一句话重发，原来贴的图就没了，界面上没有任何提示。图片粘贴落地后更容易撞上。
   - **技术**：用户消息的编辑重发（画板 11 的 Regenerate）只带回文本：`UserMessage.plainText` 不认 `image` / `audio` 块，`onRegenerate` 也只传一个 `String`，所以带图的消息一编辑就把图丢了（Restore Checkpoint 走原样 JSON，不受影响）。图片粘贴落地后这条更容易撞上。要修得让编辑态保留非文本块并随重发原样带回 (2026-09-18) → **R7.5 拆分后的新家**：`TurnController.restore` (2026-09-20)
-
-- [ ] **剪贴板读取超时后留下孤儿进程和临时 PNG**
-  - **产品**：剪贴板被别的程序占住时粘贴一次，后台留一个 powershell 进程和一张永远删不掉的截图。
-  - **技术**：`lib/app/clipboard_image.dart`：`Process.run(...).timeout(15s)` 只让 Dart 侧的 Future 提前失败，`powershell.exe` 还在跑——`finally` 里删临时目录会撞上它正在写 `clipboard.png`（Windows 文件占用），删除抛异常被 catch 掉，于是一份截图 PNG 永久留在 `%TEMP%`、外加一个孤儿 powershell。触发条件是剪贴板被别的进程锁住让 `Clipboard.GetImage()` 卡住。要修得换 `Process.start` + 超时 `kill`（机制类改动），发布前审查 P3 按最小改动原则没做 (2026-09-18)
 
 - [ ] **从文件选择器加图没有大小门**
   - **产品**：挑一张几十 MB 的 PNG，界面当场卡住，然后整块塞进一条消息发出去。剪贴板那条路有 20 MB 门，这条没有。
@@ -47,10 +43,6 @@
 - [ ] **剪贴板文件列表没有张数门**
   - **产品**：在图片文件夹里全选复制再粘贴，一百张照片会全部收下、吃掉一两个 G 内存，然后一条消息发出去。上限取几张是产品取舍，等裁定。
   - **技术**：`lib/app/clipboard_image.dart` 的剪贴板**文件列表**那条路只有单张大小门（20 MB），没有张数门：`GetFileDropList()` 给的是资源管理器里选中的全部文件，在图片文件夹里 Ctrl+A / Ctrl+C 再 Ctrl+V 会把每张都收下，每张在内存里还存三份（`ClipboardImage.bytes` + base64 字符串约 1.33 倍 + 芯片解回来的 `_bytes`），100 张 5 MB 的照片约 1.5 GB，随后整块进一条 `session/prompt`。最小修复是循环里加一句张数上限并计入已有的 `skippedTooLarge` 提示，但**上限取几张是产品取舍**，等所有者定。发布前审查第 2 轮 P3 (2026-09-18)
-
-- [ ] **写盘截断的 PNG 会被当成正常图片发出去**
-  - **产品**：磁盘写满时粘贴，发出去的是一张解不开的图，两边都不报错。稀有但会发生。
-  - **技术**：`lib/app/clipboard_image.dart` 的 `length == 0` 守卫挡不住**截断的 PNG**：`$img.Save(path, Png)` 是先建文件再由 GDI+ 编码写入，磁盘写满是在已经写出若干字节之后才失败，落盘的是非空但截断的 PNG——既不等于 0 也不超 20 MB，照旧读进去、发出一枚解不开的 `image` 块（与 0 字节那档同类，只是稀有）。要判得准得读 PNG 尾部的 IEND 块或真解一次码，属机制类。发布前审查第 3 轮 P3 (2026-09-18)
 
 ### 会话身份与生命周期（5）
 
@@ -80,13 +72,13 @@
   - **产品**：关掉应用，Cursor 拉起的 node.exe 还在用户机器上跑着（实测 PID 42768，要手动杀）。
   - **技术**：R5 无头实跑以 `exit()` 结束进程时不走 `agent_disconnect`，Cursor 的 `cursor-agent.cmd`（cmd.exe 包装）随进程一起没了、它拉的 `dist-package/node.exe` 却留成孤儿（实测 PID 42768，手动 `taskkill /T`）。R4 验收 4「应用退出时子进程全部回收」要把桌面应用的关闭路径（`AcpApp.dispose` / Windows runner 的 `WM_CLOSE`）与无头口子都接到 `agent_disconnect`（`taskkill /F /T`） (2026-09-16) → **R7.5 拆分后的新家**：组合根 `shutdown` (2026-09-20)
 
-- [ ] **快速换项目会订到错目录的文件流**
-  - **产品**：连着切几次项目，文件面板显示的可能是上一个项目的变化；旧的监听一直挂到进程结束。
-  - **技术**：R4 `lib/app/files_state.dart` `setProject`：换项目时 `fs_unwatch(previous)` 不等、`fsWatch(path).listen` 在两次 await 之后才挂，快速 A→B→A 会让 Dart 订到 B 的流而字段是 A、核心 `watchers` 表里 A / B 都在（B 的活到 `core_shutdown`）。最小修复：每次 await 之后若 `root != path` 或已 dispose 就直接 return 不再 listen。R4 第 4 轮审查 P2，所有者裁定 2026-09-16 非阻断记 BACKLOG (2026-09-16)
-
 - [ ] **失败没有出口，用户看到的是「点了没反应」**
   - **产品**：新建会话失败、删除失败、附件超限，界面上什么都不说，只有日志里有一句。「没选项目」和「这一轮发失败」已各自有出口，其余仍是静默。
   - **技术**：`lastError` 在产品 UI 上没有出口（只有 `debugPrint` 与无头实跑读它）：新建会话失败（缺项目 / 桥报错）、删除会话失败这类只在 `lastError` 落一句话的路径，用户看到的是「点了没反应」。现在靠输入框占位文案兜住了「没选项目」这一条（`composerPlaceholder`），其余仍是静默。其中**「这一轮发出去失败」已于 2026-09-18 有了出口**：`session/prompt` 回 JSON-RPC error 时原因落在 `TurnEntry.error` 上、由画板 31 的结束行显示，不再只进 `lastError`。其余路径（新建会话失败、删除会话失败、附件超限）仍要一处壳级的错误提示位——属于扩边界，先改设计稿 (2026-09-17) → **R7.5 拆分后的新家**：组合根聚合九个对象的 `lastError` + 壳级提示位（画板先画） (2026-09-20)
+
+- [ ] **没有归属的终端缓冲谁都删不到**
+  - **产品**：认证用的可见终端、agent 只轮询没嵌进卡的终端，它们的缓冲留到进程结束；一次运行里开的终端越多涨得越多（单条上限 64 KB）。
+  - **技术**：1.4.1 复审 没有归属的终端缓冲不回收：`TerminalStore` 是跨会话共享的一张表，2026-09-22 把 `clear()` 改成按 `SessionStore.ownedTerminalIds` 只删自己的之后，经 `acp/terminal_output` 或 `lib/app/auth_state.dart` 的 `terminals.ensure(id)` 建出来、却从未挂到任何工具卡上的缓冲（认证用的可见终端、agent 只用 `terminal/output` 轮询没嵌进卡的终端）两个集合都不在，谁都删不到，留到进程结束（单条上限 64 KB，条数随一次运行里的终端数长）。复审 P3 已顺手在 `Sessions.forget` 里删掉本会话名下的那几个；认证终端要在认证收尾处释放，另做 (2026-09-22)
 
 ### 显示（1）
 
@@ -94,7 +86,7 @@
   - **产品**：终端面板一出现中文，字符网格就错开，表格和对齐全乱。R7.6 之前就存在，不是字体切换引入的。
   - **技术**：**等宽里的中文宽度不是 2:1，终端面板遇到中文就错位**。等宽渲染按字符格子走，中文必须正好是拉丁的两倍宽；随包的 Noto Sans SC 汉字是全角 1em，而 Geist Mono 的 advance 约 0.6em，2×0.6 ≠ 1。**这是 R7.6 之前就存在的问题，不是字体切换引入的**。R7.6 给了出路（代码等宽中文轴可选更纱黑体 Sarasa Mono SC，它专门做了 2:1 对齐），但默认组合仍然错位。根治要么换默认的等宽 CJK 字体，要么在终端渲染层按 cell 宽度矫正 —— 都超出「加个开关」的范围，需所有者裁定 (2026-09-20)
 
-## P1 · 看得见的粗糙（20）
+## P1 · 看得见的粗糙（26）
 
 ### 主题与渲染（3）
 
@@ -110,7 +102,7 @@
   - **产品**：消息里的 `<sub>` / `<sup>` / `<kbd>` / `<span>` / HTML 注释会原样一个字一个字显示在正文里。
   - **技术**：main 直改 行内 HTML **只认了 `<br>`**（`lib/ui/transcript/markdown_body.dart` 的 `HtmlLineBreakSyntax`，2026-09-20 修 pi 表格那次）：package:markdown 的 `InlineHtmlSyntax` 对所有标签都是「原样放行、不建节点」，所以 `<sub>` / `<sup>` / `<kbd>` / `<span>` / `<img …>` / `<!-- 注释 -->` 仍会逐字显示在正文里。成对标签要自己做配对与嵌套（未闭合、跨块、与强调语法的优先级），是机制类改动，按最小改动原则没做；真撞上了再单独一轮，并连「允许哪些标签、内容怎么转义」一起定 (2026-09-20)
 
-### 壳与交互（7）
+### 壳与交互（8）
 
 - [ ] **窗口没有最小尺寸**
   - **产品**：把窗口拖得够窄，三栏直接被裁切，没有折叠也没有提示。
@@ -140,6 +132,10 @@
   - **产品**：敲 `@` 之后马上点别处或按 Esc，几百毫秒后菜单自己冒出来；目录大或在网络盘上窗口更宽。
   - **技术**：`lib/app/workbench_controller.dart` 的 `_updateMentionMenu` 在 await `fsListDir` / `fsSearch` 之后**无条件**写回 `_mentionFiles` / `_mentionDirs`，没有过期判据：敲下 `@` 后结果还没回来时 `inlineMenuOpen` 仍是 false，于是「点外面关」与 `closeInlineMenu()` 都是空操作（两者第一行都早退），几十到几百毫秒后 fs 结果回来，菜单在用户已经点走 / 按过 Esc 之后自己弹出来。目录大或在网络盘上时窗口足够宽。函数本身不在本次范围内，但 2026-09-18 新增的「点外面关」让这条路径变得常见。最小修复是 await 之后加一句「光标处的 token 还是原来那个才写回」。发布前审查 P3 (2026-09-18) → **R7.5 拆分后的新家**：`ComposerState._updateMentionMenu` (2026-09-20)
 
+- [ ] **回合折叠对载回来的历史不生效**
+  - **产品**：重开应用点进旧会话，回合折叠整个不起作用——历史里没有轮边界，摘要行出不来。只对本次会话里真跑过的回合生效。
+  - **技术**：**回合折叠对 `session/load` 重放出来的历史不生效**（board-08，2026-09-22）：重放不带回轮边界（R6 裁定，`docs/design.md` § 3），历史里没有 `TurnEntry`，也就没有摘要行 —— 折叠只对本次会话里真正跑过的回合生效。要覆盖历史得先解决轮边界，属另一件事 (2026-09-22)
+
 ### 等待与反馈（2）
 
 - [ ] **终端里看不到正在组的字**
@@ -150,7 +146,7 @@
   - **产品**：侧栏点一条没载过的会话，屏幕上先是新会话空态，看起来像「这条是空的」而不是「正在载」。
   - **技术**：第三条「等 agent」的路径还没有等待态：侧栏点一条内存里没有转录的会话（`selectSession` → `_ensureLoaded` → `session/load` 重放整段历史）。`sessionId` 当帧就切过去了，而转录要等重放回来，这期间画的是画板 01 的**新会话空态**——看起来像「这条会话是空的」，不是「正在载」。所有者手测只报了新建会话那条，这条一并记下。要修就是同一个 `waitingForAgent` 套在 `_ensureLoaded` 的 `_guard` 上，但画板 05 A 组把「侧栏点另一条会话」定义成瞬时替换、没画等待期，属扩边界，先改设计稿 (2026-09-18) → **R7.5 拆分后的新家**：`SessionController._ensureLoaded`（`waitingForAgent` 套上去；画板 05 A 组先补等待期） (2026-09-20)
 
-### 数据一致性（5）
+### 数据一致性（7）
 
 - [ ] **连着改两次外观可能丢一次**
   - **产品**：快速连点主题按钮或连换两个字体轴，界面是对的，下次启动可能回到旧值。
@@ -172,7 +168,15 @@
   - **产品**：只差分隔符 / 尾斜杠 / 大小写写法的会话，侧栏列着但不参与校对，标题也不补。无害。
   - **技术**：`session/list` 校对（`_reconcile`）按 cwd **原串**比，侧栏过滤按归一后的路径比（分隔符 / 尾斜杠 / Windows 大小写）：只差写法的条目侧栏列着、校对跳过（不会被误标「agent 侧没有了」，也不补标题）。无害，两处口径统一时一并改 (2026-09-18) → **R7.5 拆分后的新家**：`SessionController.reconcileSessions` + `WorkspaceState.normalizeCwd` (2026-09-20)
 
-### 进程与资源（3）
+- [ ] **settings.json 的各段写入没有串行化**
+  - **产品**：同时改外观和拨转录开关，后写的那笔会把先写的那一段盖回旧值；界面是对的，下次启动才看得出。是「两次外观改动并发落盘」那条的普遍版。
+  - **技术**：**`settings.json` 的各段写入没有串行化**（board-08 第 1 轮审查 P2，2026-09-22）：`set_appearance` / `set_transcript` / `upsert` 都是「整文件 load → 换自己那一段 → save 整份」，而桥在多线程 runtime 上每条命令各起一个任务。两笔写重叠时，后写的那笔会把先写的那一段恢复成它加载时的快照（例：改外观与拨转录开关同时发生，转录那笔把外观盖回旧值）。单测覆盖的是顺序执行，不会红。**本轮不修**：这是 `set_appearance` 就有的同一类问题，收口要在 `SettingsStore` 上串行化 load+save（机制类修复，CLAUDE.md 的审查边界只允许严重阻塞性 bug 走这条），而触发它需要两次写在同一毫秒重叠 —— 两处入口都是用户点击，一个人点不出来。前端侧已就近堵了一半：`TranscriptFolds.setAutoCollapse` 在真发之前核对「这一笔还是不是当前值」，连点只发最后一下（有回归用例）；**残余**是两笔值不同的写真并存时，核心侧的落地顺序仍不保证 (2026-09-22)
+
+- [ ] **后台会话挂起的权限 / 表单请求，界面上没痕迹**
+  - **产品**：后台那条会话卡在权限请求上时，前台什么都看不到，侧栏也没有「这条在等你」的标记，agent 一直等。与「换项目放下的会话」那条不同：那条被过滤掉了，这条就列在侧栏里。
+  - **技术**：**后台会话挂起的 permission / elicitation 在界面上没有任何痕迹**（cursor 2026-09-22 findings 验真属实）：画板 26 的停靠条取的是 `TurnController.firstPending` = **当前会话**的队列（`pending.forSession(store.sessionId)`），侧栏也没有「这条在等你」的标记。2026-09-18 起新建会话不再重连、可以并跑，于是后台那条卡在权限请求上时前台什么都看不到，agent 一直等。与本文件里「侧栏按 workspace 过滤后看不见」那条不是同一条（那条是被过滤掉、这条就列在侧栏里）。要提示得先改设计稿（侧栏条目上的徽章 / 停靠条跨会话），属扩边界，按规则 3 先出稿再进轮次。**无头那半边不算缺陷**：`_AutoAnswer` 只看当前会话是因为验收脚本本来就只跑一条会话，真并跑时才需要改 (2026-09-22)
+
+### 进程与资源（4）
 
 - [ ] **退出时要多等 3 秒**
   - **产品**：agent 不响应 stdin EOF 时，关闭应用要多卡 3 秒才真的退出。
@@ -185,6 +189,20 @@
 - [ ] **只有受管 Node 的机器上，内置 dsh 起不来**
   - **产品**：没装系统 Node、只有应用自己下的那份 Node 时，点内置 dsh 拉不起来。
   - **技术**：内置 dsh 条目（`rust/acp-core/src/builtin.rs` 的 `dsh_launch`）三路分流只认**进程** PATH：没装全局 dsh 时回落 `npx`，而 `npx` 同样按进程 PATH 找，所以「只有受管 Node、没有系统 Node」的机器上这条会拉起失败——受管 Node 的 PATH 前插只给 registry 型 npx agent（`rust/registry/src/node.rs` 的 `env_overrides`）。要修得让内置条目也走 `NodeRuntime`（机制类改动，等所有者裁定）。1572214 发布前审查发现 (2026-09-17)
+
+- [ ] **粘贴大截图会把窗口冻住一百多毫秒**
+  - **产品**：粘贴一张 8K 整屏截图，窗口会冻一百多毫秒；剪贴板被别的进程占着时再多等最多 200 ms。被换掉的 PowerShell 版是异步子进程，同样输入不冻 UI。
+  - **技术**：1.4.1 复审 剪贴板读取（`windows/runner/acp_clipboard.cpp`，`acp/window` 通道的 `readClipboardImages`）整段跑在**平台线程**上：剪贴板被别的进程占着时同步 `Sleep` 最多 200 ms；8K 整屏位图（≈133 MB，在 256 MB 门之内）要在这条线程上做一次 `GetDIBits` 拷贝 + alpha 回填 + StandardCodec 再拷一份，量级是一百多毫秒的整窗口冻结（4K 截图约 33 MB，小一档）。被替换掉的 PowerShell 版是异步子进程，同样输入不冻结 UI。挪出平台线程（线程 + 回到平台线程回调）属机制类改动，复审 P3 不做 (2026-09-22)
+
+### 安装与完整性（2）
+
+- [ ] **registry 条目没给 sha256 时，二进制不校验直接装**
+  - **产品**：下下来的二进制不校验就解压安装。这与 Zed 的信任模型一致（官方 registry 的条目本身是信任根），记账不是缺陷。
+  - **技术**：registry binary 型安装**没有 sha256 时照装不误**（cursor 2026-09-22 finding 验真属实，但不是缺陷）：`install_binary` 的 verify 一步在 `target.sha256` 为 None 时只记一句 `verify_note`（「条目没给 sha256，跳过校验；实际 <hash>」）就继续解压。这与 Zed 的信任模型一致（官方 registry 的条目本身是信任根），另一半（tar 成员路径逃逸）已验真为**不成立**并补了回归用例（`rust/registry/src/archive.rs::extraction_refuses_members_that_escape_the_destination`：系统 tar 拒绝含 `..` 的成员、剥掉开头的 `/`，实测一个字节都没落到目标目录外）。真正缺的是**这句 note 没有出口**：`verify_note` 只写进 `install.json`，画板 51 的安装卡不显示，用户不知道这一份没校验过。要显示得先改设计稿 (2026-09-22)
+
+- [ ] **工作区外的文件理论上还能被读写（symlink TOCTOU）**
+  - **产品**：把解析过程中的某一级**目录**换成链接，还是能跟出工作区。末段链接与词法漏判已经挡住了。
+  - **技术**：`fs/read_text_file` / `write_text_file` / `read_file` 的 symlink TOCTOU **只收窄了、没堵死**（cursor 2026-09-22 finding；2026-09-22 已改成经 `resolve_inside` 用解析后的真实路径去开，末段链接与词法漏判都挡住了）：canonicalize 与 open 之间把解出来的某一级**目录**换成链接，照样跟得出去。要堵死得逐级用目录句柄打开（`openat` / Windows 的 `FILE_FLAG_OPEN_REPARSE_POINT` 逐级校验），std 没有这套 API、手写要 `unsafe`（规则 6），第三方库（cap-std 之类）不在规则 1 白名单里。威胁模型也要一起看：agent 是本机子进程、跟用户同权限，绕开这两个回调直接读写本来就没人拦，这道边界防的是实现得糙的 agent、不是有敌意的进程。真要做先裁定「引 cap-std」还是「就这样」 (2026-09-22)
 
 ## P2 · 功能缺口（11）
 
@@ -255,8 +273,8 @@
   - **技术**：R0 macOS 构建（R8）要把 cargokit 挂进 Xcode（runner 级脚本阶段或 podspec），与 Windows 的 runner CMake 方式对应；frb 模板的 rust_builder 插件路径已不用 (2026-09-15)
 
 - [ ] **剪贴板图片只落了 Windows**
-  - **产品**：macOS / Linux 上 Ctrl+V 只贴文本，图片粘不进去。另：每次粘贴要拉一次 powershell（几百毫秒），剪贴板里是文本时已提前 return。
-  - **技术**：剪贴板图片只落了 Windows（`lib/app/clipboard_image.dart` 借 `powershell.exe` 读 `System.Windows.Forms.Clipboard`，位图与文件列表两条路都实测过）；macOS / Linux 上 `readClipboardImages` 直接回空，Ctrl+V 只贴文本。要做得各写一条本机路径（`osascript` / `pbpaste`、`wl-paste` / `xclip`），或裁定引一个剪贴板包（规则 1 清单外）。另：每次粘贴要拉一次 powershell（几百毫秒），剪贴板里是文本时已经提前 return 不拉 (2026-09-18)
+  - **产品**：macOS / Linux 上 Ctrl+V 只贴文本，图片粘不进去。
+  - **技术**：剪贴板图片只落了 Windows（`lib/app/clipboard_image.dart` 由 runner 走 Win32 读（`windows/runner/acp_clipboard.cpp`；2026-09-20 之前是拉 `powershell.exe` 读 `System.Windows.Forms.Clipboard`），位图与文件列表两条路都实测过）；macOS / Linux 上 `readClipboardImages` 直接回空，Ctrl+V 只贴文本。要做得各写一条本机路径（`osascript` / `pbpaste`、`wl-paste` / `xclip`），或裁定引一个剪贴板包（规则 1 清单外）。另：剪贴板里是文本时提前 return，不去读位图 (2026-09-18)
 
 ### 构建链（3）
 
@@ -282,7 +300,7 @@
   - **产品**：装包体积主要由 sidecar 决定（zed 那套 wasmtime / tree-sitter / alacritty 依赖）；R8 要给出含 / 不含两个数字。
   - **技术**：R7 debug 构建的 sidecar 是 276 MB（release 见任务卡）。R8 打包要给出含 / 不含 sidecar 两个体积数字时，注意 zed 那套依赖（wasmtime、tree-sitter、alacritty）是大头 (2026-09-17)
 
-## P5 · 内部工程与验收（14）
+## P5 · 内部工程与验收（19）
 
 ### R7.5 收尾（4）
 
@@ -292,7 +310,7 @@
 
 - [ ] **两个文件超行数门，靠放宽阈值过的**
   - **产品**：用户无感。`headless_run.dart` 1186 行、`workbench_screen.dart` 946 行，validate 里分别放宽到 1300 / 1000。
-  - **技术**：R7.5 两个只改了引用路径的既有文件超过 validate 行数门的 900：`lib/app/headless_run.dart` 1186 行（R3 / R5 / R6 三个无头模式的驱动，不是产品代码）与 `lib/app/workbench_screen.dart` 946 行（画板 43 之后就是这个数，任务卡「2026-09-20 复核」记为观察项）；`scripts/validate.ps1` 里分别放宽到 1300 / 1000 并写明理由，门按原始行计（与 `wc -l` 同口径）。要不要拆（headless 按三个模式拆三个文件；screen 把滚动 / 跟随 / 跳转三套多帧纠正逻辑拆出去）等裁定 (2026-09-20)
+  - **技术**：R7.5 两个只改了引用路径的既有文件超过 validate 行数门的 900：`lib/app/headless_run.dart` 1186 行（R3 / R5 / R6 三个无头模式的驱动，不是产品代码）与 `lib/app/workbench_screen.dart` 946 行（画板 43 之后就是这个数，任务卡「2026-09-20 复核」记为观察项）；`scripts/validate.ps1` 里分别放宽到 1300 / 1000 并写明理由，门按原始行计（与 `wc -l` 同口径）。要不要拆（headless 按三个模式拆三个文件；screen 把滚动 / 跟随 / 跳转三套多帧纠正逻辑拆出去）等裁定 (2026-09-20)；2026-09-20 quality 轮起 `headless_run.dart` 的入口是 `lib/main_headless.dart`（`flutter build -t`），不再进产品入口与发布包，行数门的放宽照旧
 
 - [ ] **headless 报告的 lastError 只是会话那一段**
   - **产品**：用户无感。影响无头自检报告的口径，做壳级聚合时一并改。
@@ -303,10 +321,6 @@
   - **技术**：R7.5 阶段 B（按区域订阅）只量未动：探针（`debugOnRebuildDirtyWidget` 数 `AppShell` 的 build，flutter_tester debug 口径）——290 条 `session/update` 挂在 batcher 里一次放行 → 根通知 1 次、壳级 build **1 次**（首帧 229 ms，含 290 条转录的首次构建）；40 条流式分块逐帧到达 → 40 次通知、每帧壳级 build 1 次、约 37 ms/帧。裁定门第 4 项的阈值是「一次 batch 的壳级 build > 1 次且 > 16 ms」，次数正好是 1，不触发；但每帧一次整壳重建（侧栏 + 顶栏 + 右栏 + 转录容器）在流式输出时的 37 ms/帧是 debug 测试机口径，release 真机要另量；要做的话 screen 改成按区域 `Listenable.merge([...])` 订阅并补一条重建计数的 widget 测试（任务卡验收 10） (2026-09-20)
 
 ### 验收与自动化（4）
-
-- [ ] **20 项 ACP 投影卡片还没逐一截图验收**
-  - **产品**：用户无感；是验收覆盖面的窟窿。
-  - **技术**：截图验收：逐一验证并截图 Zed Agent 的 20 项 ACP 投影交互卡片样式 (2026-09-14)
 
 - [ ] **权限范围下拉没在真 agent 上实测**
   - **产品**：用户无感。dsh 只给 allow_once / reject_once，下拉里没有第二个同向选项，要找个给 allow_always 的 agent 补。
@@ -320,11 +334,11 @@
   - **产品**：漏出去的是用户看得见的错位（按钮没贴右那次）。现在靠逐点数值断言补，是否加一层几何不变量断言待裁定。
   - **技术**：R3 画板逐张对照拦不住「位移类」偏差：右侧那组按钮没贴右这件事在 `build/gallery/01a` 与 `18` 里都画出来了，偏移量却随窗口宽度与文本长度变，肉眼比对时看不出「它本该更靠右」。本轮给三处补了数值断言（`test/ui/shell_alignment_test.dart`），但这是逐点补；是否给画板对照加一层几何不变量（贴左 / 贴右 / 等距）的通用断言，待裁定 (2026-09-16)
 
-### 测试与代码健康（3）
+- [ ] **gallery 测试只断言 PNG 非零字节**
+  - **产品**：用户无感。能挡渲染崩溃与空白，挡不住视觉回归；但 CLAUDE.md 明确「不做视觉 review」，是取舍不是缺陷。
+  - **技术**：`gallery_test.dart` 对每张画板只断言「PNG 非零字节」（cursor 2026-09-22 finding，低）：能挡住渲染崩溃与空白，挡不住视觉回归。要挡得存基准图做像素对比（字体 / 缩放 / Skia 版本一变就全红，维护成本高），且 CLAUDE.md 明确「不做视觉 review」，所以是取舍不是缺陷；真要做先裁定 (2026-09-22)
 
-- [ ] **原型 fixtures 缺字段（已决定不改）**
-  - **产品**：用户无感。**这条其实已经没有待办了**——原型不维护、不作功能边界，`test/fixtures/` 已补。
-  - **技术**：R0 `prototype/assets/fixtures.js` 的 `elicitation/create` 缺必填字段 `message`，被 Rust 侧 fixtures 测试抓出；`test/fixtures/` 已补，原型不改（原型不维护） (2026-09-15)
+### 测试与代码健康（4）
 
 - [ ] **rust/fs 有个用例失败也算绿**
   - **产品**：用户无感。`mklink /J` 建不出链接时断言一行不跑也算通过。
@@ -333,6 +347,14 @@
 - [ ] **motion 的两个潜伏项**
   - **产品**：用户无感。当前调用点传的都是常量，触发不到；真触发会是动画按旧参数跑，或 `Interval` 断言炸。
   - **技术**：`lib/ui/shell/motion.dart`：`_controller` 与 `_enter` 是 `late final`，`didUpdateWidget` 只比 `epoch`，所以 `duration` / `delay` 只在首次 build 生效；同一元素被复用而这两个入参变了时动画按旧参数跑。另：两者同时为 `Duration.zero` 时 `delay / (delay + duration)` 是 NaN，`Interval` 断言会炸。当前所有调用点传的都是常量（`t.Motion.*`），两条都只是潜伏项，所以放行。最小修复是 `didUpdateWidget` 里比这两个入参并同步 `_controller.duration`。发布前审查 P3 (2026-09-18)
+
+- [ ] **依赖环境的测试跳过仍算绿**
+  - **产品**：用户无感。没装 git 的机器上那几条断言零覆盖，却照样绿。与「rust/fs 有个用例失败也算绿」同类。
+  - **技术**：依赖环境的测试**跳过仍算绿**（cursor 2026-09-22 finding 验真属实，低）：`rust/fs/src/git.rs` 有三处 `git not on PATH; skipping` + `return`，没装 git 的机器上那几条断言零覆盖（本机与所有者机器都有 git，眼下不影响）。同类还有 `node::tests::system_node_is_detected_when_present`、以及新加的 `resolve_inside` 用例里「建不出文件符号链接就只报一句」那半边（目录联接那条越界用例是硬断言，覆盖面没丢）。要改就统一成「环境缺失 = 红」或引一个 ignore 标记按 CI 矩阵跑，属机制类，记账 (2026-09-22)
+
+- [ ] **validate 的 _meta 契约门按子串扫，会连坐误报**
+  - **产品**：用户无感。写 `symlink_metadata` 这类标识符会被门禁误抦，2026-09-22 踩到过一次。
+  - **技术**：`scripts/validate.ps1` 的「`_meta` 键」契约门按**子串**扫 `_meta`，`symlink_metadata` / `session_metadata` 这类标识符会连坐：同一行上再有任何字符串字面量就报「_meta lines with literal keys」。2026-09-22 加 `rust/fs/src/lib.rs` 的用例时踩到，当场把那行拆成两行绕开。最小修复是把模式收紧成 `"_meta"` 或给它加词边界；改门禁要小心别把真该拦的放过去 (2026-09-22)
 
 ### 文档与记录（3）
 
@@ -347,6 +369,24 @@
 - [ ] **docs/design.md § 2 的措辞待确认**
   - **产品**：用户无感。文档写的是 git 依赖，实际是参考转写，等所有者确认后改成定稿措辞。
   - **技术**：R5 `docs/design.md` § 2 的「Node 与下载」行原定直接 git 依赖 Zed `node_runtime` 等 crate，R5 改为参考转写（理由见 `rounds/round-05/round-05.md` 偏离 1），待所有者确认后把 § 2 那一行改成定稿措辞 (2026-09-16)
+
+### 代码质量（quality 批）（4）
+
+- [ ] **桥的四层手写转发**
+  - **产品**：用户无感。62 条桥命令在四层各手写一遍，约 240 处声明，每个方法体都是一行转发。
+  - **技术**：quality 桥的四层手写转发：62 条桥命令在 `rust/bridge/src/api.rs` → frb 生成物 → `lib/bridge/api.dart` → `lib/app/core_bridge.dart`（`CoreCommands` 接口 + `CoreBridge` 实现）→ `test/app/fake_core.dart` 各手写一遍（约 240 处声明），而入参与返回本来就都是 JSON 字符串、每个方法体都是一行转发。理论上一条 `command(name, argsJson)` 能塌成一处；代价是丢每条命令的 doc comment、丢编译期的参数名 / 元数比对、`FakeCore` 从「编译器逼你实现 53 个方法」变成字符串匹配。属机制类改动，只记账，要动先裁定 (2026-09-20)
+
+- [ ] **appearance_prefs 的 6 个字段配了 110 行样板**
+  - **产品**：用户无感。Dart 没有内置 data class、规则 1 又不让引 freezed，是取舍不是缺陷。
+  - **技术**：quality `lib/app/appearance_prefs.dart` 的 `FontPrefs`（4 个可空 String）+ `AppearancePrefs`（2 个字段）合计 6 个字段配了约 110 行 `fromJson` / `toJson` / `withAxis` / `withFonts` / `==` / `hashCode` / `toString`，而桥两端传的本来就是 `JsonMap`、`==` 只用来判要不要 notify；「保留原始 map + 一个 `resolved(axis)` getter」能少 80 行。Dart 没有内置 data class、规则 1 又不让引 freezed，所以是取舍不是缺陷，优先级低 (2026-09-20)
+
+- [ ] **gallery 五个画板文件里各复制了一份 helper**
+  - **产品**：用户无感。gallery 是开发工具。
+  - **技术**：quality `lib/gallery/boards/` 五个文件里 `_page` / `_window` / `_c` / `_sessionTitle` / `_composerOptions` 各复制了 2–4 份，缺一个共享 helper 文件；gallery 是开发工具，优先级低 (2026-09-20)
+
+- [ ] **还有五处 hover 状态没并到 Hoverable**
+  - **产品**：用户无感。本轮只并了 `IconButtonGhost` 与 `PanelIconButton`。
+  - **技术**：quality 其余自带 hover 的 widget 没有并到 `Hoverable`：`AcpButton` 多一个按下态 `_down`，`composer_attachments` / `splitter` / `tool_call_card` / `user_message` 各一份 `bool _hover`（后两者带 `hoveredInitially`，语义是「初始悬浮」不是 `forceHover`）。本轮只并了 `IconButtonGhost` 与 `PanelIconButton` (2026-09-20)
 
 ## X · 卡在上游 / 协议（6）
 

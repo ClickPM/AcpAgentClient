@@ -97,17 +97,47 @@ class WorkspaceState extends ChangeNotifier with GuardedNotifier {
       touch();
       return;
     }
+    final epoch = ++_openEpoch;
     await guard(() async {
       final result = await b.workspaceOpen(ref.path);
+      // 期间又换了项目（用户连点两个目录）：这一轮整个作废，别把旧目录写回去。
+      if (epoch != _openEpoch) return;
       final p = result['project'];
       project = p is Map ? ProjectRef(path: p['path'] as String? ?? ref.path, name: p['name'] as String? ?? ref.name) : ref;
       recentProjects = _toProjects(result['projects']);
+      // 分支区与 Rules 计数在补齐回来之前先清空：下面那次 `touch()` 之后顶栏就是新项目了，要是还挂着
+      // 旧项目的分支表，这段窗口里点弹层的一行会对**新项目**跑 `git switch`（审查 P2，2026-09-22）。
+      branchAreaVisible = false;
+      branch = null;
+      branches = const <BranchRef>[];
+      rulesCount = 0;
       _onProjectChanged();
-      await refreshBranches();
-      await refreshRules();
-      await files.setProject(project?.path);
+      // 到这里界面就该能用了：`workspace_open` 只是往本地索引写一条（acp-core 的 `workspace_open`），
+      // 顶栏项目名与输入框的 `canCompose` 不必等下面那三件。先通知一次，不让整块界面等着
+      // 6 个 git 子进程 + 2 次目录列举 + 起文件监视跑完（大仓库上是秒级）。
+      touch();
+      await _hydrate(epoch);
     });
     touch();
+  }
+
+  /// [openProject] 的序号：换项目后要补齐的三件是并发的，回来时得认得出自己这一轮还算不算数。
+  int _openEpoch = 0;
+
+  /// 换项目后补齐的三件：分支区、Rules 计数、文件树（含 git 徽章与 `fs_watch`）。三者互不相干，
+  /// 并发跑——核心侧每条命令各自在 `spawn_blocking` 上，是真并行——谁先回来谁先显示。
+  /// 期间又换了项目就不再通知；各步自己也按 `project?.path` 核对一次，不拿旧目录的结果盖新项目。
+  Future<void> _hydrate(int epoch) async {
+    Future<void> step(Future<void> Function() body) async {
+      await body();
+      if (epoch == _openEpoch && !disposed) touch();
+    }
+
+    await Future.wait(<Future<void>>[
+      step(refreshBranches),
+      step(refreshRules),
+      step(() => files.setProject(project?.path)),
+    ]);
   }
 
   /// 这条索引记录属不属于当前 workspace。还没选项目时不过滤；没记 cwd 的老条目分不清归属，照给，
@@ -134,6 +164,8 @@ class WorkspaceState extends ChangeNotifier with GuardedNotifier {
     final cwd = project?.path;
     if (b == null || cwd == null) return;
     final result = await b.gitBranches(cwd);
+    // 三件并发 + 用户连点：回来时项目可能已经换了，过期的分支区不能盖上去。
+    if (project?.path != cwd) return;
     final available = result['available'] == true;
     final isRepo = result['isRepo'] == true;
     branchAreaVisible = available && isRepo;
@@ -158,6 +190,7 @@ class WorkspaceState extends ChangeNotifier with GuardedNotifier {
     final cwd = project?.path;
     if (b == null || cwd == null) return;
     final listing = await b.fsListDir(cwd, cwd);
+    if (project?.path != cwd) return;
     final entries = listing['entries'];
     var count = 0;
     if (entries is List) {

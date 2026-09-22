@@ -296,7 +296,7 @@ impl IndexStore {
         }
         let index: RegistryIndex = serde_json::from_slice(&body).map_err(|e| RegistryError::Json(format!("解析 registry.json：{e}")))?;
         std::fs::create_dir_all(self.dirs.icons_dir())?;
-        settings::write_atomic(&self.cache_path(), &body)?;
+        fs::write_atomic(&self.cache_path(), &body)?;
         self.fetch_icons(&index).await;
         Ok((index, crate::now_ms()))
     }
@@ -336,7 +336,7 @@ async fn download_icon(http: &reqwest::Client, url: &str, path: &Path) -> Result
     if !head.contains("<svg") {
         return Err(RegistryError::Unsupported(format!("{url} 不是 SVG")));
     }
-    settings::write_atomic(path, &body)?;
+    fs::write_atomic(path, &body)?;
     Ok(())
 }
 

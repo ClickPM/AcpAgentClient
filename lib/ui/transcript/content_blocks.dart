@@ -10,18 +10,11 @@ import 'package:flutter/widgets.dart';
 
 import '../../projection/wire.dart';
 import '../../theme/tokens.dart' as t;
+import '../format.dart';
 import 'card_chrome.dart';
 import 'code_block.dart';
 import 'icons.dart';
 import 'markdown_body.dart';
-
-/// 字节数 → 「17.5 KB」「4.1 MB」。
-String formatBytes(num? bytes) {
-  if (bytes == null) return '';
-  if (bytes >= 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-  if (bytes >= 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-  return '$bytes B';
-}
 
 String _nameOf(String? uri, {String? fallback}) {
   if (uri == null || uri.isEmpty) return fallback ?? '';
@@ -53,24 +46,24 @@ class ContentBlockView extends StatelessWidget {
       case ContentBlockType.text:
         return MarkdownBody(block.text ?? '');
       case ContentBlockType.image:
-        return ImageBlock(block: block, onOpen: onOpen);
+        return _ImageBlock(block: block, onOpen: onOpen);
       case ContentBlockType.audio:
-        return AudioBlock(block: block, preview: audioPreview);
+        return _AudioBlock(block: block, preview: audioPreview);
       case ContentBlockType.resourceLink:
-        return ResourceLinkBlock(block: block, onOpen: onOpen);
+        return _ResourceLinkBlock(block: block, onOpen: onOpen);
       case ContentBlockType.resource:
         final r = block.resource;
-        if (r != null && r.isText) return EmbeddedTextBlock(block: block);
-        return BlobBlock(block: block, onOpen: onOpen);
+        if (r != null && r.isText) return _EmbeddedTextBlock(block: block);
+        return _BlobBlock(block: block, onOpen: onOpen);
       case ContentBlockType.unknown:
-        return BlobBlock(block: block, onOpen: onOpen);
+        return _BlobBlock(block: block, onOpen: onOpen);
     }
   }
 }
 
 /// image：surface 底的预览区 + 元信息行（mimeType · 大小 · uri）。
-class ImageBlock extends StatelessWidget {
-  const ImageBlock({super.key, required this.block, this.onOpen});
+class _ImageBlock extends StatelessWidget {
+  const _ImageBlock({required this.block, this.onOpen});
 
   final ContentBlockWire block;
   final void Function(String uri)? onOpen;
@@ -136,17 +129,17 @@ class AudioPreview {
 }
 
 /// audio：播放 / 暂停 + 进度条 + 「0:14 / 0:37 · audio/wav · 592 KB」。播放器只在第一次点击时创建（内存 BytesSource）。
-class AudioBlock extends StatefulWidget {
-  const AudioBlock({super.key, required this.block, this.preview});
+class _AudioBlock extends StatefulWidget {
+  const _AudioBlock({required this.block, this.preview});
 
   final ContentBlockWire block;
   final AudioPreview? preview;
 
   @override
-  State<AudioBlock> createState() => _AudioBlockState();
+  State<_AudioBlock> createState() => _AudioBlockState();
 }
 
-class _AudioBlockState extends State<AudioBlock> {
+class _AudioBlockState extends State<_AudioBlock> {
   AudioPlayer? _player;
   bool _playing = false;
   Duration _position = Duration.zero;
@@ -333,8 +326,8 @@ class _FileRow extends StatelessWidget {
 }
 
 /// resource_link：名称 + mimeType · 大小 · uri + 「在文件面板打开」。
-class ResourceLinkBlock extends StatelessWidget {
-  const ResourceLinkBlock({super.key, required this.block, this.onOpen});
+class _ResourceLinkBlock extends StatelessWidget {
+  const _ResourceLinkBlock({required this.block, this.onOpen});
 
   final ContentBlockWire block;
   final void Function(String uri)? onOpen;
@@ -353,8 +346,8 @@ class ResourceLinkBlock extends StatelessWidget {
 }
 
 /// embedded resource · text：头行「resource · text · 文件名」+ 等宽块（按 mimeType 选 json 高亮）。
-class EmbeddedTextBlock extends StatelessWidget {
-  const EmbeddedTextBlock({super.key, required this.block});
+class _EmbeddedTextBlock extends StatelessWidget {
+  const _EmbeddedTextBlock({required this.block});
 
   final ContentBlockWire block;
 
@@ -399,8 +392,8 @@ class EmbeddedTextBlock extends StatelessWidget {
 }
 
 /// embedded resource · blob（以及未知块）：不可渲染，兜底文件卡 + 「保存到本地」。
-class BlobBlock extends StatelessWidget {
-  const BlobBlock({super.key, required this.block, this.onOpen});
+class _BlobBlock extends StatelessWidget {
+  const _BlobBlock({required this.block, this.onOpen});
 
   final ContentBlockWire block;
   final void Function(String uri)? onOpen;

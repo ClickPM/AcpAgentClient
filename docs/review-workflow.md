@@ -1,16 +1,16 @@
-# 独立审查工作流（首选 cursor CLI + grok 4.6 high fast，回落 Claude Code 子代理）
+# 独立审查工作流（首选 cursor CLI + grok 4.7 high fast，回落 Claude Code 子代理）
 
 > **本文只管「谁来审、怎么发起、结果怎么取回、什么时候回落」。审查的策略**（范围口径 / 复审收口标准 / 审查边界）
-> **正本在 [`CLAUDE.md`](../CLAUDE.md)「开发模式与轮次流程」，本文不复述、只引用。**
+> **正本在 [`CLAUDE.md`](../CLAUDE.md)「开发模式：轮次与迭代」与 [`iterations/README.md`](../iterations/README.md) § 2，本文不复述、只引用。**
 > 审查者读的任务书是 [`.claude/cursor-review-prompt.md`](../.claude/cursor-review-prompt.md)（入库，改契约改它，两级共用）；
 > cursor 路径的启动脚本是 [`.claude/cursor-review.ps1`](../.claude/cursor-review.ps1)，与 agent-xray 的同名脚本**逐字节一致**
-> （2026-09-15 两边同步把 `--plan` 换成 `--mode ask`，原因见「四条容易踩的」第 4 条；2026-09-20 两边同步把默认 `-Model` 换成 `cursor-grok-4.6-high-fast`；**改一边就要同步另一边**）。
+> （2026-09-15 两边同步把 `--plan` 换成 `--mode ask`，原因见「四条容易踩的」第 4 条；2026-09-20 两边同步把默认 `-Model` 换成 `cursor-grok-4.6-high-fast`；2026-09-22 两边同步换成 `grok-4.7-high-fast`（`cursor-agent --list-models` 确认，4.7 起 grok 系列不再带 `cursor-` 前缀）；**改一边就要同步另一边**）。
 
 ## 0. 执行器（所有者裁定 2026-09-11，沿用 agent-xray）
 
 | 级 | 执行器 | 形态 | 何时用 |
 |---|---|---|---|
-| ① | cursor CLI（`cursor-agent`）+ `cursor-grok-4.6-high-fast` | `.claude/cursor-review.ps1` 后台拉起的独立进程，读实例化后的任务书 | 首选 |
+| ① | cursor CLI（`cursor-agent`）+ `grok-4.7-high-fast` | `.claude/cursor-review.ps1` 后台拉起的独立进程，读实例化后的任务书 | 首选 |
 | ② | Claude Code 子代理 | 主会话用 Agent 工具委派一个只读子代理，读同一份任务书 | ① 硬失败 |
 
 **硬失败的定义**：`cursor-agent` 未安装 / 未登录 / 启动失败 / 限流 / 后台进程已死而 `.out` 仍空。「等得久」「改动小」不是回落理由。
@@ -40,7 +40,9 @@ powershell -File .claude\cursor-review.ps1 -Wait
 ```
 
 参数：`-Base`（默认 `main`）、`-Scope branch|since|worktree`（默认 `branch` = `<Base>...HEAD`；`since` = `<Base>..HEAD`；`worktree` = 未提交改动）、
-`-Kind review|adversarial`、`-Model`（默认 `cursor-grok-4.6-high-fast`）、`-Note "<本轮要点>"`、`-Wait`。
+`-Kind review|adversarial`、`-Model`（默认 `grok-4.7-high-fast`）、`-Note "<本轮要点>"`、`-Wait`。
+
+**迭代流程的档位**（`iterations/`，2026-09-22 起；正本在 `iterations/README.md` § 2）：默认**一轮** `-Scope since -Base <分支基线提交>`（小 diff 加 `-Wait`，未提交时 `-Scope worktree`）；有采纳整改再一轮只审整改 diff；直到 0 条 high 才合并。执行器、硬失败判定、回落条件与本文其余部分完全一样；免审只认所有者逐项指定。
 
 脚本做四件事：验 `cursor-agent` 在位且已登录 → 验 git 范围非空（空 diff 直接拒）→
 把任务书模板实例化（填入范围与要点，`review` 档删掉 adversarial 专属段）→ 后台起 `cursor-agent`，
@@ -88,5 +90,5 @@ powershell -File .claude\cursor-review.ps1 -Wait
 ## 3. 两级共用
 
 - findings 逐条处理后回填任务卡「代码审查」段（采纳整改 / 不采纳及理由），审查产物本体不入库，任务卡里记结论与条数。
-- 审查者拿到的项目上下文：cursor-agent 在仓库根自动读 **`AGENTS.md`**，那份是指针 → `CLAUDE.md`（硬性规则 1–10）；Claude Code 子代理直接读 `CLAUDE.md`。任务书另给了判据清单与严重级口径，两级都**不依赖**编辑器侧配置。
+- 审查者拿到的项目上下文：cursor-agent 在仓库根自动读 **`AGENTS.md`**，那份是指针 → `CLAUDE.md`（硬性规则 1–11）；Claude Code 子代理直接读 `CLAUDE.md`。任务书另给了判据清单与严重级口径，两级都**不依赖**编辑器侧配置。
 - `vendor/upstream/` 里的上游源码对审查者是只读对照，任务书与 AGENTS.md 都已声明它不在审查范围。

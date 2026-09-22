@@ -13,6 +13,7 @@
   - `canvas.json`：画布布局清单，记各画板的位置与 frame 尺寸。桌面画板的 frame 尺寸在首轮 `design-prompt.md` 里定一次，后续画板沿用。
   - `NN-<画板短名>.png`：画板快照，由 `scripts/render-design.ps1` 从同名 `.dc.html` 渲染（headless Edge，scale 1，尺寸 = 文件内的 `$preview`），编号与 `.dc.html` 一致。画布自带的 PNG 导出件不作基准，它的字体度量与浏览器不同，会出现假换行。
   - `support.js`：Claude Design 的画板运行时，与 `.dc.html` 同目录才能直接用浏览器打开；每轮一份副本。
+  - `input/revision-NN.md`：入库之后对画板的修订简报（新增单张画板、给既有画板补一态），编号只增；缺号是别的会话占用未提交，不回填。出稿后同样走「拉回 `.dc.html` → 重渲 PNG → 更新下表与变更记录」，实现在轮次或迭代里做并记进「状态」列（画板 05 / 06 / 43 / 07 / 08 都是这条路）。
 - **首个设计轮先出 `00-tokens` 画板**（色阶 / 字阶 / 间距 / 圆角 / 动效时长），页面画板都从它取值。
 - token 提炼：只从 `00-tokens` 画板的 `.dc.html`（`<helmet><style>` 与内联样式）提炼到 `lib/theme/tokens.dart`，不从页面画板反推；该文件是样式唯一来源，每次设计轮结束时同步更新并在下表「token 变更」列记一句。
 - `.dc.html` 是 HTML 加内联样式，**只作设计源，不复用为代码**；组件全部从画板手写（CLAUDE.md 规则 1 / 3）。
@@ -32,6 +33,7 @@
 | 05 | 转场规格 | 全局 | round-design | `design/round-design/05-motion.dc.html` | `design/round-design/05-motion.png` | — | 已实现（2026-09-17，main 直改） | —（规格值全部登记在画板 00） |
 | 06 | 侧栏会话活动指示 | 会话工作台（侧栏） | round-design | `design/round-design/06-session-activity.dc.html` | `design/round-design/06-session-activity.png` | — | 已实现（2026-09-18，main 直改） | 新增 `Sweep`（track / focus / focusGradient / cycle / band / inset / bottom）与 `UnreadDot`（size / color / gap）两组；`Geometry` 补 `sidebarRowRunning` 58 与 `sidebarRowRunningContent` 50 |
 | 07 | 深色 Token 对位表 | 全局 | round-design | `design/round-design/07-dark-tokens.dc.html` | `design/round-design/07-dark-tokens.png` | — | 已实现（2026-09-20，`dark-mode-toggle-implementation` 分支） | 颜色层拆成 `Theming.lightColors` / `Theming.darkColors` 两套（`ThemeColors` 29 项）；`Neutral` / `Accent` / `Semantic` / `Surface` / `Borders` / `Shadows` / `Overlays` 等全部改成 getter；新增 `AppTheme` 与 `Theming`，`Shadows` 补 `topHighlight`（深色弹层顶边 1px 提亮），`Sweep.focusGradient` 改为由 `focus` 现算 |
+| 08 | 交互增强（回合折叠 / 跨工作区在跑数） | 会话工作台（转录 + 顶栏项目切换器） | round-design | `design/round-design/08-interaction-upgrades.dc.html` | `design/round-design/08-interaction-upgrades.png` | — | 已实现（2026-09-22，`claude/new-session-c0ff9d` 分支）·**A 段设计阶段已删除，不实现** | 新增 `Fold`（rowPadding / radius / bg / hover / secondLineIndent / lineGap / headerPadding / itemGap）与 `Badge`（accentBg / height / radius / padding / gap / iconSize / iconStroke / overflowAt）两组；`badge.accent.bg` 由 `Accent.base` 现算（照画板 07 对 `Sweep.focusGradient` 的做法），画板 00 不改 |
 | 10 | Restore Checkpoint 分隔线 | 转录 | round-design | `design/round-design/10-checkpoint.dc.html` | `design/round-design/10-checkpoint.png` | — | **已废弃（2026-09-17）** | — |
 | 11 | 用户消息气泡 | 转录 | round-design | `design/round-design/11-user-message.dc.html` | `design/round-design/11-user-message.png` | — | 已实现（R2） | — |
 | 12 | 助手富文本正文 | 转录 | round-design | `design/round-design/12-assistant-text.dc.html` | `design/round-design/12-assistant-text.png` | — | 已实现（R2） | — |
@@ -66,13 +68,14 @@
 | 52 | agent 认证 | agent 管理 | round-design | `design/round-design/52-auth.dc.html` | `design/round-design/52-auth.png` | — | 已实现（R5） | — |
 | 60 | 文件面板 | 文件面板 | round-design | `design/round-design/60-files-panel.dc.html` | `design/round-design/60-files-panel.png` | — | 已实现（R4） | — |
 | 61 | 终端面板 | 文件面板（右栏） | round-design | `design/round-design/61-terminal-panel.dc.html` | `design/round-design/61-terminal-panel.png` | — | 已实现（R4） | — |
-| 70 | 设置 | 设置（2026-09-17 起是右栏的一个标签） | round-design | `design/round-design/70-settings.dc.html` | `design/round-design/70-settings.png` | — | 已实现（R5）· 2026-09-17 改为右栏标签（画板本身未改） | — |
+| 70 | 设置 | 设置（2026-09-17 起是右栏的一个标签） | round-design | `design/round-design/70-settings.dc.html` | `design/round-design/70-settings.png` | — | 已实现（R5）· 2026-09-17 改为右栏标签（画板本身未改）· 2026-09-22 新增「转录」分组（已实现，随画板 08） | — |
 | 80 | ACP 流量调试 | ACP 流量调试 | round-design | `design/round-design/80-traffic.dc.html` | `design/round-design/80-traffic.png` | — | 已实现（R3） | — |
 
 状态取值：`待实现` / `已实现（R<N>）` / `已废弃`。
 
 ## 变更记录（入库后对 `.dc.html` 的改动，PNG 已用 `scripts/render-design.ps1` 重渲染）
 
+- 2026-09-22 新增画板 08「交互增强」（画布上原有三段，本次修订后第一次入库并渲 PNG，1440 × 1586），并给画板 70 加「转录」分组（frame 900 → 1010，`$preview` 1005 → 1110）。起因是三条交互诉求，做过协议核查后所有者裁定：**A「回复中的 token 速度标签」整段删除不做** —— 流式期间协议给不出输出 token（`usage_update.used` 是会话级上下文占用而非输出 token，四家 agent 口径还各不相同：claude-agent-acp 每个 `message_delta` 发一次、codex-acp 每次 response 完成发一次、dsh-acp-interactive 的 `used` 不含 output、pi-acp 根本不发；`session/update` 里也没有时间戳），回合级真值只有 `PromptResponse.usage`，回合结束才到，那是画板 31 页脚已经在做的事，**画板 31 因此零改动、不加平均速度**。保留的 B（回合折叠）与 C（在跑数徽标）**段落字母不重排**。B 的三处收口：「最终助手文本」= 该回合最后一段连续的 agent 文本，工具调用之间穿插的文本进折叠块；摘要行第二行的模型名取回合开始时的快照、中途换模型不改（原「模型 A → 模型 B」一行删去），agent 没有 model 配置时退化成单行；画板 43 的时间线跳到折叠块里的目标时先展开该回合再滚（画板 43 本身不改）。C 的口径改写：徽标挂「本次运行里打开过、内存里还有在跑会话」的工作区，不分 This Window 与 Recent Projects —— 原来的「Recent Projects 恒无徽标」配上本应用一个窗口只开一个工作区，会让触发钮的合计恒等于当前工作区的数，等于白做；弹层样张据此重画（This Window 一行、Recent Projects 里一行带徽标）。画板自带「本画板新增 token」表（`badge.*` 2 项 + `fold.*` 2 项），画板 00 不改，实现回写 `tokens.dart`。简报 `design/round-design/input/revision-05.md`。**顺带补齐**：`canvas.json` 里一直缺画板 07 的条目（2026-09-20 入库时漏登），本次与 08 一起补上。
 - 2026-09-20 新增画板 07「深色 Token 对位表」（画布上已有，本次整份拉回入库并渲 PNG，1440 × 1760）。它是画板 00 深色区的完整版本：**一个浅色 token 名对应且只对应一个深色值**，中性 10 + 强调 6 + 语义 8 + popover 表面 1 + 阴影 1 共 26 项全部填满，无深色专有 token；另加「跟随派生」「代码高亮」「终端 ANSI」三小节说明不新增 token 的那些。相对画板 00 的深色区有两处变动：补 `d.strong` #f0f0f4，原第 10 档 `d.accent` 挪进强调色小节并改名 `d.accent.base`（画板 00 未改，gallery 的画板 00 对照页仍按旧表排）。实现按本表落地，**切换按钮本身画板上没有**（所有者 2026-09-20 指图放在侧栏标题条右端），见 [`DIVERGENCE.md`](DIVERGENCE.md) A 节第 2 条。画板自己写明的后续三张深色页面画板（90 工作台整屏 / 91 转录卡片合集 / 92 弹层与叠色）与画板 70「外观」小节都还没出。
 - 2026-09-20 新增画板 43「会话时间线弹层」，并给画板 01 / 02 / 03 的会话头在 reload 与 ≡ 之间插入一个 history 按钮（01 的「尚无已安装 agent」态不画它，显示条件与 reload 同规则）。起因是一条会话跑到几十轮之后只能靠滚轮翻，找不到第 7 轮问的那句在哪；参照 pi 桌面版右侧的会话树，只取信息结构、视觉按本项目风格重做。简报 `design/round-design/input/revision-03.md`。画板自带「本画板新增 token」表（`timeline.*` 七项），已按表回写`lib/theme/tokens.dart`（画板 00 未改，这组值只服务画板 43）。**画布上的 01 / 02 / 03 是旧版**（缺 `4e59ef3` 那次本地整改的六处 32→36 与分栏把手注脚），所以这三张没有整份拉回来，只把 history 那个 span 按画布的写法插进本地文件再重渲 PNG。
 - 2026-09-15 画板 40：`+` 弹层删去 Symbols 与 Selection 两行。需要 LSP 与编辑器选区，与 `docs/requirements.md`「不做」冲突；所有者裁定，见 `ROUNDS.md` § 6。

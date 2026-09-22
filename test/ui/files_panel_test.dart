@@ -3,6 +3,7 @@
 
 import 'package:acp_agent_client/ui/files/file_tree.dart';
 import 'package:acp_agent_client/ui/files/files_panel.dart';
+import 'package:acp_agent_client/ui/format.dart';
 import 'package:acp_agent_client/ui/transcript/code_block.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';

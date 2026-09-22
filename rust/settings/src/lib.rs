@@ -6,7 +6,7 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -35,6 +35,17 @@ impl fmt::Display for SettingsError {
 
 impl std::error::Error for SettingsError {}
 
+/// 落盘原语在 `fs`（临时文件 + rename，规则 7）；它的 io 错误只取内层文案归 [SettingsError::Io]，
+/// 不把 `fs: io:` 的 Display 前缀再套一层（对外仍是 `settings: io: <inner>`，与迁移前一致）。
+impl From<fs::FsError> for SettingsError {
+    fn from(e: fs::FsError) -> Self {
+        match e {
+            fs::FsError::Io(inner) => SettingsError::Io(inner),
+            other => SettingsError::Io(other.to_string()),
+        }
+    }
+}
+
 pub type Result<T> = std::result::Result<T, SettingsError>;
 
 /// `agent_servers` 的一条，与钉版本 Zed `crates/settings_content/src/agent.rs` 的 `CustomAgentServerSettings` 同形：
@@ -62,10 +73,6 @@ pub enum AgentServer {
 }
 
 impl AgentServer {
-    pub fn is_registry(&self) -> bool {
-        matches!(self, AgentServer::Registry { .. })
-    }
-
     /// 两型共有的 `env`。
     pub fn env(&self) -> &BTreeMap<String, String> {
         match self {
@@ -102,6 +109,24 @@ pub struct Appearance {
     /// 代码等宽中文。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub buffer_cjk_font_family: Option<String>,
+}
+
+/// 转录偏好（画板 70「转录」小节 / 画板 08 B）。纯客户端行为，不走协议。
+///
+/// 与 [`Appearance`] 同口径：字段 `Option`，缺省 `None` = 用前端的默认值（画板写的是「默认开」，
+/// 那个默认值在 `lib/app/transcript_folds.dart`，这里不复制一份）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct Transcript {
+    /// 「回合结束后折叠处理过程」。没存过 = None = 前端落到默认开。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub collapse_finished_turns: Option<bool>,
+}
+
+impl Transcript {
+    /// 全空时不写 `transcript` 键，省得给没动过这一项的用户平白多一段。
+    fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
 }
 
 /// family 名的最大长度。真实字体家族名远短于此，这里只挡住把整个文件塞进来那种输入。
@@ -153,6 +178,8 @@ pub struct Settings {
     pub agent_servers: BTreeMap<String, AgentServer>,
     #[serde(default, skip_serializing_if = "Appearance::is_default")]
     pub appearance: Appearance,
+    #[serde(default, skip_serializing_if = "Transcript::is_default")]
+    pub transcript: Transcript,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -184,10 +211,10 @@ impl SettingsStore {
         }
     }
 
-    /// 临时文件 + rename（规则 7）：先写同目录的 `settings.json.tmp-<pid>-<nanos>`，再原子替换。
+    /// 临时文件 + rename（规则 7，`fs::write_atomic`）：先写同目录的 `settings.json.tmp-<pid>-<nanos>`，再原子替换。
     pub fn save(&self, settings: &Settings) -> Result<()> {
         let text = serde_json::to_string_pretty(settings).map_err(|e| SettingsError::Json(e.to_string()))?;
-        write_atomic(&self.path, text.as_bytes())
+        Ok(fs::write_atomic(&self.path, text.as_bytes())?)
     }
 
     pub fn get(&self, agent_id: &str) -> Result<Option<AgentServer>> {
@@ -217,6 +244,19 @@ impl SettingsStore {
         Ok(settings.appearance)
     }
 
+    /// 读转录偏好。与 [`Self::appearance`] 同口径：读不动 / 不是合法 JSON 时不报错，回默认（字段全空）。
+    pub fn transcript(&self) -> Transcript {
+        self.load().map(|s| s.transcript).unwrap_or_default()
+    }
+
+    /// 覆盖转录偏好并落盘，返回落盘后的值。整段替换（这一段只有一个写者：`lib/app/transcript_folds.dart`）。
+    pub fn set_transcript(&self, transcript: Transcript) -> Result<Transcript> {
+        let mut settings = self.load()?;
+        settings.transcript = transcript;
+        self.save(&settings)?;
+        Ok(settings.transcript)
+    }
+
     /// 删掉一条并落盘（不存在也算成功），返回落盘后的全量设置。
     pub fn remove(&self, agent_id: &str) -> Result<Settings> {
         let mut settings = self.load()?;
@@ -225,25 +265,6 @@ impl SettingsStore {
         }
         Ok(settings)
     }
-}
-
-/// 临时文件 + rename。目标目录不存在时创建（数据目录由核心保证存在，这里兜底）。
-pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
-    let dir = path.parent().ok_or_else(|| SettingsError::Io(format!("{} has no parent", path.display())))?;
-    std::fs::create_dir_all(dir).map_err(|e| SettingsError::Io(format!("{}: {e}", dir.display())))?;
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let file_name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    let tmp = dir.join(format!("{file_name}.tmp-{}-{nanos}", std::process::id()));
-    let io = |e: std::io::Error| SettingsError::Io(format!("{}: {e}", tmp.display()));
-    std::fs::write(&tmp, bytes).map_err(io)?;
-    if let Err(e) = std::fs::rename(&tmp, path) {
-        let _ = std::fs::remove_file(&tmp);
-        return Err(SettingsError::Io(format!("rename {} -> {}: {e}", tmp.display(), path.display())));
-    }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -350,6 +371,35 @@ mod tests {
         store.set_appearance(Appearance::default()).expect("clear");
         let text = std::fs::read_to_string(&store.path).expect("read");
         assert!(!text.contains("appearance"), "空外观不该落键: {text}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn transcript_round_trip_and_defaults() {
+        let dir = temp_dir("transcript");
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        let store = SettingsStore::new(dir.clone());
+
+        // 没存过 -> 空，前端据此落回「默认开」。
+        assert_eq!(store.transcript(), Transcript::default());
+        assert_eq!(store.transcript().collapse_finished_turns, None);
+
+        let off = Transcript { collapse_finished_turns: Some(false) };
+        assert_eq!(store.set_transcript(off).expect("set"), off);
+        assert_eq!(store.transcript(), off);
+
+        // 与 `appearance` 段互不影响：写转录不该抹掉外观。
+        let appearance = Appearance { theme: Some("dark".into()), ..Default::default() };
+        store.set_appearance(appearance.clone()).expect("set appearance");
+        let on = Transcript { collapse_finished_turns: Some(true) };
+        store.set_transcript(on).expect("set");
+        assert_eq!(store.appearance(), appearance);
+        assert_eq!(store.transcript(), on);
+
+        // 全空时不写 `transcript` 键。
+        store.set_transcript(Transcript::default()).expect("clear");
+        let text = std::fs::read_to_string(&store.path).expect("read");
+        assert!(!text.contains("transcript"), "空转录偏好不该落键: {text}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

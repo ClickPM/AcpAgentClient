@@ -44,6 +44,7 @@ import 'paths.dart';
 import 'session_index.dart';
 import 'shell_state.dart';
 import 'session_controller.dart';
+import 'transcript_folds.dart';
 import 'turn_controller.dart';
 import 'workspace_state.dart';
 
@@ -76,6 +77,10 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   late final Sessions sessions = Sessions();
   late final UpdateBatcher batcher = UpdateBatcher(sessions, scheduler: _scheduler);
   final TrafficStore traffic = TrafficStore();
+
+  /// 回合折叠（画板 08 B）：全局开关 + 每个回合的展开态。**不转发到根**——折叠只影响转录列表，
+  /// 而 `TranscriptList` 自己听它；转发上来会让点一次摘要行重建整个工作台。
+  late final TranscriptFolds folds = TranscriptFolds(bridge: bridge);
 
   /// 文件面板（画板 60）与终端面板（画板 61）的接线状态（R4）。
   late final FilesState files = FilesState(bridge: bridge);
@@ -162,7 +167,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   late final TurnController turn = TurnController(bridge: bridge, session: session, composer: composer);
 
   /// agent 终端（`acp/terminal_output` source = agent / auth）的分块 UTF-8 解码：跨块的多字节字符不能逐块 `utf8.decode`。
-  final Map<String, ChunkedUtf8> _agentTerminalText = <String, ChunkedUtf8>{};
+  final Map<String, _ChunkedUtf8> _agentTerminalText = <String, _ChunkedUtf8>{};
 
   /// 核心给的几个路径（画板 70）：`core_init` / `registry_list` 的 `paths`。
   String? dataDir;
@@ -206,13 +211,19 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       final info = await b.init(defaultDataDir());
       dataDir = info['dataDir'] as String? ?? defaultDataDir();
       logPath = info['logPath'] as String?;
+      // 转录偏好（画板 70「转录」）在 `core_init` **之后**读：排在它前面那一下核心回 not_initialized，
+      // `TranscriptFolds._readSettingsOk` 就停在 false，开关既读不回也存不下（发布前审查 high，2026-09-22）。
+      // 不 await：读不回来也只是回到「默认开」，不该拖慢启动。
+      unawaited(folds.start());
       // 本地索引先读：下面挑「当前 agent」要按索引里最近用过的那条来（`refreshRegistry` 末尾
       // 会用 registry 的图标把侧栏重投影一次，所以先读索引不会让会话项停在占位菱形上）。
       await index.refresh();
       await agents.refreshRegistry();
       await agents.refreshAgents();
-      await workspace.restoreLastProject();
+      // 三栏宽度在前：只读一条本地 UI 状态，而恢复项目要跑 6 个 git 子进程 + 两次目录列举，
+      // 排在它后面会让冷启动的第一屏先用缺省宽度撑着、跑完才跳一次。
       await shell.restoreUiState();
+      await workspace.restoreLastProject();
     });
     notifyListeners();
     // registry.json 的联网刷新（1 小时节流）放到后台：断网时 30 秒超时不能挡住启动。
@@ -288,6 +299,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     terminals.removeListener(notifyListeners);
     files.dispose();
     terminals.dispose();
+    folds.dispose();
     for (final child in <ChangeNotifier>[shell, workspace, agents, auth, composer, turn, session]) {
       child.removeListener(notifyListeners);
       child.dispose();
@@ -308,7 +320,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     }
     final id = json['terminalId'];
     if (id is! String) return;
-    sessions.applyTerminalOutputEvent(json, decode: (b64) => _agentTerminalText.putIfAbsent(id, ChunkedUtf8.new).decode(b64));
+    sessions.applyTerminalOutputEvent(json, decode: (b64) => _agentTerminalText.putIfAbsent(id, _ChunkedUtf8.new).decode(b64));
     if (json['exitStatus'] is Map) _agentTerminalText.remove(id);
   }
 
@@ -334,8 +346,8 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
 }
 
 /// 一个终端的 base64 字节流 → 文本：分块 UTF-8 解码，跨块的多字节字符不会被切成 U+FFFD（R3 逐块 `utf8.decode` 的隐患）。
-class ChunkedUtf8 {
-  ChunkedUtf8() {
+class _ChunkedUtf8 {
+  _ChunkedUtf8() {
     _sink = const Utf8Decoder(allowMalformed: true).startChunkedConversion(StringConversionSink.fromStringSink(_out));
   }
 

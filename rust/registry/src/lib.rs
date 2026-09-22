@@ -90,6 +90,17 @@ impl From<settings::SettingsError> for RegistryError {
     }
 }
 
+/// `fs::write_atomic` 的失败：只取内层文案归 [RegistryError::Io]（对外 `io: <inner>`），不套 `fs: io:` 前缀。
+/// 迁移前这条路走 `settings::write_atomic`、落 [RegistryError::Settings]；两者对 `CoreError::code()` 都是 `registry`。
+impl From<fs::FsError> for RegistryError {
+    fn from(e: fs::FsError) -> Self {
+        match e {
+            fs::FsError::Io(inner) => RegistryError::Io(inner),
+            other => RegistryError::Io(other.to_string()),
+        }
+    }
+}
+
 pub type Result<T> = std::result::Result<T, RegistryError>;
 
 /// `registry/progress` 的一条（docs/design.md § 3）：`agent_id` 为 `None` 是受管 Node。

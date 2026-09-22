@@ -7,11 +7,13 @@ import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
 
+import '../../app/transcript_folds.dart';
 import '../../projection/entries.dart';
 import '../../projection/fixture_line.dart';
 import '../../projection/session_store.dart';
 import '../../projection/timeline.dart';
 import '../../projection/traffic.dart';
+import '../../projection/turn_fold.dart';
 import '../../projection/wire.dart';
 import '../../theme/tokens.dart' as t;
 import '../../ui/popovers/composer_popovers.dart';
@@ -23,6 +25,7 @@ import '../../ui/files/files_panel.dart';
 import '../../ui/shell/app_shell.dart';
 import '../../ui/shell/composer.dart';
 import '../../ui/shell/right_panel.dart';
+import '../../ui/shell/running_badge.dart';
 import '../../ui/shell/shell_common.dart';
 import '../../ui/shell/sidebar.dart';
 import '../../ui/shell/session_header.dart';
@@ -32,6 +35,7 @@ import '../../ui/traffic/traffic_page.dart';
 import '../../ui/transcript/awaiting_bar.dart';
 import '../../ui/transcript/plan_card.dart';
 import '../../ui/transcript/transcript_list.dart';
+import '../../ui/transcript/turn_fold_row.dart';
 import '../board_page.dart';
 import '../fixtures_source.dart';
 import '../gallery.dart';
@@ -398,6 +402,66 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
           '偏离：清除条件里的「窗口聚焦」这一维没有实现（宿主没给这个信号），按「当前会话 + 停在工作台页」判。',
     );
   }),
+  _page('08-interaction-upgrades', '交互增强 · 回合折叠 / 跨工作区在跑数', () {
+    final SessionStore twoLine = _foldSample(model: 'Gemini 3.8 Flash High (CLIProxy)');
+    final SessionStore oneLine = _foldSample();
+    final SessionStore failed = _foldSample(failures: 1);
+    final TranscriptFolds collapsed = TranscriptFolds();
+    final TranscriptFolds expanded = TranscriptFolds();
+    expanded.expand(foldsOf(twoLine.entries).values.single);
+    return BoardPage(
+      number: '08',
+      title: '交互增强 · 回合折叠 / 跨工作区在跑数',
+      source: 'stop_reason · session/prompt 在途 · 会话所属工作区（本地）',
+      sections: <BoardSection>[
+        BoardSection('B · 摘要行 · 折叠（两行：第二行是回合开始时的模型名）',
+            child: _left(SizedBox(width: _foldWidth, child: TurnFoldRow(fold: _foldOf(twoLine), collapsed: true)))),
+        BoardSection('B · 摘要行 · 折叠 + 悬浮（fold.hover 是整行可点的唯一反馈）',
+            child: _left(SizedBox(width: _foldWidth, child: TurnFoldRow(fold: _foldOf(twoLine), collapsed: true, forceHover: true)))),
+        BoardSection('B · 无模型信息时 · 单行',
+            child: _left(SizedBox(width: _foldWidth, child: TurnFoldRow(fold: _foldOf(oneLine), collapsed: true)))),
+        BoardSection('B · 有失败项（首行末尾追加「N 项失败」，回合正常收轮时照常自动折叠）',
+            child: _left(SizedBox(width: _foldWidth, child: TurnFoldRow(fold: _foldOf(failed), collapsed: true)))),
+        BoardSection('B · 展开态标题行（无容器无底色，chevron 换成向下 + 一行 11px 摘要）',
+            child: _left(SizedBox(width: _foldWidth, child: TurnFoldRow(fold: _foldOf(twoLine), collapsed: false)))),
+        BoardSection('B · 转录里 · 折叠（折叠块压在用户消息与最终助手文本之间）',
+            child: _transcriptSample(240, twoLine, collapsed)),
+        BoardSection('B · 转录里 · 展开（同一轮，位置不因折叠改变）',
+            child: _transcriptSample(460, twoLine, expanded)),
+        BoardSection('C · 徽标三态（1 条 / 两位数 / 0 条不渲染）',
+            child: _left(Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                const RunningBadge(1),
+                const SizedBox(width: t.Spacing.s24),
+                const RunningBadge(12),
+                const SizedBox(width: t.Spacing.s24),
+                const RunningBadge(100),
+                const SizedBox(width: t.Spacing.s24),
+                Text('0 条在跑 · 无徽标、无灰底 0、不留占位', style: t.TextStyles.monoMeta),
+              ],
+            ))),
+        const BoardSection('C · 触发钮（合计 = 所有工作区，含当前）',
+            child: TopBar(projectName: _project, branch: _branch, windowControls: false, runningTotal: 3, runningWorkspaces: 2)),
+        BoardSection('C · 切换器弹层（This Window 恒一行；Recent Projects 里本次运行开过、还有会话在跑的那行也挂徽标）',
+            child: _left(ProjectSwitcherPopover(
+              openProjects: _switcherOpen,
+              recentProjects: _switcherRecent,
+              currentPath: _switcherOpen.first.path,
+              searchController: _c(),
+              searchFocusNode: FocusNode(),
+              runningOf: (p) => _switcherRunning[p.path] ?? 0,
+            ))),
+      ],
+      footnote: 'A 段（回复中的 token 速度标签）已在设计阶段整段删除：流式期间协议给不出输出 token '
+          '（usage_update.used 是会话级上下文占用，四家 agent 口径还各不相同；session/update 里也没有时间戳），'
+          '回合级真值只有 PromptResponse.usage，回合结束才到 —— 那是画板 31 页脚已经在做的事。'
+          '折叠只对本次会话里真正跑过的回合生效：session/load 的重放不带回轮边界（docs/design.md § 3），'
+          '重放出来的历史里没有 TurnEntry，也就没有摘要行。'
+          '偏离：权限卡与 elicitation 卡不折叠（画板两列都没列到它们，挂起的那张必须看得见）；'
+          '徽标图标用既有的 AcpIcons.rotateCw（画板画的是同一个 lucide 字形的 r=8 版本，11px 下差别在 1px 以内）。',
+    );
+  }),
   _page('40-composer-popovers', '输入框弹层合集', () {
     final r = FixtureReplay.replay(<String>['01-connect', '25-config-options'], upTo: 1);
     final s = r.session;
@@ -711,3 +775,90 @@ final List<SidebarSession> gallerySessions = _sessions;
 final DateTime galleryNow = _now;
 const String galleryProject = _project;
 const String galleryBranch = _branch;
+
+// ---------------------------------------------------------------- 画板 08 的样张（本地假数据）
+
+/// 摘要行样张的宽度：比 800 的画板页窄一档，看得出它不是整宽拉伸的。
+const double _foldWidth = 520;
+
+/// 转录整段样张。`TranscriptList` 里的 `SelectableRegion` 要一个 Overlay 祖先，
+/// 而 BoardPage 的分节里没有（整窗画板是 `AppShell` 自带的），所以这里垫一层。
+Widget _transcriptSample(double height, SessionStore store, TranscriptFolds folds) => SizedBox(
+      height: height,
+      child: Overlay(
+        initialEntries: <OverlayEntry>[
+          OverlayEntry(builder: (_) => TranscriptList(store, folds: folds)),
+        ],
+      ),
+    );
+
+/// 一轮：思考 1 + 工具调用 2（[failures] 条标成失败）+ 最终助手文本 1。
+SessionStore _foldSample({String? model, int failures = 0}) {
+  // 时钟一步一秒：思考块的耗时与回合页脚的耗时都从它来。
+  // 不用毫秒档——`Duration(milliseconds:` 是 Assert-NoStyleLiteral（规则 3）扫的动效时长字面量之一。
+  var clock = DateTime.utc(2026, 9, 22, 12);
+  final s = SessionStore(
+    sessionId: 'sess_fold_gallery',
+    clock: () {
+      clock = clock.add(const Duration(seconds: 1));
+      return clock;
+    },
+  );
+  if (model != null) {
+    s.applyUpdateJson(<String, dynamic>{
+      'sessionUpdate': 'config_option_update',
+      'configOptions': <Object>[
+        <String, dynamic>{
+          'id': 'model',
+          'category': 'model',
+          'type': 'select',
+          'currentValue': 'm',
+          'options': <Object>[
+            <String, dynamic>{'value': 'm', 'name': model},
+          ],
+        },
+      ],
+    });
+  }
+  s.startTurn(const <ContentBlockWire>[
+    ContentBlockWire(<String, dynamic>{'type': 'text', 'text': '开始做第二阶段'}),
+  ]);
+  s.applyUpdateJson(<String, dynamic>{
+    'sessionUpdate': 'agent_thought_chunk',
+    'content': <String, dynamic>{'type': 'text', 'text': '先复核最新提交，确认 v0.4.0 的改动范围…'},
+  });
+  for (var i = 0; i < 2; i++) {
+    s.applyUpdateJson(<String, dynamic>{
+      'sessionUpdate': 'tool_call',
+      'toolCallId': 'tc-$i',
+      'title': i == 0 ? 'Read file' : 'Run',
+      'status': i < failures ? 'failed' : 'completed',
+    });
+  }
+  s.applyUpdateJson(<String, dynamic>{
+    'sessionUpdate': 'agent_message_chunk',
+    'content': <String, dynamic>{
+      'type': 'text',
+      'text': '第二阶段（吸纳核心开源插件）已全部开发完毕，并通过完整的 TypeScript 类型检查和自动化测试。',
+    },
+  });
+  s.endTurn(stopReason: 'end_turn');
+  return s;
+}
+
+TurnFold _foldOf(SessionStore s) => foldsOf(s.entries).values.single;
+
+/// 画板 08 C 的切换器样张：本窗口只开着一个工作区，Recent 里有一个本次运行开过、还有 2 条在跑。
+const List<ProjectRef> _switcherOpen = <ProjectRef>[
+  ProjectRef(path: r'D:\variFlight_work\pi-cordis-toolbox', name: r'…ariFlight_work\pi-cordis-toolbox'),
+];
+const List<ProjectRef> _switcherRecent = <ProjectRef>[
+  ProjectRef(path: r'D:\variFlight_work\VariFlightWork', name: r'…ariFlight_work\VariFlightWork'),
+  ProjectRef(path: r'D:\variFlight_work\AcpAgentClient', name: r'…ariFlight_work\AcpAgentClient'),
+  ProjectRef(path: r'D:\tmp\9ffdc02c\scratchpad\probe-cwd', name: r'…9ffdc02c\scratchpad\probe-cwd'),
+  ProjectRef(path: r'D:\cargo-target\AcpAgentClient\r6-pi', name: r'…o-target\AcpAgentClient\r6-pi'),
+];
+const Map<String, int> _switcherRunning = <String, int>{
+  r'D:\variFlight_work\pi-cordis-toolbox': 1,
+  r'D:\variFlight_work\VariFlightWork': 2,
+};

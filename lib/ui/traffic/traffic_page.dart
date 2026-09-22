@@ -184,7 +184,7 @@ class _TrafficPageState extends State<TrafficPage> {
         child: ListView.builder(
           controller: _scroll,
           itemCount: lines.length,
-          itemBuilder: (context, i) => TrafficRow(
+          itemBuilder: (context, i) => _TrafficRow(
             line: lines[i],
             expanded: _expanded.contains(lines[i].seq),
             onToggle: () => setState(() {
@@ -249,8 +249,8 @@ class _TrafficPageState extends State<TrafficPage> {
 }
 
 /// 一行流量（可展开看原文）。
-class TrafficRow extends StatelessWidget {
-  const TrafficRow({super.key, required this.line, required this.expanded, this.onToggle});
+class _TrafficRow extends StatelessWidget {
+  const _TrafficRow({required this.line, required this.expanded, this.onToggle});
 
   final TrafficLine line;
   final bool expanded;
