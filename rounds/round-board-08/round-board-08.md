@@ -71,13 +71,20 @@
 
 ## 代码审查
 
-<!-- 完成后回填 -->
-
-- 审查方式：
-- 审查器与模型：
+- 审查方式：`powershell -File .claude\cursor-review.ps1`（默认档，后台）
+- 审查器与模型：cursor CLI + `grok-4.7-high-fast`
 - 审查范围与基准提交：
+  - 第 1 轮 全量 `main...HEAD`（`1cd20d1`），产物 `.claude/reviews/20260922-120118-review.out.md`
+  - 第 2 轮 全量 `main...HEAD`（整改后），产物见同目录
 - findings 处理：
-- 结论：
+
+| 轮 | 级别 | finding | 处理 |
+|---|---|---|---|
+| 1 | high | 时间线跳进折叠块时，`expand` 之后同帧 `_jump.start` 会把跳转取消掉，回合展开了但滚动停在原地 | **采纳整改**。`expand` 返回 true 时把 `_jump.start` 推到下一帧（`workbench_screen._jumpToEntry`）。属实：`start()` 当帧同步走一次 `_step`，那时 `rows()` 已是展开后的行号、sliver 还是折叠前的布局，新行号落进过期区间就去问一个还没建出来的行，`_rowBox` 回 null → `cancel()`，`_schedule` 又因 `_target == null` 不再登记下一帧。回归用例 `test/app/timeline_wiring_test.dart`「画板 08 B：时间线跳进折叠块」，**已验证去掉整改会红** |
+| 1 | P2 | 连续拨动「回合结束后折叠」时，先发的写盘可以后落地，把用户最后的选择盖掉 | **采纳整改**。`setAutoCollapse` 在真发之前核对「这一笔还是不是当前值」，被顶掉的不发。回归用例「连着拨两下」断言只发出一笔 |
+| 1 | P2 | `set_transcript` 整文件读改写，与外观落盘重叠时会把 `appearance` 盖回旧值 | **不采纳整改，记 `rounds/BACKLOG.md`**（审查器自己也是这么建议的）。与 `set_appearance` 是同一类问题，收口要在 `SettingsStore` 上串行化 load+save —— 机制类修复，CLAUDE.md 的审查边界只允许严重阻塞性 bug 走这条；而触发它要两笔写在同一毫秒重叠，两处入口都是用户点击。前端侧已就近堵掉连点那一半 |
+
+- 结论：<待第 2 轮>
 
 ## 失败处理
 

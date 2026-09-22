@@ -106,6 +106,10 @@ class TranscriptFolds extends ChangeNotifier {
       if (!_disposed) notifyListeners();
     }
     await _awaitHydration();
+    // 这一笔已经被后来的点击顶掉了就别再发（发布前审查 P2，2026-09-22）：两次点击会并行走到这里，
+    // 各自带着**调用当时**捕获的 `value`，先点的那笔若后落地就把用户最后的选择盖回去了。
+    // 只发「与当前内存值一致」的那一笔，连点多少下都收敛到最后一下。
+    if (_stored != value) return;
     final CoreCommands? bridge = this.bridge;
     if (bridge == null || !_readSettingsOk) return;
     try {

@@ -741,14 +741,24 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     }
     if (target == null) return;
     // 画板 08 B：目标落在折叠块里就先展开那一轮——折着的时候它根本没有行，跳过去没有落点。
-    // 展开按「展开态记忆」照常记住。展开会改变行数与高度，但 [TranscriptJump] 每帧重新取行、按真实几何步进，
-    // 下一帧自然按展开后的布局算。
+    // 展开按「展开态记忆」照常记住。
     final TurnFold? fold = foldContaining(foldsOf(store.entries).values, target);
-    if (fold != null) c.folds.expand(fold);
+    final bool expanded = fold != null && c.folds.expand(fold);
     // 跳到旧内容 = 用户自己翻上去，跟随底部要停掉，否则下一条流式块又把视口拽回最底下。
     _stick = false;
     setState(() => _focusedEntryId = focus ? entryId : null);
-    _jump.start(entryId);
+    if (!expanded) {
+      _jump.start(entryId);
+      return;
+    }
+    // **刚展开的这一帧不能就地开跳**（发布前审查 high，2026-09-22）：`expand` 只是 notifyListeners，
+    // 列表要下一帧才按展开后的行重建，而 `TranscriptJump.start` 是当帧同步走一次 `_step` 的。
+    // 那一下 `rows()` 已经是展开后的行号，sliver 的 firstChild / lastChild 却还是折叠前的布局；
+    // 新行号一旦落进这段过期区间，`_step` 就去问目标行的 RenderObject —— 它这一帧还没建出来，
+    // 于是 `cancel()`，`_schedule` 又因为 `_target == null` 不再登记下一帧：回合展开了，滚动却原地不动。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _jump.start(entryId);
+    });
   }
 
   // ---------------------------------------------------------------- 右栏与流量面板（画板 03 / 80）

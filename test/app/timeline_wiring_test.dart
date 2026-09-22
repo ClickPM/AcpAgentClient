@@ -9,6 +9,7 @@
 import 'package:acp_agent_client/app/workbench_controller.dart';
 import 'package:acp_agent_client/app/workbench_screen.dart';
 import 'package:acp_agent_client/projection/session_store.dart';
+import 'package:acp_agent_client/projection/wire.dart';
 import 'package:acp_agent_client/theme/tokens.dart' as t;
 import 'package:acp_agent_client/ui/popovers/session_timeline.dart';
 import 'package:acp_agent_client/ui/transcript/icons.dart';
@@ -130,6 +131,32 @@ void _longConverse(SessionStore store, {int turns = 10, bool heavyTail = false})
   }
 }
 
+/// 画板 08 B：每轮是「agent 文本 + 随后一个 tool_call」，那段文本因此**不是**「最后一段连续的
+/// agent 文本」，会被收进折叠块 —— 而时间线的 A 行取的正好是它。开头几轮压重量，让目标远在视口之外。
+void _foldedConverse(SessionStore store, {int turns = 10}) {
+  for (var i = 1; i <= turns; i++) {
+    store.startTurn(<ContentBlockWire>[
+      ContentBlockWire(<String, dynamic>{'type': 'text', 'text': '第 $i 个问题'}),
+    ]);
+    store.applyUpdateJson(<String, dynamic>{
+      'sessionUpdate': 'agent_message_chunk',
+      'messageId': 'a$i',
+      'content': <String, dynamic>{
+        'type': 'text',
+        'text': '第 $i 个回答\n${'先读一遍现有脚本，再决定插在编译之前还是之后。' * (i <= 3 ? 300 : 1)}',
+      },
+    });
+    store.applyUpdateJson(<String, dynamic>{
+      'sessionUpdate': 'tool_call',
+      'toolCallId': 'call_$i',
+      'title': 'Read scripts/validate.ps1',
+      'kind': 'read',
+      'status': 'completed',
+    });
+    store.endTurn(stopReason: 'end_turn');
+  }
+}
+
 Future<(WorkbenchController, SessionStore)> _pumpLongShell(WidgetTester tester, {bool heavyTail = false}) async =>
     _pumpShell(tester, long: true, heavyTail: heavyTail);
 
@@ -139,6 +166,7 @@ Future<(WorkbenchController, SessionStore)> _pumpShell(
   bool withSession = true,
   bool long = false,
   bool heavyTail = false,
+  bool folded = false,
 }) async {
   tester.view.physicalSize = const Size(1200, 800);
   tester.view.devicePixelRatio = 1;
@@ -155,7 +183,9 @@ Future<(WorkbenchController, SessionStore)> _pumpShell(
   if (withSession) {
     c.session.sessionId = _session;
     store = c.sessions.session(_session, agentId: _agent);
-    if (long) {
+    if (folded) {
+      _foldedConverse(store);
+    } else if (long) {
       _longConverse(store, heavyTail: heavyTail);
     } else {
       _converse(store, turns);
@@ -375,6 +405,24 @@ void main() {
     _expectLandedOn(tester, find.byWidgetPredicate((w) => w is UserMessage && w.entry.text == '第 7 个问题'));
     expect(trace.last, moreOrLessEquals(trace[trace.length ~/ 2], epsilon: 0.5), reason: '落下之后就不该再动');
     expect(trace.last, greaterThan(0), reason: '确实从顶部往下走了');
+  });
+
+  testWidgets('画板 08 B：时间线跳进折叠块——先展开那一轮，再精准停靠（不能停在原地）', (tester) async {
+    final (c, _) = await _pumpShell(tester, folded: true);
+    final bottom = _pos(tester).pixels;
+    expect(bottom, moreOrLessEquals(_pos(tester).maxScrollExtent, epsilon: 0.5), reason: '开局贴着底部');
+    // 目标那一条这会儿被折着，压根没有行。
+    expect(find.byWidgetPredicate((w) => w is AssistantText && w.entry.text.startsWith('第 4 个回答')), findsNothing);
+
+    await _openTimeline(tester);
+    await tapTimelineRow(tester, '第 4 个回答');
+    final trace = await _settleJump(tester);
+
+    // 展开 + 落位都要发生。修之前：回合确实展开了，但 `TranscriptJump` 在展开那一帧就 cancel 掉，
+    // 滚动停在原地（trace 全是 bottom），下面两条断言各挂一条。
+    _expectLandedOn(tester, find.byWidgetPredicate((w) => w is AssistantText && w.entry.text.startsWith('第 4 个回答')));
+    expect(trace.last, lessThan(bottom - t.Spacing.s16), reason: '确实从底部跳上去了，而不是原地不动');
+    expect(c.folds.autoCollapse, isTrue, reason: '只展开这一轮，不动全局开关');
   });
 
   testWidgets('点弹层之外关掉它，按钮的选中容器跟着撤', (tester) async {

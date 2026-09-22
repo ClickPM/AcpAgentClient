@@ -4,9 +4,25 @@
 import 'dart:async';
 
 import 'package:acp_agent_client/app/transcript_folds.dart';
+import 'package:acp_agent_client/projection/wire.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fake_core.dart';
+
+/// 写盘挂住不回，直到 [release]；并记下每一笔真发出去的值。
+class _SlowSetCore extends FakeCore {
+  final Completer<void> _gate = Completer<void>();
+  final List<bool> writes = <bool>[];
+
+  void release() => _gate.complete();
+
+  @override
+  Future<JsonMap> transcriptPrefsSet(JsonMap patch) async {
+    writes.add(patch['collapse_finished_turns'] as bool);
+    await _gate.future;
+    return super.transcriptPrefsSet(patch);
+  }
+}
 
 void main() {
   test('没存过 -> 默认开', () async {
@@ -70,6 +86,22 @@ void main() {
     expect(folds.autoCollapse, isFalse, reason: '界面照常变');
     expect(core.transcriptPrefs, <String, dynamic>{'collapse_finished_turns': true},
         reason: '从没读成功过就不许落盘');
+  });
+
+  test('连着拨两下：只落最后那一下，先发的那笔不许后落地把它盖掉', () async {
+    // `transcriptPrefsSet` 挂住，两笔写就能真的并存；放开时故意让「关」那笔后完成。
+    final core = _SlowSetCore();
+    final folds = TranscriptFolds(bridge: core);
+    await folds.start();
+
+    final Future<void> off = folds.setAutoCollapse(false);
+    final Future<void> on = folds.setAutoCollapse(true);
+    expect(folds.autoCollapse, isTrue, reason: '内存里以最后一下为准');
+
+    core.release();
+    await Future.wait(<Future<void>>[off, on]);
+    expect(core.transcriptPrefs, <String, dynamic>{'collapse_finished_turns': true});
+    expect(core.writes, <bool>[true], reason: '被顶掉的那一笔根本不该发出去');
   });
 
   test('没有桥（gallery / 单测）：只在内存里生效', () async {
