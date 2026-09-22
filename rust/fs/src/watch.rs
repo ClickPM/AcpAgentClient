@@ -4,10 +4,11 @@
 //! 变化整个跳过——那些目录本来就不进树，且 git 操作会在 `.git` 下打出成百条事件。
 //! 回调另带一个 `git` 标志：`.git` 目录下有变化（切分支、提交、暂存）时为 true，前端据此刷新状态徽章而不重列树。
 //! 两类 `.git` 事件不算：其下的 `*.lock`（git 每条命令都会建了又删的临时锁，`index.lock` 等）、以及落在 `.git`
-//! 目录自己身上的（Windows 在目录里建删文件时会给该目录报一条 Modified）。两者都不是状态变化——真正的变化落在
-//! 锁改名过去的那个文件上（`index` / `HEAD` / `refs/…`），事件另有。尤其 `git status` 自己就会建删一次
-//! `index.lock`（连带一条 `.git` 的 Modified），而前端收到 `git` 标志的反应正是再跑一次 `git status`：不滤掉，
-//! 徽章刷新会对着自己的锁文件无限空转（2026-09-22 实测：仓库零改动时每秒起 2–6 个 `git.exe`，风扇常转）。
+//! 之下任何**目录**身上的（Windows 在目录里建删文件时会给该目录报一条 Modified；没有子模块时那个目录就是 `.git`
+//! 自己，有子模块时 `git status` 还会递归进 `.git/modules/<name>/` 建删锁，报的就是那个目录）。两者都不是状态变化
+//! ——真正的变化落在锁改名过去的那个文件上（`index` / `HEAD` / `refs/…`），事件另有。尤其 `git status` 自己就会
+//! 建删一次 `index.lock`（连带一条父目录的 Modified），而前端收到 `git` 标志的反应正是再跑一次 `git status`：
+//! 不滤掉，徽章刷新会对着自己的锁文件无限空转（2026-09-22 实测：仓库零改动时每秒起 2–6 个 `git.exe`，风扇常转）。
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -109,7 +110,7 @@ fn fold(root: &Path, event: notify::Result<notify::Event>, dirs: &mut BTreeSet<P
         return;
     };
     for path in event.paths {
-        match classify(root, &path) {
+        match classify(root, &path, path.is_dir()) {
             Class::Git => batch.git = true,
             Class::Ignored => {}
             Class::Tracked => {
@@ -126,17 +127,17 @@ enum Class {
     Ignored,
 }
 
-/// 逐层看相对 root 的路径分量：`.git` → git（目录自己身上的事件与其下的 `*.lock` 跳过，见模块头注）；
-/// 其他忽略目录 → 跳过；其余 → 进树。任何一层命中都算，所以嵌套的 `node_modules` 同样被跳过。
-fn classify(root: &Path, path: &Path) -> Class {
+/// 逐层看相对 root 的路径分量：`.git` → git（其下目录身上的事件与 `*.lock` 跳过，见模块头注）；其他忽略目录 → 跳过；
+/// 其余 → 进树。任何一层命中都算，所以嵌套的 `node_modules` 同样被跳过。`is_dir` 由调用方现查（`fold` 传
+/// `path.is_dir()`；已经删掉的目录查不到，会当文件打一次标志，多刷一回徽章无妨），拆出来是为了能拿假路径单测。
+fn classify(root: &Path, path: &Path, is_dir: bool) -> Class {
     let Ok(rel) = path.strip_prefix(root) else {
         return Class::Tracked;
     };
     for component in rel.components() {
         let name = component.as_os_str().to_string_lossy();
         if name == ".git" {
-            let dir_itself = rel.file_name().is_some_and(|n| n == ".git");
-            return if dir_itself || is_lock_file(path) { Class::Ignored } else { Class::Git };
+            return if is_dir || is_lock_file(path) { Class::Ignored } else { Class::Git };
         }
         if IGNORED_DIRS.contains(&name.as_ref()) {
             return Class::Ignored;
@@ -173,6 +174,27 @@ mod tests {
             std::thread::sleep(Duration::from_millis(50));
         }
         false
+    }
+
+    /// 真 git，屏蔽用户的系统 / 全局配置（免得 fsmonitor 之类介入），作者信息走环境变量。
+    fn git(cwd: &Path, args: &[&str]) -> std::io::Result<std::process::Output> {
+        std::process::Command::new("git")
+            .arg("-C")
+            .arg(cwd)
+            .args(args)
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", cwd.join("no-global-gitconfig"))
+            .env("GIT_AUTHOR_NAME", "acp")
+            .env("GIT_AUTHOR_EMAIL", "acp@test")
+            .env("GIT_COMMITTER_NAME", "acp")
+            .env("GIT_COMMITTER_EMAIL", "acp@test")
+            .output()
+    }
+
+    /// [`git`] 的结果必须成功，否则带着 stderr 挂掉。
+    fn git_ok(out: std::io::Result<std::process::Output>, what: &str) {
+        let out = out.expect("git");
+        assert!(out.status.success(), "{what}: {}", String::from_utf8_lossy(&out.stderr));
     }
 
     /// 规则 9 的实测点：Windows 的 ReadDirectoryChangesW 经 notify 报出「文件在哪个目录下变了」，
@@ -219,6 +241,9 @@ mod tests {
     #[test]
     fn git_lock_files_do_not_set_the_git_flag() {
         let dir = temp("lock");
+        // 子模块布局：gitfile + `.git/modules/<name>/`，`git status` 会递归进去建删锁（复审 finding）。
+        let modules = dir.join(".git").join("modules").join("sub");
+        std::fs::create_dir_all(&modules).expect("mkdir");
         let batches: Arc<Mutex<Vec<Changes>>> = Arc::new(Mutex::new(Vec::new()));
         let sink = batches.clone();
         let watcher = DirWatcher::start(&dir, move |c| {
@@ -228,11 +253,14 @@ mod tests {
         .expect("start");
         std::thread::sleep(Duration::from_millis(200));
 
-        // 模拟 `git status`：建锁、写、删锁，来三轮。
+        // 模拟 `git status`：建锁、写、删锁，来三轮；有子模块时它还递归进 `.git/modules/<name>/` 做同样的事。
         let lock = dir.join(".git").join("index.lock");
+        let sub_lock = modules.join("index.lock");
         for _ in 0..3 {
-            std::fs::write(&lock, "DIRC").expect("write lock");
-            std::fs::remove_file(&lock).expect("remove lock");
+            for l in [&lock, &sub_lock] {
+                std::fs::write(l, "DIRC").expect("write lock");
+                std::fs::remove_file(l).expect("remove lock");
+            }
             std::thread::sleep(Duration::from_millis(50));
         }
         std::thread::sleep(DEBOUNCE * 3);
@@ -256,30 +284,31 @@ mod tests {
     fn real_git_status_does_not_set_the_git_flag() {
         let dir = temp("real-git");
         let _ = std::fs::remove_dir_all(dir.join(".git"));
-        let run = |args: &[&str]| {
-            std::process::Command::new("git")
-                .arg("-C")
-                .arg(&dir)
-                .args(args)
-                .env("GIT_CONFIG_NOSYSTEM", "1")
-                .env("GIT_CONFIG_GLOBAL", dir.join("no-global-gitconfig"))
-                .output()
-        };
-        let Ok(init) = run(&["init", "-q"]) else {
+        let Ok(init) = git(&dir, &["init", "-q"]) else {
             eprintln!("git not on PATH; skipping");
             return;
         };
         assert!(init.status.success(), "git init: {}", String::from_utf8_lossy(&init.stderr));
+        // 子模块（复审 finding）：`git status` 会递归进子仓库，在 `.git/modules/<name>/` 下建删锁，那个目录的
+        // Modified 同样不能打标志。源仓库放在监视根之外。
+        let sub_src = std::env::temp_dir().join(format!("acp-fs-watch-real-git-sub-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&sub_src);
+        std::fs::create_dir_all(&sub_src).expect("mkdir");
+        git_ok(git(&sub_src, &["init", "-q"]), "sub init");
+        std::fs::write(sub_src.join("b.rs"), "// b").expect("write");
+        git_ok(git(&sub_src, &["add", "."]), "sub add");
+        git_ok(git(&sub_src, &["commit", "-q", "-m", "init"]), "sub commit");
+
         std::fs::write(dir.join("src").join("a.rs"), "fn main() {}").expect("write");
+        git_ok(git(&dir, &["add", "."]), "add");
+        let sub_url = sub_src.to_string_lossy().into_owned();
+        git_ok(git(&dir, &["-c", "protocol.file.allow=always", "submodule", "add", "-q", &sub_url, "sub"]), "submodule add");
+        git_ok(git(&dir, &["commit", "-q", "-m", "init"]), "commit");
         // racy git：文件 mtime 与索引 mtime 同一秒时，git 每次 status 都会补写一回索引（改名 `index.lock → index`，
-        // 那是真变化，照常打标志），直到时钟跨过整秒——让文件比索引老一秒，稳态才是「只建删锁」。
+        // 那是真变化，照常打标志），直到时钟跨过整秒。等过这一秒、再跑一次 status 让两个索引落定，之后才开监视。
         std::thread::sleep(Duration::from_millis(1100));
-        assert!(run(&["add", "."]).expect("git").status.success());
-        let commit = run(&["-c", "user.name=acp", "-c", "user.email=acp@test", "commit", "-q", "-m", "init"]).expect("git");
-        assert!(commit.status.success(), "git commit: {}", String::from_utf8_lossy(&commit.stderr));
-        // 再跑一次 status 让索引的 stat 信息落定，之后才开监视。
         let status_args = ["status", "--porcelain=v1", "-z", "--untracked-files=all"];
-        assert!(run(&status_args).expect("git").status.success());
+        git_ok(git(&dir, &status_args), "status warm-up");
 
         let batches: Arc<Mutex<Vec<Changes>>> = Arc::new(Mutex::new(Vec::new()));
         let sink = batches.clone();
@@ -291,7 +320,7 @@ mod tests {
         std::thread::sleep(Duration::from_millis(200));
 
         for _ in 0..3 {
-            assert!(run(&status_args).expect("git").status.success());
+            git_ok(git(&dir, &status_args), "status");
         }
         std::thread::sleep(DEBOUNCE * 3);
         {
@@ -301,6 +330,7 @@ mod tests {
 
         drop(watcher);
         let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&sub_src);
     }
 
     #[test]
@@ -313,15 +343,19 @@ mod tests {
     #[test]
     fn classify_by_components() {
         let root = Path::new(if cfg!(windows) { r"D:\ws" } else { "/ws" });
-        assert!(matches!(classify(root, &root.join(".git").join("index")), Class::Git));
-        assert!(matches!(classify(root, &root.join(".git").join("HEAD")), Class::Git));
-        // git 的临时锁与 `.git` 目录自己身上的事件不算 `.git` 的变化（模块头注：否则 `git status` 会把徽章刷新推成死循环）。
-        assert!(matches!(classify(root, &root.join(".git").join("index.lock")), Class::Ignored));
-        assert!(matches!(classify(root, &root.join(".git").join("refs").join("heads").join("main.lock")), Class::Ignored));
-        assert!(matches!(classify(root, &root.join(".git")), Class::Ignored));
-        assert!(matches!(classify(root, &root.join("sub").join(".git")), Class::Ignored));
-        assert!(matches!(classify(root, &root.join("target").join("debug").join("x")), Class::Ignored));
-        assert!(matches!(classify(root, &root.join("src").join("lib.rs")), Class::Tracked));
-        assert!(matches!(classify(root, &root.join("src").join("node_modules").join("y")), Class::Ignored));
+        let (file, dir) = (false, true);
+        assert!(matches!(classify(root, &root.join(".git").join("index"), file), Class::Git));
+        assert!(matches!(classify(root, &root.join(".git").join("HEAD"), file), Class::Git));
+        assert!(matches!(classify(root, &root.join(".git").join("modules").join("sub").join("HEAD"), file), Class::Git));
+        // git 的临时锁与 `.git` 之下目录身上的事件不算 `.git` 的变化（模块头注：否则 `git status` 会把徽章刷新推成死循环）。
+        assert!(matches!(classify(root, &root.join(".git").join("index.lock"), file), Class::Ignored));
+        assert!(matches!(classify(root, &root.join(".git").join("refs").join("heads").join("main.lock"), file), Class::Ignored));
+        assert!(matches!(classify(root, &root.join(".git"), dir), Class::Ignored));
+        assert!(matches!(classify(root, &root.join(".git").join("modules").join("sub"), dir), Class::Ignored));
+        assert!(matches!(classify(root, &root.join(".git").join("modules").join("sub").join("index.lock"), file), Class::Ignored));
+        assert!(matches!(classify(root, &root.join("target").join("debug").join("x"), file), Class::Ignored));
+        assert!(matches!(classify(root, &root.join("src").join("lib.rs"), file), Class::Tracked));
+        assert!(matches!(classify(root, &root.join("src"), dir), Class::Tracked));
+        assert!(matches!(classify(root, &root.join("src").join("node_modules").join("y"), file), Class::Ignored));
     }
 }
