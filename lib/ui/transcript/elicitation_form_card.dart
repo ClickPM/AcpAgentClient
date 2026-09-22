@@ -189,7 +189,7 @@ class _ElicitationFormCardState extends State<ElicitationFormCard> {
             leading: AcpIcon(AcpIcons.info, color: t.Accent.base),
             title: 'Input Requested by $who',
             titleStyle: CardText.cardTitle,
-            trailing: <Widget>[Text(answered ? _statusLabel(e) : 'Waiting for input', style: CardText.secondary)],
+            trailing: <Widget>[Text(answered ? _statusLabel(e) : '等待输入', style: CardText.secondary)],
             height: t.Controls.input + t.Spacing.s8,
           ),
           CardBody(

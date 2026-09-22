@@ -10,7 +10,7 @@
 //! 找不到 PowerShell 才退到 `cmd.exe /S /C`。其他平台 `sh -c "exec </dev/null\n<command> <args>"`。
 
 use std::borrow::Cow;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShellKind {
@@ -24,7 +24,8 @@ pub enum ShellKind {
 
 impl ShellKind {
     pub fn of_program(program: &str) -> Self {
-        let name = Path::new(program)
+        let last = program.rsplit(|c| matches!(c, '/' | '\\')).next().unwrap_or(program);
+        let name = Path::new(last)
             .file_stem()
             .map(|s| s.to_string_lossy().to_ascii_lowercase())
             .unwrap_or_default();

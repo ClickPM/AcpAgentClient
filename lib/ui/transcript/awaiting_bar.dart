@@ -12,7 +12,7 @@ import 'tool_call_card.dart';
 
 /// 卡片下方的等待行。
 class AwaitingRow extends StatelessWidget {
-  const AwaitingRow({super.key, this.label = 'Awaiting Confirmation'});
+  const AwaitingRow({super.key, this.label = '等待用户确认'});
 
   final String label;
 
@@ -73,7 +73,7 @@ class AwaitingDock extends StatelessWidget {
           const SizedBox(width: t.Spacing.s8),
           Expanded(child: Text(text, style: CardText.headerTitle, maxLines: 1, overflow: TextOverflow.ellipsis)),
           const SizedBox(width: t.Spacing.s12),
-          AcpButton(label: 'Scroll', kind: ButtonKind.outline, height: t.Controls.compact, onTap: onScroll),
+          AcpButton(label: '跳转至此', kind: ButtonKind.outline, height: t.Controls.compact, onTap: onScroll),
         ],
       ),
     );

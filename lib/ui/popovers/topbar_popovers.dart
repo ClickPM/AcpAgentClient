@@ -97,15 +97,15 @@ class ProjectSwitcherPopover extends StatelessWidget {
         MenuSearchField(
           controller: searchController,
           focusNode: searchFocusNode,
-          placeholder: 'Search projects...',
+          placeholder: '搜索项目...',
           onChanged: onQueryChanged,
         ),
-        if (open.isNotEmpty) const MenuGroupLabel('This Window'),
+        if (open.isNotEmpty) const MenuGroupLabel('当前窗口'),
         for (final p in open) _row(p),
-        if (recent.isNotEmpty) const MenuGroupLabel('Recent Projects'),
+        if (recent.isNotEmpty) const MenuGroupLabel('最近项目'),
         for (final p in recent) _row(p),
         const MenuDivider(),
-        MenuRow(icon: AcpIcons.folder, label: 'Open Local Folders', onTap: onOpenLocalFolders),
+        MenuRow(icon: AcpIcons.folder, label: '打开本地文件夹 / 项目...', onTap: onOpenLocalFolders),
       ],
     );
   }
@@ -191,7 +191,7 @@ class BranchSwitcherPopover extends StatelessWidget {
             }
           },
         ),
-        const MenuGroupLabel('Local Branches'),
+        const MenuGroupLabel('本地分支'),
         for (final b in visible)
           MenuTwoLineRow(
             title: b.name,
@@ -232,7 +232,7 @@ class _CreateBranchRow extends StatelessWidget {
                 TextSpan(
                   style: CardText.secondary.copyWith(color: t.Neutral.text),
                   children: <InlineSpan>[
-                    const TextSpan(text: 'Create branch '),
+                    const TextSpan(text: '新建分支 '),
                     TextSpan(
                       text: name,
                       style: CardText.secondary.copyWith(
@@ -241,7 +241,7 @@ class _CreateBranchRow extends StatelessWidget {
                         fontVariations: t.Weights.mediumVariation,
                       ),
                     ),
-                    TextSpan(text: " from '$from'"),
+                    TextSpan(text: " (基于 '$from')"),
                   ],
                 ),
                 maxLines: 1,
@@ -294,7 +294,7 @@ class SessionMenuPopover extends StatelessWidget {
     this.canClose = false,
     this.canDelete = false,
     this.width = t.Geometry.menuWidth,
-    this.note = 'Resume / Close / Delete 依 sessionCapabilities 显示',
+    this.note = '恢复 / 关闭 / 删除 依据智能体支持能力显示',
     this.onRename,
     this.onReload,
     this.onResume,
@@ -319,13 +319,13 @@ class SessionMenuPopover extends StatelessWidget {
     return MenuPopover(
       width: width,
       children: <Widget>[
-        if (canRename) MenuRow(icon: AcpIcons.pencil, label: 'Rename Session', onTap: onRename),
-        MenuRow(icon: AcpIcons.rotateCw, label: 'Reload Agent', onTap: onReload),
-        if (canResume) MenuRow(icon: AcpIcons.play, label: 'Resume Session', onTap: onResume),
-        if (canClose) MenuRow(icon: AcpIcons.x, label: 'Close Session', onTap: onCloseSession),
+        if (canRename) MenuRow(icon: AcpIcons.pencil, label: '重命名会话', onTap: onRename),
+        MenuRow(icon: AcpIcons.rotateCw, label: '重载智能体', onTap: onReload),
+        if (canResume) MenuRow(icon: AcpIcons.play, label: '恢复会话', onTap: onResume),
+        if (canClose) MenuRow(icon: AcpIcons.x, label: '关闭会话', onTap: onCloseSession),
         if (canDelete) ...<Widget>[
           const MenuDivider(),
-          MenuRow(icon: AcpIcons.trash, label: 'Delete Session', danger: true, onTap: onDelete),
+          MenuRow(icon: AcpIcons.trash, label: '删除会话', danger: true, onTap: onDelete),
         ],
         MenuNote(note),
       ],

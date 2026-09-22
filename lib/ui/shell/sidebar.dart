@@ -4,6 +4,7 @@
 // 删除图标一律渲染（确认弹层在画板 41）：它删的首先是本地索引这条记录，agent 侧删不删由组合根判——
 // 按 `sessionCapabilities.delete` 裁剪过一版，结果是没声明 delete 的 agent 的会话在侧栏里永远清不掉。
 
+import 'dart:io';
 import 'package:flutter/widgets.dart';
 
 import '../../theme/tokens.dart' as t;
@@ -178,7 +179,7 @@ class SidebarEmpty extends StatelessWidget {
 
 /// 侧栏顶部的应用标题条。
 class SidebarTitleBar extends StatelessWidget {
-  const SidebarTitleBar({super.key, this.title = 'Agent ACP Client', this.dragArea, this.dark = false, this.onToggleTheme});
+  const SidebarTitleBar({super.key, this.title = 'ACP 桌面客户端', this.dragArea, this.dark = false, this.onToggleTheme});
 
   final String title;
 
@@ -222,7 +223,7 @@ class SidebarTitleBar extends StatelessWidget {
                 const Spacer(),
                 if (toggle != null)
                   AcpTooltip(
-                    message: dark ? 'Switch to light mode' : 'Switch to dark mode',
+                    message: dark ? '切换至浅色模式' : '切换至深色模式',
                     child: IconButtonGhost(
                       icon: dark ? AcpIcons.sun : AcpIcons.moon,
                       size: t.Controls.compact,
@@ -363,12 +364,12 @@ class SidebarSessionRow extends StatelessWidget {
                     Expanded(child: inlineEdit ? _renameField() : _titleAndMeta(meta)),
                     if (showActions) ...<Widget>[
                       AcpTooltip(
-                        message: 'Edit session title',
+                        message: '重命名会话',
                         child: IconButtonGhost(icon: AcpIcons.pencil, size: t.Controls.compact, onTap: onRename),
                       ),
                       if (session.canDelete)
                         AcpTooltip(
-                          message: 'Delete session',
+                          message: '删除会话',
                           child: PopoverAnchor(
                             handle: deleteAnchor,
                             child: IconButtonGhost(icon: AcpIcons.trash, size: t.Controls.compact, onTap: onDelete),

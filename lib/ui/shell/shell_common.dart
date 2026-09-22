@@ -271,10 +271,10 @@ String relativeTime(DateTime at, {required DateTime now}) {
 
 /// 侧栏底部导航的四个入口（画板 01 / 04），同时是右栏的四个标签（画板 03）。
 enum ShellTab {
-  settings('设置', '设置', AcpIcons.settings, 'Open settings'),
-  files('文件', '文件浏览器', AcpIcons.folder, 'Open workspace'),
-  agents('Agents', 'ACP Registry', AcpIcons.layers, 'Open ACP registry'),
-  terminal('终端', '终端', AcpIcons.terminal, 'Open terminal');
+  settings('设置', '设置', AcpIcons.settings, '打开设置'),
+  files('文件', '文件浏览器', AcpIcons.folder, '打开工作区文件'),
+  agents('智能体', '智能体仓库', AcpIcons.layers, '打开智能体仓库'),
+  terminal('终端', '终端', AcpIcons.terminal, '打开本地终端');
 
   const ShellTab(this.label, this.panelTitle, this.icon, this.tooltip);
 

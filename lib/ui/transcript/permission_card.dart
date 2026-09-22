@@ -160,7 +160,7 @@ class _PermissionCardState extends State<PermissionCard> {
               decoration: BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
               child: Row(
                 children: <Widget>[
-                  Text('View Raw Input', style: CardText.secondary),
+                  Text('查看原始输入', style: CardText.secondary),
                   const SizedBox(width: t.Spacing.s4),
                   Chevron(expanded: _raw),
                 ],
@@ -178,7 +178,7 @@ class _PermissionCardState extends State<PermissionCard> {
             child: Row(
               children: <Widget>[
                 AcpButton(
-                  label: 'Allow',
+                  label: '允许',
                   kind: ButtonKind.primary,
                   icon: AcpIcons.check,
                   enabled: !answered && scope?.optionId != null,
@@ -186,7 +186,7 @@ class _PermissionCardState extends State<PermissionCard> {
                 ),
                 const SizedBox(width: t.Spacing.s8),
                 AcpButton(
-                  label: 'Deny',
+                  label: '拒绝',
                   icon: AcpIcons.x,
                   iconColor: t.Semantic.error,
                   labelColor: t.Semantic.error,

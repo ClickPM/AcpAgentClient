@@ -167,7 +167,7 @@ class TerminalExitLine extends StatelessWidget {
         style: CardText.code,
         children: <InlineSpan>[
           if (code != null) ...<InlineSpan>[
-            const TextSpan(text: 'Exit Code '),
+            const TextSpan(text: '已退出，退出码 '),
             TextSpan(text: '$code', style: TextStyle(color: ok ? t.Semantic.success : t.Semantic.error)),
           ] else
             TextSpan(text: 'Signal ${signal ?? 'none'}', style: TextStyle(color: t.Semantic.error)),

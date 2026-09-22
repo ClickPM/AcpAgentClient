@@ -47,7 +47,7 @@ class ElicitationUrlCard extends StatelessWidget {
                       Text('Waiting for completion...', style: CardText.secondary),
                     ],
                   )
-                : Text('Waiting for input', style: CardText.secondary);
+                : Text('等待输入', style: CardText.secondary);
     return TranscriptCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -67,7 +67,7 @@ class ElicitationUrlCard extends StatelessWidget {
               MonoBlock(text: e.wire.url ?? '', style: CardText.subtitle, softWrap: false),
               Row(
                 children: <Widget>[
-                  AcpButton(label: 'Open in browser', kind: ButtonKind.primary, icon: AcpIcons.externalLink, enabled: !completed && !cancelled, onTap: onOpen),
+                  AcpButton(label: '在浏览器中打开', kind: ButtonKind.primary, icon: AcpIcons.externalLink, enabled: !completed && !cancelled, onTap: onOpen),
                   const SizedBox(width: t.Spacing.s8),
                   if (completed)
                     Text('已收到 elicitation/complete，登录完成', style: t.TextStyles.body.copyWith(color: t.Semantic.success))

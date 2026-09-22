@@ -173,7 +173,7 @@ void main() {
       await tester.pump();
       expect(opened, <String>['$root/README.md']);
       expect(toggled, <String>['$root/docs']);
-      await tester.tap(find.text('Source'));
+      await tester.tap(find.text('源码'));
       await tester.pump();
       expect(modes, <FileViewMode>[FileViewMode.source]);
       expect(find.text('没有打开的文件'), findsNothing);
@@ -193,7 +193,7 @@ void main() {
       )));
       await tester.pump();
       expect(find.text('Preview'), findsNothing);
-      expect(find.text('Source'), findsOneWidget);
+      expect(find.text('源码'), findsOneWidget);
       expect(find.text('rust · 1 lines · 13 B'), findsOneWidget);
     });
   });

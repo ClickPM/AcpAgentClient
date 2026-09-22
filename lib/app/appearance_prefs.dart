@@ -355,6 +355,9 @@ class FontRegistry {
     try {
       final String exeDir = File(Platform.resolvedExecutable).parent.path;
       dirs.add(Directory('$exeDir${Platform.pathSeparator}fonts'));
+      if (Platform.isMacOS) {
+        dirs.add(Directory('$exeDir/../Resources/fonts'));
+      }
     } on Object {
       // 拿不到可执行文件路径（测试环境）就只用数据目录。
     }
@@ -364,6 +367,14 @@ class FontRegistry {
 
   /// 系统字体目录，只探测不注册。
   static List<Directory> defaultProbeDirs() {
+    if (Platform.isMacOS) {
+      final String home = Platform.environment['HOME'] ?? '';
+      return <Directory>[
+        Directory('/System/Library/Fonts'),
+        Directory('/Library/Fonts'),
+        if (home.isNotEmpty) Directory('$home/Library/Fonts'),
+      ];
+    }
     if (!Platform.isWindows) return const <Directory>[];
     final Map<String, String> env = Platform.environment;
     final String windir = env['WINDIR'] ?? r'C:\Windows';

@@ -140,7 +140,7 @@ class TurnEndLine extends StatelessWidget {
         children: <Widget>[
           Padding(
             padding: failed ? const EdgeInsets.only(top: t.Spacing.s8) : EdgeInsets.zero,
-            child: ToneChip(failed ? '失败' : (reason ?? '?'), tone: failed ? ChipTone.error : toneOf(reason)),
+            child: ToneChip(failed ? '失败' : switch (reason) { 'end_turn' => '正常结束', 'max_tokens' => '超出Token限制', 'max_turn_requests' => '超出请求上限', 'refusal' => '智能体拒绝', 'cancelled' => '已取消', _ => reason ?? '?' }, tone: failed ? ChipTone.error : toneOf(reason)),
           ),
           const SizedBox(width: t.Spacing.s8),
           Expanded(

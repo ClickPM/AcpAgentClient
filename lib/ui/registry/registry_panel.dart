@@ -94,7 +94,7 @@ class RegistryPanel extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
-                        Text('Learn More', style: t.TextStyles.secondary.copyWith(color: t.Accent.text)),
+                        Text('了解更多', style: t.TextStyles.secondary.copyWith(color: t.Accent.text)),
                         const SizedBox(width: t.Spacing.s4),
                         AcpIcon(AcpIcons.externalLink, color: t.Accent.text, size: t.IconSizes.toolbar),
                       ],
@@ -110,9 +110,9 @@ class RegistryPanel extends StatelessWidget {
                 const SizedBox(width: t.Spacing.s12),
                 _filterChip('All', installedCount + notInstalledCount, RegistryFilter.all),
                 const SizedBox(width: t.Spacing.s4),
-                _filterChip('Installed', installedCount, RegistryFilter.installed),
+                _filterChip('已安装', installedCount, RegistryFilter.installed),
                 const SizedBox(width: t.Spacing.s4),
-                _filterChip('Not Installed', notInstalledCount, RegistryFilter.notInstalled),
+                _filterChip('未安装', notInstalledCount, RegistryFilter.notInstalled),
               ],
             ),
             if (fetchError != null) ...<Widget>[

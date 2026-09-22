@@ -1,3 +1,4 @@
+import 'dart:io';
 // 当前会话与会话生命周期（R7.5 从 workbench_controller.dart 拆出）：当前 agent / 会话与派生态（画板 01 的两个空态、
 // 会话头标题、输入框可用性、画板 34 的状态条）、agent 能力（R6）、侧栏列表与搜索（画板 04）、画板 06 的活动指示、
 // 新建 / 重载 / 点选 / `session/load` / resume / close / delete / `session/list` 校对（R6）、改名与删除确认（画板 41）、
@@ -140,15 +141,15 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
   }
 
   String get sessionTitle {
-    if (!hasAgent) return 'No Agent';
-    return store?.title ?? 'New $agentDisplayName Session';
+    if (!hasAgent) return '未选择智能体';
+    return store?.title ?? '新建 $agentDisplayName 会话';
   }
 
   String get composerPlaceholder {
     if (!hasAgent) return '安装并选择一个 agent 后即可输入';
     // 会话是发第一条消息时才开的，cwd 从当前项目来：没项目就先说清楚，别让发送静默失败。
     if (!hasSession && workspace.project == null) return '先选一个项目目录，新会话的 cwd 从它来';
-    return 'Message to $agentDisplayName , @ to include context , / for commands';
+    return '发送消息给 $agentDisplayName，输入 @ 引用上下文，输入 / 调用命令';
   }
 
   /// 输入框可用：选了 agent、没项目也没会话时不可用（发不出去），已关掉的会话只读。

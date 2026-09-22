@@ -79,9 +79,9 @@ void main() {
   testWidgets('标题行带轮数，且钉在滚动区之外', (tester) async {
     await pumpTimeline(tester, turns: sample());
 
-    expect(find.text('Session timeline · 4 turns'), findsOneWidget);
+    expect(find.text('会话时间线 · 4 轮'), findsOneWidget);
     expect(
-      find.descendant(of: find.byType(SingleChildScrollView), matching: find.text('Session timeline · 4 turns')),
+      find.descendant(of: find.byType(SingleChildScrollView), matching: find.text('会话时间线 · 4 轮')),
       findsNothing,
       reason: '标题行滚起来要一直在',
     );
@@ -120,8 +120,8 @@ void main() {
   testWidgets('空态：只剩标题行与一行占位文案，没有导轨', (tester) async {
     await pumpTimeline(tester, turns: const <TimelineTurn>[]);
 
-    expect(find.text('Session timeline · 0 turns'), findsOneWidget);
-    expect(find.text('No messages in this session yet'), findsOneWidget);
+    expect(find.text('会话时间线 · 0 轮'), findsOneWidget);
+    expect(find.text('当前会话暂无消息记录'), findsOneWidget);
     expect(_rail, findsNothing, reason: '空态不画导轨那一层');
   });
 

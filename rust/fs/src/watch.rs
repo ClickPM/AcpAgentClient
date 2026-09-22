@@ -52,7 +52,7 @@ impl DirWatcher {
         watcher
             .watch(root, RecursiveMode::Recursive)
             .map_err(|e| FsError::Io(format!("notify watch {}: {e}", root.display())))?;
-        let root_owned = root.to_path_buf();
+        let root_owned = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
         std::thread::Builder::new()
             .name(format!("fs-watch {}", root.display()))
             .spawn(move || debounce_loop(&root_owned, rx, on_changes))

@@ -82,7 +82,7 @@ class ToolStatusIcon extends StatelessWidget {
         ToolDisplayStatus.pending => AcpIcon(AcpIcons.dashedCircle, color: t.Neutral.placeholder, size: t.IconSizes.toolbar),
         ToolDisplayStatus.inProgress => const Spinner(),
         ToolDisplayStatus.failed => AcpIcon(AcpIcons.x, color: t.Semantic.error, size: t.IconSizes.toolbar),
-        ToolDisplayStatus.cancelled => const ToneChip('Canceled', tone: ChipTone.neutral),
+        ToolDisplayStatus.cancelled => const ToneChip('已取消', tone: ChipTone.neutral),
       };
 }
 
@@ -131,7 +131,7 @@ class _PathChipState extends State<_PathChip> {
                     left: 0,
                     child: Popover(
                       padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s8, vertical: t.Spacing.s4),
-                      child: Text('Go to File', style: t.TextStyles.meta),
+                      child: Text('跳转至文件', style: t.TextStyles.meta),
                     ),
                   ),
                 ],
@@ -240,7 +240,7 @@ class _ToolCallCardState extends State<ToolCallCard> {
     return <Widget>[
       if (command != null) MonoBlock(text: command) else if (e.rawInput != null) MonoBlock(span: JsonHighlight.span(e.rawInput)),
       const SectionLabel('Output:'),
-      const MonoBlock(text: 'Error: tool call aborted'),
+      const MonoBlock(text: '错误: 工具调用已被中止'),
     ];
   }
 }

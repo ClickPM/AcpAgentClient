@@ -360,7 +360,7 @@ impl TerminalManager {
                     // 启动探询没答之前先把字节攒在 `held` 里（探询可能被 read 边界切开）：找到就答一次并把探询本身从流里抠掉
                     // ——渲染器（xterm.dart）看不到它就不会再答第二次，那第二次应答会被 shell 当键盘输入吞掉相邻的按键
                     // （R4 实测：本地 PowerShell 里敲 `echo` 丢了 `e`）。攒满 [`DSR_HOLD_LIMIT`] 还没出现就不等了。
-                    let mut dsr_answered = false;
+                    let mut dsr_answered = !cfg!(windows);
                     let mut held: Vec<u8> = Vec::new();
                     let emit = |bytes: &[u8]| {
                         if bytes.is_empty() {

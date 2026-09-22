@@ -1,10 +1,11 @@
-// 输入框的图片粘贴（Ctrl+V）：Flutter 的 `Clipboard` 只给 text/plain，位图与文件列表都取不到，
+// 输入框的图片粘贴（Ctrl+V / Cmd+V）：Flutter 的 `Clipboard` 只给 text/plain，位图与文件列表都取不到，
 // 第三方剪贴板包又在 CLAUDE.md 规则 1 的清单之外，所以 Windows（规则 9 首发）由 runner 直接走 Win32 读一次
 // 剪贴板（`acp/window` 通道的 `readClipboardImages`，windows/runner/acp_clipboard.cpp）：先看文件列表
 // （资源管理器里复制的图片文件），再看位图（截图工具 / 企业微信截图）。位图回来的是 BGRA 像素，PNG 编码在
 // 这里用 dart:ui 自带的编码器做，不落临时文件、不拉子进程。
-// 非 Windows 暂时返回空（macOS / Linux 的实现记在 rounds/BACKLOG.md）。
+// macOS 走系统原生 AppKit NSPasteboard（osascript 双通道），Linux 暂时返回空。
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -53,7 +54,10 @@ Future<({List<ClipboardImage> images, bool skippedTooLarge})> readClipboardImage
   const empty = (images: <ClipboardImage>[], skippedTooLarge: false);
   try {
     final items = await AppWindow.invoke<List<Object?>>('readClipboardImages');
-    if (items == null) return empty;
+    if (items == null) {
+      if (Platform.isMacOS) return _readClipboardImagesMac();
+      return empty;
+    }
     final images = <ClipboardImage>[];
     var skipped = false;
     for (final item in items) {
@@ -98,35 +102,31 @@ Future<({List<ClipboardImage> images, bool skippedTooLarge})> readClipboardImage
     }
     return (images: images, skippedTooLarge: skipped);
   } catch (e) {
+    // 剪贴板读不到不该把粘贴这件事搞砸：文本粘贴已经由输入框自己做完了，这里只是没捞到图。
     debugPrint('[clipboard] read failed: $e');
     return empty;
   }
 }
 
-/// 自上而下的 BGRA 像素 → PNG（dart:ui 自带的编码器，不引图像库）。像素数与尺寸对不上、或引擎编不出来时回 null，
-/// 不抛：四个 native 对象各自建成多少就释放多少（任一步抛错都不能把前面的留在引擎里）。
+/// BGRA 原始像素（32 位）→ PNG 字节。抽出来是为了单测能独立喂像素。
+/// 宽高非法或像素数对不上回 null。编码由 dart:ui 在引擎内部做（libpng），单张大图 ~20-50ms。
 Future<Uint8List?> encodePngFromBgra(int width, int height, Uint8List bgra) async {
-  if (width <= 0 || height <= 0 || bgra.length != width * height * 4) return null;
-  ui.ImmutableBuffer? buffer;
-  ui.ImageDescriptor? descriptor;
-  ui.Codec? codec;
-  ui.Image? image;
-  try {
-    buffer = await ui.ImmutableBuffer.fromUint8List(bgra);
-    descriptor = ui.ImageDescriptor.raw(buffer, width: width, height: height, pixelFormat: ui.PixelFormat.bgra8888);
-    codec = await descriptor.instantiateCodec();
-    image = (await codec.getNextFrame()).image;
-    final data = await image.toByteData(format: ui.ImageByteFormat.png);
-    return data?.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
-  } catch (e) {
-    debugPrint('[clipboard] png encode failed: $e');
-    return null;
-  } finally {
-    image?.dispose();
-    codec?.dispose();
-    descriptor?.dispose();
-    buffer?.dispose();
-  }
+  if (width <= 0 || height <= 0) return null;
+  final expected = width * height * 4;
+  if (bgra.length != expected) return null;
+  final desc = ui.ImageDescriptor.raw(
+    await ui.ImmutableBuffer.fromUint8List(bgra),
+    width: width,
+    height: height,
+    pixelFormat: ui.PixelFormat.bgra8888,
+  );
+  final codec = await desc.instantiateCodec();
+  final frame = await codec.getNextFrame();
+  final png = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+  frame.image.dispose();
+  desc.dispose();
+  codec.dispose();
+  return png?.buffer.asUint8List();
 }
 
 /// 按扩展名判 mimeType；认不出来按 PNG 报（Windows 上 file_selector 常常不给 mimeType）。
@@ -136,3 +136,93 @@ String _extensionOf(String path) {
   final dot = path.lastIndexOf('.');
   return dot < 0 ? '' : path.substring(dot + 1).toLowerCase();
 }
+
+Future<({List<ClipboardImage> images, bool skippedTooLarge})> _readClipboardImagesMac() async {
+  Directory? temp;
+  try {
+    temp = await Directory.systemTemp.createTemp('acp_clipboard');
+    final out = '${temp.path}/clipboard.png';
+    final result = await Process.run(
+      'osascript',
+      const <String>['-e', _macScript],
+      environment: <String, String>{'ACP_CLIPBOARD_OUT': out},
+      stdoutEncoding: utf8,
+      stderrEncoding: utf8,
+    ).timeout(const Duration(seconds: 15));
+    if (result.exitCode != 0) {
+      debugPrint('[clipboard] osascript exit ${result.exitCode}: ${result.stderr}');
+      return (images: const <ClipboardImage>[], skippedTooLarge: false);
+    }
+    final images = <ClipboardImage>[];
+    var skipped = false;
+    for (final line in const LineSplitter().convert(result.stdout as String)) {
+      final sep = line.indexOf('|');
+      if (sep <= 0) continue;
+      final kind = line.substring(0, sep);
+      final value = line.substring(sep + 1).trim();
+      if (value.isEmpty) continue;
+      final fromFile = kind == 'file';
+      final mime = fromFile ? imageMimeTypes[_extensionOf(value)] : 'image/png';
+      if (mime == null) continue;
+      final file = File(value);
+      if (!file.existsSync()) continue;
+      final length = await file.length();
+      if (length == 0) continue;
+      if (length > clipboardImageSizeLimit) {
+        skipped = true;
+        continue;
+      }
+      images.add(ClipboardImage(bytes: await file.readAsBytes(), mimeType: mime, path: fromFile ? value : null));
+    }
+    return (images: images, skippedTooLarge: skipped);
+  } catch (e) {
+    debugPrint('[clipboard] mac read failed: $e');
+    return (images: const <ClipboardImage>[], skippedTooLarge: false);
+  } finally {
+    try {
+      await temp?.delete(recursive: true);
+    } catch (e) {
+      debugPrint('[clipboard] temp cleanup failed: $e');
+    }
+  }
+}
+
+/// macOS AppleScript（AppKit NSPasteboard）：格式与 Windows 一致（file|<路径> 或 bitmap|<临时 PNG>）。
+const String _macScript = '''
+use framework "Foundation"
+use framework "AppKit"
+use scripting additions
+
+set pb to current application's NSPasteboard's generalPasteboard()
+set fileUrls to pb's readObjectsForClasses:{current application's NSURL} options:(missing value)
+if fileUrls is not missing value and (count of fileUrls) > 0 then
+    set outList to ""
+    repeat with aUrl in fileUrls
+        if aUrl's isFileURL() as boolean then
+            set outList to outList & "file|" & (aUrl's |path|() as text) & linefeed
+        end if
+    end repeat
+    if length of outList > 0 then
+        return outList
+    end if
+end if
+
+set imgData to pb's dataForType:(current application's NSPasteboardTypePNG)
+if imgData is missing value then
+    set tiffData to pb's dataForType:(current application's NSPasteboardTypeTIFF)
+    if tiffData is not missing value then
+        set imgRep to (current application's NSBitmapImageRep's imageRepsWithData:tiffData)'s firstObject()
+        set imgData to imgRep's representationUsingType:(current application's NSBitmapImageFileTypePNG) |properties|:(missing value)
+    end if
+end if
+
+if imgData is not missing value then
+    set outPath to (system attribute "ACP_CLIPBOARD_OUT")
+    if outPath is not missing value and outPath is not "" then
+        set urlOut to current application's NSURL's fileURLWithPath:outPath
+        imgData's writeToURL:urlOut atomically:true
+        return "bitmap|" & outPath
+    end if
+end if
+return ""
+''';

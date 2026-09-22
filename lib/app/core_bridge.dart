@@ -4,6 +4,9 @@
 // `node_missing` → 受管 Node 提示），不 import 生成物。
 
 import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'dart:convert';
 
 import '../bridge/api.dart' as api;
@@ -127,7 +130,26 @@ class CoreBridge implements CoreCommands {
   /// 加载 cdylib（进程内一次）。
   static Future<CoreBridge> load() async {
     if (_instance != null) return _instance!;
-    await RustLib.init();
+    ExternalLibrary? externalLib;
+    if (Platform.isMacOS) {
+      try {
+        final String exeDir = File(Platform.resolvedExecutable).parent.path;
+        final candidates = <String>[
+          '$exeDir/../Frameworks/libacp_bridge.dylib',
+          '$exeDir/../Frameworks/acp_bridge.framework/acp_bridge',
+          'rust/bridge/target/release/libacp_bridge.dylib',
+        ];
+        for (final p in candidates) {
+          if (File(p).existsSync()) {
+            externalLib = ExternalLibrary.open(p);
+            break;
+          }
+        }
+      } on Object catch (e) {
+        debugPrint('[core_bridge] auto-detect dylib error: $e');
+      }
+    }
+    await RustLib.init(externalLibrary: externalLib);
     return _instance = CoreBridge._();
   }
 

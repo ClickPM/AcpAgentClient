@@ -358,7 +358,7 @@ void main() {
 
     expect(c.agents.installed, isEmpty);
     expect(c.session.hasAgent, isFalse, reason: '画板 01 状态 2：会话头 No Agent、输入框禁用');
-    expect(c.session.sessionTitle, 'No Agent');
+    expect(c.session.sessionTitle, '未选择智能体');
     expect(c.session.composerPlaceholder, '安装并选择一个 agent 后即可输入');
     expect(c.shell.rightTab, isNull);
 
@@ -376,9 +376,9 @@ void main() {
     expect(c.session.hasAgent, isTrue, reason: '状态 2 只在一个 agent 都没装时出现');
     expect(c.session.agentId, 'zed', reason: '本地索引里最近用过、且还装着的那个');
     expect(c.session.hasSession, isFalse, reason: '启动不拉 agent 进程');
-    expect(c.session.sessionTitle, 'New Zed Agent Session', reason: '展示名从已安装列表来，不是裸 id');
+    expect(c.session.sessionTitle, '新建 Zed Agent 会话', reason: '展示名从已安装列表来，不是裸 id');
     expect(c.session.canCompose, isTrue);
-    expect(c.session.composerPlaceholder, 'Message to Zed Agent , @ to include context , / for commands');
+    expect(c.session.composerPlaceholder, '发送消息给 Zed Agent，输入 @ 引用上下文，输入 / 调用命令');
 
     c.composer.editor.text = '第一条';
     await c.turn.send();
@@ -612,6 +612,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('还没有已安装的 agent'), findsNothing, reason: '所有者 2026-09-17 报的：装了 agent 还画状态 2');
-    expect(find.text('New Zed Agent Session'), findsWidgets, reason: '会话头与空态标题都是它');
+    expect(find.text('新建 Zed Agent 会话'), findsWidgets, reason: '会话头与空态标题都是它');
   });
 }

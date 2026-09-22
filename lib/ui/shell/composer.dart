@@ -214,7 +214,7 @@ class Composer extends StatelessWidget {
   Widget _actions() => Row(
         children: <Widget>[
           AcpTooltip(
-            message: 'Add context',
+            message: '添加上下文 (@)',
             child: PopoverAnchor(
               handle: plusAnchor,
               child: IconButtonGhost(
@@ -228,7 +228,7 @@ class Composer extends StatelessWidget {
           if (enabled) ...<Widget>[
             const SizedBox(width: t.Spacing.s4),
             AcpTooltip(
-              message: 'Follow agent',
+              message: '跟随智能体操作 (Follow)',
               child: PopoverAnchor(
                 handle: followAnchor,
                 child: IconButtonGhost(

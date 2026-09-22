@@ -266,12 +266,7 @@ class ShellState extends ChangeNotifier with GuardedNotifier {
       touch();
       return;
     }
-    final cwd = _cwd();
-    if (cwd == null) {
-      lastError = '先选一个项目目录，终端在它里面打开';
-      touch();
-      return;
-    }
+    final cwd = _cwd() ?? Platform.environment['HOME'] ?? Directory.current.path;
     final id = await terminals.open(cwd);
     if (id != null) activeTerminalId = id;
     lastError = terminals.lastError ?? lastError;

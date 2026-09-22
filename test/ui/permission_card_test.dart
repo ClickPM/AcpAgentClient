@@ -82,8 +82,8 @@ void main() {
     for (final label in <String>['Alt-Shift-A', 'Alt-Shift-X', 'Ctrl-Alt-A']) {
       expect(find.text(label), findsNothing, reason: label);
     }
-    expect(find.text('Allow'), findsOneWidget);
-    expect(find.text('Deny'), findsOneWidget);
+    expect(find.text('允许'), findsOneWidget);
+    expect(find.text('拒绝'), findsOneWidget);
     expect(find.text('Only this time'), findsOneWidget);
   });
 
@@ -111,7 +111,7 @@ void main() {
     // 范围按钮换成选中的那项。
     expect(find.text('Always for delete path'), findsOneWidget);
 
-    await tester.tap(find.text('Allow'));
+    await tester.tap(find.text('允许'));
     await tester.pump();
     expect(answers, <String>['allow-delete-always']);
   });

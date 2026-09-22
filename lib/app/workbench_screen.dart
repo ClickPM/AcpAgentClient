@@ -5,6 +5,7 @@
 // 顶栏里的按钮与芯片在上层先吃掉点击，只有空白处才落到 Listener 上、去调 `startDragging`。
 
 import 'dart:async';
+import 'dart:io';
 import 'dart:convert';
 
 import 'package:file_selector/file_selector.dart';
@@ -286,7 +287,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
 
   // ---------------------------------------------------------------- 顶栏（画板 01–04）
 
-  bool get _windowControlsInTopBar => !c.shell.rightPanelOpen;
+  bool get _windowControlsInTopBar => Platform.isWindows && !c.shell.rightPanelOpen;
 
   Widget _topBar({bool windowControls = true}) {
     return TopBar(
@@ -877,7 +878,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         onImportZed: c.agents.importZed,
         onDownloadNode: c.agents.downloadNode,
         // 「打开」：目录在资源管理器里开，日志文件用系统默认程序开（都经 url_launcher 的 file: URI）。
-        onOpenPath: (path) => launchUrl(Uri.file(path, windows: true)),
+        onOpenPath: (path) => launchUrl(Uri.file(path, windows: Platform.isWindows)),
         onCopyPath: (path) => Clipboard.setData(ClipboardData(text: path)),
         appearance: widget.appearance,
         onOpenUrl: (url) => launchUrl(Uri.parse(url)),
@@ -892,6 +893,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     return RightPanel(
       tabs: c.shell.panelTabs,
       active: active,
+      windowControls: Platform.isWindows,
       onSelect: c.shell.selectPanel,
       onCloseTab: c.shell.closePanel,
       onMinimize: AppWindow.minimize,

@@ -115,23 +115,23 @@ class SessionHeader extends StatelessWidget {
                   ),
           ),
           if (hasAgent && canRename && !inlineEdit)
-            AcpTooltip(message: 'Edit session title', child: IconButtonGhost(icon: AcpIcons.pencil, onTap: onRename)),
+            AcpTooltip(message: '编辑会话标题', child: IconButtonGhost(icon: AcpIcons.pencil, onTap: onRename)),
           AcpTooltip(
-            message: 'New agent session',
+            message: '新建智能体会话',
             child: PopoverAnchor(handle: newSessionAnchor, child: IconButtonGhost(icon: AcpIcons.plusSquare, onTap: onNewSession)),
           ),
           if (hasAgent && canReload)
-            AcpTooltip(message: 'Reload this session', child: IconButtonGhost(icon: AcpIcons.reload, onTap: onReload)),
+            AcpTooltip(message: '重载此会话', child: IconButtonGhost(icon: AcpIcons.reload, onTap: onReload)),
           if (hasAgent && canTimeline)
             AcpTooltip(
-              message: 'Session timeline',
+              message: '会话时间线',
               child: PopoverAnchor(
                 handle: timelineAnchor,
                 child: _SelectableIconButton(icon: AcpIcons.history, selected: timelineSelected, onTap: onTimeline),
               ),
             ),
           AcpTooltip(
-            message: 'Tools-sidebar',
+            message: '工具栏面板',
             child: PopoverAnchor(
               handle: menuAnchor,
               child: _SelectableIconButton(icon: AcpIcons.menuLines, selected: menuSelected, onTap: onMenu),

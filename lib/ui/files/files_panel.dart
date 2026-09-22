@@ -571,8 +571,8 @@ class _SegmentedToggle extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          _segment('Source', FileViewMode.source),
-          if (previewEnabled) _segment('Preview', FileViewMode.preview),
+          _segment('源码', FileViewMode.source),
+          if (previewEnabled) _segment('预览', FileViewMode.preview),
         ],
       ),
     );

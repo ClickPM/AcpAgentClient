@@ -195,10 +195,10 @@ class _UserMessageState extends State<UserMessage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: <Widget>[
-              AcpButton(label: 'Cancel', onTap: () => _set(UserMessageState.normal)),
+              AcpButton(label: '取消', onTap: () => _set(UserMessageState.normal)),
               const SizedBox(width: t.Spacing.s8),
               AcpButton(
-                label: 'Regenerate',
+                label: '重新生成',
                 kind: ButtonKind.primary,
                 onTap: () {
                   widget.onRegenerate?.call(_controller.text);

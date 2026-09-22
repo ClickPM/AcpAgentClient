@@ -4,6 +4,7 @@
 // 统一到侧栏底部导航（再点当前面板就收起）与会话头 ≡。
 // 面板正文由调用方给（`body`）：文件面板（60）与终端面板（61）在 R4，Agents 与设置在 R5。
 
+import 'dart:io';
 import 'package:flutter/widgets.dart';
 
 import '../../theme/tokens.dart' as t;

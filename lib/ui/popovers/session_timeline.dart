@@ -194,7 +194,7 @@ class _SessionTimelinePopoverState extends State<SessionTimelinePopover> {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               // 标题行钉在滚动区之外（同 `MenuPopover` 里的搜索框）：长列表滚起来时它要一直在。
-              MenuGroupLabel('Session timeline · ${widget.turns.length} turns', style: t.TextStyles.labelTabular),
+              MenuGroupLabel('会话时间线 · ${widget.turns.length} 轮', style: t.TextStyles.labelTabular),
               Flexible(
                 child: SingleChildScrollView(
                   controller: _scroll,
@@ -313,6 +313,6 @@ class _TimelineEmpty extends StatelessWidget {
         height: t.Controls.standard,
         padding: t.Controls.padCompact,
         alignment: Alignment.centerLeft,
-        child: Text('No messages in this session yet', style: CardText.secondary.copyWith(color: t.Neutral.placeholder)),
+        child: Text('当前会话暂无消息记录', style: CardText.secondary.copyWith(color: t.Neutral.placeholder)),
       );
 }

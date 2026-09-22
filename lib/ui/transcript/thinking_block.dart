@@ -27,15 +27,15 @@ class _ThinkingBlockState extends State<ThinkingBlock> {
 
   static String label(Duration d) {
     final s = d.inMilliseconds / 1000;
-    if (s < 1) return 'Thought for less than a second';
+    if (s < 1) return '思考时间少于 1 秒';
     final n = s.round();
-    return 'Thought for $n second${n == 1 ? '' : 's'}';
+    return '已思考 $n 秒';
   }
 
   @override
   Widget build(BuildContext context) {
     final streaming = widget.streaming ?? !widget.entry.closed;
-    final title = streaming ? 'Thinking...' : label(widget.entry.elapsed);
+    final title = streaming ? '思考中...' : label(widget.entry.elapsed);
     final leading = streaming ? const Spinner(size: t.IconSizes.base) : AcpIcon(AcpIcons.lightbulb, color: t.Neutral.muted);
     if (!_expanded) {
       return CardHeader(

@@ -211,7 +211,7 @@ void main() {
 
     await _openTimeline(tester);
     expect(find.byType(SessionTimelinePopover), findsOneWidget);
-    expect(find.text('Session timeline · 3 turns'), findsOneWidget);
+    expect(find.text('会话时间线 · 3 轮'), findsOneWidget);
     expect(find.text('第 1 个问题'), findsWidgets, reason: '编号行的文案就是用户消息首行');
   });
 

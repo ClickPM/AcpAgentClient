@@ -125,15 +125,15 @@ class ContextPopover extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Text('Context', style: t.TextStyles.secondary),
+            Text('上下文', style: t.TextStyles.secondary),
             Text(context_, style: t.TextStyles.body),
             if (u != null && u.hasCost) ...<Widget>[
               const SizedBox(height: t.Spacing.s8),
-              Text('Cost', style: t.TextStyles.secondary),
+              Text('费用', style: t.TextStyles.secondary),
               Text('\$${u.costAmount} ${u.costCurrency ?? ''}', style: t.TextStyles.body),
             ],
             const SizedBox(height: t.Spacing.s8),
-            Text('Rules', style: t.TextStyles.secondary),
+            Text('规则', style: t.TextStyles.secondary),
             GestureDetector(
               onTap: onOpenRules,
               child: MouseRegion(
@@ -141,7 +141,7 @@ class ContextPopover extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    Text('$rulesCount global rule${rulesCount == 1 ? '' : 's'}', style: CardText.link),
+                    Text('$rulesCount 条全局规则', style: CardText.link),
                     const SizedBox(width: t.Spacing.s4),
                     AcpIcon(AcpIcons.arrowUpRight, color: t.Accent.text, size: t.IconSizes.toolbar),
                   ],

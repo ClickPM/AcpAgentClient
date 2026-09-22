@@ -61,9 +61,21 @@ ConfigChoice _choice(Map<String, dynamic> json) => ConfigChoice(
       description: json['description'] as String?,
     );
 
+String localizeConfigName(String name) {
+  if (name.startsWith("Thinking: ")) {
+    return "思考强度: " + name.substring(10);
+  }
+  if (name == "Thinking") return "思考强度";
+  if (name == "Mode") return "模式";
+  if (name == "Model") return "模型";
+  if (name == "Fast") return "快速模式";
+  if (name == "Standard") return "标准模式";
+  return name;
+}
+
 /// 当前值对应的 `name`（找不到就原样显示 id）。两种 options 形状的遍历在投影层
 /// [ConfigOptionWire.currentOptionName]（画板 08 摘要行的模型名也用它），这里只补一个空串兜底。
-String configCurrentName(ConfigOptionWire option) => option.currentOptionName ?? '';
+String configCurrentName(ConfigOptionWire option) => localizeConfigName(option.currentOptionName ?? "");
 
 /// select 型下拉（模型 / 思考强度 / 模式 / 未知分类里的某一条）。
 /// `searchable` 时顶部出过滤框（画板 40 的模型选择器）；`showLeadingMark` 给模型行的中性图标占位。
@@ -74,7 +86,7 @@ class ConfigSelectPopover extends StatelessWidget {
     this.title,
     this.searchController,
     this.searchFocusNode,
-    this.searchPlaceholder = 'Select a model...',
+    this.searchPlaceholder = '搜索或选择模型...',
     this.query = '',
     this.showLeadingMark = false,
     this.width = t.Geometry.menuWidthWide,
@@ -112,18 +124,18 @@ class ConfigSelectPopover extends StatelessWidget {
         onChanged: onQueryChanged,
       ));
     }
-    if (title != null) rows.add(MenuGroupLabel(title!));
+    if (title != null) rows.add(MenuGroupLabel(localizeConfigName(title!)));
     for (final g in groups) {
       final visible = <ConfigChoice>[
         for (final c in g.choices)
           if (query.isEmpty || c.name.toLowerCase().contains(query.toLowerCase())) c,
       ];
       if (visible.isEmpty) continue;
-      if (g.name != null) rows.add(MenuGroupLabel(g.name!));
+      if (g.name != null) rows.add(MenuGroupLabel(localizeConfigName(g.name!)));
       for (final c in visible) {
         rows.add(MenuRow(
           leading: showLeadingMark ? AcpIcon(AcpIcons.dashedCircle, color: t.Neutral.muted, size: t.IconSizes.toolbar) : null,
-          label: c.name,
+          label: localizeConfigName(c.name),
           selected: c.value == current,
           forceHover: c.value == hoveredValue,
           onTap: onSelect == null ? null : () => onSelect!(c.value),
@@ -139,7 +151,7 @@ class BooleanOptionsPopover extends StatelessWidget {
   const BooleanOptionsPopover({
     super.key,
     required this.options,
-    this.title = 'Session options · boolean',
+    this.title = '会话布尔选项 (Boolean Options)',
     this.width = t.Geometry.menuWidthWide,
     this.onToggle,
   });
@@ -241,10 +253,10 @@ class PlusPopover extends StatelessWidget {
     return MenuPopover(
       width: width,
       children: <Widget>[
-        MenuRow(icon: AcpIcons.file, label: 'Files & Directories', onTap: onFiles),
-        MenuRow(icon: AcpIcons.messageSquare, label: 'Sessions', onTap: onSessions),
-        if (imageEnabled) MenuRow(icon: AcpIcons.image, label: 'Image', onTap: onImage),
-        MenuRow(icon: AcpIcons.gitBranch, label: 'Branch Diff', onTap: onBranchDiff),
+        MenuRow(icon: AcpIcons.file, label: '文件与目录', onTap: onFiles),
+        MenuRow(icon: AcpIcons.messageSquare, label: '历史会话', onTap: onSessions),
+        if (imageEnabled) MenuRow(icon: AcpIcons.image, label: '图片', onTap: onImage),
+        MenuRow(icon: AcpIcons.gitBranch, label: '分支变更对比 (Branch Diff)', onTap: onBranchDiff),
       ],
     );
   }
@@ -280,13 +292,13 @@ class FollowTip extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Text('Follow $agentName', style: CardText.secondary.copyWith(
+              Text('跟随 $agentName', style: CardText.secondary.copyWith(
                 fontWeight: t.Weights.medium,
                 fontVariations: t.Weights.mediumVariation,
                 color: t.Neutral.strong,
               )),
               const SizedBox(height: t.Spacing.s4),
-              Text("Track the agent's location as it reads and edits files.",
+              Text("在智能体读取和编辑文件时自动定位和追踪。",
                   style: t.TextStyles.secondary.copyWith(height: t.LineHeights.body)),
             ],
           ),

@@ -2,6 +2,7 @@
 // 窗口控制三键。窗口是无边框的（docs/design.md § 9 裁定）：拖拽区与三个动作走 Windows runner 的平台通道，
 // 这里只出按钮与回调；非 git 目录（`branch == null`）时整块分支区不渲染。
 
+import 'dart:io';
 import 'package:flutter/widgets.dart';
 
 import '../../theme/tokens.dart' as t;
@@ -91,7 +92,7 @@ class TopBar extends StatelessWidget {
       padding: const EdgeInsets.only(left: t.Spacing.s8),
       child: Row(
         children: <Widget>[
-          AcpTooltip(message: 'Session-sidebar', child: _ToggleButton(collapsed: sidebarCollapsed, onTap: onToggleSidebar)),
+          AcpTooltip(message: '会话侧栏', child: _ToggleButton(collapsed: sidebarCollapsed, onTap: onToggleSidebar)),
           const SizedBox(width: t.Spacing.s4),
           // 项目名与分支挤在左侧、剩余空白留给窗口控制：内层 Row 的 Flexible 只按内容取宽（loose），
           // 多出来的空间留在 Expanded 的右侧。不能用 Flexible + Spacer——那会把空白对半分掉。
@@ -100,9 +101,7 @@ class TopBar extends StatelessWidget {
               children: <Widget>[
                 Flexible(
                   child: AcpTooltip(
-                    // 画板 08 C 给触发钮定的 tooltip 是在跑数那句。**偏离**：这里不另套一层 tooltip 挂在徽标上——
-                    // `AcpTooltip` 是 `MouseRegion`，套两层会两条一起弹；没有徽标时仍是原来的 `Recent workspace`。
-                    message: runningTotal > 0 ? '$runningTotal 个会话在运行 · $runningWorkspaces 个工作区' : 'Recent workspace',
+                    message: runningTotal > 0 ? "$runningTotal 个会话在运行 · $runningWorkspaces 个工作区" : "最近工作区 / 项目",
                     child: PopoverAnchor(
                       handle: projectAnchor,
                       child: Hoverable(
@@ -120,7 +119,7 @@ class TopBar extends StatelessWidget {
                 if (branch != null) ...<Widget>[
                   const SizedBox(width: t.Spacing.s4),
                   AcpTooltip(
-                    message: 'Branch',
+                    message: 'Git 分支',
                     child: PopoverAnchor(
                       handle: branchAnchor,
                       child: Hoverable(

@@ -50,7 +50,7 @@ void main() {
         s.answerElicitation(id, action);
       },
     )));
-    await tester.tap(find.text('Open in browser'));
+    await tester.tap(find.text('在浏览器中打开'));
     await tester.pump();
     expect(links, <String>['https://x']);
     expect(answers, <String>['u1:accept']);
@@ -60,7 +60,7 @@ void main() {
     expect(find.text('Waiting for completion...'), findsOneWidget);
 
     // 再点 Open 只是再打开，不再回应。
-    await tester.tap(find.text('Open in browser'));
+    await tester.tap(find.text('在浏览器中打开'));
     await tester.pump();
     expect(links, hasLength(2));
     expect(answers, hasLength(1));
