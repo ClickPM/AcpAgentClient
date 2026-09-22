@@ -75,7 +75,7 @@ class TranscriptFoldAnchor {
   /// 先按点的那一轮定锚（[_collapsed] 快照万一过期，随后的通知也不会认错轮），翻面的通知再走一遍
   /// [beforeRebuild] 只是把快照同步掉：这一帧已经有锚就不再换。
   void toggle(TurnFold fold) {
-    _arm(fold.turn);
+    _arm(fold);
     folds.toggle(fold);
   }
 
@@ -88,12 +88,12 @@ class TranscriptFoldAnchor {
     _collapsed = now;
     // 从后往前：收轮折叠的是最后那一轮；全局开关一下全变时，靠后的那轮离视口最近。
     // 量不到就再往前找一轮，直到有一轮的锚点此刻在已建窗口里。
-    final List<TurnEntry> turns = <TurnEntry>[
-      for (final e in entries())
-        if (e is TurnEntry && changed.contains(e.id)) e,
+    final List<TurnFold> turns = <TurnFold>[
+      for (final f in foldsOf(entries()).values)
+        if (changed.contains(f.id)) f,
     ];
-    for (final TurnEntry turn in turns.reversed) {
-      if (_arm(turn)) return;
+    for (final TurnFold fold in turns.reversed) {
+      if (_arm(fold)) return;
     }
   }
 
@@ -118,16 +118,16 @@ class TranscriptFoldAnchor {
 
   Set<String> _collapsedNow() => <String>{
         for (final f in foldsOf(entries()).values)
-          if (folds.isCollapsed(f)) f.turn.id,
+          if (folds.isCollapsed(f)) f.id,
       };
 
   /// 记下这一轮的锚点位置并排一次帧后校正；返回这一轮有没有量到锚。这一帧已经定过锚就不再换
   /// （先定的那个更靠前于变化，位移都能带住）。折叠块之后一行都还没建出来的话不记：
   /// 用户此刻看的就是折叠块自己（或它上面的内容），而那一段的位置不受折叠影响，不动就是对的。
-  bool _arm(TurnEntry turn) {
+  bool _arm(TurnFold fold) {
     if (!controller.hasClients) return false;
     if (_anchor != null) return true;
-    for (final (key, rowId) in _candidates(turn)) {
+    for (final (key, rowId) in _candidates(fold)) {
       final double? top = _topOf(key);
       if (top == null) continue;
       _anchor = key;
@@ -140,20 +140,31 @@ class TranscriptFoldAnchor {
   }
 
   /// 折叠块之后可以当锚的行，从近到远：本轮剩下的条目，最后是回合页脚。每项是「量位置的键 + 行 id」。
-  Iterable<(GlobalObjectKey<State<StatefulWidget>>, String)> _candidates(TurnEntry turn) sync* {
-    final TurnFold? fold = foldsOf(entries())[turn.id];
+  Iterable<(GlobalObjectKey<State<StatefulWidget>>, String)> _candidates(TurnFold fold) sync* {
     final List<TranscriptEntry> all = entries();
-    if (fold != null) {
-      final int from = all.indexOf(fold.folded.last) + 1;
-      if (from > 0) {
-        for (var i = from; i < all.length; i++) {
-          final TranscriptEntry e = all[i];
-          if (e is TurnEntry) break; // 跨到下一轮就不算了
-          yield (transcriptRowKey(e), transcriptRowId(EntryRow(e)));
+    final int from = all.indexOf(fold.folded.last) + 1;
+    if (from > 0) {
+      for (var i = from; i < all.length; i++) {
+        final TranscriptEntry e = all[i];
+        if (e is TurnEntry) {
+          // 轮边界自己不出行（`buildRows` 跳过它），当不了锚。
+          // **实时轮**（`fold.turn != null`）到此为止：下面那句 yield 会把回合页脚给出来，它离得更近。
+          // **重放回来的历史轮**没有轮边界、也就没有页脚兜底，跳过这一条继续往后找：折叠块之后
+          // 变化点之下的任何一行位移都一样带得住，`_arm` 取第一个此刻量得到的即可（复审 P2 两轮，
+          // 2026-09-22：先是这一轮收在工具调用上时一条候选都没有，后是只给一条、而那一条恰好
+          // 已经滚出 ListView 缓存时仍然落空）。
+          if (fold.turn != null) break;
+          continue;
         }
+        // 折叠块之后**这一轮剩下的条目**；历史轮再往后还有下一轮的条目（同上）。
+        // 顶层用户消息在这里不当分界：实时轮按 `TurnEntry` 切轮，agent 发来一条对不上的
+        // `user_message_chunk` 时投影层会在折叠块之后另起一条顶层用户消息，那不是新一轮，
+        // 按它停下会把本轮结论整段掐出候选（复审 P2，2026-09-22）。
+        yield (transcriptRowKey(e), transcriptRowId(EntryRow(e)));
       }
     }
-    yield (turnFooterKey(turn), transcriptRowId(TurnEndRow(turn)));
+    final TurnEntry? turn = fold.turn;
+    if (turn != null) yield (turnFooterKey(turn), transcriptRowId(TurnEndRow(turn)));
   }
 
   void _schedule() {
