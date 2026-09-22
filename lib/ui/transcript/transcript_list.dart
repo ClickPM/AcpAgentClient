@@ -126,9 +126,10 @@ class TranscriptList extends StatelessWidget {
   /// 画板 08 B 的回合折叠。null = 不折叠（gallery 的其它画板、单测里不关心折叠的那些）。
   final TranscriptFolds? folds;
 
-  /// 点摘要行。**不直接调 [TranscriptFolds.toggle]**：折 / 展前后要把视口挪回去，让这一轮的结论
-  /// 停在原地（画板 08 B「滚动锚点」），而那件事要连自动折叠一起管，收在 `lib/app/transcript_fold_anchor.dart`。
-  /// 不给就只翻面、不校正（gallery 与单测里够用）。
+  /// 点摘要行。工作台里接的是 `TranscriptFoldAnchor.toggle`：折 / 展前后要把视口挪回去，让这一轮的
+  /// 结论停在原地（画板 08 B「滚动锚点」），而那件事要连自动折叠一起管，所以收在
+  /// `lib/app/transcript_fold_anchor.dart`。**不给就退到直接 [TranscriptFolds.toggle]**——
+  /// 只翻面、不校正（gallery 与单测里够用）。
   final void Function(TurnFold fold)? onToggleFold;
 
   /// 画板 43：时间线刚跳过来的那条用户气泡进入画板 11 的「点击聚焦」态；null = 没有。
@@ -190,7 +191,10 @@ class TranscriptList extends StatelessWidget {
     );
   }
 
-  Widget buildRow(TranscriptRow row) => switch (row) {
+  Widget buildRow(TranscriptRow row) {
+    // 本地一份：字段是可空的，闭包里提升不了。
+    final TranscriptFolds? folds = this.folds;
+    return switch (row) {
         TurnEndRow(:final turn) => KeyedSubtree(
             key: trackRows ? turnFooterKey(turn) : ValueKey<String>('${turn.id}-end'),
             child: TurnEndLine(turn, usage: store.usage),
@@ -202,12 +206,19 @@ class TranscriptList extends StatelessWidget {
               epoch: fold.turn.id,
               distance: 0,
               duration: t.Motion.fast,
-              child: TurnFoldRow(fold: fold, collapsed: collapsed, onToggle: onToggleFold == null ? null : () => onToggleFold!(fold)),
+              child: TurnFoldRow(
+                fold: fold,
+                collapsed: collapsed,
+                // 没给 [onToggleFold] 就退到直接翻面（gallery 的样张、不关心滚动校正的单测）：
+                // 有 `folds` 却点不动，与画板 08 的样张说明对不上（复审 P2，2026-09-22）。
+                onToggle: folds == null ? null : () => (onToggleFold ?? folds.toggle)(fold),
+              ),
             ),
           ),
-        EntryRow(:final entry) =>
-          KeyedSubtree(key: trackRows ? transcriptRowKey(entry) : ValueKey<String>(entry.id), child: buildEntry(entry)),
-      };
+      EntryRow(:final entry) =>
+        KeyedSubtree(key: trackRows ? transcriptRowKey(entry) : ValueKey<String>(entry.id), child: buildEntry(entry)),
+    };
+  }
 
   Widget buildEntry(TranscriptEntry e) {
     final cwd = store.cwd;

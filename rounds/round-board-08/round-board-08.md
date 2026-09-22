@@ -76,7 +76,8 @@
 - 审查范围与基准提交：
   - 第 1 轮 全量 `main...HEAD`（`1cd20d1`），产物 `.claude/reviews/20260922-120118-review.out.md`
   - 第 2 轮 全量 `main...HEAD`（`2a30427`），产物 `.claude/reviews/20260922-122242-review.out.md`
-  - 第 3 轮起只审整改 diff（`-Scope since -Base <上一轮已审提交>`）
+  - 第 3 轮 只审整改 diff `2a30427..HEAD`，产物 `.claude/reviews/20260922-12*-review.out.md`
+  - 第 4 轮 只审整改 diff（基准见提交说明）
 - findings 处理：
 
 | 轮 | 级别 | finding | 处理 |
@@ -85,6 +86,9 @@
 | 1 | P2 | 连续拨动「回合结束后折叠」时，先发的写盘可以后落地，把用户最后的选择盖掉 | **采纳整改**。`setAutoCollapse` 在真发之前核对「这一笔还是不是当前值」，被顶掉的不发。回归用例「连着拨两下」断言只发出一笔 |
 | 1 | P2 | `set_transcript` 整文件读改写，与外观落盘重叠时会把 `appearance` 盖回旧值 | **不采纳整改，记 `rounds/BACKLOG.md`**（审查器自己也是这么建议的）。与 `set_appearance` 是同一类问题，收口要在 `SettingsStore` 上串行化 load+save —— 机制类修复，CLAUDE.md 的审查边界只允许严重阻塞性 bug 走这条；而触发它要两笔写在同一毫秒重叠，两处入口都是用户点击。前端侧已就近堵掉连点那一半 |
 | 2 | high | 折叠块高于列表缓存时滚动锚点直接放弃，结论被挪出视口；而且 `stop_reason` 那一帧的**自动折叠整条没有校正** | **采纳整改**。两半都属实：① 锚点原来取「折叠块后第一条」且量不到就 return —— 折叠块一高，帧后那一行已被拆出已建窗口；② 自动折叠是 `isCollapsed` 翻面后由重建自然发生的，不经过任何点击回调。整改把校正整块搬到新的 `lib/app/transcript_fold_anchor.dart`：锚点改成**折叠块之后第一个此刻量得到的行**（本轮剩下的条目 → 回合页脚，画板写的锚是页脚，但人停在长结论中间时页脚没建出来、停在页脚上时结论的顶又没建出来，只认一个固定行不行）；量不到时先按 `maxScrollExtent` 的变化量粗调、下一帧再精调（取差值不是做乘法，且一律夹回合法区间，不会重演 `transcript_jump` 那次白屏）；自动折叠经 `workbench_screen._onTranscriptGrew`（store 通知里屏幕还是旧布局）走同一条校正。回归用例两条，**都验证过去掉整改会红**（自动折叠那条：结论从 −68 跳到 −304） |
+| 3 | high | 锚点量不到时按 `maxScrollExtent` 差值粗调，会把视口往反方向多推一截，且这条路没有任何用例覆盖 | **采纳整改：把粗调整段删掉**，量不到就保持 `pixels`。审查器的两条反证都成立 —— ① 列表已建到最后一行时 Flutter 同帧已经把 `pixels` 夹进新的 `maxScrollExtent`，再减一次是重复补偿（人离底部 d、折叠高度 H 且 d < H 时多推 H − d）；② 没建到最后一行时那个值是按已建行外推的，折叠会换掉这批行，外推值可能不降反升，差值为正就把人夹到列表底部。**没有布局就真算不出那一段有多高，猜一把比不动更坏。** 残余（折叠块远高于视口 + 锚点本身很短）记 `rounds/BACKLOG.md` |
+| 3 | P2 | 不传 `onToggleFold` 时摘要行点不动，与注释和画板 08 样张的旧行为相反 | **采纳整改**。`onToggleFold == null` 且有 `folds` 时退到 `folds.toggle`。这是第 2 轮整改自己引入的回归（gallery 的 `_transcriptSample` 只传 `folds`）。用例侧把 `_list` helper 改成**故意不传** `onToggleFold`，让既有的几条点击用例守住这条退路 |
+| 3 | P2 | 自动折叠的校正 `jumpTo` 会掐断正在进行的滚动 | **采纳整改**。`_jumpBy` 里加 `userScrollDirection != idle` 就返回，与 `workbench_screen._followToBottom`、`TranscriptJump._step` 同一条规矩。回归用例「人正在拖…」，**已验证去掉整改会红**（拖着时 pixels 被从 260 拽到 0） |
 
 - 结论：<待第 3 轮复审>
 

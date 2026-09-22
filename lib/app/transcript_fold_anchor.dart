@@ -13,12 +13,19 @@
 // 视口之外、没建出来；人停在页脚上时结论的顶又在视口之外。位置按 [transcriptRowKey] /
 // [turnFooterKey] 的 GlobalKey 量，所以只有工作台里那一份转录（`trackRows` 开着）会校正。
 //
-// **折叠块很高时锚点会被挪出已建窗口、帧后量不到**（`ListView` 默认 cacheExtent 只有 250）。
-// 那时不放弃：先按滚动范围的收缩量粗调一次 —— 相邻两帧同一份估算的差值，再夹回合法区间，
-// 落点不会出内容之外（`transcript_jump.dart` 文件头记的那次白屏是拿估算做**乘法**，不是取差值）——
-// 下一帧页脚多半就回到已建窗口里，再精调一次。两帧之内收敛。
+// **锚点在折 / 展之后离开已建窗口、量不到时，这一次就不校正**（`ListView` 默认 cacheExtent 只有 250）。
+// 第 2 轮整改一度按 `maxScrollExtent` 的变化量粗调一把，第 3 轮审查指出那是错的，已删：
+//   · 列表已经建到最后一行时，Flutter 在同一帧的 layout 里已经把 `pixels` 夹进新的
+//     `maxScrollExtent`，等于替我们补了一部分；再按 extent 差值减一次就是重复补偿，
+//     人离底部 d、折叠高度 H 且 d < H 时会多推 H − d；
+//   · 还没建到最后一行时 `maxScrollExtent` 是按已建行平均高度外推的，折叠会换掉这批已建行，
+//     外推值可能不降反升（`transcript_jump.dart` 文件头记过一次 27292 → 230347），
+//     差值为正就把人直接夹到列表底部。
+// 没有布局就真的算不出这一段有多高，**猜一把比不动更坏**。残余（折叠块远高于视口、且锚点本身很短
+// 那种）记 `rounds/BACKLOG.md`：要彻底解决得像 `TranscriptJump` 那样一屏一屏找回来。
 
 import 'package:flutter/foundation.dart' show setEquals;
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/widgets.dart';
 
 import '../projection/entries.dart';
@@ -38,10 +45,9 @@ class TranscriptFoldAnchor {
   /// 上一帧折着的轮。用来认出「这一帧有轮自己折 / 展了」（路径 ②）。
   Set<String> _collapsed = const <String>{};
 
-  /// 这一次要盯的锚：那一行的 GlobalKey、它在视口里的 y、以及当时的 `maxScrollExtent`。
+  /// 这一次要盯的锚：那一行的 GlobalKey 与它在视口里的 y。
   GlobalObjectKey<State<StatefulWidget>>? _anchor;
   double _anchorTop = 0;
-  double _maxExtent = 0;
 
   /// 帧后校正已经排上了（同一帧里点两下不排两次）。
   bool _scheduled = false;
@@ -92,7 +98,6 @@ class TranscriptFoldAnchor {
       if (top == null) continue;
       _anchor = key;
       _anchorTop = top;
-      _maxExtent = controller.position.maxScrollExtent;
       _schedule();
       return;
     }
@@ -120,30 +125,18 @@ class TranscriptFoldAnchor {
     _scheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scheduled = false;
-      _correct(precise: true);
+      _correct();
     });
   }
 
-  void _correct({required bool precise}) {
+  void _correct() {
     final GlobalObjectKey<State<StatefulWidget>>? anchor = _anchor;
+    _anchor = null;
     if (anchor == null || !controller.hasClients) return;
-    final ScrollPosition p = controller.position;
+    // 量不到就保持当前 `pixels`，**不拿外推或已经夹过的 extent 再推一次**（见文件头）。
     final double? top = _topOf(anchor);
-    if (top != null) {
-      _anchor = null;
-      _jumpBy(p, top - _anchorTop);
-      return;
-    }
-    if (!precise) {
-      // 粗调之后还是量不到（锚点离得太远）：收手，别一直空转。
-      _anchor = null;
-      return;
-    }
-    // 锚点被挪出已建窗口了：先按滚动范围的变化量粗调，下一帧再精调。
-    // 锚点上方的内容少了 Δ，`maxScrollExtent` 也少 Δ，锚点的 y 同样少 Δ —— 三者同号，所以直接传差值。
-    _jumpBy(p, p.maxScrollExtent - _maxExtent);
-    _maxExtent = p.maxScrollExtent;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _correct(precise: false));
+    if (top == null) return;
+    _jumpBy(controller.position, top - _anchorTop);
   }
 
   /// 锚点在视口里往下跑了 `delta`（往上跑就是负的），把 `pixels` 同向加回去，它就停在原地：
@@ -151,6 +144,9 @@ class TranscriptFoldAnchor {
   /// **一律夹回合法区间**：落点永远在内容之内，任何一帧都不会出现空白视口。
   void _jumpBy(ScrollPosition p, double delta) {
     if (delta.abs() <= _epsilon) return;
+    // 用户正在拖 / 触控板正在滑：`jumpTo` 会 goIdle 把这次滚动掐断，让他先滑完
+    // （与 `workbench_screen._followToBottom`、`TranscriptJump._step` 同一条规矩）。
+    if (p.userScrollDirection != ScrollDirection.idle) return;
     final double next = (p.pixels + delta).clamp(p.minScrollExtent, p.maxScrollExtent);
     if ((next - p.pixels).abs() > _epsilon) controller.jumpTo(next);
   }

@@ -13,6 +13,8 @@ import 'package:acp_agent_client/ui/transcript/thinking_block.dart';
 import 'package:acp_agent_client/ui/transcript/tool_call_card.dart';
 import 'package:acp_agent_client/ui/transcript/transcript_list.dart';
 import 'package:acp_agent_client/ui/transcript/turn_fold_row.dart';
+import 'package:flutter/gestures.dart' show Drag, DragStartDetails, DragUpdateDetails;
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -77,11 +79,9 @@ SessionStore sample({String? model, String stop = 'end_turn', bool end = true}) 
   return s;
 }
 
-/// 只看渲染、不点的那几张：给一个一次性的折叠态控制器，点击回调照常接上。
-Widget _list(SessionStore store) {
-  final folds = TranscriptFolds();
-  return TranscriptList(store, folds: folds, onToggleFold: folds.toggle);
-}
+/// 不接滚动校正的那几张：**故意不传 `onToggleFold`**，顺带守住「有 folds 就点得动」这条退路
+/// （复审 P2，2026-09-22：gallery 的画板 08 样张就是这么用的）。
+Widget _list(SessionStore store) => TranscriptList(store, folds: TranscriptFolds());
 
 void main() {
   Future<void> pump(WidgetTester tester, Widget child, {Size size = const Size(900, 1400)}) async {
@@ -143,8 +143,7 @@ void main() {
     });
 
     testWidgets('可及性：button + expanded，整行可点', (tester) async {
-      final folds = TranscriptFolds();
-      await pump(tester, TranscriptList(sample(), folds: folds, onToggleFold: folds.toggle));
+      await pump(tester, _list(sample()));
       final handle = tester.ensureSemantics();
 
       expect(
@@ -298,6 +297,48 @@ void main() {
 
       expect(folds.isCollapsed(foldsOf(s.entries).values.last), isTrue, reason: 'stop_reason 到达即自动折叠');
       expect(tester.getTopLeft(conclusion).dy, closeTo(before, 0.5), reason: '结论停在原地，不跳');
+    });
+
+    testWidgets('人正在拖 / 惯性还没停时不校正：不跟用户抢滚动', (tester) async {
+      // 复审 P2（2026-09-22）：`jumpTo` 会 goIdle 把正在进行的滚动掐断。
+      // 与 `workbench_screen._followToBottom`、`TranscriptJump._step` 同一条规矩。
+      // 折叠的那一轮后面还要有内容，否则折完 `pixels` 会被新的 maxScrollExtent 夹一下，
+      // 看不出「校正有没有额外再推一次」。
+      final s = tall();
+      startTurn(s, '第三轮');
+      agent(s, List<String>.filled(120, '后面还有很长一段。').join());
+      s.endTurn(stopReason: 'end_turn');
+
+      final folds = TranscriptFolds();
+      final ScrollController controller = ScrollController();
+      final anchor = TranscriptFoldAnchor(controller: controller, entries: () => s.entries, folds: folds);
+      await folds.setAutoCollapse(false);
+      await pump(
+        tester,
+        TranscriptList(s, folds: folds, controller: controller, trackRows: true, onToggleFold: anchor.toggle),
+        size: const Size(800, 400),
+      );
+      // 滚到第二轮的结论那一带（不在两端，夹不到）。
+      controller.jumpTo(300);
+      await tester.pumpAndSettle();
+
+      // 手指按住并拖起来：userScrollDirection 离开 idle。
+      // 直接驱动 `ScrollPosition.drag`，不走手势 —— 转录整块包在 `SelectableRegion` 里，
+      // 模拟拖拽会被它当成选字。
+      final Drag drag = controller.position.drag(DragStartDetails(globalPosition: tester.getCenter(find.byType(TranscriptList))), () {});
+      drag.update(DragUpdateDetails(globalPosition: Offset.zero, delta: const Offset(0, 40), primaryDelta: 40));
+      await tester.pump();
+      expect(controller.position.userScrollDirection, isNot(ScrollDirection.idle), reason: '用例前提：这会儿确实在滚');
+      final double dragged = controller.position.pixels;
+
+      // 拖着的时候把这一轮折起来：校正要让路，不许 jumpTo。
+      anchor.toggle(foldsOf(s.entries).values.first);
+      await tester.pump();
+      await tester.pump();
+      expect(controller.position.pixels, closeTo(dragged, 0.5), reason: '人在滚，别跟他抢');
+
+      drag.cancel();
+      await tester.pumpAndSettle();
     });
   });
 
