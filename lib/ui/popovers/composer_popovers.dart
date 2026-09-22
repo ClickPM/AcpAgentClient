@@ -202,7 +202,7 @@ class UnknownCategoryPopover extends StatelessWidget {
               children: <Widget>[
                 Text(configCurrentName(o), style: t.TextStyles.monoMeta.copyWith(color: t.Neutral.muted)),
                 const SizedBox(width: t.Spacing.s4),
-                const Chevron(expanded: false),
+                Chevron(expanded: false),
               ],
             ),
             onTap: onOpen == null ? null : () => onOpen!(o.id ?? ''),

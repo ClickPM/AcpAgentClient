@@ -267,7 +267,7 @@ final List<GalleryBoard> agentBoards = <GalleryBoard>[
             child: _card(const AuthMethodPicker(agentName: 'Codex', authMethods: _codexAuthMethods, selectedMethodId: 'chat-gpt'))),
         BoardSection('terminal auth · 运行中的可见终端',
             child: _card(AuthTerminalCard(label: 'codex-acp --login', buffer: _authTerminal()))),
-        BoardSection('成功后自动重试新会话', child: _card(const AuthSucceededCard())),
+        BoardSection('成功后自动重试新会话', child: _card(AuthSucceededCard())),
         BoardSection('失败态', child: _card(const AuthFailedCard(error: 'authenticate failed: device code expired (-32000)'))),
         BoardSection('无会话阶段的 URL elicitation（requestScope）',
             child: _card(RequestScopeElicitationCard(_requestScopeElicitation(), agentName: 'codex-acp'))),

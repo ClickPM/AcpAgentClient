@@ -163,8 +163,21 @@ class CardHeader extends StatelessWidget {
 }
 
 /// 折叠 / 展开箭头（14 · placeholder 色）。
+///
+/// **构造函数不带 `const`**（所有者裁定 2026-09-22，iteration-02）：build 里现取颜色 token 的 widget
+/// 一旦在调用点写成 `const`，实例被规范化成同一个对象，换主题时父级重建走 `Element.updateChild`
+/// 见到 `child.widget == newWidget` 就直接复用旧 element、不再 build，颜色于是冻在首次构建那一套上
+/// （0c95a84 修掉的 `AppLogo` 是同一类）。摘的是构造函数而不是在几十个调用点逐处加 `// ignore:`——
+/// 构造函数不是 const，`prefer_const_constructors` 与 `dart fix` 就回改不了调用点。
+/// 声明这一行的 `ignore` 是必须的：`prefer_const_constructors_in_immutables` 会让 `dart fix`
+/// 把 `const` 加回构造函数，等于把这次修复整个撤销。
+/// 同此的还有本文件的 [SectionLabel] / [MonoBlock] / [ToneChip]，以及 `icons.dart` 的 Spinner、
+/// `awaiting_bar.dart` 的 AwaitingRow、`files_panel.dart` 的 FileViewerEmpty / _TreeNote、
+/// `registry_entry.dart` 的 _Diamond、`auth_page.dart` 的 AuthSucceededCard。
+/// 弹层里那些（MenuDivider / MenuGroupLabel / _TimelineEmpty）每次打开都新建，不在此列。
 class Chevron extends StatelessWidget {
-  const Chevron({super.key, required this.expanded, this.color});
+  // ignore: prefer_const_constructors_in_immutables
+  Chevron({super.key, required this.expanded, this.color});
 
   final bool expanded;
 
@@ -217,15 +230,17 @@ class CollapseBar extends StatelessWidget {
         height: t.Controls.compact,
         decoration: BoxDecoration(border: Border(top: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
         alignment: Alignment.center,
-        child: const Chevron(expanded: true),
+        child: Chevron(expanded: true),
       ),
     );
   }
 }
 
 /// 分节标签（「Raw Input:」「Output:」「stderr 尾巴」）：11 / 500 / muted。
+/// 构造函数不带 `const`：build 里现取颜色 token，换主题要重建（理由见 card_chrome.dart 的 Chevron）。
 class SectionLabel extends StatelessWidget {
-  const SectionLabel(this.text, {super.key});
+  // ignore: prefer_const_constructors_in_immutables
+  SectionLabel(this.text, {super.key});
 
   final String text;
 
@@ -237,8 +252,10 @@ class SectionLabel extends StatelessWidget {
 }
 
 /// 等宽文本块：panel 底、radius 4、8/12 内边距、pre-wrap。`background` 可换 error.soft 等。
+/// 构造函数不带 `const`：build 里现取颜色 token，换主题要重建（理由见 card_chrome.dart 的 Chevron）。
 class MonoBlock extends StatelessWidget {
-  const MonoBlock({super.key, this.text, this.span, this.background, this.style, this.softWrap = true});
+  // ignore: prefer_const_constructors_in_immutables
+  MonoBlock({super.key, this.text, this.span, this.background, this.style, this.softWrap = true});
 
   final String? text;
   final InlineSpan? span;
@@ -310,8 +327,10 @@ class Chip extends StatelessWidget {
 /// 语义徽章：success / warning / error / neutral 四色（画板 31 的 stopReason、21 的 +N −M、29 的 priority）。
 enum ChipTone { success, warning, error, neutral, accent }
 
+/// 构造函数不带 `const`：build 里现取颜色 token，换主题要重建（理由见 card_chrome.dart 的 Chevron）。
 class ToneChip extends StatelessWidget {
-  const ToneChip(this.text, {super.key, required this.tone, this.style});
+  // ignore: prefer_const_constructors_in_immutables
+  ToneChip(this.text, {super.key, required this.tone, this.style});
 
   final String text;
   final ChipTone tone;

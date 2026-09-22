@@ -93,6 +93,12 @@ class _MarkdownBodyState extends State<MarkdownBody> {
   final LinkRecognizers _links = LinkRecognizers();
   List<Widget> _blocks = const <Widget>[];
 
+  /// 算 [_blocks] 时的字体代数。块实例是缓存的（见 [_rebuild]），而每块都把当时的字阶连同颜色
+  /// 一起烘了进去（`base` 与各处 `CardText` / 颜色 token），换字体或换主题后必须重解析一次；
+  /// [t.Fonts.generation] 两件事都会 +1（tokens.dart 的注释写明了），一个代数覆盖两件事。
+  /// 同 `lib/ui/files/files_panel.dart` 的 `_SourceView`。
+  int _fontGeneration = t.Fonts.generation;
+
   @override
   void initState() {
     super.initState();
@@ -113,8 +119,10 @@ class _MarkdownBodyState extends State<MarkdownBody> {
     super.dispose();
   }
 
-  /// 只在输入变化时重新解析；块 widget 实例缓存，父级重建时子树不重建，recognizer 也就不会随父级 build 反复登记。
+  /// 只在输入变化（或字体 / 主题换了）时重新解析；块 widget 实例缓存，父级重建时子树不重建，
+  /// recognizer 也就不会随父级 build 反复登记。
   void _rebuild() {
+    _fontGeneration = t.Fonts.generation;
     _links.disposeAll();
     final nodes = MarkdownBody.parse(widget.data);
     final base = widget.baseStyle ?? t.TextStyles.body;
@@ -132,6 +140,15 @@ class _MarkdownBodyState extends State<MarkdownBody> {
 
   @override
   Widget build(BuildContext context) {
+    // 换过字体或主题就重解析一次（[didUpdateWidget] 只比得出输入变化，这两件事输入一个都没变）。
+    // 放在 build 而不是监听器里：MarkdownBody 拿不到 AppearanceController，而组合根换主题时本来
+    // 就会重建整棵树，这里只是顺带对一次代数——同 `_SourceView`。
+    //
+    // [_rebuild] 会 `disposeAll()` 掉旧的 link recognizer，这一条与 [didUpdateWidget] 那条路径
+    // （流式 chunk 每到一段就这么做一次）是同一个操作，不是新增的风险面：代数只由 `Fonts.apply` /
+    // `Theming.apply` 推进，那一下用户的指针在外观开关上、不在转录的链接上；真撞上了也只是那次点击
+    // 被取消（`OneSequenceGestureRecognizer.dispose` 先 `resolve(rejected)` 再摘路由），不会挂。
+    if (_fontGeneration != t.Fonts.generation) _rebuild();
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: _blocks);
   }
 }

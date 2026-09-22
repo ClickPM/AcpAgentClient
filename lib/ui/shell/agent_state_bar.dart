@@ -95,7 +95,7 @@ class _AgentStateBarState extends State<AgentStateBar> {
             CardBody(
               padding: const EdgeInsets.all(t.Spacing.s12),
               children: <Widget>[
-                const SectionLabel('stderr 尾巴（最后 5 行）'),
+                SectionLabel('stderr 尾巴（最后 5 行）'),
                 MonoBlock(text: _tail(c)),
                 Row(
                   children: <Widget>[
@@ -108,7 +108,7 @@ class _AgentStateBarState extends State<AgentStateBar> {
             ),
         ]),
       AgentLifecycle.authenticating => _row(
-          icon: const Spinner(),
+          icon: Spinner(),
           title: '正在认证${c.authenticatingLabel == null ? '' : '：${c.authenticatingLabel}'}',
           meta: 'methodId ${c.authenticatingMethodId ?? '?'}${c.authenticatingTerminalId == null ? '' : ' · terminalId ${c.authenticatingTerminalId}'}',
         ),

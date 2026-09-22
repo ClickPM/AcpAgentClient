@@ -196,7 +196,7 @@ final List<GalleryBoard> transcriptBoards2 = <GalleryBoard>[
       title: 'Awaiting Confirmation',
       source: '客户端本地态（挂起的 permission / elicitation 队列）',
       sections: <BoardSection>[
-        BoardSection('卡片下方的等待行', child: BoardStack(<Widget>[PermissionCard(p, toolCall: tc, cwd: cwd), const AwaitingRow()], gap: 0)),
+        BoardSection('卡片下方的等待行', child: BoardStack(<Widget>[PermissionCard(p, toolCall: tc, cwd: cwd), AwaitingRow()], gap: 0)),
         BoardSection('输入框上方的停靠条 · 待授权', child: AwaitingDock.forPending(p, toolCall: tc, cwd: cwd)!),
         BoardSection('输入框上方的停靠条 · 待输入', child: AwaitingDock.forPending(el, agentName: _agentName(r2))!),
       ],

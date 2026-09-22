@@ -30,7 +30,7 @@ class _CompactionCardState extends State<CompactionCard> {
     final inProgress = c.status == 'in_progress';
     final failed = c.status == 'failed';
     final Widget icon = inProgress
-        ? const Spinner()
+        ? Spinner()
         : failed
             ? AcpIcon(AcpIcons.x, color: t.Semantic.error, size: t.IconSizes.toolbar)
             : c.status == 'completed'

@@ -922,7 +922,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     if (active.shell == ShellTab.files) {
       final f = c.files;
       final tree = f.tree;
-      if (tree == null) return const FileViewerEmpty();
+      if (tree == null) return FileViewerEmpty();
       return FilesPanel(
         tree: tree,
         filterController: f.filter,

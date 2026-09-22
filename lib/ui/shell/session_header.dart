@@ -110,7 +110,7 @@ class SessionHeader extends StatelessWidget {
                 : Row(
                     children: <Widget>[
                       Flexible(child: _title()),
-                      if (running) ...<Widget>[const SizedBox(width: t.Spacing.s8), const Spinner()],
+                      if (running) ...<Widget>[const SizedBox(width: t.Spacing.s8), Spinner()],
                     ],
                   ),
           ),

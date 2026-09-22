@@ -86,7 +86,7 @@ class RegistryPanel extends StatelessWidget {
                 Text('ACP Registry', style: t.TextStyles.title),
                 const SizedBox(width: t.Spacing.s8),
                 Expanded(child: Text('Agent Client Protocol 插件市场', style: t.TextStyles.secondary, maxLines: 1, overflow: TextOverflow.ellipsis)),
-                if (fetching) ...<Widget>[const Spinner(), const SizedBox(width: t.Spacing.s8)],
+                if (fetching) ...<Widget>[Spinner(), const SizedBox(width: t.Spacing.s8)],
                 MouseRegion(
                   cursor: SystemMouseCursors.click,
                   child: GestureDetector(

@@ -83,7 +83,7 @@ class _SubagentCardState extends State<SubagentCard> {
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           CardHeader(
-            leading: running ? const Spinner(size: t.IconSizes.base) : ToolStatusIcon(e.displayStatus),
+            leading: running ? Spinner(size: t.IconSizes.base) : ToolStatusIcon(e.displayStatus),
             title: e.title,
             trailing: <Widget>[
               if (running) StopSquareButton(onTap: widget.onStop),

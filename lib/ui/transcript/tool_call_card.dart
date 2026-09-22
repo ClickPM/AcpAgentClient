@@ -80,9 +80,9 @@ class ToolStatusIcon extends StatelessWidget {
   Widget build(BuildContext context) => switch (status) {
         ToolDisplayStatus.completed => AcpIcon(AcpIcons.checkCircle, color: t.Semantic.success, size: t.IconSizes.toolbar),
         ToolDisplayStatus.pending => AcpIcon(AcpIcons.dashedCircle, color: t.Neutral.placeholder, size: t.IconSizes.toolbar),
-        ToolDisplayStatus.inProgress => const Spinner(),
+        ToolDisplayStatus.inProgress => Spinner(),
         ToolDisplayStatus.failed => AcpIcon(AcpIcons.x, color: t.Semantic.error, size: t.IconSizes.toolbar),
-        ToolDisplayStatus.cancelled => const ToneChip('Canceled', tone: ChipTone.neutral),
+        ToolDisplayStatus.cancelled => ToneChip('Canceled', tone: ChipTone.neutral),
       };
 }
 
@@ -219,11 +219,11 @@ class _ToolCallCardState extends State<ToolCallCard> {
     return <Widget>[
       if (command != null && e.kind == ToolKind.execute) MonoBlock(text: command),
       if (e.rawInput != null) ...<Widget>[
-        const SectionLabel('Raw Input:'),
+        SectionLabel('Raw Input:'),
         MonoBlock(span: JsonHighlight.span(e.rawInput)),
       ],
       if (hasOutput) ...<Widget>[
-        const SectionLabel('Output:'),
+        SectionLabel('Output:'),
         if (textOut.isNotEmpty)
           MonoBlock(
             text: textOut.join('\n'),
@@ -239,8 +239,8 @@ class _ToolCallCardState extends State<ToolCallCard> {
     final command = toolCommand(e);
     return <Widget>[
       if (command != null) MonoBlock(text: command) else if (e.rawInput != null) MonoBlock(span: JsonHighlight.span(e.rawInput)),
-      const SectionLabel('Output:'),
-      const MonoBlock(text: 'Error: tool call aborted'),
+      SectionLabel('Output:'),
+      MonoBlock(text: 'Error: tool call aborted'),
     ];
   }
 }

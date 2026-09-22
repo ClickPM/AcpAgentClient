@@ -17,13 +17,13 @@
 | 档 | 条数 | 这档是什么 |
 |---|---|---|
 | **P0 真缺陷** | 12 | 会丢内容、作用到错对象、吃光资源、静默失败。撞上就是事故，排进最近的轮次。 |
-| **P1 看得见的粗糙** | 26 | 用户看得见的不一致、缺等待态、行为不符直觉。能用，膈应；攒批做。 |
+| **P1 看得见的粗糙** | 24 | 用户看得见的不一致、缺等待态、行为不符直觉。能用，膈应；攒批做。 |
 | **P2 功能缺口** | 11 | 该有没有的能力。**全部需所有者裁定才能进轮次**，多数还要先改设计稿。 |
 | P3 设计稿欠账 | — | **已整体释放**到 `design/DIVERGENCE.md`，见下面的占位小节 |
 | **P4 平台与分发** | 7 | macOS / Linux、构建链、sidecar 打包。跟 R8 走。 |
 | **P5 内部工程与验收** | 19 | 用户无感：测试、行数门、文档措辞、验收自动化。有空就做。 |
 | **X 卡在上游 / 协议** | 6 | 我们动不了，等 agent 侧或 zed 升版本。只盯着，不排期。 |
-| | **81** | |
+| | **79** | |
 
 **新增条目**：挑一档追在该档末尾，照同样的三行格式写。不新开档位；一条只进一档。
 **关闭条目**：把**技术行连同结论压成一行** `- [x]` 剪到 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md) 末尾（那份是平铺存档，不分档），本文删掉这三行。
@@ -86,17 +86,9 @@
   - **产品**：终端面板一出现中文，字符网格就错开，表格和对齐全乱。R7.6 之前就存在，不是字体切换引入的。
   - **技术**：**等宽里的中文宽度不是 2:1，终端面板遇到中文就错位**。等宽渲染按字符格子走，中文必须正好是拉丁的两倍宽；随包的 Noto Sans SC 汉字是全角 1em，而 Geist Mono 的 advance 约 0.6em，2×0.6 ≠ 1。**这是 R7.6 之前就存在的问题，不是字体切换引入的**。R7.6 给了出路（代码等宽中文轴可选更纱黑体 Sarasa Mono SC，它专门做了 2:1 对齐），但默认组合仍然错位。根治要么换默认的等宽 CJK 字体，要么在终端渲染层按 cell 宽度矫正 —— 都超出「加个开关」的范围，需所有者裁定 (2026-09-20)
 
-## P1 · 看得见的粗糙（26）
+## P1 · 看得见的粗糙（24）
 
-### 主题与渲染（3）
-
-- [ ] **const 构造的组件换主题后不重建**
-  - **产品**：切深色 / 浅色之后，一部分徽章、箭头、空态还是切换前的颜色。
-  - **技术**：画板 07 深色模式：**`const` 构造的自写 widget 在换主题后不重建**（R7.5 合并 main@32d372f 时按所有者指示自审发现，2026-09-20）。主题切换只靠 `lib/app/app.dart` 的 `ListenableBuilder` 整树重建、`t.Theming.apply` 只换颜色表；`Element.updateChild` 对 `identical` 的常量实例直接复用旧 element、不再 build，于是在 build 里读颜色 token 的 const widget 冻在切换前的颜色，直到那个 element 被重建（`0c95a84` 修的 `AppLogo` 就是这一类，但不止它一处）。探针证实：`const ToneChip` 与非 const 的孪生同树，`Theming.apply(dark)` 后重建父级，前者仍是浅色 `successSoft`。元素常驻的调用点：`lib/ui/registry/registry_entry.dart` 7 处 `ToneChip` + 2 处 `_Diamond`、`lib/ui/settings/settings_page.dart` 2 处 `ToneChip`、`lib/ui/transcript/tool_call_card.dart` `ToneChip('Canceled')`、`lib/ui/transcript/elicitation_form_card.dart` `ToneChip('Recommended')`、`card_chrome.dart` / `plan_card.dart` / `shell/composer.dart` / `turn_state.dart` 的 `Chevron`、`lib/ui/files/files_panel.dart` 的 `FileViewerEmpty`（弹层里的 `MenuDivider` / `MenuGroupLabel` / `_TimelineEmpty` 每次打开都新建，看不出来）。修法待裁定：逐处去 const（与 `AppLogo` 同一做法；`dart fix` 会把它们收回去，要加 ignore），或换主题时给 `home` 换 `ValueKey(theme)` 整树重建（丢滚动位置 / 焦点等瞬时态）。P3，视觉，不丢数据；R7.5 不动 `lib/ui`（验收 1），留给 main 直改 (2026-09-20)
-
-- [ ] **转录正文换主题 / 换字体后不跟着变**
-  - **产品**：浅色切深色再切回来，整段对话正文（表格、行内代码的深色底、正文字色）还留在深色，reload 会话才好。所有者手测 2026-09-20 报障，当场裁定先不修。
-  - **技术**：main 直改 转录正文换主题 / 换字体后不重建：`lib/ui/transcript/markdown_body.dart` 的 `_MarkdownBodyState` 把解析出的块 widget 实例缓存在 `_blocks`（注释写明是有意的：父级重建时子树不重建，recognizer 才不会随父级 build 反复登记），`build()` 每次返回同一批实例，而 `didUpdateWidget` 只比 `data` / `onLink` / `mermaidFontFamily` / `baseStyle`——换主题这四个都没变，于是 `Element.updateChild` 见 `child.widget == newWidget` 直接复用旧 element、不再 build，里面读 `Theming.colors` 的那些 getter 根本没被重新执行；`_rebuild()` 里 `final base = widget.baseStyle ?? t.TextStyles.body` 还把字阶颜色一起烘了进去。影响 7 个调用点（`assistant_text` / `content_blocks` / `plan_card` / `subagent_card` / `thinking_block` / 文件面板的 md 预览），reload 会话就好是因为转录整棵重建、element 是新的。**换字体大概率同样表现**（`Fonts.apply` 与 `Theming.apply` 走同一个 `rebuildStyles()`），未实测。修法仓库里现成有一份同形的：`lib/ui/files/files_panel.dart` 的 `SourceView` 在 `build()` 开头比 `t.Fonts.generation` 代数、过期就重算，`MarkdownBody` 照抄一句即可，不是机制类改动；要验的一点是 `_rebuild()` 会 `disposeAll()` recognizer，在 build 里调需确认不会 dispose 掉正在被指针跟踪的那个。与上面「`const` 构造的自写 widget 换主题后不重建」同一根因（同一 widget 实例 → element 不重建），但不是 const 引起的，两处各修各的。所有者手测报障、当场裁定先不修 (2026-09-20)
+### 主题与渲染（1）
 
 - [ ] **行内 HTML 只认 `<br>`**
   - **产品**：消息里的 `<sub>` / `<sup>` / `<kbd>` / `<span>` / HTML 注释会原样一个字一个字显示在正文里。

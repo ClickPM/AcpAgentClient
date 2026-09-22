@@ -257,7 +257,7 @@ class TranscriptList extends StatelessWidget {
           onOpenPath: onLink,
         );
         if (p.status != PendingStatus.pending) return card;
-        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: <Widget>[card, const AwaitingRow()]);
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: <Widget>[card, AwaitingRow()]);
       case final ElicitationEntry el:
         if (el.isUrl) {
           // 画板 28：Open = 打开浏览器 + 本地记已打开 + 首次回 accept（elicitation/create 是 JSON-RPC 请求，必须回应；

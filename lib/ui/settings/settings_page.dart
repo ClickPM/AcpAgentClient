@@ -227,8 +227,8 @@ class SettingsPage extends StatelessWidget {
       ToneChip(a.isCustom ? 'custom' : 'registry', tone: ChipTone.neutral),
       if (!a.isCustom && (a.installedVersion ?? a.version).isNotEmpty)
         Text('v${a.installedVersion ?? a.version}', style: t.TextStyles.monoMeta.copyWith(color: t.Neutral.muted)),
-      if (a.loggedIn) const ToneChip('已登录', tone: ChipTone.success),
-      if (a.needsAuth) const ToneChip('需要认证', tone: ChipTone.warning),
+      if (a.loggedIn) ToneChip('已登录', tone: ChipTone.success),
+      if (a.needsAuth) ToneChip('需要认证', tone: ChipTone.warning),
     ];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12, vertical: t.Spacing.s8),
@@ -307,7 +307,7 @@ class SettingsPage extends StatelessWidget {
             muted: managed == null,
             trailing: <Widget>[
               if (downloading)
-                const Spinner()
+                Spinner()
               else if (managed == null)
                 AcpButton(label: p != null && p.isFailed ? '重试' : '下载受管 Node', icon: AcpIcons.download, onTap: onDownloadNode),
             ],

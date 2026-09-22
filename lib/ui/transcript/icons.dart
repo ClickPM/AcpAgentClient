@@ -215,8 +215,10 @@ class AcpIcon extends StatelessWidget {
 }
 
 /// spinner：accent · 1.5px 弧，持续旋转（tokens Spinner）。
+/// 构造函数不带 `const`：build 里现取颜色 token，换主题要重建（理由见 card_chrome.dart 的 Chevron）。
 class Spinner extends StatefulWidget {
-  const Spinner({super.key, this.size = t.IconSizes.toolbar, this.color});
+  // ignore: prefer_const_constructors_in_immutables
+  Spinner({super.key, this.size = t.IconSizes.toolbar, this.color});
 
   final double size;
 

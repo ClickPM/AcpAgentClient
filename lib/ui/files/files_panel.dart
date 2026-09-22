@@ -283,7 +283,7 @@ class FilesPanel extends StatelessWidget {
         leading: leading,
       );
     }
-    if (leading == null) return const FileViewerEmpty();
+    if (leading == null) return FileViewerEmpty();
     return Container(
       color: t.Surface.canvas,
       child: Column(
@@ -296,7 +296,7 @@ class FilesPanel extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: leading,
           ),
-          const Expanded(child: FileViewerEmpty()),
+          Expanded(child: FileViewerEmpty()),
         ],
       ),
     );
@@ -390,7 +390,7 @@ class _FileTreeColumn extends StatelessWidget {
 
   Widget _list() {
     if (searchMode && filterController.text.trim().isNotEmpty) {
-      if (searchResults.isEmpty) return const _TreeNote('没有匹配的文件');
+      if (searchResults.isEmpty) return _TreeNote('没有匹配的文件');
       return ListView.builder(
         padding: const EdgeInsets.all(t.Spacing.s4),
         itemExtent: t.Geometry.treeRowHeight,
@@ -436,8 +436,10 @@ class _FileTreeColumn extends StatelessWidget {
 }
 
 /// 树列里的一行提示（空目录 / 无匹配 / 读不到）。
+/// 构造函数不带 `const`：build 里现取颜色 token，换主题要重建（理由见 card_chrome.dart 的 Chevron）。
 class _TreeNote extends StatelessWidget {
-  const _TreeNote(this.text);
+  // ignore: prefer_const_constructors_in_immutables
+  _TreeNote(this.text);
 
   final String text;
 
@@ -521,8 +523,10 @@ class _FileTreeRow extends StatelessWidget {
 }
 
 /// 查看器空态（画板 60「查看器空态」）。
+/// 构造函数不带 `const`：build 里现取颜色 token，换主题要重建（理由见 card_chrome.dart 的 Chevron）。
 class FileViewerEmpty extends StatelessWidget {
-  const FileViewerEmpty({super.key});
+  // ignore: prefer_const_constructors_in_immutables
+  FileViewerEmpty({super.key});
 
   @override
   Widget build(BuildContext context) {
