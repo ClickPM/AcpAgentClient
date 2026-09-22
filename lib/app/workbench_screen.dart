@@ -45,6 +45,7 @@ import '../ui/transcript/transcript_list.dart';
 import 'clipboard_image.dart';
 import 'appearance_prefs.dart';
 import 'shell_state.dart';
+import 'transcript_fold_anchor.dart';
 import 'transcript_jump.dart';
 import 'workspace_state.dart';
 import 'window_controls.dart';
@@ -86,6 +87,14 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   /// 画板 43 的时间线跳转（惰性列表里的单向步进，见 [TranscriptJump]）。
   late final TranscriptJump _jump = TranscriptJump(controller: _transcript, rows: _rows);
 
+  /// 画板 08 B 的滚动锚点：折 / 展（手动点摘要行，或 stop_reason 到达时自动折叠）前后，
+  /// 让这一轮的结论停在原地。见 [TranscriptFoldAnchor]。
+  late final TranscriptFoldAnchor _foldAnchor = TranscriptFoldAnchor(
+    controller: _transcript,
+    entries: () => c.session.store?.entries ?? const <TranscriptEntry>[],
+    folds: c.folds,
+  );
+
   /// 转录的行列表。**必须与 `TranscriptList` 算出来的那一份一致**——跳转是按行定位的，
   /// 折叠态（画板 08 B）把折叠块里的条目整批拿掉，两边口径不同就会跳错位。
   List<TranscriptRow> _rows() {
@@ -121,6 +130,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     c.removeListener(_onControllerChanged);
     _followed?.removeListener(_onTranscriptGrew);
     _jump.cancel();
+    _foldAnchor.cancel();
     _transcript.removeListener(_onTranscriptScrolled);
     _transcript.dispose();
     super.dispose();
@@ -138,14 +148,18 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     _followed?.removeListener(_onTranscriptGrew);
     _followed = store;
     store?.addListener(_onTranscriptGrew);
-    // 转录换了一份内容，上一条会话没跳完的那次跳转不再算数。
+    // 转录换了一份内容，上一条会话没跳完的那次跳转、没做完的折叠校正都不再算数。
     _jump.cancel();
+    _foldAnchor.cancel();
     _stick = true;
     _scheduleFollow();
   }
 
   /// 转录长出新内容：流式分块、工具卡、终端输出都会通知这个 store。
+  /// **这一刻屏幕上还是旧布局**（重建在本帧稍后），所以 `stop_reason` 那一下的自动折叠要在这里
+  /// 先把锚点量下来（复审 high，2026-09-22：自动折叠不经过任何点击回调，第 1 轮实现整条没校正）。
   void _onTranscriptGrew() {
+    _foldAnchor.beforeRebuild();
     if (_stick) _scheduleFollow();
   }
 
@@ -453,8 +467,9 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
               onAnswerElicitation: c.turn.answerElicitation,
               // 画板 23 的停止方块：terminal_kill。
               onKillTerminal: c.turn.killTerminal,
-              // 画板 08 B：回合结束后过程折叠为一行摘要。
+              // 画板 08 B：回合结束后过程折叠为一行摘要；折 / 展经锚点走，结论停在原地。
               folds: c.folds,
+              onToggleFold: _foldAnchor.toggle,
             ),
           ),
         ],

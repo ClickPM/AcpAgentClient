@@ -2,11 +2,13 @@
 // 折叠态把折叠块整批拿掉、`stop_reason` 到达才出摘要行、展开态在会话生命周期内记住、
 // 以及折叠 / 展开后回合页脚在视口里的位置不变（画板「滚动锚点」）。
 
+import 'package:acp_agent_client/app/transcript_fold_anchor.dart';
 import 'package:acp_agent_client/app/transcript_folds.dart';
 import 'package:acp_agent_client/projection/entries.dart';
 import 'package:acp_agent_client/projection/session_store.dart';
 import 'package:acp_agent_client/projection/turn_fold.dart';
 import 'package:acp_agent_client/projection/wire.dart';
+import 'package:acp_agent_client/ui/transcript/assistant_text.dart';
 import 'package:acp_agent_client/ui/transcript/thinking_block.dart';
 import 'package:acp_agent_client/ui/transcript/tool_call_card.dart';
 import 'package:acp_agent_client/ui/transcript/transcript_list.dart';
@@ -75,6 +77,12 @@ SessionStore sample({String? model, String stop = 'end_turn', bool end = true}) 
   return s;
 }
 
+/// 只看渲染、不点的那几张：给一个一次性的折叠态控制器，点击回调照常接上。
+Widget _list(SessionStore store) {
+  final folds = TranscriptFolds();
+  return TranscriptList(store, folds: folds, onToggleFold: folds.toggle);
+}
+
 void main() {
   Future<void> pump(WidgetTester tester, Widget child, {Size size = const Size(900, 1400)}) async {
     await tester.runAsync(() async {
@@ -106,14 +114,14 @@ void main() {
   group('摘要行', () {
     testWidgets('两行态：第二行是回合开始时的模型名', (tester) async {
       final s = sample(model: 'Gemini 3.8 Flash High (CLIProxy)');
-      await pump(tester, TranscriptList(s, folds: TranscriptFolds()));
+      await pump(tester, _list(s));
       expect(find.text('处理详情'), findsOneWidget);
       expect(find.text('3 条消息 · 2 次工具调用'), findsOneWidget);
       expect(find.text('Gemini 3.8 Flash High (CLIProxy)'), findsOneWidget);
     });
 
     testWidgets('没有模型信息就退化成单行，不留空的第二行', (tester) async {
-      await pump(tester, TranscriptList(sample(), folds: TranscriptFolds()));
+      await pump(tester, _list(sample()));
       expect(find.text('处理详情'), findsOneWidget);
       expect(find.text('3 条消息 · 2 次工具调用'), findsOneWidget);
       // 单行态里除了首行没有别的文本节点挂在摘要行下。
@@ -129,14 +137,14 @@ void main() {
       agent(s, '出错了。');
       s.endTurn(stopReason: 'end_turn');
 
-      await pump(tester, TranscriptList(s, folds: TranscriptFolds()));
+      await pump(tester, _list(s));
       expect(find.text('1 项失败'), findsOneWidget);
       expect(find.byType(ToolCallCard), findsNWidgets(2), reason: '含失败的回合保持展开');
     });
 
     testWidgets('可及性：button + expanded，整行可点', (tester) async {
       final folds = TranscriptFolds();
-      await pump(tester, TranscriptList(sample(), folds: folds));
+      await pump(tester, TranscriptList(sample(), folds: folds, onToggleFold: folds.toggle));
       final handle = tester.ensureSemantics();
 
       expect(
@@ -156,7 +164,7 @@ void main() {
     testWidgets('运行中不出摘要行、过程全可见；stop_reason 到达后收起', (tester) async {
       final s = sample(end: false);
       final folds = TranscriptFolds();
-      await pump(tester, TranscriptList(s, folds: folds));
+      await pump(tester, TranscriptList(s, folds: folds, onToggleFold: folds.toggle));
       expect(find.byType(TurnFoldRow), findsNothing);
       expect(find.byType(ToolCallCard), findsNWidgets(2));
 
@@ -171,7 +179,7 @@ void main() {
     testWidgets('全局开关关掉后回合结束不自动折叠，摘要行仍在（可手动折）', (tester) async {
       final folds = TranscriptFolds();
       await folds.setAutoCollapse(false);
-      await pump(tester, TranscriptList(sample(), folds: folds));
+      await pump(tester, TranscriptList(sample(), folds: folds, onToggleFold: folds.toggle));
       expect(find.byType(TurnFoldRow), findsOneWidget);
       expect(find.byType(ToolCallCard), findsNWidgets(2));
 
@@ -183,7 +191,7 @@ void main() {
     testWidgets('手动展开之后，后续通知不会把它重新折回去', (tester) async {
       final s = sample();
       final folds = TranscriptFolds();
-      await pump(tester, TranscriptList(s, folds: folds));
+      await pump(tester, TranscriptList(s, folds: folds, onToggleFold: folds.toggle));
       await tester.tap(find.byType(TurnFoldRow));
       await tester.pumpAndSettle();
       expect(find.byType(ToolCallCard), findsNWidgets(2));
@@ -220,16 +228,20 @@ void main() {
       final folds = TranscriptFolds();
       await folds.setAutoCollapse(false); // 先全展开，再手动折，能量到「折叠那一下」
       final ScrollController controller = ScrollController();
+      final anchor = TranscriptFoldAnchor(controller: controller, entries: () => s.entries, folds: folds);
       await pump(
         tester,
-        TranscriptList(s, folds: folds, controller: controller, trackRows: true),
+        TranscriptList(s, folds: folds, controller: controller, trackRows: true, onToggleFold: anchor.toggle),
         size: const Size(800, 400),
       );
-      // 滚到结论文本正好在视口中间附近。
-      controller.jumpTo(controller.position.maxScrollExtent);
-      await tester.pumpAndSettle();
+      // 滚到底（惰性列表的 maxScrollExtent 是估的，推一次可能还差一截，连推几次到真正的底）。
+      for (var i = 0; i < 5; i++) {
+        controller.jumpTo(controller.position.maxScrollExtent);
+        await tester.pumpAndSettle();
+      }
 
-      final Finder conclusion = find.text('这就是结论。');
+      // 按 widget 找而不是 find.text：助手正文走 Markdown 渲染，落地是 RichText，`find.text` 默认不认它。
+      final Finder conclusion = find.byWidgetPredicate((w) => w is AssistantText && w.entry.text == '这就是结论。');
       final double before = tester.getTopLeft(conclusion).dy;
       expect(controller.position.maxScrollExtent, greaterThan(0), reason: '这个用例必须真的能滚');
 
@@ -241,7 +253,51 @@ void main() {
       // 再展开回去，同样不动。
       await tester.tap(find.byType(TurnFoldRow));
       await tester.pumpAndSettle();
+      expect(find.byType(ToolCallCard), findsNWidgets(6), reason: '又展开了');
       expect(tester.getTopLeft(conclusion).dy, closeTo(before, 0.5));
+    });
+
+    testWidgets('自动折叠（stop_reason 到达）同样校正：人翻在结论上，视口不跳', (tester) async {
+      // 复审 high（2026-09-22）：自动折叠不经过任何点击回调，第 1 轮实现整条没校正。
+      // 人没贴在列表底部（翻上去重读刚流出来的结论）时，折叠块整段消失，视口当场往前跳一整段折叠高度。
+      final s = newStore();
+      startTurn(s, '第一轮：占位');
+      agent(s, List<String>.filled(40, '很长的一段结论文本。').join());
+      s.endTurn(stopReason: 'end_turn');
+      startTurn(s, '第二轮');
+      thought(s, '先复核最新提交');
+      for (var i = 0; i < 6; i++) {
+        toolCall(s, 'tc-$i');
+      }
+      // 结论要够长，人才能停在它中间（不贴底，否则被 maxScrollExtent 夹住就看不出跳没跳）。
+      agent(s, '这就是结论。${List<String>.filled(200, '后面还有很长一段。').join()}');
+
+      final folds = TranscriptFolds();
+      final ScrollController controller = ScrollController();
+      final anchor = TranscriptFoldAnchor(controller: controller, entries: () => s.entries, folds: folds);
+      await pump(
+        tester,
+        TranscriptList(s, folds: folds, controller: controller, trackRows: true, onToggleFold: anchor.toggle),
+        size: const Size(800, 400),
+      );
+      for (var i = 0; i < 5; i++) {
+        controller.jumpTo(controller.position.maxScrollExtent);
+        await tester.pumpAndSettle();
+      }
+      // 往回翻半屏：人正看着结论中间，不在底部。
+      controller.jumpTo(controller.position.pixels - 200);
+      await tester.pumpAndSettle();
+      final Finder conclusion = find.byWidgetPredicate((w) => w is AssistantText && w.entry.text.startsWith('这就是结论。'));
+      final double before = tester.getTopLeft(conclusion).dy;
+      expect(controller.position.pixels, lessThan(controller.position.maxScrollExtent - 100), reason: '人不在底部，否则夹一下就看不出跳没跳');
+
+      // 组合根的接线：store 通知里先量旧布局（`workbench_screen._onTranscriptGrew`）。
+      s.addListener(anchor.beforeRebuild);
+      s.endTurn(stopReason: 'end_turn');
+      await tester.pumpAndSettle();
+
+      expect(folds.isCollapsed(foldsOf(s.entries).values.last), isTrue, reason: 'stop_reason 到达即自动折叠');
+      expect(tester.getTopLeft(conclusion).dy, closeTo(before, 0.5), reason: '结论停在原地，不跳');
     });
   });
 

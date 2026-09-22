@@ -5,7 +5,7 @@
 
 import 'dart:math' as math;
 
-import 'package:flutter/rendering.dart' show RenderBox, SelectedContent;
+import 'package:flutter/rendering.dart' show SelectedContent;
 import 'package:flutter/widgets.dart';
 
 import '../../app/transcript_folds.dart';
@@ -35,6 +35,11 @@ import 'user_message.dart';
 /// `workbench_screen.dart` 的 `_jumpToEntry`）。键按 `TranscriptEntry` 实例取，不按 `entry.id` ——
 /// 两个 store 里都有 `msg-1`，按 id 取会在同屏渲染两份转录时撞成重复 GlobalKey。
 GlobalObjectKey<State<StatefulWidget>> transcriptRowKey(TranscriptEntry entry) => GlobalObjectKey<State<StatefulWidget>>(entry);
+
+/// 画板 08 B 的滚动锚点要量某一轮的**页脚**位置（折叠块之后、结论之下的那一行），所以结束行也挂一枚
+/// 按 [TurnEntry] 实例取的 GlobalKey。与 [transcriptRowKey] 同一条理由：按实例取不按 id，同屏两份转录才不撞。
+/// `TurnEntry` 从不出 `EntryRow`（[buildRows] 把它跳过），所以两个键不会取到同一个对象。
+GlobalObjectKey<State<StatefulWidget>> turnFooterKey(TurnEntry turn) => GlobalObjectKey<State<StatefulWidget>>(turn);
 
 /// 列表行：一个条目，或某轮的结束行。
 sealed class TranscriptRow {
@@ -113,12 +118,18 @@ class TranscriptList extends StatelessWidget {
     this.focusedEntryId,
     this.trackRows = false,
     this.folds,
+    this.onToggleFold,
   });
 
   final SessionStore store;
 
   /// 画板 08 B 的回合折叠。null = 不折叠（gallery 的其它画板、单测里不关心折叠的那些）。
   final TranscriptFolds? folds;
+
+  /// 点摘要行。**不直接调 [TranscriptFolds.toggle]**：折 / 展前后要把视口挪回去，让这一轮的结论
+  /// 停在原地（画板 08 B「滚动锚点」），而那件事要连自动折叠一起管，收在 `lib/app/transcript_fold_anchor.dart`。
+  /// 不给就只翻面、不校正（gallery 与单测里够用）。
+  final void Function(TurnFold fold)? onToggleFold;
 
   /// 画板 43：时间线刚跳过来的那条用户气泡进入画板 11 的「点击聚焦」态；null = 没有。
   final String? focusedEntryId;
@@ -180,7 +191,10 @@ class TranscriptList extends StatelessWidget {
   }
 
   Widget buildRow(TranscriptRow row) => switch (row) {
-        TurnEndRow(:final turn) => KeyedSubtree(key: ValueKey<String>('${turn.id}-end'), child: TurnEndLine(turn, usage: store.usage)),
+        TurnEndRow(:final turn) => KeyedSubtree(
+            key: trackRows ? turnFooterKey(turn) : ValueKey<String>('${turn.id}-end'),
+            child: TurnEndLine(turn, usage: store.usage),
+          ),
         // 摘要行淡入：只淡入这一块本身，不动周围内容，也不做高度过渡（画板 08 B「动效与滚动」）。
         TurnFoldSummaryRow(:final fold, :final collapsed) => KeyedSubtree(
             key: ValueKey<String>('${fold.turn.id}-fold'),
@@ -188,7 +202,7 @@ class TranscriptList extends StatelessWidget {
               epoch: fold.turn.id,
               distance: 0,
               duration: t.Motion.fast,
-              child: TurnFoldRow(fold: fold, collapsed: collapsed, onToggle: folds == null ? null : () => _toggleFold(fold)),
+              child: TurnFoldRow(fold: fold, collapsed: collapsed, onToggle: onToggleFold == null ? null : () => onToggleFold!(fold)),
             ),
           ),
         EntryRow(:final entry) =>
@@ -256,48 +270,6 @@ class TranscriptList extends StatelessWidget {
       default:
         return const SizedBox.shrink();
     }
-  }
-
-  /// 点摘要行：折 / 展之后**把视口挪回去，让这一轮的结论文本停在原地**（画板 08 B「滚动锚点」：
-  /// 不跳顶也不跳底）。折叠块在结论之前，收起来会让结论整块上移，不补这一下眼睛就得重新找。
-  ///
-  /// 锚点取折叠块之后的第一条（多数情况就是最终助手文本）。它没建出来（在视口之外）时不补——
-  /// 那时用户本来也看不见它，摘要行自己的位置不受影响。行的位置按 [transcriptRowKey] 的 GlobalKey 量，
-  /// 所以只有 [trackRows] 开着（工作台里那一份）才补。
-  void _toggleFold(TurnFold fold) {
-    final TranscriptFolds? folds = this.folds;
-    if (folds == null) return;
-    final ScrollController? controller = this.controller;
-    final TranscriptEntry? anchor = trackRows ? _anchorAfter(fold) : null;
-    final double? before = anchor == null ? null : _rowTop(anchor);
-    folds.toggle(fold);
-    if (anchor == null || before == null || controller == null) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final double? after = _rowTop(anchor);
-      if (after == null || !controller.hasClients) return;
-      final ScrollPosition p = controller.position;
-      final double next = (p.pixels + (after - before)).clamp(p.minScrollExtent, p.maxScrollExtent);
-      if ((next - p.pixels).abs() > _anchorEpsilon) controller.jumpTo(next);
-    });
-  }
-
-  /// 小于这个位移就不动（浮点噪声，跳一下反而多一帧）。
-  static const double _anchorEpsilon = 0.5;
-
-  /// 折叠块之后的第一条（同一轮里）。后面什么都没有、或下一条已经是别的轮时回 null
-  /// （整轮只有过程、没有结论文本的那种，锚不到东西就不补位）。
-  TranscriptEntry? _anchorAfter(TurnFold fold) {
-    final List<TranscriptEntry> all = store.entries;
-    final int next = all.indexOf(fold.folded.last) + 1;
-    if (next <= 0 || next >= all.length) return null;
-    final TranscriptEntry e = all[next];
-    return e is TurnEntry ? null : e;
-  }
-
-  /// 这一行此刻在屏幕坐标系里的顶边；没建出来回 null。
-  static double? _rowTop(TranscriptEntry entry) {
-    final RenderObject? box = transcriptRowKey(entry).currentContext?.findRenderObject();
-    return box is RenderBox && box.hasSize ? box.localToGlobal(Offset.zero).dy : null;
   }
 
   Widget buildToolCall(ToolCallEntry tc, String? cwd) {
