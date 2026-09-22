@@ -36,13 +36,20 @@ class SessionIndex {
   /// 每次 `session/new` 都回 `sess_fake_1`，侧栏里那条新会话根本不出现、重启后彻底没有）。
   final Map<(String, String), Set<Future<void>>> _inFlight = <(String, String), Set<Future<void>>>{};
 
-  /// 发一条 upsert 并登记在途；落地（成功或失败）即注销。
-  Future<JsonMap> _upsertTracked(CoreCommands b, JsonMap entry) {
+  /// 正在删除中的 (agentId, sessionId)：删除命令从发出到 [apply] 落地之间，同一条会话新来的 upsert **不发**
+  /// （典型是收轮那次 `saveIndex` 撞上正在删的会话）——发了就与删除在核心里并行，删除先落、它后落，
+  /// 又是幽灵行（cursor 复审 P2，2026-09-22：[remove] 的等待只覆盖发删除之前就在途的写）。
+  /// 删除返回之后的写（删掉再新建的同 id 会话）照常。
+  final Set<(String, String)> _removing = <(String, String)>{};
+
+  /// 发一条 upsert 并登记在途；落地（成功或失败）即注销。这条会话正在删除中时不发，回 null。
+  Future<JsonMap?> _upsertTracked(CoreCommands b, JsonMap entry) {
     final agentId = entry['agentId'];
     final sessionId = entry['sessionId'];
-    final call = b.sessionIndexUpsert(entry);
-    if (agentId is! String || sessionId is! String) return call;
+    if (agentId is! String || sessionId is! String) return b.sessionIndexUpsert(entry);
     final key = (agentId, sessionId);
+    if (_removing.contains(key)) return Future<JsonMap?>.value(null);
+    final call = b.sessionIndexUpsert(entry);
     final pending = _inFlight.putIfAbsent(key, () => <Future<void>>{});
     late final Future<void> done;
     done = call.then<void>((_) {}, onError: (Object _) {}).whenComplete(() {
@@ -93,6 +100,7 @@ class SessionIndex {
       'messageCount': s.entries.whereType<MessageEntry>().length,
       'updatedAt': ?updatedAt,
     });
+    if (result == null) return; // 正在删这条会话：这笔写不发
     apply(result['sessions']);
   }
 
@@ -101,11 +109,13 @@ class SessionIndex {
     final b = bridge;
     if (b == null) return;
     final result = await _upsertTracked(b, entry);
+    if (result == null) return; // 正在删这条会话：这笔写不发
     apply(result['sessions']);
   }
 
-  /// 按 (agentId, sessionId) 精确匹配删除一条。先等这条会话在途的 upsert 落地（见 [_inFlight]），再发删除：
-  /// 删除总排在它们之后到核心，被删的行不会再被写回来；之后再来的 upsert（删掉再新建的同 id 会话）照常写入。
+  /// 按 (agentId, sessionId) 精确匹配删除一条。先等这条会话在途的 upsert 落地（见 [_inFlight]），再发删除，
+  /// 删除在途期间同一条会话新来的写一律不发（见 [_removing]）：删除总排在所有写之后到核心，被删的行不会再被
+  /// 写回来；删除返回之后再来的 upsert（删掉再新建的同 id 会话）照常写入。
   Future<void> remove(String agentId, String sessionId) async {
     final b = bridge;
     if (b == null) return;
@@ -114,8 +124,14 @@ class SessionIndex {
     for (var pending = _inFlight[key]; pending != null && pending.isNotEmpty; pending = _inFlight[key]) {
       await Future.wait<void>(pending.toList(growable: false));
     }
-    final result = await b.sessionIndexRemove(agentId, sessionId);
-    apply(result['sessions']);
+    // 循环退出到这里没有 await，中间起不了新的写；从这里起到 apply 落地，新的写由 [_removing] 挡住。
+    _removing.add(key);
+    try {
+      final result = await b.sessionIndexRemove(agentId, sessionId);
+      apply(result['sessions']);
+    } finally {
+      _removing.remove(key);
+    }
   }
 
   /// 本地索引（`sessions.json`）里这条会话的原始条目；没有为 null。

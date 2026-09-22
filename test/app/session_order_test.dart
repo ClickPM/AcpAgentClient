@@ -63,6 +63,29 @@ class _SlowUpsertCore extends FakeCore {
   }
 }
 
+/// 删除命令**已经发出、还没落地**：核心里它与随后再发的 upsert 并行，删除先落、upsert 后落就是幽灵行。
+/// 这里把 remove 按住，验「删除在途时同一条会话的写不发」。
+class _SlowRemoveCore extends FakeCore {
+  Completer<void>? delayNextRemove;
+  int upserts = 0;
+
+  @override
+  Future<JsonMap> sessionIndexUpsert(JsonMap entry) {
+    upserts++;
+    return super.sessionIndexUpsert(entry);
+  }
+
+  @override
+  Future<JsonMap> sessionIndexRemove(String agentId, String sessionId) async {
+    final delay = delayNextRemove;
+    if (delay != null) {
+      delayNextRemove = null;
+      await delay.future;
+    }
+    return super.sessionIndexRemove(agentId, sessionId);
+  }
+}
+
 int _updatedAtOf(FakeCore core, String sessionId) {
   final entry = core.sessionIndex.singleWhere((e) => e['sessionId'] == sessionId);
   return (entry['updatedAt'] as num).toInt();
@@ -154,6 +177,34 @@ void main() {
     expect(core.sessionIndex.map((e) => e['sessionId']), <String>['sess_fake_1'], reason: '删掉再新建的同 id 会话不能被静默删掉');
     expect(core.sessionIndex.single['title'], '第二条');
     expect(index.entries.map((e) => e['sessionId']), <String>['sess_fake_1']);
+  });
+
+  test('删除命令在途时这条会话再来的写不发；删除返回之后的写照常（cursor 复审 P2 2026-09-22）', () async {
+    // `remove` 只等发删除之前就在途的 upsert；删除发出去之后收轮的 saveIndex 再写这条会话，与删除在核心里并行，
+    // 删除先落、它后落又是幽灵行。所以删除在途期间同一条会话的写一律不发。
+    final core = _SlowRemoveCore();
+    final index = SessionIndex(bridge: core, onChanged: () {});
+    final store = SessionStore(sessionId: 'sess_1', agentId: 'a')..cwd = 'D:/repo';
+    await index.upsert(store, agentFallback: 'a', titleFallback: '会话');
+    expect(core.upserts, 1);
+
+    final hold = core.delayNextRemove = Completer<void>();
+    final removing = index.remove('a', 'sess_1');
+    await pumpEventQueue();
+    final late = index.upsert(store, agentFallback: 'a', titleFallback: '会话', promptSent: true);
+    await pumpEventQueue();
+    expect(core.upserts, 1, reason: '删除在途，这笔写不能发出去');
+
+    hold.complete();
+    await removing;
+    await late;
+    expect(core.sessionIndex, isEmpty, reason: '删掉的行没有被写回来');
+    expect(index.entries, isEmpty);
+
+    // 删除返回之后的写（删掉再新建的同 id 会话）照常。
+    await index.upsert(SessionStore(sessionId: 'sess_1', agentId: 'a')..cwd = 'D:/repo', agentFallback: 'a', titleFallback: '新的');
+    expect(core.upserts, 2);
+    expect(core.sessionIndex.map((e) => e['sessionId']), <String>['sess_1']);
   });
 
   test('删之前落地的 upsert 照常生效（删除只等同一条会话的在途写，不影响别的会话）', () async {

@@ -84,9 +84,16 @@
 
 - 审查方式：`powershell -File .claude\cursor-review.ps1`（默认档，后台）
 - 审查器与模型：cursor CLI + `grok-4.7-high-fast`
-- 审查范围与基准提交：<待回填：前两轮全量 `main...HEAD`，第 3 轮起 `since`>
-- findings 处理：<待回填>
-- 结论：<待回填>
+- 审查范围与基准提交：
+  - 第 1 轮 全量 `v1.4.0..HEAD`（HEAD = `c29fd8a`，即六批合并 + 第 1 遍整改 = v1.4.1 的全部内容），产物 `.claude/reviews/20260922-143942-review.out.md`（18 分钟）
+- findings 处理：
+
+| 轮 | 级别 | finding | 处理 |
+|---|---|---|---|
+| 1 | P2 | `SessionIndex.remove` 的等待只覆盖发删除之前就在途的 upsert；删除命令发出去之后、落地之前，收轮的 `saveIndex` 再写这条会话（当前会话的 `sessionId` 要等 `remove` 返回才清空，`store` 仍非空），与删除在核心里并行，删除先落、它后落就把刚删的行写回来 | **采纳整改**：加 `_removing`——删除从发出到 `apply` 落地之间，同一条会话新来的 upsert 不发（`_upsertTracked` 回 null，调用方直接返回）；删除返回之后的写照常。循环退出到登记 `_removing` 之间没有 await，起不了新写。回归用例 `session_order_test`「删除命令在途时这条会话再来的写不发」（`_SlowRemoveCore` 按住 remove，断言 upsert 计数不增），**已验证去掉整改会红** |
+| 1 | P3 | `_jumpToEntry` 只在 `expand` 真翻面时才 `_foldAnchor.cancel()`；目标本就不在折叠块里、或那一轮已经展开时，上一次折 / 展量不到锚点起的找回跳转（最多 300 帧）不会停，与时间线跳转每帧各 jumpTo 一次、点击落点被盖掉 | **采纳整改**：`cancel()` 改为无条件调用（它同时停掉锚点的 `TranscriptJump`）。没有单独用例：要同时造出「上一次找回还在跑」与「时间线点击」两个多帧过程，现有跳转与锚点用例已各自覆盖两条路 |
+
+- 结论：<待回填：第 2 轮起>
 
 ## 失败处理
 
