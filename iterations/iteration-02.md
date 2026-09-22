@@ -38,4 +38,5 @@
 - 执行器 cursor CLI（`grok-4.7-high-fast`），无回落。
 - 第 1 轮 `-Scope branch`（`main...HEAD`，提交 `dc2c588`）：**high 0 / P2 1 / P3 0**，产物 `.claude/reviews/20260922-181159-review.out.md`。
   - P2「正文没改时 Esc / 点外部之后 `@` 菜单仍会自己打开」——**采纳**。它指的不是判据本身错，而是代码注释与 BACKLOG 关闭行按整条症状写、名实不符，且用例没锁住那条路径。按它给的最小修复办：不加「已撤掉」状态，只改注释与登记口径，残余条目回 `BACKLOG.md`（见上一段）。
-- 第 2 轮 `-Scope since -Base dc2c588`（只审整改 diff）：见下方结论行。
+- 第 2 轮 `-Scope since -Base dc2c588`（只审整改 diff，提交 `843c0d2`）：**findings 0**，产物 `.claude/reviews/20260922-182152-review.out.md`。核到「过期判据仍只比较正文 token，没有加『已撤掉』状态，BACKLOG 的三个计数与条目数一致」。
+- 收口：**0 条 high**，符合合并标准；合并 `main` 的时机由所有者定。
