@@ -31,7 +31,7 @@
 | 05 | 转场规格 | 全局 | round-design | `design/round-design/05-motion.dc.html` | `design/round-design/05-motion.png` | — | 已实现（2026-09-17，main 直改） | —（规格值全部登记在画板 00） |
 | 06 | 侧栏会话活动指示 | 会话工作台（侧栏） | round-design | `design/round-design/06-session-activity.dc.html` | `design/round-design/06-session-activity.png` | — | 已实现（2026-09-18，main 直改） | 新增 `Sweep`（track / focus / focusGradient / cycle / band / inset / bottom）与 `UnreadDot`（size / color / gap）两组；`Geometry` 补 `sidebarRowRunning` 58 与 `sidebarRowRunningContent` 50 |
 | 07 | 深色 Token 对位表 | 全局 | round-design | `design/round-design/07-dark-tokens.dc.html` | `design/round-design/07-dark-tokens.png` | — | 已实现（2026-09-20，`dark-mode-toggle-implementation` 分支） | 颜色层拆成 `Theming.lightColors` / `Theming.darkColors` 两套（`ThemeColors` 29 项）；`Neutral` / `Accent` / `Semantic` / `Surface` / `Borders` / `Shadows` / `Overlays` 等全部改成 getter；新增 `AppTheme` 与 `Theming`，`Shadows` 补 `topHighlight`（深色弹层顶边 1px 提亮），`Sweep.focusGradient` 改为由 `focus` 现算 |
-| 08 | 交互增强（回合折叠 / 跨工作区在跑数） | 会话工作台（转录 + 顶栏项目切换器） | round-design | `design/round-design/08-interaction-upgrades.dc.html` | `design/round-design/08-interaction-upgrades.png` | — | 待实现 | 新增 `Badge`（在跑数徽标）与 `Fold`（回合折叠摘要行）两组；画板 00 不改 |
+| 08 | 交互增强（回合折叠 / 跨工作区在跑数） | 会话工作台（转录 + 顶栏项目切换器） | round-design | `design/round-design/08-interaction-upgrades.dc.html` | `design/round-design/08-interaction-upgrades.png` | — | 已实现（2026-09-22，`claude/new-session-c0ff9d` 分支）·**A 段设计阶段已删除，不实现** | 新增 `Fold`（rowPadding / radius / bg / hover / secondLineIndent / lineGap / headerPadding / itemGap）与 `Badge`（accentBg / height / radius / padding / gap / iconSize / iconStroke / overflowAt）两组；`badge.accent.bg` 由 `Accent.base` 现算（照画板 07 对 `Sweep.focusGradient` 的做法），画板 00 不改 |
 | 10 | Restore Checkpoint 分隔线 | 转录 | round-design | `design/round-design/10-checkpoint.dc.html` | `design/round-design/10-checkpoint.png` | — | **已废弃（2026-09-17）** | — |
 | 11 | 用户消息气泡 | 转录 | round-design | `design/round-design/11-user-message.dc.html` | `design/round-design/11-user-message.png` | — | 已实现（R2） | — |
 | 12 | 助手富文本正文 | 转录 | round-design | `design/round-design/12-assistant-text.dc.html` | `design/round-design/12-assistant-text.png` | — | 已实现（R2） | — |
@@ -66,7 +66,7 @@
 | 52 | agent 认证 | agent 管理 | round-design | `design/round-design/52-auth.dc.html` | `design/round-design/52-auth.png` | — | 已实现（R5） | — |
 | 60 | 文件面板 | 文件面板 | round-design | `design/round-design/60-files-panel.dc.html` | `design/round-design/60-files-panel.png` | — | 已实现（R4） | — |
 | 61 | 终端面板 | 文件面板（右栏） | round-design | `design/round-design/61-terminal-panel.dc.html` | `design/round-design/61-terminal-panel.png` | — | 已实现（R4） | — |
-| 70 | 设置 | 设置（2026-09-17 起是右栏的一个标签） | round-design | `design/round-design/70-settings.dc.html` | `design/round-design/70-settings.png` | — | 已实现（R5）· 2026-09-17 改为右栏标签（画板本身未改）· 2026-09-22 新增「转录」分组（画板已改，待实现） | — |
+| 70 | 设置 | 设置（2026-09-17 起是右栏的一个标签） | round-design | `design/round-design/70-settings.dc.html` | `design/round-design/70-settings.png` | — | 已实现（R5）· 2026-09-17 改为右栏标签（画板本身未改）· 2026-09-22 新增「转录」分组（已实现，随画板 08） | — |
 | 80 | ACP 流量调试 | ACP 流量调试 | round-design | `design/round-design/80-traffic.dc.html` | `design/round-design/80-traffic.png` | — | 已实现（R3） | — |
 
 状态取值：`待实现` / `已实现（R<N>）` / `已废弃`。

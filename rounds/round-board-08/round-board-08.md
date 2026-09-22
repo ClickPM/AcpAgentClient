@@ -2,7 +2,7 @@
 
 <!-- 画板 08 与画板 43 / 07 同类：R8 之后的单画板轮，登记在 ROUNDS.md § 7 进度表。 -->
 
-> 状态：进行中
+> 状态：已完成（审查收口；合并 `main` 的时机由所有者定）
 
 ## 目标
 
@@ -77,7 +77,7 @@
   - 第 1 轮 全量 `main...HEAD`（`1cd20d1`），产物 `.claude/reviews/20260922-120118-review.out.md`
   - 第 2 轮 全量 `main...HEAD`（`2a30427`），产物 `.claude/reviews/20260922-122242-review.out.md`
   - 第 3 轮 只审整改 diff `2a30427..HEAD`，产物 `.claude/reviews/20260922-12*-review.out.md`
-  - 第 4 轮 只审整改 diff（基准见提交说明）
+  - 第 4 轮 只审整改 diff `9153798..HEAD`：**0 条**，收口
 - findings 处理：
 
 | 轮 | 级别 | finding | 处理 |
@@ -90,7 +90,7 @@
 | 3 | P2 | 不传 `onToggleFold` 时摘要行点不动，与注释和画板 08 样张的旧行为相反 | **采纳整改**。`onToggleFold == null` 且有 `folds` 时退到 `folds.toggle`。这是第 2 轮整改自己引入的回归（gallery 的 `_transcriptSample` 只传 `folds`）。用例侧把 `_list` helper 改成**故意不传** `onToggleFold`，让既有的几条点击用例守住这条退路 |
 | 3 | P2 | 自动折叠的校正 `jumpTo` 会掐断正在进行的滚动 | **采纳整改**。`_jumpBy` 里加 `userScrollDirection != idle` 就返回，与 `workbench_screen._followToBottom`、`TranscriptJump._step` 同一条规矩。回归用例「人正在拖…」，**已验证去掉整改会红**（拖着时 pixels 被从 260 拽到 0） |
 
-- 结论：<待第 3 轮复审>
+- 结论：**整改后 PASS**。4 轮累计 7 条（high 3 / P2 4），6 条采纳整改并各带回归用例（逐条验证过「去掉整改会红」），1 条按审查器自己的建议记 `rounds/BACKLOG.md`（`settings.json` 各段写入没有串行化，属机制类修复）。第 4 轮 0 条收口，无 high 级或阻塞性 findings 遗留。
 
 ## 失败处理
 
