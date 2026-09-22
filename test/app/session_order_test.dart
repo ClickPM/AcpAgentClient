@@ -174,6 +174,28 @@ void main() {
     c.dispose();
   });
 
+  test('删掉正在跑的会话：那一轮收轮时不把它写回索引（复审 high 2026-09-22 / iteration-02）', () async {
+    // `deleteSession` 不发 `session/cancel`，在途那一轮照样会收；收轮那次 `saveIndex` 手里握着的是
+    // 开轮时那个 store，会话表里已经没有它了（`sessions.forget`），写了就是把删掉的行写回去。
+    final core = _GatedCore();
+    final c = WorkbenchController(source: DataSource.bridge, bridge: core, scheduler: WorkbenchController.scheduleOnMicrotask)
+      ..workspace.project = const ProjectRef(path: 'D:/repo', name: 'repo');
+    await c.session.newSession(const AgentRef(id: 'a', name: 'a'));
+    final sid = c.session.sessionId!;
+    core.gate = Completer<JsonMap>();
+    c.composer.editor.text = '跑着的那一轮';
+    final sending = c.turn.send();
+    await _untilPromptSent(core);
+
+    await c.session.deleteSession(sid);
+    expect(core.sessionIndex, isEmpty);
+
+    core.gate!.complete(<String, dynamic>{'stopReason': 'end_turn'});
+    await sending;
+    expect(core.sessionIndex, isEmpty, reason: '删掉的会话不能被收轮那次写回来（侧栏幽灵条目）');
+    c.dispose();
+  });
+
   test('删掉的会话不会被在途的 upsert 写回来（审查 finding 2026-09-22）', () async {
     final core = _SlowUpsertCore();
     final index = SessionIndex(bridge: core, onChanged: () {});

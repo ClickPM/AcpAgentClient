@@ -759,7 +759,11 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
   /// agent 算，不然是把前台那条的标题写到它头上；索引里已有标题时 [SessionIndex.upsert] 先退回那一级。
   Future<void> saveIndex({SessionStore? target, bool promptSent = false}) async {
     final s = target ?? store;
-    if (s == null) return;
+    // 会话表里已经没有这条（[deleteSession] 的 `sessions.forget`），或那个 id 底下换了一个 store（删掉再新建
+    // 的同 id 会话，fake-agent 不带 `--sessions` 时每次都回 `sess_fake_1`）：这笔写不发。跑着的会话被删掉时
+    // 这一轮照样会收，写了就是把删掉的行写回 `sessions.json`（侧栏幽灵条目）或把新会话那行盖成旧转录的值。
+    // 缺省那条路天然成立（[store] 就是从会话表取的），这道门只管传了 [target] 的收轮那次（复审 high，2026-09-22）。
+    if (s == null || !identical(sessions.maybe(s.sessionId), s)) return;
     await index.upsert(s,
         agentFallback: agentId ?? '', titleFallback: placeholderTitleOf(s.agentId ?? agentId), promptSent: promptSent);
   }

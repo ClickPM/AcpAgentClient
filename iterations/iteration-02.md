@@ -15,7 +15,7 @@
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | fix | 会话索引（`sessions.json`）写回取错源的三处同根因缺陷：① `SessionIndex.upsert` 的标题退回索引里已有的（含会话头 `sessionTitle` 那一半）；② `saveIndex` 收一个 `SessionStore`，收轮时由 `TurnController._runTurn` 传刚跑完那条；③ `session/list` 校对的 cwd 过滤改走 `WorkspaceState.normalizeCwd` | BACKLOG「会话身份与生命周期」1 条 +「数据一致性」2 条（iteration-01 候选 A 的 13 / 14 / 15） | `claude/session-index-write-bugs-3c53b0` → 待合并 | validate 全绿 | 待填 | 待审查 |
+| 1 | fix | 会话索引（`sessions.json`）写回取错源的三处同根因缺陷：① `SessionIndex.upsert` 的标题退回索引里已有的（含会话头 `sessionTitle` 那一半）；② `saveIndex` 收一个 `SessionStore`，收轮时由 `TurnController._runTurn` 传刚跑完那条；③ `session/list` 校对的 cwd 过滤改走 `WorkspaceState.normalizeCwd` | BACKLOG「会话身份与生命周期」1 条 +「数据一致性」2 条（iteration-01 候选 A 的 13 / 14 / 15） | `claude/session-index-write-bugs-3c53b0` → 待合并 | validate 全绿 | 2 轮，2 条（high 1 / P2 1）→ 0 high | 待合并 |
 
 ## 收口
 
@@ -51,6 +51,15 @@
   - `test/app/session_lifecycle_wiring_test.dart`「cwd 只差写法的条目照常参与校对」——索引条目 cwd 写成 `D:\repo\`、当前项目是 `D:/repo`，校对照常补标题（还原后实得没补），agent 侧真没有了时也照常进 `missingOnAgent`。
   - 另加一条护栏用例「agent 补的标题照常盖过索引」（store 上有标题时不退回索引），它在改动前后都绿，防的是以后把三级退回的顺序改反。
 - 这台机器上 `scripts/validate.ps1` 的结果见下面的「Windows 实测」段。
+
+### 第 1 项 · 代码审查
+
+**第 1 轮**（`cursor-review.ps1 -Scope branch -Wait`，`main...HEAD`，产物 `.claude/reviews/20260922-181509-review.out.md`）：2 条（high 1 / P2 1）。
+
+- **[high] 删掉仍在跑的会话后，收轮仍会把这条写回索引** — **采纳整改**。验真属实，而且是本次改动**引入**的：`deleteSession` 不发 `session/cancel`，在途那一轮照样会收，而收轮那次 `saveIndex` 手里握着的是开轮时那个 `SessionStore`；改之前它读 `store`（`sessionId` 已被 `deleteSession` 置空、`sessions.forget` 也已经把它拿掉），自己就挡住了。整改是 `saveIndex` 加一句判断：会话表里那个 id 底下不是同一个 store 就不写（`!identical(sessions.maybe(s.sessionId), s)`）——顺带覆盖「删掉再新建同 id 会话」被迟到的写盖成旧值那一档。补了回归用例「删掉正在跑的会话：那一轮收轮时不把它写回索引」，同样验证过去掉这句判断后必红。
+- **[P2] agent 把标题清成 null 之后，下一笔写回会从索引把旧标题填回去** — **不采纳**，已记 `rounds/BACKLOG.md`「数据一致性」。理由：`store.title == null` 的两种含义（载回来还不知道 / agent 显式清空）要分清，得在 `SessionStore` 上记一个「`hasTitle` 曾经为真」的新状态，属投影层的新机制，按审查边界非严重 finding 不许；复审给的最小修复「清空时把 `store.title` 写成空串」违反规则 2（协议给的是 null，不自造值），改用 `seen['session_info_update']` 当判据也不成立——只带 `updatedAt` 不带 `title` 的更新也会计数，会把本轮修掉的那个缺陷放回来。本项目接的五个 agent 没有一个会清空标题。
+
+**第 2 轮**（`-Scope since -Base <第 1 轮已审提交>`）：见下方回填。
 
 ### 第 1 项 · Windows 实测（规则 9）
 
