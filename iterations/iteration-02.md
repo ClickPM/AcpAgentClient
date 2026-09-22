@@ -17,6 +17,7 @@
 | 4 | fix | `@` 菜单在用户点走之后自己弹出来：`_updateMentionMenu` 的 await 之后用 `_activeToken(editor.text)` 复核 token，不一致就丢结果。**只关掉「改词 / 清空」那半**，Esc / 点外面那半放回 BACKLOG | BACKLOG P1「壳与交互」第 7 条 | 同上 | 同上 | 同上 | 已合并 |
 | 5 | fix | 会话索引（`sessions.json`）写回取错源的三处同根因缺陷：① `SessionIndex.upsert` 的标题退回索引里已有的（含会话头 `sessionTitle` 那一半）；② `saveIndex` 收一个 `SessionStore`，收轮时由 `TurnController._runTurn` 传刚跑完那条；③ `session/list` 校对的 cwd 过滤改走 `WorkspaceState.normalizeCwd` | BACKLOG P0「会话身份与生命周期」1 条 + P1「数据一致性」2 条（iteration-01 候选 A 的 13 / 14 / 15） | `claude/session-index-write-bugs-3c53b0` → `7264fd5`（快进） | validate 全绿 | 2 轮，2 条（high 1 / P2 1）→ 0 high | 已合并 |
 | 6 | fix | 换主题 / 换字体之后界面只切一半：`MarkdownBody` 按 `Fonts.generation` 判过期（照抄 `_SourceView`） + 10 个叶子 widget 摘掉 `const` 构造 | BACKLOG P1「主题与渲染」2 条 | `claude/theme-font-partial-rebuild-471573` → `62b6bf8`（快进） | validate 全绿（`flutter test` 408 项，新增 5 项） | 1 轮 / cursor CLI `grok-4.7-high-fast`，**0 条** | 已合并 |
+| 7 | fix | 风扇狂转：① 文件树 git 徽章自激空转——`git status` 自己建删 `.git/index.lock`（Windows 还连带一条 `.git` 目录的 Modified），watcher 把它当 `.git` 变化上报，前端据此再跑 `git status`，仓库零改动时每秒起 2–6 个 `git.exe`；② `Spinner` 与侧栏扫掠线两处常驻动画没有 `RepaintBoundary`，会话运行中整窗每帧重栅格（2880×1800 @ 120Hz 核显实测 GPU 44–64%）。修：`rust/fs/src/watch.rs` 的 `classify` 跳过 `.git` 之下目录身上与 `*.lock` 的事件（两条新测试，其一用真 git 带子模块复现）；两处动画包 `RepaintBoundary`。实测见「备注 · 风扇狂转」 | 所有者报障 2026-09-22 | `fix-fs-watch-loop`（worktree `AcpAgentClient-fswatch`）→ 待合并 | validate 全绿（2026-09-22，整改后重跑亦全绿）；未构建 | 2 轮（cursor）：第 1 轮 1（high 1，采纳）、第 2 轮 0 | 待合并 |
 
 ## 收口
 
@@ -178,3 +179,14 @@
 **审查**：1 轮，cursor CLI（`grok-4.7-high-fast`，未回落），范围 `main...HEAD` = `022079b..a4ba7e7`，**0 条 findings**，无整改故不复审（`iterations/README.md` § 2 第 4 条）。产物 `.claude/reviews/20260922-182343-review.out.md`。审查器另行确认了两点我没写进注释的：`Theming.apply` / `Fonts.apply` 推进代数发生在根 `ListenableBuilder` 重建**之前**；`didUpdateWidget` 已因输入变化 `_rebuild()` 过时代数已是当前值，同一帧不会再拆一次链接。
 
 **与设计稿的关系**：这次是把实现改回画板 07 定义的深色表现，不是偏离，**不记** `design/DIVERGENCE.md`。
+
+**风扇狂转（第 7 项）的实测（2026-09-22，Windows 11，规则 9）**
+
+- 现象：安装版 `D:\tools\AcpAgentClient\acp_agent_client.exe`（PID 37236，打开的项目 `D:\variFlight_work\VariFlightWork`，61001 个文件）GPU 3D 引擎 44–64%（另一会话先测到 64%；本会话 `Get-Counter '\GPU Engine(*)\Utilization Percentage'` 抓到一次 44%，其余采样 1.2–1.8%），CPU 不高。不是 WebView（这个应用没有 WebView）。
+- 闭环证据：① `Get-CimInstance Win32_Process -Filter "ParentProcessId=37236 AND Name='git.exe'"` 轮询：12 秒 24 个、20 秒 54 个、15 秒 96 个 `git.exe`，命令构成 `rev-parse --is-inside-work-tree` / `rev-parse --show-toplevel` / `status --porcelain` 三者数量相当（= `git_status` 的三个子进程，`refreshBadges` 在空转，不是 `git_branches`）；② 同期仓库工作区**零文件改动**（`Get-ChildItem -Recurse` 前后快照，8 秒与 10 分钟两档均为 0）；③ `System.IO.FileSystemWatcher` 挂在 `.git` 上 8 秒抓 46 条事件，**全部**是 `index.lock` 的 Created / Deleted；④ 25ms 高频探测 400 次采样有 5 次抓到 `index.lock` 存在、`.git/index` 的 mtime 0 次变化（前后快照法查不出锁文件，所以最初漏判）；`core.fsmonitor` / `core.untrackedCache` 均未设（`.git/fsmonitor--daemon` 目录是残留）。
+- 单测揭示的第二条路径：合成建删 `index.lock` 的测试在只滤 `*.lock` 时仍 `git: true`——Windows 的 ReadDirectoryChangesW 在目录里建删文件时会给 **`.git` 目录本身**报一条 Modified（③ 挂在 `.git` 上看不到它自己的事件，所以没抓到）；生产环境同样如此，光滤锁文件循环照样闭合。`classify` 两条都跳过；`.git/HEAD` 写入与 `index.lock → index` 的改名仍打标志（测试断言）。
+- 审查第 1 轮（cursor `grok-4.7-high-fast`，`022079b..d3774c6`）1 条 high，采纳：有子模块时 `git status` 递归进子仓库、在 `.git/modules/<name>/` 建删锁，Windows 给**那个目录**报的 Modified 最后一段是子模块名不是 `.git`，「只认目录自身等于 `.git`」盖不住，循环重新闭合。整改按它给的最小修复：`.git` 之下凡是**目录**身上的事件都跳过——`fold` 现查 `path.is_dir()` 传给 `classify`（纯函数仍可拿假路径单测；已删掉的目录查不到会当文件打一次标志，多刷一回徽章无妨）。合成测试加 `.git/modules/sub/` 的锁；真 git 测试真的加一个本地子模块（`-c protocol.file.allow=always submodule add`），racy 等待挪到子模块检出之后。
+- 审查第 2 轮（cursor，`d3774c6..50ad95d`）0 条：确认目录事件与锁都进 `Ignored`、文件路径（含 `.git/modules/<name>/HEAD`）仍打标志，删目录时当文件多刷一回可接受，真 git 测试的隔离够用。第一次发起时 cursor 与服务端连接中断两次后 `Agent turn stopped`、`.out.md` 未写出（硬失败），同执行器重试一次成功，未回落。整改后完整 validate 重跑全绿。
+- 真 git 测试的 racy 坑：刚写的文件与索引落在同一秒时 git 每次 `status` 都补写索引（真变化，照常打标志）直到时钟跨秒，测试三跑两挂；让文件比索引老 1.1 秒后连跑五轮稳定。
+- GPU 一侧：`lib/` 里 `RepaintBoundary` 出现 0 次（全仓 6 处都在 `test/`）；显示器 2880×1800 @ 120Hz、Radeon 780M 核显。机制成立，但爆发当下没抓到对应的 UI 状态，效果要构建后手测（会话运行中看 GPU 引擎占用）。
+- 立刻止血的办法：把项目从那个 6 万文件的仓库切走或关掉应用；git 风暴与会话是否在跑无关。
