@@ -2,7 +2,7 @@
 
 本仓库的全部开发约定、硬性规则与轮次流程见 **[CLAUDE.md](CLAUDE.md)**，请以其为准（本文件只是指针，避免双份维护）。
 
-**执行器**（所有者裁定 2026-09-11，与 agent-xray 一致）：独立审查首选 **cursor CLI（`cursor-agent`）+ `cursor-grok-4.6-high-fast`**；
+**执行器**（所有者裁定 2026-09-11，与 agent-xray 一致）：独立审查首选 **cursor CLI（`cursor-agent`）+ `grok-4.7-high-fast`**；
 cursor 硬失败时回落**主会话委派的 Claude Code 只读子代理**，读同一份任务书。
 每次审查的任务书（范围 / 判据 / 严重级 / 输出格式）由 `.claude/cursor-review.ps1` 从 `.claude/cursor-review-prompt.md`
 实例化后给到审查者；两级的发起、取回与回落条件见 [`docs/review-workflow.md`](docs/review-workflow.md)。本文是**长期口径**，任务书是**每轮口径**，冲突时以任务书为准。
