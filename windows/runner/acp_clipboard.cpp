@@ -56,7 +56,9 @@ bool ReadFileList(flutter::EncodableList& out) {
         {flutter::EncodableValue("path"), flutter::EncodableValue(Utf8FromUtf16(path.c_str()))},
     }));
   }
-  return true;
+  // CF_HDROP 挂着却一个路径都取不出来（空列表 / 每一项都取不到长度）时不算「有文件」，调用方接着看位图
+  // —— 与被替换掉的 PowerShell 版 `if ($files.Count -gt 0)` 同口径（审查 P3，2026-09-22）。
+  return !out.empty();
 }
 
 // CF_BITMAP：让 GetDIBits 按我们要的形状取 —— 32 位、自上而下（负高度）。剪贴板位图的 alpha 不可靠

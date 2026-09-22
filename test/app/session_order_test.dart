@@ -63,6 +63,29 @@ class _SlowUpsertCore extends FakeCore {
   }
 }
 
+/// 删除命令**已经发出、还没落地**：核心里它与随后再发的 upsert 并行，删除先落、upsert 后落就是幽灵行。
+/// 这里把 remove 按住，验「删除在途时同一条会话的写不发」。
+class _SlowRemoveCore extends FakeCore {
+  Completer<void>? delayNextRemove;
+  int upserts = 0;
+
+  @override
+  Future<JsonMap> sessionIndexUpsert(JsonMap entry) {
+    upserts++;
+    return super.sessionIndexUpsert(entry);
+  }
+
+  @override
+  Future<JsonMap> sessionIndexRemove(String agentId, String sessionId) async {
+    final delay = delayNextRemove;
+    if (delay != null) {
+      delayNextRemove = null;
+      await delay.future;
+    }
+    return super.sessionIndexRemove(agentId, sessionId);
+  }
+}
+
 int _updatedAtOf(FakeCore core, String sessionId) {
   final entry = core.sessionIndex.singleWhere((e) => e['sessionId'] == sessionId);
   return (entry['updatedAt'] as num).toInt();
@@ -124,16 +147,67 @@ void main() {
     // 核心每条命令各起一个任务、先发的不保证先做，这里按住 upsert 固定那个最坏顺序（remove 先落）。
     final hold = core.delayNextUpsert = Completer<void>();
     final stamping = index.upsert(store, agentFallback: 'a', titleFallback: '新会话', promptSent: true);
-    await index.remove('a', 'sess_1');
-    expect(core.sessionIndex, isEmpty);
+    final removing = index.remove('a', 'sess_1');
+    await pumpEventQueue();
+    expect(core.sessionIndex, isEmpty, reason: '删除要等在途的那笔 upsert 落地，这会儿两笔都还没到核心');
 
     hold.complete();
     await stamping;
+    await removing;
     expect(core.sessionIndex, isEmpty, reason: '删掉的会话不能被在途的 upsert 写回来（侧栏幽灵条目）');
     expect(index.entries, isEmpty, reason: '内存镜像也不能留着那一行');
   });
 
-  test('删之前落地的 upsert 照常生效（墓碑不影响别的会话）', () async {
+  test('删掉再新建同 id 的会话：新的那条照常写进索引（复审 high 2026-09-22）', () async {
+    // fake-agent 不带 `--sessions` 时每次 `session/new` 都回同一个 `sess_fake_1`：永不过期的墓碑会把
+    // 删掉之后再新建的这条静默删掉，侧栏里根本不出现、重启后彻底没有。
+    final core = _SlowUpsertCore();
+    final index = SessionIndex(bridge: core, onChanged: () {});
+    final first = SessionStore(sessionId: 'sess_fake_1', agentId: 'a')..cwd = 'D:/repo';
+    final hold = core.delayNextUpsert = Completer<void>();
+    final stamping = index.upsert(first, agentFallback: 'a', titleFallback: '第一条', promptSent: true);
+    final removing = index.remove('a', 'sess_fake_1');
+    hold.complete();
+    await stamping;
+    await removing;
+    expect(core.sessionIndex, isEmpty);
+
+    final second = SessionStore(sessionId: 'sess_fake_1', agentId: 'a')..cwd = 'D:/repo';
+    await index.upsert(second, agentFallback: 'a', titleFallback: '第二条');
+    expect(core.sessionIndex.map((e) => e['sessionId']), <String>['sess_fake_1'], reason: '删掉再新建的同 id 会话不能被静默删掉');
+    expect(core.sessionIndex.single['title'], '第二条');
+    expect(index.entries.map((e) => e['sessionId']), <String>['sess_fake_1']);
+  });
+
+  test('删除命令在途时这条会话再来的写不发；删除返回之后的写照常（cursor 复审 P2 2026-09-22）', () async {
+    // `remove` 只等发删除之前就在途的 upsert；删除发出去之后收轮的 saveIndex 再写这条会话，与删除在核心里并行，
+    // 删除先落、它后落又是幽灵行。所以删除在途期间同一条会话的写一律不发。
+    final core = _SlowRemoveCore();
+    final index = SessionIndex(bridge: core, onChanged: () {});
+    final store = SessionStore(sessionId: 'sess_1', agentId: 'a')..cwd = 'D:/repo';
+    await index.upsert(store, agentFallback: 'a', titleFallback: '会话');
+    expect(core.upserts, 1);
+
+    final hold = core.delayNextRemove = Completer<void>();
+    final removing = index.remove('a', 'sess_1');
+    await pumpEventQueue();
+    final late = index.upsert(store, agentFallback: 'a', titleFallback: '会话', promptSent: true);
+    await pumpEventQueue();
+    expect(core.upserts, 1, reason: '删除在途，这笔写不能发出去');
+
+    hold.complete();
+    await removing;
+    await late;
+    expect(core.sessionIndex, isEmpty, reason: '删掉的行没有被写回来');
+    expect(index.entries, isEmpty);
+
+    // 删除返回之后的写（删掉再新建的同 id 会话）照常。
+    await index.upsert(SessionStore(sessionId: 'sess_1', agentId: 'a')..cwd = 'D:/repo', agentFallback: 'a', titleFallback: '新的');
+    expect(core.upserts, 2);
+    expect(core.sessionIndex.map((e) => e['sessionId']), <String>['sess_1']);
+  });
+
+  test('删之前落地的 upsert 照常生效（删除只等同一条会话的在途写，不影响别的会话）', () async {
     final core = FakeCore();
     final index = SessionIndex(bridge: core, onChanged: () {});
     final kept = SessionStore(sessionId: 'sess_keep', agentId: 'a');

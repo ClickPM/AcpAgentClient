@@ -340,6 +340,63 @@ void main() {
       drag.cancel();
       await tester.pumpAndSettle();
     });
+
+    testWidgets('画板 70 的全局开关翻面：长转录里所有回合同时折 / 展，视口里的结论也不跳', (tester) async {
+      // 复审 P2（2026-09-22）：设置页与转录同屏，这个开关既不走点击回调也不通知 store，第 1 轮实现这条路没校正，
+      // 人正读着长转录时拨一下开关，视口当场跳走所有折叠块高度之和。两半整改：锚点自己订阅 `TranscriptFolds`；
+      // 列表按键复用行（`findChildIndexCallback`）——已建窗口之外那几轮的折 / 展不再把眼前的行换成别的条目。
+      final s = newStore();
+      startTurn(s, '第一轮：占位');
+      agent(s, List<String>.filled(40, '很长的一段结论文本。').join());
+      s.endTurn(stopReason: 'end_turn');
+      // 中间四轮各一大段过程：它们在已建窗口之外，按序号复用的话一翻面就把窗口里的行全换掉。
+      for (var n = 2; n <= 5; n++) {
+        startTurn(s, '第 $n 轮');
+        thought(s, '想一下');
+        for (var i = 0; i < 6; i++) {
+          toolCall(s, 'tc$n-$i');
+        }
+        agent(s, '第 $n 轮的结论。');
+        s.endTurn(stopReason: 'end_turn');
+      }
+      startTurn(s, '第六轮：长文本把前面几轮推出已建窗口');
+      agent(s, List<String>.filled(60, '很长的一段结论文本。').join());
+      s.endTurn(stopReason: 'end_turn');
+      startTurn(s, '第七轮');
+      toolCall(s, 'tc7-0');
+      toolCall(s, 'tc7-1');
+      agent(s, '第七轮的结论。');
+      s.endTurn(stopReason: 'end_turn');
+
+      final folds = TranscriptFolds(); // 默认开：有过程的五轮此刻都折着
+      final ScrollController controller = ScrollController();
+      final anchor = TranscriptFoldAnchor(controller: controller, entries: () => s.entries, folds: folds);
+      await pump(
+        tester,
+        TranscriptList(s, folds: folds, controller: controller, trackRows: true, onToggleFold: anchor.toggle),
+        size: const Size(800, 400),
+      );
+      for (var i = 0; i < 8; i++) {
+        controller.jumpTo(controller.position.maxScrollExtent);
+        await tester.pumpAndSettle();
+      }
+      expect(find.byType(ToolCallCard), findsNothing, reason: '都自动折着');
+      final Finder conclusion = find.byWidgetPredicate((w) => w is AssistantText && w.entry.text == '第七轮的结论。');
+      final double before = tester.getTopLeft(conclusion).dy;
+
+      // 关掉全局开关：五轮同时展开，上面多出几十行。
+      await folds.setAutoCollapse(false);
+      await tester.pumpAndSettle();
+      expect(find.byType(ToolCallCard), findsWidgets, reason: '确实展开了');
+      expect(tester.getTopLeft(conclusion).dy, closeTo(before, 0.5), reason: '结论停在原地');
+
+      // 再打开：同时折回去，同样不动。
+      await folds.setAutoCollapse(true);
+      await tester.pumpAndSettle();
+      expect(find.byType(ToolCallCard), findsNothing, reason: '又折回去了');
+      expect(tester.getTopLeft(conclusion).dy, closeTo(before, 0.5));
+      anchor.dispose();
+    });
   });
 
   group('时间线跳转', () {

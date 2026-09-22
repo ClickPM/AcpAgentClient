@@ -907,6 +907,9 @@ class Sessions extends ChangeNotifier {
     if (s == null) return;
     s.removeListener(notifyListeners);
     pending.forgetSession(sessionId);
+    // 这条会话的终端缓冲一并收掉：`terminals` 是跨会话共享的一张表，删会话 / 收回空壳之后没人再引用它们，
+    // 不收就留到进程结束（审查 P3，2026-09-22）。没归属的缓冲（认证终端）不在这里，记 rounds/BACKLOG.md。
+    terminals.removeAll(s.ownedTerminalIds);
     // 不 dispose：在途的那一轮（`session/prompt` 还没返回）还握着这个 store，回来时会调 `endTurn()`；
     // 对 dispose 过的 ChangeNotifier 再 notify 会 assert。摘掉监听就够了，没有别的资源要释放。
     notifyListeners();

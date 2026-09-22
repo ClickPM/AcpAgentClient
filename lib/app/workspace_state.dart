@@ -105,6 +105,12 @@ class WorkspaceState extends ChangeNotifier with GuardedNotifier {
       final p = result['project'];
       project = p is Map ? ProjectRef(path: p['path'] as String? ?? ref.path, name: p['name'] as String? ?? ref.name) : ref;
       recentProjects = _toProjects(result['projects']);
+      // 分支区与 Rules 计数在补齐回来之前先清空：下面那次 `touch()` 之后顶栏就是新项目了，要是还挂着
+      // 旧项目的分支表，这段窗口里点弹层的一行会对**新项目**跑 `git switch`（审查 P2，2026-09-22）。
+      branchAreaVisible = false;
+      branch = null;
+      branches = const <BranchRef>[];
+      rulesCount = 0;
       _onProjectChanged();
       // 到这里界面就该能用了：`workspace_open` 只是往本地索引写一条（acp-core 的 `workspace_open`），
       // 顶栏项目名与输入框的 `canCompose` 不必等下面那三件。先通知一次，不让整块界面等着

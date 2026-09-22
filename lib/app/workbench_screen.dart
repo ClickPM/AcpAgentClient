@@ -130,7 +130,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     c.removeListener(_onControllerChanged);
     _followed?.removeListener(_onTranscriptGrew);
     _jump.cancel();
-    _foldAnchor.cancel();
+    _foldAnchor.dispose();
     _transcript.removeListener(_onTranscriptScrolled);
     _transcript.dispose();
     super.dispose();
@@ -759,6 +759,10 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     // 展开按「展开态记忆」照常记住。
     final TurnFold? fold = foldContaining(foldsOf(store.entries).values, target);
     final bool expanded = fold != null && c.folds.expand(fold);
+    // 时间线跳转自己定落点：折叠锚点一律让路——它订阅着 `folds`，刚才那下 `expand` 的通知会把它武装一次
+    // （帧后把结论拽回原地、跳转再把目标拉回来，两个 jumpTo 打架）；上一次折 / 展量不到锚点时它起的找回
+    // 跳转也可能还在逐帧 jumpTo，不管这次有没有翻面都得停掉（cursor 复审 P3，2026-09-22）。
+    _foldAnchor.cancel();
     // 跳到旧内容 = 用户自己翻上去，跟随底部要停掉，否则下一条流式块又把视口拽回最底下。
     _stick = false;
     setState(() => _focusedEntryId = focus ? entryId : null);

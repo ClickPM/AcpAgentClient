@@ -1173,7 +1173,13 @@ async fn disconnect(shared: &Shared, shutdown: &Mutex<Option<oneshot::Sender<()>
         if let Some(kill) = lock(kill).take() {
             let _ = kill.send(());
         }
-        let _ = tokio::time::timeout(DISCONNECT_GRACE, shared.wait_exit()).await;
+        if tokio::time::timeout(DISCONNECT_GRACE, shared.wait_exit()).await.is_err() {
+            // kill 之后仍等不到退出（典型是 `.cmd` 包装的孙进程还攥着 stdout）：这条连接对核心已经结束，
+            // 就地收尾 —— 清挂起表、放终端、发 `exited`。不收的话它会在**新连接**跑起来之后才迟到，前端按
+            // agentId 认领，把新连接刚挂起的权限 / elicitation 请求全标成 withdrawn、agent 从此干等
+            // （审查 finding，2026-09-22）。`finish` 只生效一次：进程真退出时那一下就是空转。
+            shared.finish(None);
+        }
     }
 }
 

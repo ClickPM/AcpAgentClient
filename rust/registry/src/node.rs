@@ -145,7 +145,10 @@ pub async fn status(dirs: &RegistryDirs) -> NodeStatus {
 /// 优先系统 Node ≥ 22，再受管 Node；都没有报 `Node`（前端据此出画板 51 的受管 Node 提示卡）。
 /// 系统那份走缓存；受管那份只在系统 Node 用不上时才探——常见路径上因此一个子进程都不拉。
 pub async fn locate(dirs: &RegistryDirs) -> Result<NodeRuntime> {
-    let (system, system_error) = match cached_system() {
+    // 缓存命中也复核一下那条路径还在不在：用户中途卸载 / nvm 切走了 Node，别拿过期路径去拉子进程
+    // （审查 P3，2026-09-22）。不可用那一档（None）仍只由 [`status`] 刷新。
+    let cached = cached_system().filter(|(system, _)| system.as_ref().is_none_or(|s| Path::new(&s.path).is_file()));
+    let (system, system_error) = match cached {
         Some(hit) => hit,
         None => {
             let probed = probe_system().await;
@@ -319,5 +322,23 @@ mod tests {
         if resolve_program("node").is_file() {
             assert!(s.system.is_some() || s.system_error.is_some());
         }
+    }
+
+    /// 缓存里的系统 Node 路径已经不在了（卸载 / nvm 切走）：`locate` 不能拿它去拉子进程，要重探并回填
+    /// （审查 P3，2026-09-22）。缓存是进程级静态量，别的用例可能并发回填，所以只断言「不是那条过期路径」。
+    #[tokio::test]
+    async fn locate_reprobes_when_cached_system_node_is_gone() {
+        let dir = std::env::temp_dir().join(format!("acp-registry-node-stale-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let stale = dir.join("gone").join("node.exe");
+        let stale_path = stale.to_string_lossy().into_owned();
+        store_system(&(Some(NodeInfo { version: "v99.0.0".into(), path: stale_path.clone() }), None));
+
+        // 本机没有可用 Node 时 locate 照常报错（Err），那也不是拿过期路径；有的话拿到的必须是重探出来的那份。
+        if let Ok(runtime) = locate(&RegistryDirs::new(&dir)).await {
+            assert_ne!(runtime.node, stale, "过期路径不能被拿去拉子进程");
+        }
+        let cached = cached_system().expect("重探之后缓存应被回填");
+        assert!(cached.0.as_ref().is_none_or(|s| s.path != stale_path), "过期路径不该还留在缓存里");
     }
 }

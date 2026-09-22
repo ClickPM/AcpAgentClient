@@ -185,8 +185,6 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     }
     final b = bridge;
     if (b == null) return;
-    // 不 await：读一次 `settings.json` 的 `transcript` 段，读不回来也只是回到「默认开」，不该拖慢启动。
-    unawaited(folds.start());
     _subs.addAll(<StreamSubscription<CoreEventRecord>>[
       b.on(CoreEvent.sessionUpdate).listen((e) {
         final sid = e.json?['sessionId'];
@@ -213,6 +211,10 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       final info = await b.init(defaultDataDir());
       dataDir = info['dataDir'] as String? ?? defaultDataDir();
       logPath = info['logPath'] as String?;
+      // 转录偏好（画板 70「转录」）在 `core_init` **之后**读：排在它前面那一下核心回 not_initialized，
+      // `TranscriptFolds._readSettingsOk` 就停在 false，开关既读不回也存不下（发布前审查 high，2026-09-22）。
+      // 不 await：读不回来也只是回到「默认开」，不该拖慢启动。
+      unawaited(folds.start());
       // 本地索引先读：下面挑「当前 agent」要按索引里最近用过的那条来（`refreshRegistry` 末尾
       // 会用 registry 的图标把侧栏重投影一次，所以先读索引不会让会话项停在占位菱形上）。
       await index.refresh();

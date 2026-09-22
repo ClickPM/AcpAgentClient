@@ -76,7 +76,8 @@ class _InstalledCore extends FakeCore {
 /// 换项目后要补齐的三件（分支 / Rules / 文件树）全都挂在 [gate] 上：用来验「`workspace_open` 一回来就通知」
 /// 与「三件是并发的，不是一件等一件」。[peakInFlight] 是同时在飞的命令数的峰值。
 class _SlowHydrationCore extends _InstalledCore {
-  final Completer<void> gate = Completer<void>();
+  /// 可以换一个新的：验第二次换项目的窗口时，第一次已经放行过了。
+  Completer<void> gate = Completer<void>();
   int inFlight = 0;
   int peakInFlight = 0;
 
@@ -95,8 +96,14 @@ class _SlowHydrationCore extends _InstalledCore {
       };
 
   @override
-  Future<JsonMap> gitBranches(String cwd) =>
-      _gated(<String, dynamic>{'available': true, 'isRepo': true, 'current': 'main', 'branches': <Object?>[]});
+  Future<JsonMap> gitBranches(String cwd) => _gated(<String, dynamic>{
+        'available': true,
+        'isRepo': true,
+        'current': 'main',
+        'branches': <Object?>[
+          <String, dynamic>{'name': 'main'},
+        ],
+      });
 
   /// Rules 计数与文件树各列一次根目录：两次都走这里，所以两次都被卡住。
   @override
@@ -113,6 +120,27 @@ class _SlowHydrationCore extends _InstalledCore {
 
   @override
   Stream<JsonMap> fsWatch(String r) => const Stream<JsonMap>.empty();
+}
+
+/// 转录偏好在 `core_init` 之前到核心会回 not_initialized：复现「读盘排在 init 前面」那个启动顺序。
+class _PrefsAfterInitCore extends _InstalledCore {
+  _PrefsAfterInitCore() {
+    transcriptPrefs = <String, dynamic>{'collapse_finished_turns': false};
+  }
+
+  bool initialized = false;
+
+  @override
+  Future<JsonMap> init(String dataDir) {
+    initialized = true;
+    return super.init(dataDir);
+  }
+
+  @override
+  Future<JsonMap> transcriptPrefsGet() {
+    if (!initialized) throw StateError('not_initialized: call core_init(data_dir) first');
+    return super.transcriptPrefsGet();
+  }
 }
 
 /// `session/new` 挂着不回，直到 [gate] 完成：复现「等待期里做别的事」。
@@ -428,6 +456,45 @@ void main() {
     expect(c.workspace.branch, 'main');
     expect(c.workspace.rulesCount, 1);
     expect(c.files.root, r'D:\proj');
+    c.dispose();
+  });
+
+  test('换项目的补齐窗口里不留旧项目的分支表：那会儿点弹层的一行会对新项目跑 git switch（审查 P2 2026-09-22）', () async {
+    final core = _SlowHydrationCore();
+    final c = WorkbenchController(source: DataSource.bridge, bridge: core);
+    // 第一个项目整个补齐：分支区可见、分支表里有 main。
+    final first = c.workspace.openProject(const ProjectRef(path: r'D:\proj', name: 'proj'));
+    core.gate.complete();
+    await first;
+    expect(c.workspace.branchAreaVisible, isTrue);
+    expect(c.workspace.branches.map((b) => b.name), <String>['main']);
+    expect(c.workspace.rulesCount, 1);
+
+    // 换到第二个项目，三件补齐全卡住：`workspace_open` 回来的那一下顶栏已经是新项目了。
+    core.gate = Completer<void>();
+    final second = c.workspace.openProject(const ProjectRef(path: r'D:\other', name: 'other'));
+    await pumpEventQueue();
+    expect(c.workspace.project?.path, r'D:\other');
+    expect(c.workspace.branchAreaVisible, isFalse, reason: '补齐回来之前分支区不渲染');
+    expect(c.workspace.branch, isNull);
+    expect(c.workspace.branches, isEmpty, reason: '旧项目的分支表还挂着的话，这段窗口里 switchBranch 会拿新项目的 cwd 去 git switch');
+    expect(c.workspace.rulesCount, 0);
+
+    core.gate.complete();
+    await second;
+    expect(c.workspace.branch, 'main');
+    expect(c.workspace.rulesCount, 1);
+    c.dispose();
+  });
+
+  test('转录偏好在 core_init 之后才读：盘上存的「关」读得回来、开关也存得下（发布前审查 high 2026-09-22）', () async {
+    final core = _PrefsAfterInitCore();
+    final c = WorkbenchController(source: DataSource.bridge, bridge: core);
+    await c.start();
+    await pumpEventQueue();
+    expect(c.folds.autoCollapse, isFalse, reason: '读盘排在 core_init 前面那一下核心回 not_initialized，盘上的「关」就读不回来');
+    await c.folds.setAutoCollapse(true);
+    expect(core.transcriptPrefs, <String, dynamic>{'collapse_finished_turns': true}, reason: '启动那一趟读失败会让开关永远不落盘');
     c.dispose();
   });
 

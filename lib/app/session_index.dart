@@ -25,23 +25,39 @@ class SessionIndex {
   /// 这里记一份本地的，[updatedAtOf] 取两者里大的（合并复审 2026-09-18）。
   final Map<String, int> _promptSentAt = <String, int>{};
 
-  /// 已经发过 `session_index_remove` 的 (agentId, sessionId)（墓碑）。
+  /// 在途的 upsert，按 (agentId, sessionId) 记。
   /// 桥的每条命令在核心那边**各起一个任务**（`rust/bridge/src/api.rs` 的 `on_core`），先发的不保证先做，
   /// 而发消息时那次 `stampPromptSent` 是不 await 的（见 `SessionController.stampPromptSent` 里为什么）：
   /// 用户在这几毫秒里删掉这条会话，remove 可能先落、upsert 后落，被删的那行又被写回 `sessions.json`，
   /// 侧栏多一条怎么都删不掉的幽灵条目（审查 finding，2026-09-22）。
-  /// 修法是「写完再看一眼」而不是把三条写命令排队——排队会让收轮那次 `saveIndex`（是 await 的）
-  /// 挡在发消息那次不 await 的写后面，本来解耦的两件事又绑上了。
-  final Set<(String, String)> _removed = <(String, String)>{};
+  /// 修法是 [remove] **只等这一条会话在途的 upsert 落地**再发删除——不排队（排队会让收轮那次 `saveIndex`
+  /// （是 await 的）挡在发消息那次不 await 的写后面，本来解耦的两件事又绑上了），也不立墓碑（复审 high，
+  /// 2026-09-22：永不过期的墓碑会把删掉之后**再新建的同 id 会话**静默删掉——fake-agent 不带 `--sessions` 时
+  /// 每次 `session/new` 都回 `sess_fake_1`，侧栏里那条新会话根本不出现、重启后彻底没有）。
+  final Map<(String, String), Set<Future<void>>> _inFlight = <(String, String), Set<Future<void>>>{};
 
-  /// upsert 落地之后：这条会话要是在写的过程中被删了，把刚被写回来的那行再删一次（两种到达顺序都收敛）。
-  /// 返回 true = 已经改由删除收尾，调用方不要再 [apply] 那份带着幽灵行的结果。
-  Future<bool> _undoIfRemoved(CoreCommands b, Object? agentId, Object? sessionId) async {
-    if (agentId is! String || sessionId is! String) return false;
-    if (!_removed.contains((agentId, sessionId))) return false;
-    final result = await b.sessionIndexRemove(agentId, sessionId);
-    apply(result['sessions']);
-    return true;
+  /// 正在删除中的 (agentId, sessionId)：删除命令从发出到 [apply] 落地之间，同一条会话新来的 upsert **不发**
+  /// （典型是收轮那次 `saveIndex` 撞上正在删的会话）——发了就与删除在核心里并行，删除先落、它后落，
+  /// 又是幽灵行（cursor 复审 P2，2026-09-22：[remove] 的等待只覆盖发删除之前就在途的写）。
+  /// 删除返回之后的写（删掉再新建的同 id 会话）照常。
+  final Set<(String, String)> _removing = <(String, String)>{};
+
+  /// 发一条 upsert 并登记在途；落地（成功或失败）即注销。这条会话正在删除中时不发，回 null。
+  Future<JsonMap?> _upsertTracked(CoreCommands b, JsonMap entry) {
+    final agentId = entry['agentId'];
+    final sessionId = entry['sessionId'];
+    if (agentId is! String || sessionId is! String) return b.sessionIndexUpsert(entry);
+    final key = (agentId, sessionId);
+    if (_removing.contains(key)) return Future<JsonMap?>.value(null);
+    final call = b.sessionIndexUpsert(entry);
+    final pending = _inFlight.putIfAbsent(key, () => <Future<void>>{});
+    late final Future<void> done;
+    done = call.then<void>((_) {}, onError: (Object _) {}).whenComplete(() {
+      pending.remove(done);
+      if (pending.isEmpty) _inFlight.remove(key);
+    });
+    pending.add(done);
+    return call;
   }
 
   Future<void> refresh() async {
@@ -76,16 +92,15 @@ class SessionIndex {
     if (b == null) return;
     final updatedAt = promptSent ? DateTime.now().millisecondsSinceEpoch : updatedAtOf(s.sessionId);
     if (promptSent && updatedAt != null) _promptSentAt[s.sessionId] = updatedAt;
-    final agentId = s.agentId ?? agentFallback;
-    final result = await b.sessionIndexUpsert(<String, dynamic>{
-      'agentId': agentId,
+    final result = await _upsertTracked(b, <String, dynamic>{
+      'agentId': s.agentId ?? agentFallback,
       'sessionId': s.sessionId,
       'title': s.title ?? titleFallback,
       'cwd': s.cwd,
       'messageCount': s.entries.whereType<MessageEntry>().length,
       'updatedAt': ?updatedAt,
     });
-    if (await _undoIfRemoved(b, agentId, s.sessionId)) return;
+    if (result == null) return; // 正在删这条会话：这笔写不发
     apply(result['sessions']);
   }
 
@@ -93,19 +108,30 @@ class SessionIndex {
   Future<void> upsertEntry(JsonMap entry) async {
     final b = bridge;
     if (b == null) return;
-    final result = await b.sessionIndexUpsert(entry);
-    if (await _undoIfRemoved(b, entry['agentId'], entry['sessionId'])) return;
+    final result = await _upsertTracked(b, entry);
+    if (result == null) return; // 正在删这条会话：这笔写不发
     apply(result['sessions']);
   }
 
-  /// 按 (agentId, sessionId) 精确匹配删除一条。
+  /// 按 (agentId, sessionId) 精确匹配删除一条。先等这条会话在途的 upsert 落地（见 [_inFlight]），再发删除，
+  /// 删除在途期间同一条会话新来的写一律不发（见 [_removing]）：删除总排在所有写之后到核心，被删的行不会再被
+  /// 写回来；删除返回之后再来的 upsert（删掉再新建的同 id 会话）照常写入。
   Future<void> remove(String agentId, String sessionId) async {
     final b = bridge;
     if (b == null) return;
-    // 墓碑先立、再发命令：在途的 upsert 回来时才看得见它（会话删掉就不会再回来，不用清）。
-    _removed.add((agentId, sessionId));
-    final result = await b.sessionIndexRemove(agentId, sessionId);
-    apply(result['sessions']);
+    final key = (agentId, sessionId);
+    // 等的时候可能又有新的起来（收轮那次 saveIndex），循环到没有在途的为止。
+    for (var pending = _inFlight[key]; pending != null && pending.isNotEmpty; pending = _inFlight[key]) {
+      await Future.wait<void>(pending.toList(growable: false));
+    }
+    // 循环退出到这里没有 await，中间起不了新的写；从这里起到 apply 落地，新的写由 [_removing] 挡住。
+    _removing.add(key);
+    try {
+      final result = await b.sessionIndexRemove(agentId, sessionId);
+      apply(result['sessions']);
+    } finally {
+      _removing.remove(key);
+    }
   }
 
   /// 本地索引（`sessions.json`）里这条会话的原始条目；没有为 null。
