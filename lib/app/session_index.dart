@@ -25,23 +25,32 @@ class SessionIndex {
   /// 这里记一份本地的，[updatedAtOf] 取两者里大的（合并复审 2026-09-18）。
   final Map<String, int> _promptSentAt = <String, int>{};
 
-  /// 已经发过 `session_index_remove` 的 (agentId, sessionId)（墓碑）。
+  /// 在途的 upsert，按 (agentId, sessionId) 记。
   /// 桥的每条命令在核心那边**各起一个任务**（`rust/bridge/src/api.rs` 的 `on_core`），先发的不保证先做，
   /// 而发消息时那次 `stampPromptSent` 是不 await 的（见 `SessionController.stampPromptSent` 里为什么）：
   /// 用户在这几毫秒里删掉这条会话，remove 可能先落、upsert 后落，被删的那行又被写回 `sessions.json`，
   /// 侧栏多一条怎么都删不掉的幽灵条目（审查 finding，2026-09-22）。
-  /// 修法是「写完再看一眼」而不是把三条写命令排队——排队会让收轮那次 `saveIndex`（是 await 的）
-  /// 挡在发消息那次不 await 的写后面，本来解耦的两件事又绑上了。
-  final Set<(String, String)> _removed = <(String, String)>{};
+  /// 修法是 [remove] **只等这一条会话在途的 upsert 落地**再发删除——不排队（排队会让收轮那次 `saveIndex`
+  /// （是 await 的）挡在发消息那次不 await 的写后面，本来解耦的两件事又绑上了），也不立墓碑（复审 high，
+  /// 2026-09-22：永不过期的墓碑会把删掉之后**再新建的同 id 会话**静默删掉——fake-agent 不带 `--sessions` 时
+  /// 每次 `session/new` 都回 `sess_fake_1`，侧栏里那条新会话根本不出现、重启后彻底没有）。
+  final Map<(String, String), Set<Future<void>>> _inFlight = <(String, String), Set<Future<void>>>{};
 
-  /// upsert 落地之后：这条会话要是在写的过程中被删了，把刚被写回来的那行再删一次（两种到达顺序都收敛）。
-  /// 返回 true = 已经改由删除收尾，调用方不要再 [apply] 那份带着幽灵行的结果。
-  Future<bool> _undoIfRemoved(CoreCommands b, Object? agentId, Object? sessionId) async {
-    if (agentId is! String || sessionId is! String) return false;
-    if (!_removed.contains((agentId, sessionId))) return false;
-    final result = await b.sessionIndexRemove(agentId, sessionId);
-    apply(result['sessions']);
-    return true;
+  /// 发一条 upsert 并登记在途；落地（成功或失败）即注销。
+  Future<JsonMap> _upsertTracked(CoreCommands b, JsonMap entry) {
+    final agentId = entry['agentId'];
+    final sessionId = entry['sessionId'];
+    final call = b.sessionIndexUpsert(entry);
+    if (agentId is! String || sessionId is! String) return call;
+    final key = (agentId, sessionId);
+    final pending = _inFlight.putIfAbsent(key, () => <Future<void>>{});
+    late final Future<void> done;
+    done = call.then<void>((_) {}, onError: (Object _) {}).whenComplete(() {
+      pending.remove(done);
+      if (pending.isEmpty) _inFlight.remove(key);
+    });
+    pending.add(done);
+    return call;
   }
 
   Future<void> refresh() async {
@@ -76,16 +85,14 @@ class SessionIndex {
     if (b == null) return;
     final updatedAt = promptSent ? DateTime.now().millisecondsSinceEpoch : updatedAtOf(s.sessionId);
     if (promptSent && updatedAt != null) _promptSentAt[s.sessionId] = updatedAt;
-    final agentId = s.agentId ?? agentFallback;
-    final result = await b.sessionIndexUpsert(<String, dynamic>{
-      'agentId': agentId,
+    final result = await _upsertTracked(b, <String, dynamic>{
+      'agentId': s.agentId ?? agentFallback,
       'sessionId': s.sessionId,
       'title': s.title ?? titleFallback,
       'cwd': s.cwd,
       'messageCount': s.entries.whereType<MessageEntry>().length,
       'updatedAt': ?updatedAt,
     });
-    if (await _undoIfRemoved(b, agentId, s.sessionId)) return;
     apply(result['sessions']);
   }
 
@@ -93,17 +100,20 @@ class SessionIndex {
   Future<void> upsertEntry(JsonMap entry) async {
     final b = bridge;
     if (b == null) return;
-    final result = await b.sessionIndexUpsert(entry);
-    if (await _undoIfRemoved(b, entry['agentId'], entry['sessionId'])) return;
+    final result = await _upsertTracked(b, entry);
     apply(result['sessions']);
   }
 
-  /// 按 (agentId, sessionId) 精确匹配删除一条。
+  /// 按 (agentId, sessionId) 精确匹配删除一条。先等这条会话在途的 upsert 落地（见 [_inFlight]），再发删除：
+  /// 删除总排在它们之后到核心，被删的行不会再被写回来；之后再来的 upsert（删掉再新建的同 id 会话）照常写入。
   Future<void> remove(String agentId, String sessionId) async {
     final b = bridge;
     if (b == null) return;
-    // 墓碑先立、再发命令：在途的 upsert 回来时才看得见它（会话删掉就不会再回来，不用清）。
-    _removed.add((agentId, sessionId));
+    final key = (agentId, sessionId);
+    // 等的时候可能又有新的起来（收轮那次 saveIndex），循环到没有在途的为止。
+    for (var pending = _inFlight[key]; pending != null && pending.isNotEmpty; pending = _inFlight[key]) {
+      await Future.wait<void>(pending.toList(growable: false));
+    }
     final result = await b.sessionIndexRemove(agentId, sessionId);
     apply(result['sessions']);
   }

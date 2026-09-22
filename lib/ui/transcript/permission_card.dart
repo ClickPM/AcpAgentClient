@@ -216,7 +216,7 @@ class _PermissionCardState extends State<PermissionCard> {
   static String _answeredLabel(PermissionEntry e) => switch (e.status) {
         PendingStatus.answered => '已选择 ${e.chosenOptionId}',
         PendingStatus.cancelled => '已随 session/cancel 取消',
-        PendingStatus.withdrawn => 'agent 已撤回',
+        PendingStatus.withdrawn => 'agent 已不再等待',
         _ => '',
       };
 
@@ -236,7 +236,7 @@ class _PermissionCardState extends State<PermissionCard> {
 }
 
 /// 范围下拉：每项 = 名称 + kind（mono meta）；选中项 surface 底 + accent 对勾。
-/// 由 [PermissionCard] 挂到 Overlay 上；公开只为画板对照页能单独摆一份静态样张。
+/// 由 [PermissionCard] 挂到 Overlay 上。
 class _PermissionScopeMenu extends StatelessWidget {
   const _PermissionScopeMenu({required this.options, required this.selectedId, required this.onPick});
 

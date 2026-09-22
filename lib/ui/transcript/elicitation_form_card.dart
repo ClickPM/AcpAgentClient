@@ -225,7 +225,7 @@ class _ElicitationFormCardState extends State<ElicitationFormCard> {
 
   static String _statusLabel(ElicitationEntry e) => switch (e.status) {
         PendingStatus.answered => '已${e.action == 'accept' ? '提交' : (e.action == 'decline' ? '拒绝' : '取消')}',
-        PendingStatus.withdrawn => 'agent 已撤回',
+        PendingStatus.withdrawn => 'agent 已不再等待',
         PendingStatus.cancelled => '已取消',
         PendingStatus.completed => 'Completed',
         PendingStatus.pending => 'Waiting for input',

@@ -546,8 +546,10 @@ mod tests {
 
     /// [`resolve_inside`]（审查 finding，2026-09-22）：边界判定用解析过的真实路径，读写也按那一份开。
     /// 三条——① 工作区内的普通文件解出来仍在工作区内，且解出来的那份不含任何链接分量（读写按它走，末段
-    /// 再被换成链接也没用）；② 末段是指向外面的链接时报越界（这一条是词法检查在「走完之后才建链接」那个
-    /// 窗口里看不见的）；③ 还不存在的路径原样返回——不然 `fs/write_text_file` 新建文件就废了。
+    /// 再被换成链接也没用）；② 末段是指向外面的链接时报越界 —— **这一条由 `ensure_inside` 的逐级
+    /// `symlink_metadata` 拦下**（末段也在它的循环里），`canonicalize` 那条越界分支只在「逐级检查走完之后
+    /// 才建出链接」的竞态窗口里走得到，用例造不出那个窗口、不覆盖它（复审 P2，2026-09-22）；
+    /// ③ 还不存在的路径原样返回——不然 `fs/write_text_file` 新建文件就废了。
     #[test]
     fn resolve_inside_uses_the_real_path_and_still_lets_new_files_through() {
         let dir = sandbox("resolve");

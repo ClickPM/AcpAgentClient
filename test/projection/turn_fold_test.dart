@@ -86,19 +86,40 @@ void main() {
       expect(foldsOf(s.entries), isEmpty);
     });
 
-    test('压缩标记进折叠块', () {
+    test('压缩标记进折叠块（compaction_update 建出的 CompactionEntry，不是工具调用）', () {
+      // 复审 P2（2026-09-22）：这条用例原先发的是 tool_call，`e is CompactionEntry` 那条分支从没跑过。
       final s = newStore();
       startTurn(s, '继续');
-      s.applyUpdateJson(<String, dynamic>{
-        'sessionUpdate': 'tool_call',
-        'toolCallId': 'tc-compact',
-        'title': 'Compacting',
-        'status': 'completed',
-        '_meta': <String, dynamic>{'claudeCode': <String, dynamic>{'toolName': 'x'}},
-      });
+      s.applyUpdateJson(<String, dynamic>{'sessionUpdate': 'compaction_update', 'compactionId': 'cmp_1', 'status': 'in_progress'});
+      s.applyUpdateJson(<String, dynamic>{'sessionUpdate': 'compaction_update', 'compactionId': 'cmp_1', 'status': 'completed'});
       agent(s, '好了。');
       s.endTurn(stopReason: 'end_turn');
-      expect(foldOf(s)!.toolCalls, 1);
+
+      final fold = foldOf(s)!;
+      expect(fold.folded.single, isA<CompactionEntry>());
+      expect(fold.toolCalls, 0, reason: '压缩标记不是工具调用');
+      expect(fold.messages, 1);
+      expect(fold.autoCollapsible, isTrue);
+    });
+
+    test('Plan 条不进折叠块（画板 29 的常驻元素，不属于某一回合的过程）', () {
+      final s = newStore();
+      startTurn(s, '做计划');
+      s.applyUpdateJson(<String, dynamic>{
+        'sessionUpdate': 'plan',
+        'entries': <Object?>[
+          <String, dynamic>{'content': '第一步', 'priority': 'high', 'status': 'in_progress'},
+        ],
+      });
+      toolCall(s, 'tc-1');
+      agent(s, '好了。');
+      s.endTurn(stopReason: 'end_turn');
+
+      expect(s.entries.whereType<PlanCardEntry>(), hasLength(1), reason: '用例前提：plan 真的建出了 Plan 条');
+      final fold = foldOf(s)!;
+      expect(fold.folded.whereType<PlanCardEntry>(), isEmpty);
+      expect(fold.messages, 1, reason: '只有那次工具调用进折叠块');
+      expect(fold.toolCalls, 1);
     });
   });
 

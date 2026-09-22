@@ -1,4 +1,6 @@
-// 画板 43 的时间线跳转：把转录滚到指定条目，落点是「目标块顶边对齐转录区顶部内边距」，不做滚动动画。
+// 画板 43 的时间线跳转：把转录滚到指定行，落点是「目标块顶边对齐转录区顶部内边距」，不做滚动动画。
+// 画板 08 B 的折叠锚点也用它（`transcript_fold_anchor.dart`）：锚点行被折 / 展推出已建窗口、量不到时，
+// 按同一套步进把它找回来，落点换成它原来在视口里的 y（[start] 的 `topInset`）。
 //
 // 惰性列表（`ListView.builder`）里目标行多半还没建出来 —— 没建出来的行没有 RenderObject，拿不到真实位置。
 // 这里**不按 `maxScrollExtent` 估位**：那个值对没建出来的那截是按已建行的平均外推的
@@ -21,8 +23,8 @@ import 'package:flutter/widgets.dart';
 import '../theme/tokens.dart' as t;
 import '../ui/transcript/transcript_list.dart';
 
-/// 一次「跳到某一条」的驱动器：每帧推进一步，直到落位或放弃。
-/// 同一时刻只跳一条（[start] 会顶掉上一次未完成的跳转）。
+/// 一次「跳到某一行」的驱动器：每帧推进一步，直到落位或放弃。
+/// 同一时刻只跳一行（[start] 会顶掉上一次未完成的跳转）。
 class TranscriptJump {
   TranscriptJump({required this.controller, required this.rows});
 
@@ -31,8 +33,11 @@ class TranscriptJump {
   /// 每帧重新取一次行列表：跳的过程中流式还在长内容，行序会变，按 id 重新定位才不会跳错。
   final List<TranscriptRow> Function() rows;
 
-  /// 正在跳向的条目 id；null = 没在跳。
+  /// 正在跳向的行 id（[transcriptRowId]）；null = 没在跳。
   String? _target;
+
+  /// 落位时目标行顶边到视口顶边的距离：画板 43 的跳转是转录区顶部内边距，折叠锚点给的是那一行原来的 y。
+  double _inset = t.Spacing.s16;
 
   /// 这一次跳已经步进了几帧 / 落位之后又校正了几帧。
   int _steps = 0;
@@ -48,16 +53,18 @@ class TranscriptJump {
 
   bool get isJumping => _target != null;
 
-  /// 开始跳向 [entryId]。目标已经在视口附近时当帧就位，不必等下一帧。
-  void start(String entryId) {
-    _target = entryId;
+  /// 开始跳向 [rowId]（条目行就是条目 id，见 [transcriptRowId]）。目标已经在视口附近时当帧就位，不必等下一帧。
+  /// [topInset]：落位时目标行顶边到视口顶边的距离。
+  void start(String rowId, {double topInset = t.Spacing.s16}) {
+    _target = rowId;
+    _inset = topInset;
     _steps = 0;
     _settles = 0;
     _step();
     _schedule();
   }
 
-  /// 停掉正在进行的跳转（换会话、组件销毁、用户自己动了滚轮）。
+  /// 停掉正在进行的跳转（换会话、组件销毁、用户拖着滚动条 / 惯性滚动还没停）。
   void cancel() => _target = null;
 
   void _schedule() {
@@ -75,10 +82,12 @@ class TranscriptJump {
     if (_target == null) return;
     if (!controller.hasClients) return cancel();
     final list = rows();
-    final index = list.indexWhere((r) => r is EntryRow && r.entry.id == _target);
-    if (index < 0) return cancel(); // 目标被 Restore 截断掉了
+    final index = list.indexWhere((r) => transcriptRowId(r) == _target);
+    if (index < 0) return cancel(); // 目标被 Restore 截断掉了 / 被折进折叠块里了
     final p = controller.position;
-    // 用户正在拖 / 触控板正在滑：让他先滑完，别跟他抢（与 workbench_screen 的跟随底部同一条规矩）。
+    // 拖着滚动条 / 触屏惯性还没停：让他先滑完，别跟他抢（与 workbench_screen 的跟随底部同一条规矩）。
+    // 这条拦不住滚轮：`pointerScroll` 每个事件末尾就 `goBallistic(0)` → idle，滚轮滚完当帧即回 idle，
+    // 跳转下一帧照常推进 —— 一次跳转只有几帧，滚轮打不断它是可接受的（审查 P3，2026-09-22）。
     if (p.userScrollDirection != ScrollDirection.idle) return cancel();
     final sliver = _sliver(p);
     final first = sliver?.firstChild;
@@ -100,9 +109,9 @@ class TranscriptJump {
       // 目标就在布好局的那一段里：按它自己的真实位置落位。
       final box = _rowBox(list[index]);
       if (box == null) return cancel();
-      // `getOffsetToReveal(…, 0)` 给的是「目标顶边贴视口顶边」的偏移，再减去转录区顶部内边距，
-      // 目标上方就正好留出画板 43 要的那 16。
-      want = _revealOffset(box) - t.Spacing.s16;
+      // `getOffsetToReveal(…, 0)` 给的是「目标顶边贴视口顶边」的偏移，再减去要留的距离：
+      // 画板 43 是转录区顶部内边距，目标上方就正好留出那 16；锚点给的是那一行原来的 y。
+      want = _revealOffset(box) - _inset;
       if (++_settles > _maxSettles) return cancel();
     }
 
@@ -123,10 +132,14 @@ class TranscriptJump {
   /// [box] 顶边贴视口顶边时的滚动偏移。
   double _revealOffset(RenderBox box) => RenderAbstractViewport.of(box).getOffsetToReveal(box, 0).offset;
 
-  /// 已经建出来并布好局的那一行的 RenderBox；没建出来 = null。
+  /// 已经建出来并布好局的那一行的 RenderBox；没建出来 = null。摘要行没有可量的键，不会成为目标。
   RenderBox? _rowBox(TranscriptRow row) {
-    if (row is! EntryRow) return null;
-    final box = transcriptRowKey(row.entry).currentContext?.findRenderObject();
+    final GlobalObjectKey<State<StatefulWidget>>? key = switch (row) {
+      EntryRow(:final entry) => transcriptRowKey(entry),
+      TurnEndRow(:final turn) => turnFooterKey(turn),
+      TurnFoldSummaryRow() => null,
+    };
+    final box = key?.currentContext?.findRenderObject();
     return box is RenderBox && box.attached && box.hasSize ? box : null;
   }
 

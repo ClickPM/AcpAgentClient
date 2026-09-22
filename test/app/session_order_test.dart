@@ -124,16 +124,39 @@ void main() {
     // 核心每条命令各起一个任务、先发的不保证先做，这里按住 upsert 固定那个最坏顺序（remove 先落）。
     final hold = core.delayNextUpsert = Completer<void>();
     final stamping = index.upsert(store, agentFallback: 'a', titleFallback: '新会话', promptSent: true);
-    await index.remove('a', 'sess_1');
-    expect(core.sessionIndex, isEmpty);
+    final removing = index.remove('a', 'sess_1');
+    await pumpEventQueue();
+    expect(core.sessionIndex, isEmpty, reason: '删除要等在途的那笔 upsert 落地，这会儿两笔都还没到核心');
 
     hold.complete();
     await stamping;
+    await removing;
     expect(core.sessionIndex, isEmpty, reason: '删掉的会话不能被在途的 upsert 写回来（侧栏幽灵条目）');
     expect(index.entries, isEmpty, reason: '内存镜像也不能留着那一行');
   });
 
-  test('删之前落地的 upsert 照常生效（墓碑不影响别的会话）', () async {
+  test('删掉再新建同 id 的会话：新的那条照常写进索引（复审 high 2026-09-22）', () async {
+    // fake-agent 不带 `--sessions` 时每次 `session/new` 都回同一个 `sess_fake_1`：永不过期的墓碑会把
+    // 删掉之后再新建的这条静默删掉，侧栏里根本不出现、重启后彻底没有。
+    final core = _SlowUpsertCore();
+    final index = SessionIndex(bridge: core, onChanged: () {});
+    final first = SessionStore(sessionId: 'sess_fake_1', agentId: 'a')..cwd = 'D:/repo';
+    final hold = core.delayNextUpsert = Completer<void>();
+    final stamping = index.upsert(first, agentFallback: 'a', titleFallback: '第一条', promptSent: true);
+    final removing = index.remove('a', 'sess_fake_1');
+    hold.complete();
+    await stamping;
+    await removing;
+    expect(core.sessionIndex, isEmpty);
+
+    final second = SessionStore(sessionId: 'sess_fake_1', agentId: 'a')..cwd = 'D:/repo';
+    await index.upsert(second, agentFallback: 'a', titleFallback: '第二条');
+    expect(core.sessionIndex.map((e) => e['sessionId']), <String>['sess_fake_1'], reason: '删掉再新建的同 id 会话不能被静默删掉');
+    expect(core.sessionIndex.single['title'], '第二条');
+    expect(index.entries.map((e) => e['sessionId']), <String>['sess_fake_1']);
+  });
+
+  test('删之前落地的 upsert 照常生效（删除只等同一条会话的在途写，不影响别的会话）', () async {
     final core = FakeCore();
     final index = SessionIndex(bridge: core, onChanged: () {});
     final kept = SessionStore(sessionId: 'sess_keep', agentId: 'a');

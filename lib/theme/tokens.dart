@@ -946,9 +946,6 @@ abstract final class Fold {
 
   /// 展开态标题行（chevron + 处理详情 + 灰色一行摘要）的上下内边距。
   static const EdgeInsets headerPadding = EdgeInsets.symmetric(vertical: lineGap);
-
-  /// 展开态里折叠块各项之间的间距。
-  static const double itemGap = 6;
 }
 
 /// 画板 08 C「在跑会话数徽标」的 token（同上：画板 00 未改，这组值只服务画板 08）。

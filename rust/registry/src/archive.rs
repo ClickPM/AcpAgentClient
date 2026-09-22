@@ -186,8 +186,10 @@ mod tests {
     }
 
     /// 成员路径不能逃出解压目录（审查 finding，2026-09-22：「tar 不解成员路径」）。
-    /// 我们不自己解 tar，挡这件事的是系统 tar 本身——bsdtar / GNU tar 默认就拒绝含 `..` 的成员、
-    /// 并剥掉开头的 `/`。这条用例把这个**隐式依赖**钉成回归：换了解压器或加了 `-P` 都会红。
+    /// 我们不自己解 tar，挡这件事的是系统 tar 本身——bsdtar（Windows 自带的 tar.exe / macOS）默认
+    /// `SECURE_NODOTDOT`，含 `..` 的成员报错、退出码非零；GNU tar 自 1.29（2016，CVE-2016-6321）起同样
+    /// 跳过这类成员并以 2 退出（更老的 GNU tar 是剥掉 `../` 后照常解出，也逃不出目标目录，但本用例会红）；
+    /// 两者都剥掉开头的 `/`。这条用例把这个**隐式依赖**钉成回归：换了解压器或加了 `-P` 都会红。
     /// 造包用 `tar -cf` 造不出来（它自己就不让打这种成员），所以按 tar 格式手写两个 512 字节头。
     #[tokio::test]
     async fn extraction_refuses_members_that_escape_the_destination() {

@@ -67,6 +67,14 @@ class TurnFoldSummaryRow extends TranscriptRow {
   final bool collapsed;
 }
 
+/// 行的身份（画板 43 的跳转与画板 08 B 的锚点按它找行）：条目行 = 条目 id，结束行 = `<轮 id>-end`，
+/// 摘要行 = `<轮 id>-fold`。三类前缀不同，同一份转录里不会撞。
+String transcriptRowId(TranscriptRow row) => switch (row) {
+      EntryRow(:final entry) => entry.id,
+      TurnEndRow(:final turn) => '${turn.id}-end',
+      TurnFoldSummaryRow(:final fold) => '${fold.turn.id}-fold',
+    };
+
 /// 把条目列表展开成行：每个已结束的轮在其最后一个条目之后加一行结束行。
 /// `TurnEntry` 本身不出行——轮开始不画任何东西（画板 10 的分隔线已废弃，见文件头），它只用来切轮与定位 Restore。
 ///

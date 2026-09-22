@@ -40,5 +40,5 @@ Copy-Item -Recurse $out $headless
 Write-Host ("product exe " + (Get-Item (Join-Path $product "acp_agent_client.exe")).Length + " bytes; headless exe " + (Get-Item (Join-Path $headless "acp_agent_client.exe")).Length + " bytes")
 
 Write-Host "== clipboard probe"
-& pwsh -STA -NoProfile -File (Join-Path $q "clip-test.ps1") -HeadlessExe (Join-Path $headless "acp_agent_client.exe") -ProductExe (Join-Path $product "acp_agent_client.exe")
+& pwsh -STA -NoProfile -File (Join-Path $PSScriptRoot "clip-test.ps1") -HeadlessExe (Join-Path $headless "acp_agent_client.exe") -ProductExe (Join-Path $product "acp_agent_client.exe")
 Write-Host ("== clip-test exit=" + $LASTEXITCODE)
