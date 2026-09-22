@@ -16,7 +16,7 @@
 | 3 | fix | 从文件选择器加图没有大小门：门与 base64 一起收进 `ComposerState.addImageBytes`，**判在编码之前**，超了记 `lastError` 不编码 | BACKLOG P0「附件与剪贴板」第 2 条 | `claude/composer-image-mention-fixes-f2eb2d` → `0778403`（快进） | validate 全绿 | 2 轮（high 0；第 1 轮 P2 1 已采纳整改） | 已合并 |
 | 4 | fix | `@` 菜单在用户点走之后自己弹出来：`_updateMentionMenu` 的 await 之后用 `_activeToken(editor.text)` 复核 token，不一致就丢结果。**只关掉「改词 / 清空」那半**，Esc / 点外面那半放回 BACKLOG | BACKLOG P1「壳与交互」第 7 条 | 同上 | 同上 | 同上 | 已合并 |
 | 5 | fix | 会话索引（`sessions.json`）写回取错源的三处同根因缺陷：① `SessionIndex.upsert` 的标题退回索引里已有的（含会话头 `sessionTitle` 那一半）；② `saveIndex` 收一个 `SessionStore`，收轮时由 `TurnController._runTurn` 传刚跑完那条；③ `session/list` 校对的 cwd 过滤改走 `WorkspaceState.normalizeCwd` | BACKLOG P0「会话身份与生命周期」1 条 + P1「数据一致性」2 条（iteration-01 候选 A 的 13 / 14 / 15） | `claude/session-index-write-bugs-3c53b0` → `7264fd5`（快进） | validate 全绿 | 2 轮，2 条（high 1 / P2 1）→ 0 high | 已合并 |
-| 6 | fix | 换主题 / 换字体之后界面只切一半：`MarkdownBody` 按 `Fonts.generation` 判过期（照抄 `_SourceView`） + 10 个叶子 widget 摘掉 `const` 构造 | BACKLOG P1「主题与渲染」2 条 | `claude/theme-font-partial-rebuild-471573` → 待快进 | validate 全绿（`flutter test` 408 项，新增 5 项） | 1 轮 / cursor CLI `grok-4.7-high-fast`，**0 条** | 待合并 |
+| 6 | fix | 换主题 / 换字体之后界面只切一半：`MarkdownBody` 按 `Fonts.generation` 判过期（照抄 `_SourceView`） + 10 个叶子 widget 摘掉 `const` 构造 | BACKLOG P1「主题与渲染」2 条 | `claude/theme-font-partial-rebuild-471573` → `62b6bf8`（快进） | validate 全绿（`flutter test` 408 项，新增 5 项） | 1 轮 / cursor CLI `grok-4.7-high-fast`，**0 条** | 已合并 |
 
 ## 收口
 
