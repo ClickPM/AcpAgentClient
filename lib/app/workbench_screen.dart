@@ -9,7 +9,7 @@ import 'dart:convert';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/gestures.dart' show kPrimaryButton;
-import 'package:flutter/rendering.dart' show RenderAbstractViewport, ScrollDirection;
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -44,6 +44,7 @@ import '../ui/transcript/transcript_list.dart';
 import 'clipboard_image.dart';
 import 'appearance_prefs.dart';
 import 'shell_state.dart';
+import 'transcript_jump.dart';
 import 'window_controls.dart';
 import 'workbench_controller.dart';
 
@@ -80,11 +81,11 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   /// 画板 43：时间线刚跳到的那条用户气泡（进入画板 11 的点击聚焦态）。转录区里再点一下别处就撤。
   String? _focusedEntryId;
 
-  /// 正在跳的那一次已经试了几帧（见 [_scheduleJump]）。
-  int _jumpTries = 0;
-
-  /// 估位最多试几帧就收手：够不着就停在估出来的位置，不在这里空转。
-  static const int _maxJumpTries = 8;
+  /// 画板 43 的时间线跳转（惰性列表里的单向步进，见 [TranscriptJump]）。
+  late final TranscriptJump _jump = TranscriptJump(
+    controller: _transcript,
+    rows: () => buildRows(c.session.store?.entries ?? const <TranscriptEntry>[]),
+  );
 
   WorkbenchController get c => widget.controller;
 
@@ -113,6 +114,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   void dispose() {
     c.removeListener(_onControllerChanged);
     _followed?.removeListener(_onTranscriptGrew);
+    _jump.cancel();
     _transcript.removeListener(_onTranscriptScrolled);
     _transcript.dispose();
     super.dispose();
@@ -130,6 +132,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     _followed?.removeListener(_onTranscriptGrew);
     _followed = store;
     store?.addListener(_onTranscriptGrew);
+    // 转录换了一份内容，上一条会话没跳完的那次跳转不再算数。
+    _jump.cancel();
     _stick = true;
     _scheduleFollow();
   }
@@ -714,50 +718,15 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   }
 
   /// 画板 43：跳到某个转录条目，落点是「目标块顶边对齐转录区顶部内边距」，不做滚动动画。
-  ///
-  /// 惰性列表里目标行多半还没建出来（`ListView.builder` 只建视口附近那几行，没建的行没有 RenderObject），
-  /// 所以先按行序比例估一个落点跳过去，下一帧再看目标建出来没有；建出来了就按它的真实位置精确落位。
-  /// 与跟随底部那套多帧纠正同一个套路（见 [_scheduleFollow]），只是方向反过来。
+  /// 惰性列表里目标行多半还没建出来，怎么一步步挪过去见 [TranscriptJump]。
   void _jumpToEntry(String entryId, {required bool focus}) {
     final store = c.session.store;
     if (store == null) return;
-    final rows = buildRows(store.entries);
-    final index = rows.indexWhere((r) => r is EntryRow && r.entry.id == entryId);
-    if (index < 0) return;
-    final entry = (rows[index] as EntryRow).entry;
+    if (!buildRows(store.entries).any((r) => r is EntryRow && r.entry.id == entryId)) return;
     // 跳到旧内容 = 用户自己翻上去，跟随底部要停掉，否则下一条流式块又把视口拽回最底下。
     _stick = false;
     setState(() => _focusedEntryId = focus ? entryId : null);
-    _jumpTries = 0;
-    if (_revealRow(entry)) return;
-    _scheduleJump(entry, index, rows.length);
-  }
-
-  void _scheduleJump(TranscriptEntry entry, int index, int count) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_transcript.hasClients) return;
-      if (_revealRow(entry)) return;
-      if (++_jumpTries > _maxJumpTries) return;
-      // 估位：按行序在总长里的比例。`maxScrollExtent` 对没建出来的那截是按已建行的平均高估的，
-      // 所以每跳一次、建出来的行换一批，估值就更贴一点——几帧内收敛到目标那一屏。
-      final p = _transcript.position;
-      _transcript.jumpTo((p.maxScrollExtent * index / count).clamp(p.minScrollExtent, p.maxScrollExtent));
-      _scheduleJump(entry, index, count);
-    });
-  }
-
-  /// 目标行已经建出来了：按它在视口里的真实位置精确落位。返回 false = 还没建出来。
-  bool _revealRow(TranscriptEntry entry) {
-    final context = transcriptRowKey(entry).currentContext;
-    if (context == null || !_transcript.hasClients) return false;
-    final box = context.findRenderObject();
-    if (box is! RenderBox || !box.attached) return false;
-    // `getOffsetToReveal(…, 0)` 给的是「目标顶边贴视口顶边」的偏移，再减去转录区顶部内边距，
-    // 目标上方就正好留出画板要的那 16。
-    final reveal = RenderAbstractViewport.of(box).getOffsetToReveal(box, 0).offset - t.Spacing.s16;
-    final p = _transcript.position;
-    _transcript.jumpTo(reveal.clamp(p.minScrollExtent, p.maxScrollExtent));
-    return true;
+    _jump.start(entryId);
   }
 
   // ---------------------------------------------------------------- 右栏与流量面板（画板 03 / 80）

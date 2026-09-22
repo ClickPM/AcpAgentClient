@@ -48,6 +48,7 @@ class FilesState extends ChangeNotifier {
   /// 换项目：重建树、重启监视、清掉查看器。
   Future<void> setProject(String? path) async {
     if (path == root && tree != null) return;
+    final epoch = ++_projectEpoch;
     final previous = root;
     // 不等 cancel：frb 流的取消是 Dart 侧关端口，Rust 侧监视器由 `fs_unwatch` 明确停掉。
     unawaited(_watch?.cancel());
@@ -67,9 +68,16 @@ class FilesState extends ChangeNotifier {
     t.addListener(_forward);
     tree = t;
     await _guard(() => t.reload());
+    // 这中间又换了项目：树与监视都已经归新的那一轮管，旧的一轮不能再往 [_watch] 上写
+    // ——写上去会把新的那条订阅挤掉（挤掉的那条既不会被 cancel，Rust 侧也不会收到 `fs_unwatch`）。
+    if (epoch != _projectEpoch) return;
     await refreshBadges();
+    if (epoch != _projectEpoch) return;
     _watch = b.fsWatch(path).listen(_onChanges, onError: (Object e) => lastError = describeError(e));
   }
+
+  /// [setProject] 的序号：换项目是一串 await，得认得出自己这一轮还算不算数。
+  int _projectEpoch = 0;
 
   Future<List<FileEntry>> _list(CoreCommands b, String rootPath, String dir) async {
     final listing = await b.fsListDir(rootPath, dir);
@@ -104,7 +112,32 @@ class FilesState extends ChangeNotifier {
     return i > 0 && f.substring(0, i) == pathKey(dir);
   }
 
+  /// 徽章刷新在跑：`git_status` 是三个 git 子进程，大仓库上一次要几百毫秒。
+  bool _refreshingBadges = false;
+
+  /// 在跑的时候又来了刷新请求：只记一笔，这一轮完了再补跑一次最新状态。
+  bool _badgesNeedRerun = false;
+
+  /// git 徽章刷新。`fs_watch` 那边已经按 250ms 合批（rust/fs/src/watch.rs），但一批还没刷完
+  /// 下一批就到的仓库上仍会叠起来——Windows 上那就是几路 `git.exe` 抢磁盘。所以这里防重入：
+  /// 正在跑就只记 [_badgesNeedRerun]，由在跑的那一轮回头补一次，永远只有一个 `git_status` 在飞。
   Future<void> refreshBadges() async {
+    if (_refreshingBadges) {
+      _badgesNeedRerun = true;
+      return;
+    }
+    _refreshingBadges = true;
+    try {
+      do {
+        _badgesNeedRerun = false;
+        await _readBadges();
+      } while (_badgesNeedRerun && !_disposed);
+    } finally {
+      _refreshingBadges = false;
+    }
+  }
+
+  Future<void> _readBadges() async {
     final b = bridge;
     final r = root;
     final t = tree;

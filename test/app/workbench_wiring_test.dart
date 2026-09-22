@@ -73,6 +73,48 @@ class _InstalledCore extends FakeCore {
   Future<JsonMap> workspaceRecent() async => <String, dynamic>{'projects': projects};
 }
 
+/// 换项目后要补齐的三件（分支 / Rules / 文件树）全都挂在 [gate] 上：用来验「`workspace_open` 一回来就通知」
+/// 与「三件是并发的，不是一件等一件」。[peakInFlight] 是同时在飞的命令数的峰值。
+class _SlowHydrationCore extends _InstalledCore {
+  final Completer<void> gate = Completer<void>();
+  int inFlight = 0;
+  int peakInFlight = 0;
+
+  Future<JsonMap> _gated(JsonMap value) async {
+    inFlight++;
+    if (inFlight > peakInFlight) peakInFlight = inFlight;
+    await gate.future;
+    inFlight--;
+    return value;
+  }
+
+  @override
+  Future<JsonMap> workspaceOpen(String path) async => <String, dynamic>{
+        'project': <String, dynamic>{'path': path, 'name': 'proj'},
+        'projects': projects,
+      };
+
+  @override
+  Future<JsonMap> gitBranches(String cwd) =>
+      _gated(<String, dynamic>{'available': true, 'isRepo': true, 'current': 'main', 'branches': <Object?>[]});
+
+  /// Rules 计数与文件树各列一次根目录：两次都走这里，所以两次都被卡住。
+  @override
+  Future<JsonMap> fsListDir(String r, String path) => _gated(<String, dynamic>{
+        'path': path,
+        'entries': <Object?>[
+          <String, dynamic>{'name': 'CLAUDE.md', 'path': '$path/CLAUDE.md', 'parent': '', 'isDir': false, 'size': 1},
+        ],
+      });
+
+  @override
+  Future<JsonMap> gitStatus(String cwd) =>
+      _gated(<String, dynamic>{'available': true, 'isRepo': true, 'root': cwd, 'entries': <Object?>[]});
+
+  @override
+  Stream<JsonMap> fsWatch(String r) => const Stream<JsonMap>.empty();
+}
+
 /// `session/new` 挂着不回，直到 [gate] 完成：复现「等待期里做别的事」。
 class _GatedNewCore extends _InstalledCore {
   final Completer<JsonMap> gate = Completer<JsonMap>();
@@ -365,6 +407,27 @@ void main() {
     await c.workspace.openProject(const ProjectRef(path: r'D:\proj', name: 'proj'));
     expect(c.session.sidebarSessions.map((s) => s.id), unorderedEquals(<String>['older', 'recent']));
     expect(c.session.sessionId, isNull, reason: '切回来不替用户自动选会话');
+    c.dispose();
+  });
+
+  test('换项目：workspace_open 一回来就通知，分支 / Rules / 文件树并发在后台补齐', () async {
+    final core = _SlowHydrationCore();
+    final c = WorkbenchController(source: DataSource.bridge, bridge: core);
+    var notifications = 0;
+    c.addListener(() => notifications++);
+
+    final opening = c.workspace.openProject(const ProjectRef(path: r'D:\proj', name: 'proj'));
+    await pumpEventQueue();
+    expect(c.workspace.project?.path, r'D:\proj', reason: '`workspace_open` 只是往本地索引写一条，回来就该认这个项目');
+    expect(notifications, greaterThan(0), reason: '顶栏项目名与输入框的 canCompose 不等分支与文件树');
+    expect(c.workspace.branchAreaVisible, isFalse, reason: '这时三件都还卡着');
+    expect(core.peakInFlight, 3, reason: '分支 / Rules 列根 / 文件树列根同时在飞，不是一件等一件');
+
+    core.gate.complete();
+    await opening;
+    expect(c.workspace.branch, 'main');
+    expect(c.workspace.rulesCount, 1);
+    expect(c.files.root, r'D:\proj');
     c.dispose();
   });
 
