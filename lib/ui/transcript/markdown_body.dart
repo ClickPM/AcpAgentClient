@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 // 助手正文的 Markdown 渲染（R1.5 裁定：package:markdown 只用解析器，渲染层按画板自写）。
 // - 每个顶层块带 ValueKey(index)，流式追加时只有尾块的子树变化；
 // - 链接的 recognizer 下推到每个叶子 span（RichText 命中测试只看最内层），由 MarkdownBody 的 State 持有：
@@ -346,7 +348,36 @@ class MarkdownBlock extends StatelessWidget {
       case 'input':
         return WidgetSpan(alignment: PlaceholderAlignment.middle, child: TaskCheckbox(checked: node.attributes['checked'] == 'true'));
       case 'img':
-        return TextSpan(text: '[image: ${node.attributes['alt'] ?? node.attributes['src'] ?? ''}]', style: TextStyle(color: t.Neutral.muted));
+        final src = node.attributes['src'] ?? '';
+        final alt = node.attributes['alt'] ?? '';
+        Widget? imgWidget;
+        if (src.startsWith('data:image/') && src.contains(';base64,')) {
+          try {
+            final base64Part = src.split(';base64,').last;
+            final bytes = base64Decode(base64Part);
+            imgWidget = Image.memory(bytes, fit: BoxFit.contain);
+          } catch (_) {}
+        } else if (src.startsWith('file://') || (src.startsWith('/') && File(src).existsSync())) {
+          try {
+            final p = src.startsWith('file://') ? Uri.parse(src).toFilePath() : src;
+            imgWidget = Image.file(File(p), fit: BoxFit.contain);
+          } catch (_) {}
+        } else if (src.startsWith('http://') || src.startsWith('https://')) {
+          imgWidget = Image.network(src, fit: BoxFit.contain);
+        }
+        if (imgWidget != null) {
+          return WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: t.Spacing.s4),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 320),
+                child: ClipRRect(borderRadius: t.Radii.control, child: imgWidget),
+              ),
+            ),
+          );
+        }
+        return TextSpan(text: '[image: ${alt.isEmpty ? src : alt}]', style: TextStyle(color: t.Neutral.muted));
       default:
         return inlines(node.children, base);
     }

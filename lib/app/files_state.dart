@@ -255,6 +255,7 @@ class FilesState extends ChangeNotifier {
         sizeBytes: (c['size'] as num?)?.toInt() ?? 0,
         binary: c['binary'] == true,
         truncated: c['truncated'] == true,
+        filePath: path,
       );
     });
     _touch();

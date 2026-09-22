@@ -573,9 +573,9 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
       // 没有 loadSession 但有 resume：agent 侧把上下文挂回来，转录只有内存里这份（不重放，规范如此）。
       if (_sessionCapsOf(owner).containsKey('resume')) {
         await b.sessionResume(owner, id, cwd);
-        sessions.session(id, agentId: owner).cwd = cwd;
-        _closedSessions.remove(id);
       }
+      sessions.session(id, agentId: owner).cwd = cwd;
+      _closedSessions.remove(id);
     });
     touch();
   }

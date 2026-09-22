@@ -181,14 +181,23 @@ class _UserMessageState extends State<UserMessage> {
               border: Border.all(color: t.FocusRing.color, width: t.FocusRing.width),
             ),
             padding: const EdgeInsets.all(t.Spacing.s12),
-            child: EditableText(
-              controller: _controller,
-              focusNode: _focus,
+            child: Focus(
+              onKeyEvent: (node, event) {
+                if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
+                  _set(UserMessageState.normal);
+                  return KeyEventResult.handled;
+                }
+                return KeyEventResult.ignored;
+              },
+              child: EditableText(
+                controller: _controller,
+                focusNode: _focus,
               style: t.TextStyles.body,
               cursorColor: t.Accent.base,
               backgroundCursorColor: t.Neutral.surface,
               maxLines: null,
               autofocus: true,
+              ),
             ),
           ),
           const SizedBox(height: t.Spacing.s12),

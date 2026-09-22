@@ -1,3 +1,4 @@
+import 'dart:io';
 // 画板 32 · 非文本内容块：image（内嵌 base64 预览）、audio（播放条，audioplayers 内存 BytesSource）、
 // resource_link（文件卡）、embedded resource text（内嵌展示）、embedded resource blob（不可渲染的兜底文件卡）。
 // 输出方向没有能力门，五种块在消息 / 思考 / 工具卡内容里都可能出现，都要能显示。
@@ -76,9 +77,16 @@ class _ImageBlock extends StatelessWidget {
     } on FormatException {
       bytes = null;
     }
+    final uri = block.uri;
+    if (bytes == null && uri != null) {
+      try {
+        final p = uri.startsWith('file://') ? Uri.parse(uri).toFilePath() : uri;
+        final f = File(p);
+        if (f.existsSync()) bytes = f.readAsBytesSync();
+      } catch (_) {}
+    }
     final mime = block.mimeType ?? 'image';
     final size = formatBytes(bytes?.length ?? _base64Length(block.data));
-    final uri = block.uri;
     return TranscriptCard(
       child: Padding(
         padding: const EdgeInsets.all(t.Spacing.s12),

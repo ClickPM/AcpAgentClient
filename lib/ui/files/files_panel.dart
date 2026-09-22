@@ -1,3 +1,4 @@
+import 'dart:io';
 // 画板 60 · 文件面板：左列文件树（头行「文件浏览器」+ 搜索开关 / 全部折叠 / 刷新，过滤输入，24 高的树行：折叠箭头 · 文件夹 / 文件图标 ·
 // 名字 · git 徽章），右侧查看器（头行：文件名 · 路径 · Source / Preview 分段 · 复制；正文：标题 + 「language · N lines · size」元信息 +
 // Preview（Markdown，R1.5 裁定的 package:markdown 自写渲染）或 Source（re_highlight 高亮 + 行号，可高亮并滚到某一行）；空态）。
@@ -34,6 +35,7 @@ class FileViewerData {
     this.sizeBytes = 0,
     this.binary = false,
     this.truncated = false,
+    this.filePath,
   });
 
   final String name;
@@ -50,6 +52,7 @@ class FileViewerData {
 
   /// 超过 `fs_read` 的上限，只拿到了前一段。
   final bool truncated;
+  final String? filePath;
 
   bool get isMarkdown => language.highlight == 'markdown';
 
@@ -691,6 +694,25 @@ class _FileViewer extends StatelessWidget {
 
   Widget _body(FileViewMode effective) {
     if (data.binary) {
+      final ext = data.name.split('.').last.toLowerCase();
+      final p = data.filePath;
+      if (p != null && const {'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico'}.contains(ext)) {
+        return Center(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(t.Spacing.s16),
+              child: Image.file(
+                File(p),
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => Align(
+                  alignment: Alignment.topLeft,
+                  child: Text('无法预览此图片', style: t.TextStyles.secondary),
+                ),
+              ),
+            ),
+          ),
+        );
+      }
       return Align(alignment: Alignment.topLeft, child: Text('二进制文件，不预览', style: t.TextStyles.secondary));
     }
     if (effective == FileViewMode.preview) {
