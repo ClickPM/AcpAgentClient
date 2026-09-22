@@ -5,7 +5,7 @@
 //! 不直接链接 Zed 的 crate 的理由见 R5 任务卡「偏离」。）
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 
@@ -89,22 +89,50 @@ fn platform_names() -> (&'static str, &'static str) {
     (os, arch)
 }
 
-/// 系统 Node（PATH 上的 `node`）与受管 Node 各查一次。
-pub async fn status(dirs: &RegistryDirs) -> NodeStatus {
-    let mut status = NodeStatus { min_version: MIN_VERSION, ..Default::default() };
+/// 系统 Node 的一次探测结果：`(可用的那份, 不可用的说明)`。
+type SystemNode = (Option<NodeInfo>, Option<String>);
+
+/// 系统 Node 的探测缓存。PATH 上的 `node` 在客户端一次运行里不会变，而 `node --version` 在 Windows 上
+/// 是一次 ~30ms 的进程冷启动，每条 `agent_connect`（→ `registry_launch` → [`locate`]）都要付一遍。
+/// [`locate`] 读这份缓存，[`status`]（画板 51 的 Node 状态与它的刷新）仍每次实探并回填——
+/// 用户中途装了 Node，刷一下状态就能被下一次拉起认出来。
+static SYSTEM_NODE: Mutex<Option<SystemNode>> = Mutex::new(None);
+
+/// 实探 PATH 上的 `node`：跑得起来且 ≥ 22 才算可用，否则给一句说明（画板 51 显示它）。
+async fn probe_system() -> SystemNode {
     let node = resolve_program("node");
-    if node.is_file() {
-        match node_version(&node).await {
-            Ok(version) => {
-                if parse_major(&version).unwrap_or(0) >= MIN_MAJOR {
-                    status.system = Some(NodeInfo { version, path: node.to_string_lossy().into_owned() });
-                } else {
-                    status.system_error = Some(format!("{version} · {}（需要 ≥ {MIN_MAJOR}）", node.display()));
-                }
-            }
-            Err(e) => status.system_error = Some(e.to_string()),
-        }
+    if !node.is_file() {
+        return (None, None);
     }
+    match node_version(&node).await {
+        Ok(version) => {
+            if parse_major(&version).unwrap_or(0) >= MIN_MAJOR {
+                (Some(NodeInfo { version, path: node.to_string_lossy().into_owned() }), None)
+            } else {
+                (None, Some(format!("{version} · {}（需要 ≥ {MIN_MAJOR}）", node.display())))
+            }
+        }
+        Err(e) => (None, Some(e.to_string())),
+    }
+}
+
+/// 锁只在取 / 放的一瞬间持有，不跨 await（中毒的锁按「没缓存」处理，退化成每次实探）。
+fn cached_system() -> Option<SystemNode> {
+    SYSTEM_NODE.lock().ok().and_then(|slot| slot.clone())
+}
+
+fn store_system(probed: &SystemNode) {
+    if let Ok(mut slot) = SYSTEM_NODE.lock() {
+        *slot = Some(probed.clone());
+    }
+}
+
+/// 系统 Node（PATH 上的 `node`）与受管 Node 各查一次。总是实探，顺带把系统那份回填进缓存。
+pub async fn status(dirs: &RegistryDirs) -> NodeStatus {
+    let probed = probe_system().await;
+    store_system(&probed);
+    let (system, system_error) = probed;
+    let mut status = NodeStatus { system, system_error, min_version: MIN_VERSION, ..Default::default() };
     let (_, managed_node, _) = managed_layout(dirs);
     if managed_node.is_file()
         && let Ok(version) = node_version(&managed_node).await
@@ -115,19 +143,27 @@ pub async fn status(dirs: &RegistryDirs) -> NodeStatus {
 }
 
 /// 优先系统 Node ≥ 22，再受管 Node；都没有报 `Node`（前端据此出画板 51 的受管 Node 提示卡）。
+/// 系统那份走缓存；受管那份只在系统 Node 用不上时才探——常见路径上因此一个子进程都不拉。
 pub async fn locate(dirs: &RegistryDirs) -> Result<NodeRuntime> {
-    let status = status(dirs).await;
-    if let Some(system) = status.system {
+    let (system, system_error) = match cached_system() {
+        Some(hit) => hit,
+        None => {
+            let probed = probe_system().await;
+            store_system(&probed);
+            probed
+        }
+    };
+    if let Some(system) = system {
         let npm = resolve_program("npm");
         if npm.is_file() {
             return Ok(NodeRuntime { node: PathBuf::from(system.path), npm: Npm::System(npm), managed: false });
         }
     }
-    if status.managed.is_some() {
-        let (root, node, cli) = managed_layout(dirs);
-        return Ok(NodeRuntime { node, npm: Npm::ManagedCli { cli, root }, managed: true });
+    let (root, managed_node, cli) = managed_layout(dirs);
+    if managed_node.is_file() && node_version(&managed_node).await.is_ok() {
+        return Ok(NodeRuntime { node: managed_node, npm: Npm::ManagedCli { cli, root }, managed: true });
     }
-    Err(RegistryError::Node(match status.system_error {
+    Err(RegistryError::Node(match system_error {
         Some(e) => format!("系统 Node 不可用（{e}），也没有受管 Node"),
         None => format!("未检测到 Node ≥ {MIN_MAJOR}，也没有受管 Node"),
     }))

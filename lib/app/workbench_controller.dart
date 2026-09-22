@@ -211,8 +211,10 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       await index.refresh();
       await agents.refreshRegistry();
       await agents.refreshAgents();
-      await workspace.restoreLastProject();
+      // 三栏宽度在前：只读一条本地 UI 状态，而恢复项目要跑 6 个 git 子进程 + 两次目录列举，
+      // 排在它后面会让冷启动的第一屏先用缺省宽度撑着、跑完才跳一次。
       await shell.restoreUiState();
+      await workspace.restoreLastProject();
     });
     notifyListeners();
     // registry.json 的联网刷新（1 小时节流）放到后台：断网时 30 秒超时不能挡住启动。
