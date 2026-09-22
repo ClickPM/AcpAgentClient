@@ -12,12 +12,20 @@
 //
 // 「最后一段连续的 agent 文本」= 从回合末尾往前数，直到遇上第一个非 agent-文本的块为止的那一段
 // （所有者裁定 2026-09-22）。一个回合里 agent 文本可能有好几段，只有最后这一段是结论。
+//
+// **轮的切分**（所有者裁定 2026-09-22）：有 [TurnEntry] 就按轮边界，没有就退到**顶层用户消息**。
+// 轮边界只有我们自己 `session/prompt` 时才放，`session/load` 重放回来的历史一条都没有（R6 裁定，
+// docs/design.md § 3），只认轮边界的话重开应用后整份历史都不会折（所有者报障 2026-09-22）。
+// 同一口径画板 43 的会话时间线先用过（lib/projection/timeline.dart），Restore 的截断点也是它。
+// 代价：历史轮没有 [TurnEntry]，摘要行第二行的模型名与回合页脚都没有数据源——摘要行退化成单行
+// （画板 08 本来就画了这个退化态），页脚不出。记 design/DIVERGENCE.md。
 
 import 'entries.dart';
 
 /// 一个回合的折叠分组结果。
 class TurnFold {
   TurnFold({
+    required this.owner,
     required this.turn,
     required this.folded,
     required this.toolCalls,
@@ -28,7 +36,12 @@ class TurnFold {
   /// [contains] 的索引：转录行是逐行问的，用 identity set 而不是在 [folded] 上线性找。
   final Set<TranscriptEntry> _folded;
 
-  final TurnEntry turn;
+  /// 这一轮的身份：实时轮是它的 [TurnEntry]，重放回来的历史轮是那条顶层用户消息（见文件头）。
+  /// [foldsOf] 的键、摘要行的行 id、折叠态的记法（`TranscriptFolds` 的 Expando）全按它。
+  final TranscriptEntry owner;
+
+  /// 轮边界本身。**重放回来的历史轮没有**：模型名、`stopReason`、回合级 usage 那时都取不到。
+  final TurnEntry? turn;
 
   /// 进折叠块的条目，按原顺序。摘要行出在**第一条**的位置上（画板：折叠块永远压在用户消息与最终助手文本之间）。
   final List<TranscriptEntry> folded;
@@ -42,6 +55,15 @@ class TurnFold {
 
   /// 折叠块里被取消的工具调用数。只用于判「不自动折叠」，不出现在摘要行上。
   final int cancelled;
+
+  /// [foldsOf] 的键，也是摘要行行 id 的前缀（`<id>-fold`）。
+  String get id => owner.id;
+
+  /// 摘要行第二行的模型名（回合开始那一刻的快照）。重放历史轮取不到，摘要行退化成单行。
+  String? get model => turn?.model;
+
+  /// 这一轮还在跑。重放回来的历史轮永远是假——它记的是已经结束的事。
+  bool get isRunning => turn?.isRunning ?? false;
 
   /// 「N 条消息」：折叠块里的块数（含思考块与中间的 agent 文本段）。
   int get messages => folded.length;
@@ -58,8 +80,11 @@ class TurnFold {
   /// **含失败工具调用、但正常收轮的回合照常折叠**（所有者裁定 2026-09-22，画板 08 已同步）：跑到了结论就收起来，
   /// 坏消息不藏——摘要行上的「N 项失败」照出，不必把整段过程摊开。
   /// `max_tokens` / `refusal` 同样照常折叠：它们是协议给的正常结束值，画板 31 的页脚本来就会标出来，而页脚不参与折叠。
+  ///
+  /// 重放回来的历史轮（[turn] 为 null）落在「可折」这一侧：重放里那三个拦住自动折叠的信号一个都回不来，
+  /// 而它记的本就是已经结束的事。
   bool get autoCollapsible =>
-      !turn.isRunning && cancelled == 0 && turn.error == null && turn.stopReason != 'cancelled';
+      !isRunning && cancelled == 0 && turn?.error == null && turn?.stopReason != 'cancelled';
 
   /// 本回合的条目属不属于折叠块（列表折叠态据此跳过）。
   bool contains(TranscriptEntry e) => _folded.contains(e);
@@ -70,27 +95,42 @@ bool _isProcess(TranscriptEntry e) => e is ThoughtEntry || e is ToolCallEntry ||
 
 bool _isAgentText(TranscriptEntry e) => e is MessageEntry && e.role == MessageRole.agent;
 
+/// 没有轮边界时的轮起点：**顶层**用户消息。子代理卡里嵌套的消息不算——正常情况下它们在
+/// `ToolCallEntry.children` 里、压根不在顶层列表，父卡建不出来时才会落回来（同 `buildTimeline` 的口径）。
+bool isTurnStart(TranscriptEntry e) =>
+    e is MessageEntry && e.role == MessageRole.user && e.parentToolCallId == null;
+
 /// 把整份转录按轮切开，算出每轮的折叠分组。只有**产生了折叠块**的轮才进结果。
-/// 键是 `TurnEntry.id`——它是本地序号，同一个 store 里唯一。
+/// 键是 [TurnFold.id]——实时轮是 `TurnEntry.id`，重放历史轮是那条用户消息的 id，都是本地序号、同一个 store 里唯一。
 Map<String, TurnFold> foldsOf(List<TranscriptEntry> entries) {
   final out = <String, TurnFold>{};
-  TurnEntry? open;
+  TurnEntry? turn;
+  TranscriptEntry? owner;
   var bucket = <TranscriptEntry>[];
   void close() {
-    final t = open;
-    if (t == null) return;
-    final fold = foldOfTurn(t, bucket);
-    if (fold != null) out[t.id] = fold;
+    final o = owner;
+    if (o == null) return;
+    final fold = foldOfTurn(o, bucket, turn: turn);
+    if (fold != null) out[o.id] = fold;
   }
 
   for (final e in entries) {
     if (e is TurnEntry) {
       close();
-      open = e;
+      turn = e;
+      owner = e;
       bucket = <TranscriptEntry>[];
       continue;
     }
-    if (open != null) bucket.add(e);
+    // 轮边界缺席时（重放历史）按顶层用户消息开一轮。实时轮里那条本地回显的用户消息紧跟在自己的
+    // 轮边界之后，`turn != null` 拦住它，不会把同一轮切成两半。
+    if (turn == null && isTurnStart(e)) {
+      close();
+      owner = e;
+      bucket = <TranscriptEntry>[];
+      continue;
+    }
+    if (owner != null) bucket.add(e);
   }
   close();
   return out;
@@ -104,9 +144,10 @@ TurnFold? foldContaining(Iterable<TurnFold> folds, TranscriptEntry e) {
   return null;
 }
 
-/// 单个回合的分组。`body` 是这一轮里的条目（不含 [TurnEntry] 本身），按到达顺序。
+/// 单个回合的分组。[owner] 是这一轮的身份（轮边界，或没有轮边界时那条顶层用户消息），
+/// `body` 是这一轮里的条目（不含 [owner] 本身），按到达顺序。
 /// 没有任何可折叠的块时回 null（那一轮不出摘要行）。
-TurnFold? foldOfTurn(TurnEntry turn, List<TranscriptEntry> body) {
+TurnFold? foldOfTurn(TranscriptEntry owner, List<TranscriptEntry> body, {TurnEntry? turn}) {
   // 从末尾往前数出「最后一段连续的 agent 文本」，它不参与折叠。
   var tail = body.length;
   while (tail > 0 && _isAgentText(body[tail - 1])) {
@@ -136,5 +177,12 @@ TurnFold? foldOfTurn(TurnEntry turn, List<TranscriptEntry> body) {
     }
   }
   if (folded.isEmpty) return null;
-  return TurnFold(turn: turn, folded: folded, toolCalls: toolCalls, failures: failures, cancelled: cancelled);
+  return TurnFold(
+    owner: owner,
+    turn: turn,
+    folded: folded,
+    toolCalls: toolCalls,
+    failures: failures,
+    cancelled: cancelled,
+  );
 }

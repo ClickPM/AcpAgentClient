@@ -11,6 +11,8 @@ import 'package:acp_agent_client/projection/wire.dart';
 import 'package:acp_agent_client/ui/transcript/assistant_text.dart';
 import 'package:acp_agent_client/ui/transcript/thinking_block.dart';
 import 'package:acp_agent_client/ui/transcript/tool_call_card.dart';
+import 'package:acp_agent_client/ui/transcript/turn_state.dart';
+import 'package:acp_agent_client/ui/transcript/user_message.dart';
 import 'package:acp_agent_client/ui/transcript/transcript_list.dart';
 import 'package:acp_agent_client/ui/transcript/turn_fold_row.dart';
 import 'package:flutter/gestures.dart' show Drag, DragStartDetails, DragUpdateDetails;
@@ -199,6 +201,32 @@ void main() {
       expect(find.byType(ToolCallCard), findsNothing);
     });
 
+    testWidgets('session/load 重放回来的历史照样折：摘要行在、过程收起、退化成单行、没有回合页脚', (tester) async {
+      final s = newStore();
+      s.resetForReplay();
+      s.applyUpdateJson(<String, dynamic>{
+        'sessionUpdate': 'user_message_chunk',
+        'content': <String, dynamic>{'type': 'text', 'text': '历史一问'},
+      });
+      thought(s, '历史里的思考');
+      toolCall(s, 'tc-old');
+      agent(s, '历史一答');
+
+      final folds = TranscriptFolds();
+      await pump(tester, TranscriptList(s, folds: folds, onToggleFold: folds.toggle));
+      expect(find.byType(TurnFoldRow), findsOneWidget);
+      expect(find.byType(ToolCallCard), findsNothing);
+      expect(find.byType(ThinkingBlock), findsNothing);
+      expect(find.text('2 条消息 · 1 次工具调用'), findsOneWidget);
+      expect(find.text('历史一答'), findsOneWidget, reason: '最终 agent 文本不参与折叠');
+      expect(find.byType(TurnEndLine), findsNothing, reason: '重放没有轮边界，也就没有回合页脚');
+
+      // 点一下照样展得开。
+      await tester.tap(find.byType(TurnFoldRow));
+      await tester.pumpAndSettle();
+      expect(find.byType(ToolCallCard), findsOneWidget);
+    });
+
     testWidgets('手动展开之后，后续通知不会把它重新折回去', (tester) async {
       final s = sample();
       final folds = TranscriptFolds();
@@ -351,6 +379,199 @@ void main() {
 
       drag.cancel();
       await tester.pumpAndSettle();
+    });
+
+    testWidgets('历史轮收在工具调用上、没有页脚可兜底时，锚落到下一轮的用户气泡（审查 P2，2026-09-22）', (tester) async {
+      // 重放回来的历史轮没有 `TurnEntry`，也就没有回合页脚。这一轮又**没有最终助手文本**
+      // （收在工具调用上），于是「本轮折叠块之后剩下的条目」一条都没有——整改前 `_candidates`
+      // 一个候选都给不出来，`_arm` 落空、这一下不再校正，人正看着的下一轮会被整段高度推走。
+      final s = newStore();
+      s.resetForReplay();
+      void historyUser(String text) => s.applyUpdateJson(<String, dynamic>{
+            'sessionUpdate': 'user_message_chunk',
+            'content': <String, dynamic>{'type': 'text', 'text': text},
+          });
+
+      historyUser('历史一问：占位');
+      agent(s, List<String>.filled(40, '很长的一段历史回答。').join());
+      historyUser('历史二问');
+      thought(s, '历史里的思考');
+      for (var i = 0; i < 3; i++) {
+        toolCall(s, 'tc-$i');
+      }
+      // 这一轮到此为止：没有最终助手文本，下一条就是下一轮的用户气泡。
+      historyUser('历史三问：人正看着这一条');
+      agent(s, '历史三答。${List<String>.filled(200, '后面还有很长一段。').join()}');
+
+      final folds = TranscriptFolds();
+      await folds.setAutoCollapse(false); // 先全展开，再手动折，能量到「折叠那一下」
+      final ScrollController controller = ScrollController();
+      final anchor = TranscriptFoldAnchor(controller: controller, entries: () => s.entries, folds: folds);
+      await pump(
+        tester,
+        TranscriptList(s, folds: folds, controller: controller, trackRows: true, onToggleFold: anchor.toggle),
+        size: const Size(800, 400),
+      );
+      for (var i = 0; i < 5; i++) {
+        controller.jumpTo(controller.position.maxScrollExtent);
+        await tester.pumpAndSettle();
+      }
+      expect(controller.position.maxScrollExtent, greaterThan(0), reason: '这个用例必须真的能滚');
+
+      // 人停在最后那一轮的用户气泡上（它在要折的那一轮之后，折叠会把它整段推走）。
+      final Finder watching = find.byWidgetPredicate(
+        (w) => w is UserMessage && w.entry.text.startsWith('历史三问'),
+      );
+      // 惰性列表：从底往回翻，直到那颗气泡真的建出来，且离底足够远（贴底会被 maxScrollExtent
+      // 夹一下，看不出跳没跳）。
+      for (var i = 0; i < 20; i++) {
+        final ScrollPosition p = controller.position;
+        if (watching.evaluate().isNotEmpty && p.pixels < p.maxScrollExtent - 320) break;
+        controller.jumpTo(p.pixels - 100);
+        await tester.pumpAndSettle();
+      }
+      expect(watching, findsOneWidget, reason: '用例前提：那颗气泡此刻在已建窗口里');
+      expect(
+        controller.position.pixels,
+        lessThan(controller.position.maxScrollExtent - 320),
+        reason: '人不在底部，否则夹一下就看不出跳没跳',
+      );
+      final double before = tester.getTopLeft(watching).dy;
+
+      // 折的是上面那一轮（人看着的这一屏里它已经出了已建窗口，所以走全局开关这条路径——
+      // 点摘要行那条路径这时候根本点不到它）。
+      await folds.setAutoCollapse(true);
+      await tester.pumpAndSettle();
+      expect(find.byType(ToolCallCard), findsNothing, reason: '确实折起来了');
+      // 没有锚可用时气泡被整段推出视口、跟着被回收，位置都量不到了——先把这一步报清楚。
+      expect(watching, findsOneWidget, reason: '气泡还在已建窗口里（没锚可用时它会被推走）');
+      expect(tester.getTopLeft(watching).dy, closeTo(before, 0.5), reason: '气泡停在原地，不被整段推走');
+      anchor.dispose();
+    });
+
+    testWidgets('历史轮的下一轮第一行已滚出缓存时，锚继续往后找到视口里的正文（复审 P2，2026-09-22）', (tester) async {
+      // 同上一条的场景，但人停得更靠后：下一轮的用户气泡已经滚出 ListView 缓存、量不到了，
+      // 人正看着的是气泡后面那段很长的正文。候选要是只给「下一轮第一行」那一条就用完了，
+      // `_arm` 照样落空，正文被整段折叠高度顶上去。
+      final s = newStore();
+      s.resetForReplay();
+      void historyUser(String text) => s.applyUpdateJson(<String, dynamic>{
+            'sessionUpdate': 'user_message_chunk',
+            'content': <String, dynamic>{'type': 'text', 'text': text},
+          });
+
+      historyUser('历史一问：占位');
+      agent(s, List<String>.filled(40, '很长的一段历史回答。').join());
+      historyUser('历史二问');
+      thought(s, '历史里的思考');
+      for (var i = 0; i < 6; i++) {
+        toolCall(s, 'tc-$i');
+      }
+      // 这一轮收在工具调用上：折叠块之后本轮一条都不剩。
+      historyUser('历史三问');
+      // 正文要够长：人往回翻得比折叠块高之后，气泡仍要落在 ListView 缓存（默认约 250px）之外。
+      agent(s, '历史三答。${List<String>.filled(400, '后面还有很长一段。').join()}');
+
+      final folds = TranscriptFolds();
+      await folds.setAutoCollapse(false);
+      final ScrollController controller = ScrollController();
+      final anchor = TranscriptFoldAnchor(controller: controller, entries: () => s.entries, folds: folds);
+      await pump(
+        tester,
+        TranscriptList(s, folds: folds, controller: controller, trackRows: true, onToggleFold: anchor.toggle),
+        size: const Size(800, 400),
+      );
+      for (var i = 0; i < 5; i++) {
+        controller.jumpTo(controller.position.maxScrollExtent);
+        await tester.pumpAndSettle();
+      }
+      // 往回翻得比折叠块高，但远不到那颗气泡：人看的是正文尾段。
+      controller.jumpTo(controller.position.pixels - 350);
+      await tester.pumpAndSettle();
+
+      final Finder bubble = find.byWidgetPredicate(
+        (w) => w is UserMessage && w.entry.text.startsWith('历史三问'),
+      );
+      final Finder body = find.byWidgetPredicate(
+        (w) => w is AssistantText && w.entry.text.startsWith('历史三答。'),
+      );
+      expect(bubble, findsNothing, reason: '用例前提：下一轮第一行已经滚出缓存、量不到');
+      expect(body, findsOneWidget, reason: '用例前提：人正看着的正文在视口里');
+      expect(find.byType(TurnEndLine), findsNothing, reason: '历史轮没有回合页脚');
+      expect(
+        controller.position.pixels,
+        lessThan(controller.position.maxScrollExtent - 300),
+        reason: '人离底得比折叠块还远，否则夹一下就看不出跳没跳',
+      );
+      final double before = tester.getTopLeft(body).dy;
+
+      await folds.setAutoCollapse(true);
+      await tester.pumpAndSettle();
+      expect(find.byType(ToolCallCard), findsNothing, reason: '确实折起来了');
+      expect(tester.getTopLeft(body).dy, closeTo(before, 0.5), reason: '正文停在原地');
+      anchor.dispose();
+    });
+
+    testWidgets('实时轮里折叠块之后多出一条对不上的用户消息，结论仍在锚点候选里（复审 P2，2026-09-22）', (tester) async {
+      // agent 发来一条与本地回显对不上的 `user_message_chunk` 时，投影层会在折叠块之后另起一条
+      // 顶层用户消息——那**不是**新一轮（实时轮按 `TurnEntry` 切）。锚点的跨轮判据要是也把它当
+      // 轮边界，本轮结论就被掐出候选，只剩页脚；人停在长结论中间、页脚还没建出来时就没锚可用。
+      final s = newStore();
+      startTurn(s, '第一轮：占位');
+      agent(s, List<String>.filled(40, '很长的一段结论文本。').join());
+      s.endTurn(stopReason: 'end_turn');
+
+      startTurn(s, '第二轮');
+      thought(s, '先复核最新提交');
+      for (var i = 0; i < 6; i++) {
+        toolCall(s, 'tc-$i');
+      }
+      // 对不上的那一条：内容与本地回显不同，投影层在末尾新建一条顶层用户消息。
+      s.applyUpdateJson(<String, dynamic>{
+        'sessionUpdate': 'user_message_chunk',
+        'content': <String, dynamic>{'type': 'text', 'text': '对不上的一条'},
+      });
+      agent(s, '这就是结论。${List<String>.filled(200, '后面还有很长一段。').join()}');
+      s.endTurn(stopReason: 'end_turn');
+      expect(
+        s.entries.whereType<MessageEntry>().where((m) => m.role == MessageRole.user),
+        hasLength(3),
+        reason: '用例前提：两轮的回显 + 那条对不上的，都在顶层',
+      );
+
+      final folds = TranscriptFolds();
+      await folds.setAutoCollapse(false); // 先全展开，再折，能量到「折叠那一下」
+      final ScrollController controller = ScrollController();
+      final anchor = TranscriptFoldAnchor(controller: controller, entries: () => s.entries, folds: folds);
+      await pump(
+        tester,
+        TranscriptList(s, folds: folds, controller: controller, trackRows: true, onToggleFold: anchor.toggle),
+        size: const Size(800, 400),
+      );
+      for (var i = 0; i < 5; i++) {
+        controller.jumpTo(controller.position.maxScrollExtent);
+        await tester.pumpAndSettle();
+      }
+      // 往回翻：人正看着结论中间，页脚在视口之外、没建出来。翻的量要大于折叠块自己的高度，
+      // 否则折叠后 pixels 被 maxScrollExtent 夹到底，视口跟着内容一起缩，位移就抵消掉了、看不出跳没跳。
+      controller.jumpTo(controller.position.pixels - 350);
+      await tester.pumpAndSettle();
+      final Finder conclusion = find.byWidgetPredicate(
+        (w) => w is AssistantText && w.entry.text.startsWith('这就是结论。'),
+      );
+      final double before = tester.getTopLeft(conclusion).dy;
+      expect(
+        controller.position.pixels,
+        lessThan(controller.position.maxScrollExtent - 300),
+        reason: '人离底得比折叠块还远，否则夹一下就看不出跳没跳',
+      );
+      expect(find.byType(TurnEndLine), findsNothing, reason: '用例前提：页脚没建出来，否则它自己就能当锚');
+
+      await folds.setAutoCollapse(true);
+      await tester.pumpAndSettle();
+      expect(find.byType(ToolCallCard), findsNothing, reason: '确实折起来了');
+      expect(tester.getTopLeft(conclusion).dy, closeTo(before, 0.5), reason: '结论停在原地');
+      anchor.dispose();
     });
 
     testWidgets('画板 70 的全局开关翻面：长转录里所有回合同时折 / 展，视口里的结论也不跳', (tester) async {
