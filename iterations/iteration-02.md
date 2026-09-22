@@ -50,7 +50,8 @@
   - `test/app/session_order_test.dart`「后台跑完那一轮刷的是它自己那条…」——A 选中、B 后台收轮，之后 B 的 `messageCount` 是 1、A 的仍是 3（还原后 A 被刷成 0）；
   - `test/app/session_lifecycle_wiring_test.dart`「cwd 只差写法的条目照常参与校对」——索引条目 cwd 写成 `D:\repo\`、当前项目是 `D:/repo`，校对照常补标题（还原后实得没补），agent 侧真没有了时也照常进 `missingOnAgent`。
   - 另加一条护栏用例「agent 补的标题照常盖过索引」（store 上有标题时不退回索引），它在改动前后都绿，防的是以后把三级退回的顺序改反。
-- 这台机器上 `scripts/validate.ps1` 的结果见下面的「Windows 实测」段。
+- `powershell -File scripts/validate.ps1` 全量两次全绿（整改前 407 项、整改后 408 项）。
+- **未构建、未手测**：`build.ps1` 与手测（重开应用 → 点旧会话 → 聊一句看标题与计数 / 另开一条后台跑完看侧栏计数当场刷新）留到迭代收口时三组一起做，见上面的「收口」段。
 
 ### 第 1 项 · 代码审查
 
