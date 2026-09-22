@@ -2,7 +2,7 @@
 
 <!-- 与 quality / 画板 08 同类：R8 之后的单批次轮，登记在 ROUNDS.md § 7 进度表。 -->
 
-> 状态：进行中（2026-09-22；Claude 自主审查一遍 → 逐条整改 → cursor 复审直至 findings 归零 → 即 v1.4.1 的内容）
+> 状态：**已完成**（2026-09-22：Claude 自主审查一遍 → 逐条整改 → cursor 复审两轮、第 2 轮 0 条收口；版本号已改 1.4.1，待所有者快进 `main` 并发布）
 
 ## 目标
 
@@ -93,7 +93,8 @@
 | 1 | P2 | `SessionIndex.remove` 的等待只覆盖发删除之前就在途的 upsert；删除命令发出去之后、落地之前，收轮的 `saveIndex` 再写这条会话（当前会话的 `sessionId` 要等 `remove` 返回才清空，`store` 仍非空），与删除在核心里并行，删除先落、它后落就把刚删的行写回来 | **采纳整改**：加 `_removing`——删除从发出到 `apply` 落地之间，同一条会话新来的 upsert 不发（`_upsertTracked` 回 null，调用方直接返回）；删除返回之后的写照常。循环退出到登记 `_removing` 之间没有 await，起不了新写。回归用例 `session_order_test`「删除命令在途时这条会话再来的写不发」（`_SlowRemoveCore` 按住 remove，断言 upsert 计数不增），**已验证去掉整改会红** |
 | 1 | P3 | `_jumpToEntry` 只在 `expand` 真翻面时才 `_foldAnchor.cancel()`；目标本就不在折叠块里、或那一轮已经展开时，上一次折 / 展量不到锚点起的找回跳转（最多 300 帧）不会停，与时间线跳转每帧各 jumpTo 一次、点击落点被盖掉 | **采纳整改**：`cancel()` 改为无条件调用（它同时停掉锚点的 `TranscriptJump`）。没有单独用例：要同时造出「上一次找回还在跑」与「时间线点击」两个多帧过程，现有跳转与锚点用例已各自覆盖两条路 |
 
-- 结论：<待回填：第 2 轮起>
+- 第 2 轮 全量 `v1.4.0..HEAD`（HEAD = `c7932ad`，第 1 轮整改之后），产物 `.claude/reviews/20260922-150739-review.out.md`：**`findings: 0`**。审查器逐项核了第 1 轮两处整改「关严了」（`_removing` 的登记与等待循环之间没有 await；`_jumpToEntry` 无条件 `cancel`），并说明已记 BACKLOG 的四项没有升到 high、不重复报。
+- 结论：**整改后 PASS**。cursor 两轮累计 2 条（P2 1 / P3 1）全部采纳整改；第 2 轮 0 条收口，无 high 级或阻塞性 findings 遗留。连同第 1 遍的 20 条，本轮合计 22 条 findings：18 条采纳整改、1 条不采纳（写明理由）、1 条只改注释、2 条记 BACKLOG。
 
 ## 失败处理
 
@@ -104,5 +105,6 @@
 - **审查期间没跑任何构建**（所有者指示）：第 1 遍全靠读 diff 与工作树。整改之后才跑门禁。
 - `scripts/validate.ps1` 全绿：17 项门禁 + `cargo test --workspace`（acp-core 25 + fixtures 1 + scripted 10、fs 19、pty 13、registry 18、settings 17）+ `cargo clippy --all-targets -- -D warnings` + `flutter analyze`（0 error 0 warning，16 条 info 与 main 基线同）+ `flutter test` **400 项**（main 是 393；新增 7 条、改 2 条）。
 - 逐条验证过「去掉整改会红」的用例：索引删除（`session_order_test` 两条）、分支表窗口、转录偏好读盘顺序、全局开关锚点（第一版只订阅不找回时在展开一侧就红）、URL 卡 withdrawn（第一版用例自己写错——`Overlay.initialEntries` 只在首次建树生效，第二次 pump 没重建卡片，改成每次换 key）。
+- cursor 两轮耗时：第 1 轮全量 `v1.4.0..HEAD`（约 140 文件 / +5,400 行）**22 分 22 秒**（14:39:42 → 15:02:04），第 2 轮同范围 **13 分 05 秒**（15:07:39 → 15:20:44）。发起脚本的 PowerShell 包装会一直等到审查进程结束才返回（不是脚本的 bug，只是别把它当「起好了」的信号）。
 - **runner 的 C++（`acp_clipboard.cpp` 一行 `return !out.empty();`）本轮未编译**：`validate.ps1` 不含 `flutter build windows`，按所有者指示也没单独跑构建；语法是一行布尔表达式，随 v1.4.1 的 release 构建一起编。
 - 踩到的坑：① 一度把 `TranscriptList` 改成按键复用行（`findChildIndexCallback`）以为能保住视口位置——Flutter 的 `SliverMultiBoxAdaptorElement.performRebuild` 对**被移动**的子节点会把 `layoutOffset` 置 null，`RenderSliverList.performLayout` 随后把这些子节点全部回收、从 index 0 重排，位置不保还多一次全量布局，已撤回；② 折叠锚点的快照 `_collapsed` 原来只在「变化时」同步，构造时是空集，于是全局开关第一次翻面（从默认全折到全展）被判成「没变」——构造与换会话时按当前状态打底才对；③ `sed -i` 在 Git Bash 里会把 `.ps1` 的 CRLF 写成 LF，改完用 python 按字节转回。
