@@ -13,7 +13,7 @@
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 3 | fix | 换主题 / 换字体后界面只切一半：`MarkdownBody` 按 `Fonts.generation` 判过期 + 10 个叶子 widget 摘掉 `const` 构造 | BACKLOG「P1 · 主题与渲染」第 1–2 条 | `claude/theme-font-partial-rebuild-471573` → `<sha>` | validate 全绿（16 道门，flutter test 408 项） | | 待审查 |
+| 3 | fix | 换主题 / 换字体后界面只切一半：`MarkdownBody` 按 `Fonts.generation` 判过期 + 10 个叶子 widget 摘掉 `const` 构造 | BACKLOG「P1 · 主题与渲染」第 1–2 条 | `claude/theme-font-partial-rebuild-471573`（`a4ba7e7`）→ `<sha>` | validate 全绿（16 道门，flutter test 408 项） | 1 轮 / cursor CLI `grok-4.7-high-fast`，**0 条** | 待合并（等所有者定合并时机） |
 
 ## 收口
 
@@ -62,5 +62,7 @@
 - `flutter analyze`：16 条 info 全是既有的（4 条在 `lib/gallery`、12 条在 `test/`），本次改动一条不增；0 error / 0 warning。
 - **画板对照**：在 `022079b` 上开一个临时 worktree 渲染同一批画板，与本分支的 `build/gallery/` **45 张 PNG 逐字节一致**（`md5sum` 全等）。摘 `const` 不改变任何单次渲染的输出，`Fonts.generation` 那一句在 gallery 里是恒假分支。
 - 手测：**未构建**（本组只动 `lib/ui` 与测试，随迭代收口时统一构建手测；手测项＝浅→深→浅看 registry 徽章 / 设置页徽章 / 工具卡 Canceled 徽章 / 各处 chevron / 文件面板空态 / spinner / 整段对话正文，全部不 reload 会话就跟着变）。
+
+**审查**：1 轮，cursor CLI（`grok-4.7-high-fast`，未回落），范围 `main...HEAD` = `022079b..a4ba7e7`，**0 条 findings**，无整改故不复审（`iterations/README.md` § 2 第 4 条）。产物 `.claude/reviews/20260922-182343-review.out.md`。审查器另行确认了两点我没写进注释的：`Theming.apply` / `Fonts.apply` 推进代数发生在根 `ListenableBuilder` 重建**之前**；`didUpdateWidget` 已因输入变化 `_rebuild()` 过时代数已是当前值，同一帧不会再拆一次链接。
 
 **与设计稿的关系**：这次是把实现改回画板 07 定义的深色表现，不是偏离，**不记** `design/DIVERGENCE.md`。
