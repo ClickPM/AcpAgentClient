@@ -319,7 +319,7 @@ class _ComposerDropdown extends StatelessWidget {
                 child: Text(label, style: CardText.secondary.copyWith(color: t.Neutral.text), maxLines: 1, overflow: TextOverflow.ellipsis),
               ),
               const SizedBox(width: t.Spacing.s4),
-              const Chevron(expanded: false),
+              Chevron(expanded: false),
             ],
           ),
         ),

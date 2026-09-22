@@ -176,7 +176,7 @@ class _TerminalCardState extends State<TerminalCard> {
             subtitle: _expanded ? toolSubtitle(e, cwd: widget.cwd) : command,
             trailing: <Widget>[
               if (!_expanded && exitLabel.isNotEmpty) Text(exitLabel, style: t.TextStyles.monoMeta),
-              if (running) ...<Widget>[const Spinner(), StopSquareButton(onTap: widget.onKill)] else ToolStatusIcon(e.displayStatus),
+              if (running) ...<Widget>[Spinner(), StopSquareButton(onTap: widget.onKill)] else ToolStatusIcon(e.displayStatus),
               Chevron(expanded: _expanded),
             ],
             onTap: () => setState(() {

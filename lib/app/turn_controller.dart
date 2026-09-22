@@ -94,7 +94,9 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
           usage: result['usage'] is Map ? (result['usage'] as Map).cast<String, dynamic>() : null,
         );
         session.markDone(s.sessionId, stopReason);
-        await session.saveIndex(); // 只刷消息计数：`updatedAt` 沿用发消息时打的那个（见 `SessionIndex.upsert`）
+        // 只刷消息计数：`updatedAt` 沿用发消息时打的那个（见 `SessionIndex.upsert`）。
+        // 写的是**刚跑完这一轮的那条**（`s`）而不是当前选中的：会话可以并跑，后台那条跑完时前台往往是另一条。
+        await session.saveIndex(target: s);
       } catch (e) {
         // 失败也必须收轮：不收的话 `currentTurn` 一直挂着，会话头永远转 spinner、发送位永远是停止键，
         // 之后的 Restore 还会拿新连接去操作一个 agent 侧已不存在的 sessionId（审查第 2 轮 finding P2，2026-09-15）。

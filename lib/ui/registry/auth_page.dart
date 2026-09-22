@@ -112,7 +112,7 @@ class AuthPage extends StatelessWidget {
               onInput: onTerminalInput,
             ),
           ],
-          if (phase == AuthPhase.succeeded) ...<Widget>[const SizedBox(height: t.Spacing.s16), const AuthSucceededCard()],
+          if (phase == AuthPhase.succeeded) ...<Widget>[const SizedBox(height: t.Spacing.s16), AuthSucceededCard()],
           if (phase == AuthPhase.failed) ...<Widget>[
             const SizedBox(height: t.Spacing.s16),
             AuthFailedCard(error: error ?? '', onRetry: onRetry, onChangeMethod: onChangeMethod),
@@ -188,7 +188,7 @@ class AuthMethodPicker extends StatelessWidget {
             child: Row(
               children: <Widget>[
                 if (running) ...<Widget>[
-                  const Spinner(),
+                  Spinner(),
                   const SizedBox(width: t.Spacing.s8),
                   Expanded(child: Text('等待 $agentName 完成认证…', style: CardText.secondary)),
                 ] else ...<Widget>[
@@ -345,7 +345,7 @@ class _AuthTerminalCardState extends State<AuthTerminalCard> {
             leading: AcpIcon(AcpIcons.terminal, color: t.Neutral.muted),
             title: 'terminal auth · ${widget.label}',
             trailing: <Widget>[
-              if (widget.running) ...<Widget>[const Spinner(), StopSquareButton(onTap: widget.onStop)] else Text(exitLabel, style: t.TextStyles.monoMeta),
+              if (widget.running) ...<Widget>[Spinner(), StopSquareButton(onTap: widget.onStop)] else Text(exitLabel, style: t.TextStyles.monoMeta),
             ],
           ),
           Container(
@@ -370,8 +370,10 @@ class _AuthTerminalCardState extends State<AuthTerminalCard> {
 }
 
 /// 「认证成功 · 正在自动重试 session/new」（画板 52）。
+/// 构造函数不带 `const`：build 里现取颜色 token，换主题要重建（理由见 card_chrome.dart 的 Chevron）。
 class AuthSucceededCard extends StatelessWidget {
-  const AuthSucceededCard({super.key});
+  // ignore: prefer_const_constructors_in_immutables
+  AuthSucceededCard({super.key});
 
   @override
   Widget build(BuildContext context) => TranscriptCard(
@@ -392,7 +394,7 @@ class AuthSucceededCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: t.Spacing.s8),
-              const Spinner(),
+              Spinner(),
             ],
           ),
         ),
@@ -496,7 +498,7 @@ class RequestScopeElicitationCard extends StatelessWidget {
                   if (completed)
                     Text('已收到 elicitation/complete', style: t.TextStyles.body.copyWith(color: t.Semantic.success))
                   else if (opened) ...<Widget>[
-                    const Spinner(),
+                    Spinner(),
                     const SizedBox(width: t.Spacing.s4),
                     Text('Waiting for completion...', style: CardText.secondary),
                     const SizedBox(width: t.Spacing.s8),

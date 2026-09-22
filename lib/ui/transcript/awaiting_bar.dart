@@ -11,8 +11,10 @@ import 'icons.dart';
 import 'tool_call_card.dart';
 
 /// 卡片下方的等待行。
+/// 构造函数不带 `const`：build 里现取颜色 token，换主题要重建（理由见 card_chrome.dart 的 Chevron）。
 class AwaitingRow extends StatelessWidget {
-  const AwaitingRow({super.key, this.label = 'Awaiting Confirmation'});
+  // ignore: prefer_const_constructors_in_immutables
+  AwaitingRow({super.key, this.label = 'Awaiting Confirmation'});
 
   final String label;
 
@@ -24,7 +26,7 @@ class AwaitingRow extends StatelessWidget {
         padding: t.Controls.padInput,
         child: Row(
           children: <Widget>[
-            const Spinner(),
+            Spinner(),
             const SizedBox(width: t.Spacing.s8),
             Text(label, style: CardText.headerTitle),
           ],

@@ -30,15 +30,17 @@ class AgentIconBox extends StatelessWidget {
       ),
       alignment: Alignment.center,
       child: icon == null || icon.isEmpty
-          ? const _Diamond()
+          ? _Diamond()
           : SvgPicture.string(icon, width: t.IconSizes.base, height: t.IconSizes.base, theme: t.SvgTint.mark,
-              errorBuilder: (_, _, _) => const _Diamond()),
+              errorBuilder: (_, _, _) => _Diamond()),
     );
   }
 }
 
+/// 构造函数不带 `const`：build 里现取颜色 token，换主题要重建（理由见 card_chrome.dart 的 Chevron）。
 class _Diamond extends StatelessWidget {
-  const _Diamond();
+  // ignore: prefer_const_constructors_in_immutables
+  _Diamond();
 
   @override
   Widget build(BuildContext context) => Transform.rotate(
@@ -143,19 +145,19 @@ class _RegistryEntryBody extends StatelessWidget {
   Widget _titleRow(RegistryEntryData e) {
     final chips = <Widget>[];
     if (e.isCustom) {
-      chips.add(const ToneChip('custom', tone: ChipTone.neutral));
+      chips.add(ToneChip('custom', tone: ChipTone.neutral));
     } else if (e.isInstalling) {
-      chips.add(const ToneChip('installing', tone: ChipTone.accent));
+      chips.add(ToneChip('installing', tone: ChipTone.accent));
     } else if (e.isFailed) {
-      chips.add(const ToneChip('failed', tone: ChipTone.error));
+      chips.add(ToneChip('failed', tone: ChipTone.error));
     } else if (e.kind == DistributionKind.uvx) {
-      chips.add(const ToneChip('uvx', tone: ChipTone.warning));
+      chips.add(ToneChip('uvx', tone: ChipTone.warning));
     } else if (!e.installed && e.kind != DistributionKind.none) {
       chips.add(ToneChip(e.kind.wire, tone: ChipTone.neutral));
     }
-    if (e.installed) chips.add(const ToneChip('已安装', tone: ChipTone.success));
-    if (e.loggedIn) chips.add(const ToneChip('已登录', tone: ChipTone.success));
-    if (e.needsAuth) chips.add(const ToneChip('需要认证', tone: ChipTone.warning));
+    if (e.installed) chips.add(ToneChip('已安装', tone: ChipTone.success));
+    if (e.loggedIn) chips.add(ToneChip('已登录', tone: ChipTone.success));
+    if (e.needsAuth) chips.add(ToneChip('需要认证', tone: ChipTone.warning));
     return Wrap(
       spacing: t.Spacing.s8,
       runSpacing: t.Spacing.s4,
@@ -212,7 +214,7 @@ class _RegistryEntryBody extends StatelessWidget {
     if (e.isInstalling) {
       return Row(
         mainAxisSize: MainAxisSize.min,
-        children: <Widget>[const Spinner(), const SizedBox(width: t.Spacing.s8), AcpButton(label: '取消', onTap: actions.onCancel)],
+        children: <Widget>[Spinner(), const SizedBox(width: t.Spacing.s8), AcpButton(label: '取消', onTap: actions.onCancel)],
       );
     }
     if (e.isFailed) {
@@ -318,7 +320,7 @@ class InstallSteps extends StatelessWidget {
   Widget _step(InstallProgress p, String step) {
     final state = p.stateOf(step);
     final Widget icon = switch (state) {
-      StepState.active => const Spinner(),
+      StepState.active => Spinner(),
       StepState.done => AcpIcon(AcpIcons.check, color: t.Semantic.success, size: t.IconSizes.toolbar),
       StepState.failed => AcpIcon(AcpIcons.slashCircle, color: t.Semantic.error, size: t.IconSizes.toolbar),
       StepState.pending => AcpIcon(AcpIcons.dashedCircle, color: t.Neutral.placeholder, size: t.IconSizes.toolbar),
@@ -455,7 +457,7 @@ class ManagedNodePrompt extends StatelessWidget {
                 ),
                 const SizedBox(width: t.Spacing.s12),
                 if (downloading)
-                  const Spinner()
+                  Spinner()
                 else
                   AcpButton(label: p != null && p.isFailed ? '重试' : '下载受管 Node', kind: ButtonKind.primary, icon: AcpIcons.download, onTap: onDownload),
               ],

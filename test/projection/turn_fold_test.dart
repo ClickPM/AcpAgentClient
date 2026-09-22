@@ -35,6 +35,11 @@ void toolCall(SessionStore s, String id, {String status = 'completed'}) => s.app
       'status': status,
     });
 
+void userMessage(SessionStore s, String text) => s.applyUpdateJson(<String, dynamic>{
+      'sessionUpdate': 'user_message_chunk',
+      'content': <String, dynamic>{'type': 'text', 'text': text},
+    });
+
 TurnEntry startTurn(SessionStore s, String prompt) =>
     s.startTurn(<ContentBlockWire>[ContentBlockWire(<String, dynamic>{'type': 'text', 'text': prompt})]);
 
@@ -205,18 +210,50 @@ void main() {
       expect(counts, <int>[1, 2]);
     });
 
-    test('重放回来的历史没有轮边界，也就没有折叠块（已知限制）', () {
+    test('重放回来的历史没有轮边界，按顶层用户消息切轮，照样折（所有者裁定 2026-09-22）', () {
       final s = newStore();
       s.resetForReplay();
-      s.applyUpdateJson(<String, dynamic>{
-        'sessionUpdate': 'user_message_chunk',
-        'content': <String, dynamic>{'type': 'text', 'text': '历史一问'},
-      });
+      userMessage(s, '历史一问');
       thought(s, '历史里的思考');
       toolCall(s, 'tc-old');
       agent(s, '历史一答');
-      expect(s.entries.whereType<TurnEntry>(), isEmpty);
-      expect(foldsOf(s.entries), isEmpty);
+      userMessage(s, '历史二问');
+      toolCall(s, 'tc-old-2');
+      toolCall(s, 'tc-old-3');
+      agent(s, '历史二答');
+
+      expect(s.entries.whereType<TurnEntry>(), isEmpty, reason: '用例前提：重放确实不带轮边界');
+      final folds = foldsOf(s.entries);
+      expect(folds, hasLength(2));
+      expect(folds.values.map((f) => f.toolCalls), <int>[1, 2]);
+      expect(folds.values.first.messages, 2, reason: '思考 1 + 工具调用 1；最后一段 agent 文本不进');
+      for (final f in folds.values) {
+        expect(f.turn, isNull, reason: '历史轮没有轮边界');
+        expect(f.model, isNull, reason: '模型名取不到，摘要行退化成单行');
+        expect(f.isRunning, isFalse);
+        expect(f.autoCollapsible, isTrue);
+        expect(f.id, startsWith('msg'), reason: '身份是那条用户消息');
+      }
+    });
+
+    test('历史之后接着实时发一轮：历史按用户消息切，实时那轮按轮边界切', () {
+      final s = newStore();
+      s.resetForReplay();
+      userMessage(s, '历史一问');
+      toolCall(s, 'tc-old');
+      agent(s, '历史一答');
+
+      startTurn(s, '新一轮');
+      toolCall(s, 'tc-new');
+      agent(s, '新一答');
+      s.endTurn(stopReason: 'end_turn');
+
+      final folds = foldsOf(s.entries).values.toList();
+      expect(folds, hasLength(2));
+      expect(folds.first.turn, isNull, reason: '历史轮');
+      expect(folds.last.turn, isNotNull, reason: '实时轮拿得到轮边界');
+      expect(folds.last.owner, isA<TurnEntry>());
+      expect(folds.last.toolCalls, 1, reason: '本地回显的用户气泡不会把这一轮再切一次');
     });
   });
 

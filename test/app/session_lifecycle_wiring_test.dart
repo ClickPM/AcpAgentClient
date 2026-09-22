@@ -498,6 +498,89 @@ void main() {
       expect(core.listedSessions, isEmpty);
       c.dispose();
     });
+
+    test('cwd 只差写法的条目照常参与校对（BACKLOG「cwd 写法不同的会话，校对会跳过」，iteration-02）', () async {
+      final (c, core) = await _connected();
+      // 索引里这条的 cwd 写成 `D:\repo\`，当前项目是 `D:/repo`：只差分隔符与尾斜杠。
+      // 侧栏过滤按归一后比（[WorkspaceState.inCurrentWorkspace]），所以它列在侧栏里；校对以前按原串比，跳过了它。
+      await core.sessionIndexUpsert(<String, dynamic>{
+        'agentId': _agent,
+        'sessionId': _session,
+        'title': _session,
+        'cwd': r'D:\repo\',
+        'messageCount': 3,
+      });
+      await c.index.refresh();
+      expect(c.session.sidebarSessions.map((s) => s.id), <String>[_session], reason: '侧栏列着它');
+
+      core.sessionListResult = (_) => <String, dynamic>{
+            'sessions': <JsonMap>[
+              <String, dynamic>{'sessionId': _session, 'cwd': _cwd, 'title': 'agent 侧的标题'},
+            ],
+          };
+      await c.session.reconcileSessions();
+      expect(core.sessionIndex.single['title'], 'agent 侧的标题', reason: '写法不同也要补标题');
+      expect(core.sessionIndex.single['cwd'], r'D:\repo\', reason: '补标题不改写 cwd');
+      expect(c.session.missingOnAgent, isEmpty);
+
+      // agent 侧真的没有了：这条同样要参与判定（跳过它的话永远不会被标出来）。
+      core.sessionListResult = (_) => <String, dynamic>{'sessions': <Object?>[]};
+      await c.session.reconcileSessions();
+      expect(c.session.missingOnAgent, <String>{_session});
+      c.dispose();
+    });
+  });
+
+  test('载回来的会话再聊一句：索引里的标题不被占位串盖掉（BACKLOG「载回来的会话下一轮之后丢标题」，iteration-02）', () async {
+    final (c, core) = await _connected();
+    await core.sessionIndexUpsert(<String, dynamic>{
+      'agentId': _agent,
+      'sessionId': _session,
+      'title': 'My Session',
+      'cwd': _cwd,
+      'messageCount': 3,
+    });
+    await c.index.refresh();
+
+    // 点进去：`session/load` 重放整段历史，但**不重放 `session_info`**，所以 store 上一直没有标题。
+    await c.session.selectSession(_session);
+    expect(core.loadedSessions, hasLength(1));
+    expect(c.sessions.maybe(_session)!.title, isNull, reason: 'session/load 不重放 session_info');
+    expect(c.session.sessionTitle, 'My Session', reason: '会话头退回索引里的标题，不是 `New a Session`');
+
+    // 再聊一句：收轮那次写回是整行替换，不能把标题抹成占位串。
+    c.composer.editor.text = '再聊一句';
+    await c.turn.send();
+
+    expect(core.sessionIndex.single['title'], 'My Session', reason: '索引里原来有意义的标题不能被占位串盖掉');
+    expect(c.session.sidebarSessions.single.title, 'My Session');
+    expect(c.session.sessionTitle, 'My Session');
+    c.dispose();
+  });
+
+  test('agent 补的标题照常盖过索引：store 上有标题时不退回索引（退回只管 store 没有的那一级）', () async {
+    final (c, core) = await _connected();
+    await core.sessionIndexUpsert(<String, dynamic>{
+      'agentId': _agent,
+      'sessionId': _session,
+      'title': '旧标题',
+      'cwd': _cwd,
+      'messageCount': 3,
+    });
+    await c.index.refresh();
+    await c.session.selectSession(_session);
+    // agent 在重放之后发了 `session_info_update`（规则 2：照单全收）。
+    c.sessions.applySessionUpdateEnvelope(<String, dynamic>{
+      'agentId': _agent,
+      'sessionId': _session,
+      'update': <String, dynamic>{'sessionUpdate': 'session_info_update', 'title': 'agent 起的名字'},
+    });
+
+    c.composer.editor.text = '一句';
+    await c.turn.send();
+
+    expect(core.sessionIndex.single['title'], 'agent 起的名字', reason: 'store 上有标题时第一级就命中');
+    c.dispose();
   });
 
   test('modes 回退：模式下拉选中走 session/set_mode，不当成 configId 发出去', () async {

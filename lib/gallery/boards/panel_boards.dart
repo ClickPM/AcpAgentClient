@@ -228,7 +228,7 @@ final List<GalleryBoard> panelBoards = <GalleryBoard>[
           alignment: Alignment.centerLeft,
           child: Text('查看器空态', style: t.TextStyles.monoMeta),
         ),
-        const Expanded(child: FileViewerEmpty()),
+        Expanded(child: FileViewerEmpty()),
       ],
     );
   }),

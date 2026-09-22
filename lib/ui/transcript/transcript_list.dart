@@ -72,7 +72,7 @@ class TurnFoldSummaryRow extends TranscriptRow {
 String transcriptRowId(TranscriptRow row) => switch (row) {
       EntryRow(:final entry) => entry.id,
       TurnEndRow(:final turn) => '${turn.id}-end',
-      TurnFoldSummaryRow(:final fold) => '${fold.turn.id}-fold',
+      TurnFoldSummaryRow(:final fold) => '${fold.id}-fold',
     };
 
 /// 把条目列表展开成行：每个已结束的轮在其最后一个条目之后加一行结束行。
@@ -96,6 +96,12 @@ List<TranscriptRow> buildRows(
       fold = e.isRunning ? null : folds[e.id];
       foldCollapsed = fold != null && collapsed(fold);
       continue;
+    }
+    // 没有轮边界的历史（`session/load` 重放）按顶层用户消息切轮，与 [foldsOf] 同一条规矩。
+    // 用户消息自己要出行，所以这里只换轮、不 continue。
+    if (open == null && isTurnStart(e)) {
+      fold = folds[e.id];
+      foldCollapsed = fold != null && collapsed(fold);
     }
     if (fold != null && fold.contains(e)) {
       if (identical(e, fold.anchor)) rows.add(TurnFoldSummaryRow(fold, collapsed: foldCollapsed));
@@ -209,9 +215,9 @@ class TranscriptList extends StatelessWidget {
           ),
         // 摘要行淡入：只淡入这一块本身，不动周围内容，也不做高度过渡（画板 08 B「动效与滚动」）。
         TurnFoldSummaryRow(:final fold, :final collapsed) => KeyedSubtree(
-            key: ValueKey<String>('${fold.turn.id}-fold'),
+            key: ValueKey<String>('${fold.id}-fold'),
             child: MotionEnter(
-              epoch: fold.turn.id,
+              epoch: fold.id,
               distance: 0,
               duration: t.Motion.fast,
               child: TurnFoldRow(
@@ -257,7 +263,7 @@ class TranscriptList extends StatelessWidget {
           onOpenPath: onLink,
         );
         if (p.status != PendingStatus.pending) return card;
-        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: <Widget>[card, const AwaitingRow()]);
+        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: <Widget>[card, AwaitingRow()]);
       case final ElicitationEntry el:
         if (el.isUrl) {
           // 画板 28：Open = 打开浏览器 + 本地记已打开 + 首次回 accept（elicitation/create 是 JSON-RPC 请求，必须回应；

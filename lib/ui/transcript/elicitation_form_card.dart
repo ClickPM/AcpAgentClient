@@ -381,7 +381,7 @@ class _OptionRow extends StatelessWidget {
             Text(title, style: t.TextStyles.body),
             if (recommended) ...<Widget>[
               const SizedBox(width: t.Spacing.s8),
-              const ToneChip('Recommended', tone: ChipTone.accent),
+              ToneChip('Recommended', tone: ChipTone.accent),
             ],
           ],
         ),

@@ -132,16 +132,26 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
   bool get hasSession => agentId != null && sessionId != null;
   bool get isRunning => store?.isRunning ?? false;
 
-  String get agentDisplayName {
-    final c = connection;
-    // 还没连上时退回已安装列表里的展示名（settings 条目的 `name` 或 registry 的展示名），
-    // 不退回 id：启动后的新会话标题写 `New Codex Session` 而不是 `New codex Session`。
-    return c?.agentTitle ?? c?.agentName ?? agents.installedRef(agentId)?.name ?? agentId ?? 'Agent';
+  String get agentDisplayName => agentDisplayNameOf(agentId);
+
+  /// 某个 agent 的展示名。当前 agent 之外也要取：写索引时占位标题按**那条会话自己的** agent 算（见 [saveIndex]）。
+  /// 还没连上时退回已安装列表里的展示名（settings 条目的 `name` 或 registry 的展示名），
+  /// 不退回 id：启动后的新会话标题写 `New Codex Session` 而不是 `New codex Session`。
+  String agentDisplayNameOf(String? id) {
+    final c = id == null ? null : sessions.agents[id];
+    return c?.agentTitle ?? c?.agentName ?? agents.installedRef(id)?.name ?? id ?? 'Agent';
   }
 
+  /// 这条会话还没有标题时的占位串。
+  String placeholderTitleOf(String? agent) => 'New ${agentDisplayNameOf(agent)} Session';
+
+  /// 与 [SessionIndex.upsert] 同一条三级退回 `store → 索引 → 占位串`：`session/load` 不重放 `session_info`，
+  /// 载回来的会话 `store.title` 是 null、标题只在本地索引里还留着，不退回它的话会话头也只显示占位串
+  /// （BACKLOG「载回来的会话下一轮之后丢标题」的另一半）。没有 sessionId 的「真的新会话」查不到条目，照旧是占位串。
   String get sessionTitle {
     if (!hasAgent) return 'No Agent';
-    return store?.title ?? 'New $agentDisplayName Session';
+    final id = sessionId;
+    return store?.title ?? (id == null ? null : index.titleOf(id)) ?? placeholderTitleOf(agentId);
   }
 
   String get composerPlaceholder {
@@ -708,11 +718,16 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
       }
       var changed = false;
       final scope = workspace.project?.path;
+      final scopeKey = scope == null ? null : WorkspaceState.normalizeCwd(scope);
       for (final entry in <JsonMap>[...index.entries]) {
         if (entry['agentId'] != agent) continue;
         // `session/list` 按 cwd 过滤了，本地也只能拿同一个 cwd 的条目去对——否则别的项目下的会话
-        // 会被整批判成「agent 侧没有了」（2026-09-16 dsh 实测踩到：21 条全被误标）。
-        if (scope != null && entry['cwd'] != scope) continue;
+        // 会被整批判成「agent 侧没有了」（2026-09-16 dsh 实测踩到：21 条全被误标）。比法与侧栏过滤
+        // （[WorkspaceState.inCurrentWorkspace]）统一成归一后比：按原串比的话，只差分隔符 / 尾斜杠 /
+        // Windows 大小写写法的条目侧栏列着、这里却跳过，既不补标题也不参与 missingOnAgent 判定
+        // （BACKLOG「cwd 写法不同的会话，校对会跳过」）。没记 cwd 的老条目照旧跳过：只换比法，不放宽过滤。
+        final cwd = entry['cwd'];
+        if (scopeKey != null && (cwd is! String || WorkspaceState.normalizeCwd(cwd) != scopeKey)) continue;
         final sid = entry['sessionId'];
         if (sid is! String) continue;
         final info = remote[sid];
@@ -737,12 +752,20 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
   /// 删除 / 改名用的 agentId：优先本地索引里记的那个，退到当前连接。
   String _ownerOf(String sessionId) => _sessionAgent[sessionId] ?? agentId ?? '';
 
-  /// 当前会话写进本地索引（`sessions.json`）：收轮刷消息计数、新会话登记、发消息时打 `updatedAt`
-  /// （口径见 [SessionIndex.upsert]）。没有当前会话就什么都不做。
-  Future<void> saveIndex({bool promptSent = false}) async {
-    final s = store;
-    if (s == null) return;
-    await index.upsert(s, agentFallback: agentId ?? '', titleFallback: sessionTitle, promptSent: promptSent);
+  /// 一条会话写进本地索引（`sessions.json`）：收轮刷消息计数、新会话登记、发消息时打 `updatedAt`（口径见 [SessionIndex.upsert]）。
+  /// [target] 缺省是**当前**会话；收轮那次由 `TurnController._runTurn` 把刚跑完的那条传进来——2026-09-18 起
+  /// 新建会话不再重连、可以并跑，后台那条跑完时当前选中的往往是另一条，写成 [store] 就成了刷前台那条的计数、
+  /// 后台那条要等它自己下一轮（BACKLOG「后台跑完的那轮，侧栏消息数不刷新」）。占位标题同理按**这条会话自己的**
+  /// agent 算，不然是把前台那条的标题写到它头上；索引里已有标题时 [SessionIndex.upsert] 先退回那一级。
+  Future<void> saveIndex({SessionStore? target, bool promptSent = false}) async {
+    final s = target ?? store;
+    // 会话表里已经没有这条（[deleteSession] 的 `sessions.forget`），或那个 id 底下换了一个 store（删掉再新建
+    // 的同 id 会话，fake-agent 不带 `--sessions` 时每次都回 `sess_fake_1`）：这笔写不发。跑着的会话被删掉时
+    // 这一轮照样会收，写了就是把删掉的行写回 `sessions.json`（侧栏幽灵条目）或把新会话那行盖成旧转录的值。
+    // 缺省那条路天然成立（[store] 就是从会话表取的），这道门只管传了 [target] 的收轮那次（复审 high，2026-09-22）。
+    if (s == null || !identical(sessions.maybe(s.sessionId), s)) return;
+    await index.upsert(s,
+        agentFallback: agentId ?? '', titleFallback: placeholderTitleOf(s.agentId ?? agentId), promptSent: promptSent);
   }
 
   /// 用户发出一条消息（发送 / Restore / Regenerate）：把索引的 `updatedAt` 打成现在，侧栏这条立刻升到最上面。

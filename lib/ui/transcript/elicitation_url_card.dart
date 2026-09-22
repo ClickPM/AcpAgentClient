@@ -42,7 +42,7 @@ class ElicitationUrlCard extends StatelessWidget {
                 ? Row(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
-                      const Spinner(),
+                      Spinner(),
                       const SizedBox(width: t.Spacing.s4),
                       Text('Waiting for completion...', style: CardText.secondary),
                     ],

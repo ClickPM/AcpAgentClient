@@ -50,7 +50,7 @@ class _PlanCardState extends State<PlanCard> {
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           CardHeader(
-            leading: const Chevron(expanded: true),
+            leading: Chevron(expanded: true),
             title: 'Plan',
             titleStyle: CardText.cardTitle,
             subtitleWidget: Row(
@@ -83,7 +83,7 @@ class _PlanCardState extends State<PlanCard> {
     final done = i.status == PlanItemStatus.completed;
     final icon = switch (i.status) {
       PlanItemStatus.completed => AcpIcon(AcpIcons.checkCircle, color: t.Semantic.success, size: t.IconSizes.toolbar),
-      PlanItemStatus.inProgress => const Spinner(),
+      PlanItemStatus.inProgress => Spinner(),
       _ => AcpIcon(AcpIcons.dashedCircle, color: t.Neutral.placeholder, size: t.IconSizes.toolbar),
     };
     final tone = switch (i.priority) {
@@ -127,7 +127,7 @@ class _PlanCardState extends State<PlanCard> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                const Chevron(expanded: false),
+                Chevron(expanded: false),
                 const SizedBox(width: t.Spacing.s8),
                 _title(p),
                 if (!p.isStable) ...<Widget>[const SizedBox(width: t.Spacing.s8), Text(p.planId, style: t.TextStyles.monoMeta)],
