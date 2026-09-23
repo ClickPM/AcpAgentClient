@@ -2,7 +2,7 @@
 
 <!-- 保存为 iterations/iteration-NN.md。一个迭代一个文件、一项一行；流程正本见 iterations/README.md，不在这里复述。 -->
 
-> 状态：进行中（1 项待合并；合并时机由所有者定）　起止：2026-09-23 –　基线：`main` = `34e66be`（本分支开出时；编号 08 是因为 `main` 上 05–07 已被别的会话占用）
+> 状态：进行中（1 项已合并，待构建手测收口）　起止：2026-09-23 –　基线：`main` = `34e66be`（本分支开出时；编号 08 是因为 `main` 上 05–07 已被别的会话占用）
 
 BACKLOG P1「数据一致性」两条合在一起做：「换项目放下的会话挂着请求，界面上没痕迹」与「后台会话挂起的权限 / 表单请求，界面上没痕迹」。
 两条根因相同（挂起队列只在当前会话的停靠条上露出来），差在请求所属会话在不在侧栏里，所以分两处提示：侧栏条目（当前工作区）与项目切换器（按工作区汇总）。
@@ -12,7 +12,7 @@ BACKLOG P1「数据一致性」两条合在一起做：「换项目放下的会�
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | board | 画板 09「等你处理」：侧栏条目在「N 条消息」后出 `▲ 待授权` / `ⓘ 待输入`（warning 色；亮点撤掉只留底线，行高仍 58；当前会话也显示），项目切换器在跑数徽标左边并排一枚等你数徽标（按会话计数，当前工作区也挂，触发钮 tooltip 整句为 0 的段省略）；「等你处理」与「运行中」互斥，在跑数不再含等你的会话。派生挪进 `lib/projection/session_activity.dart`（`session_controller.dart` 已到 897 / 900 行门）；画板 09 入库 + 画板 06 / 08 文字修订 + PNG 重渲 | BACKLOG P1「数据一致性」第 1、2 条；所有者 2026-09-23 | `claude/permission-request-badge-missing-c4a919`（实现 `586fd86`） | validate 全绿 | 1 轮（cursor），0 条 | 待合并 |
+| 1 | board | 画板 09「等你处理」：侧栏条目在「N 条消息」后出 `▲ 待授权` / `ⓘ 待输入`（warning 色；亮点撤掉只留底线，行高仍 58；当前会话也显示），项目切换器在跑数徽标左边并排一枚等你数徽标（按会话计数，当前工作区也挂，触发钮 tooltip 整句为 0 的段省略）；「等你处理」与「运行中」互斥，在跑数不再含等你的会话。派生挪进 `lib/projection/session_activity.dart`（`session_controller.dart` 已到 897 / 900 行门）；画板 09 入库 + 画板 06 / 08 文字修订 + PNG 重渲 | BACKLOG P1「数据一致性」第 1、2 条；所有者 2026-09-23 | `claude/permission-request-badge-missing-c4a919`（实现 `586fd86`）→ `c996f66`（合入 main 后快进） | validate 全绿 | 2 轮（cursor），0 条 / 0 条 | 已合并 |
 
 ## 收口
 
@@ -42,3 +42,4 @@ BACKLOG P1「数据一致性」两条合在一起做：「换项目放下的会�
 ### 审查（1 轮，cursor CLI + `grok-4.7-high-fast`）
 
 - `-Scope since -Base 34e66be`（本分支基线），结果 `.claude/reviews/20260923-142715-review.out.md`：**0 条**。审查器逐条核对了互斥在回应、`$/cancel_request`、`session/cancel`（权限与 elicitation 都标掉）、agent 退出、`resetForReplay` 的 `forgetSession`、`Sessions.forget` 这些了结路径上都成立，以及等你标记淡出保留旧种类、回到在跑时换一只新的扫掠线从新周期开始。无整改，不复审。
+- 合并前复审（所有者 2026-09-23 下令合进 main）：`main`（`3004915`）合进分支时 `lib/ui/shell/sidebar.dart` 与 `lib/app/workbench_screen.dart` 手工解了冲突（`Sidebar` 同时带 `awaiting` 与 main 的主题三档 `themeChoice` / `onCycleTheme`），按「解冲突手改了代码才复审」发一轮 `-Scope since -Base 3004915`，结果 `.claude/reviews/20260923-144337-review.out.md`：**0 条**。审查器核对了与 main 新代码（主题三档、toast、`_ensureLoaded` 的加载提示）之间没有语义冲突，互斥仍只在 `SessionActivity` 一处。合并后的树 validate 全绿（独立 cargo target `D:\cargo-target\AcpAgentClient-awaiting`，`flutter test` 500 条）。
