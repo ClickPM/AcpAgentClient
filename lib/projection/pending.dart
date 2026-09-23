@@ -24,6 +24,18 @@ class PendingQueue extends ChangeNotifier {
           if (_sessionOf(e) == sessionId) e,
       ];
 
+  /// 每条会话仍在等用户的**最早那一项**（sessionId → 项，先到先出与 [forSession] 同序）。
+  /// 画板 09 的「等你处理」：侧栏标记取它的种类、切换器徽标按它的键数会话。requestScope 的不在里面。
+  Map<String, TranscriptEntry> firstBySession() {
+    final out = <String, TranscriptEntry>{};
+    for (final e in pending) {
+      final sid = _sessionOf(e);
+      if (sid == null || sid.isEmpty) continue;
+      out.putIfAbsent(sid, () => e);
+    }
+    return out;
+  }
+
   /// requestScope（无会话）的 elicitation。
   List<ElicitationEntry> get requestScope => <ElicitationEntry>[
         for (final e in pending)

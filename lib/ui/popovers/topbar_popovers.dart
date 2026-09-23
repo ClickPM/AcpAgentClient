@@ -9,7 +9,6 @@ import 'package:flutter/widgets.dart';
 import '../../theme/tokens.dart' as t;
 import '../shell/running_badge.dart';
 import '../shell/shell_common.dart';
-import '../shell/tooltip.dart';
 import '../transcript/card_chrome.dart';
 import '../transcript/icons.dart';
 import 'menu.dart';
@@ -64,6 +63,7 @@ class ProjectSwitcherPopover extends StatelessWidget {
     this.onQueryChanged,
     this.onOpenLocalFolders,
     this.runningOf,
+    this.awaitingOf,
   });
 
   /// 本窗口已打开的项目。
@@ -85,6 +85,9 @@ class ProjectSwitcherPopover extends StatelessWidget {
   /// 不分 This Window 与 Recent Projects：本次运行里打开过、内存里还有在跑会话的行都挂徽标；
   /// 为 0 的行一律不渲染徽标、不留占位。
   final int Function(ProjectRef project)? runningOf;
+
+  /// 画板 09 B：这一行的工作区里有几条会话在等你处理（与 [runningOf] 互不重叠，口径与挂哪一行同上）。
+  final int Function(ProjectRef project)? awaitingOf;
 
   @override
   Widget build(BuildContext context) {
@@ -111,29 +114,29 @@ class ProjectSwitcherPopover extends StatelessWidget {
   }
 
   /// 一行工作区。`MenuRow` 只在 `trailing == null` 时自己画对勾，所以选中行带徽标时要把对勾一起放进来。
-  /// 画板 08 把对勾画在路径左侧，而画板 41 定的这个弹层对勾在右侧；本次「行高、缩进、分隔线都不动」，
-  /// 所以沿用画板 41 的位置，徽标排在对勾左边。
+  /// 对勾在右侧（画板 41 的位置，画板 09 B 也按 41 画），徽标组排在对勾左边：等你在左、在跑在右，各挂各的 tooltip。
   Widget _row(ProjectRef p) {
     final int running = runningOf?.call(p) ?? 0;
-    final Widget? badge = RunningBadge.maybe(running);
+    final int awaiting = awaitingOf?.call(p) ?? 0;
+    final Widget? badges = ActivityBadges.maybe(
+      awaiting: awaiting,
+      running: running,
+      awaitingTooltip: '该工作区 $awaiting 个会话等你处理',
+      runningTooltip: '该工作区 $running 个会话在运行',
+    );
     final bool selected = p.path == currentPath;
     return MenuRow(
       label: p.name,
       selected: selected,
-      trailing: badge == null
-          ? null
-          : AcpTooltip(
-              message: '该工作区 $running 个会话在运行',
-              child: selected
-                  ? Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        badge,
-                        const SizedBox(width: t.Spacing.s8),
-                        AcpIcon(AcpIcons.check, color: t.Accent.text, size: t.IconSizes.toolbar),
-                      ],
-                    )
-                  : badge,
+      trailing: badges == null || !selected
+          ? badges
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                badges,
+                const SizedBox(width: t.Spacing.s8),
+                AcpIcon(AcpIcons.check, color: t.Accent.text, size: t.IconSizes.toolbar),
+              ],
             ),
       onTap: onSelect == null ? null : () => onSelect!(p),
     );

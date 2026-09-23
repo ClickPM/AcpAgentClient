@@ -398,7 +398,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
               ],
             ))),
         const BoardSection('C · 触发钮（合计 = 所有工作区，含当前）',
-            child: TopBar(projectName: _project, branch: _branch, windowControls: false, runningTotal: 3, runningWorkspaces: 2)),
+            child: TopBar(projectName: _project, branch: _branch, windowControls: false, runningTotal: 3, activeWorkspaces: 2)),
         BoardSection('C · 切换器弹层（This Window 恒一行；Recent Projects 里本次运行开过、还有会话在跑的那行也挂徽标）',
             child: _left(ProjectSwitcherPopover(
               openProjects: _switcherOpen,
@@ -416,6 +416,64 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
           '重放出来的历史里没有 TurnEntry，也就没有摘要行。'
           '偏离：权限卡与 elicitation 卡不折叠（画板两列都没列到它们，挂起的那张必须看得见）；'
           '徽标图标用既有的 AcpIcons.rotateCw（画板画的是同一个 lucide 字形的 r=8 版本，11px 下差别在 1px 以内）。',
+    );
+  }),
+  pageBoard('09-awaiting-you', '等你处理 · 侧栏条目 / 工作区切换器', () {
+    return BoardPage(
+      number: '09',
+      title: '等你处理 · 侧栏条目 / 工作区切换器',
+      source: 'session/request_permission · elicitation/create（挂起中）· \$/cancel_request · session/cancel · 会话所属工作区（本地）',
+      sections: <BoardSection>[
+        BoardSection('A · ① 运行中 · ② 待授权（亮点撤掉、底线保留、行高仍 58）· ③ 待输入（换图标与文字，颜色不变）· ④ 回应之后（扫掠从新周期开始）',
+            child: _panel(<Widget>[
+              SidebarSessionRow(_awaitingSessions[0], now: _now, running: true),
+              SidebarSessionRow(_awaitingSessions[0], now: _now, awaiting: AwaitingKind.permission),
+              SidebarSessionRow(_awaitingSessions[0], now: _now, awaiting: AwaitingKind.input),
+              SidebarSessionRow(_awaitingSessions[0], now: _now, running: true),
+            ])),
+        BoardSection('A · 等你处理 + 悬浮（重命名 / 删除照常出现，标记不让位）',
+            child: _panel(<Widget>[
+              SidebarSessionRow(_awaitingSessions[0], now: _now, awaiting: AwaitingKind.permission, forceHover: true),
+            ])),
+        BoardSection('A · 列表全景（当前会话同样显示标记；多条同时等你各自显示、不汇总；不置顶、不变色、不加粗）',
+            child: _panel(<Widget>[
+              SidebarSessionRow(_awaitingSessions[1], now: _now, selected: true, awaiting: AwaitingKind.permission),
+              SidebarSessionRow(_awaitingSessions[2], now: _now, running: true),
+              SidebarSessionRow(_awaitingSessions[3], now: _now, unread: true),
+              SidebarSessionRow(_awaitingSessions[4], now: _now, awaiting: AwaitingKind.input),
+              SidebarSessionRow(_awaitingSessions[5], now: _now),
+            ])),
+        BoardSection('B · 徽标三态（只有等你 / 并排：等你在左、在跑在右，间距 4 / 两位数照排）',
+            child: _left(Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                const AwaitingBadge(1),
+                const SizedBox(width: t.Spacing.s24),
+                const ActivityBadges(awaiting: 1, running: 2),
+                const SizedBox(width: t.Spacing.s24),
+                const AwaitingBadge(12),
+                const SizedBox(width: t.Spacing.s24),
+                Text('0 个在等 · 无徽标、不留占位', style: t.TextStyles.monoMeta),
+              ],
+            ))),
+        const BoardSection('B · 触发钮（合计 = 所有工作区，含当前；两个数互不重叠）',
+            child: TopBar(
+                projectName: _project, branch: _branch, windowControls: false, awaitingTotal: 2, runningTotal: 2, activeWorkspaces: 3)),
+        BoardSection('B · 切换器弹层（等你与在跑各自挂在所属工作区那一行；当前工作区的对勾在右侧，徽标组排在它左边）',
+            child: _left(ProjectSwitcherPopover(
+              openProjects: _switcherOpen,
+              recentProjects: _switcherRecent,
+              currentPath: _switcherOpen.first.path,
+              searchController: boardText(),
+              searchFocusNode: FocusNode(),
+              runningOf: (p) => _awaitingSwitcherRunning[p.path] ?? 0,
+              awaitingOf: (p) => _awaitingSwitcherAwaiting[p.path] ?? 0,
+            ))),
+      ],
+      footnote: '「等你处理」= 该会话至少有一条挂起的 permission / elicitation，与「运行中」互斥：等你的会话不扫掠、不计入在跑数，'
+          '挂起的全部了结（回应 / 被 agent 撤回 / 随 session/cancel 回了 cancelled / agent 退出）而回合没结束就回到运行中。'
+          '亮点线、绿点、等你标记三者严格互斥。切换器的等你数按会话计数、不按请求；认证阶段不带会话的 elicitation（画板 52）不算。'
+          '只提示、不代劳：不自动切会话或工作区、不弹窗；画板 26 的停靠条仍只管当前会话。',
     );
   }),
   pageBoard('40-composer-popovers', '输入框弹层合集', () {
@@ -818,3 +876,24 @@ const Map<String, int> _switcherRunning = <String, int>{
   r'D:\variFlight_work\pi-cordis-toolbox': 1,
   r'D:\variFlight_work\VariFlightWork': 2,
 };
+
+/// 画板 09 B 的切换器样张：同一组工作区，VariFlightWork 那两条里有一条卡在授权上（于是在跑 1、等你 1），
+/// AcpAgentClient 有一条在等你。触发钮合计：等你 2、在跑 2、3 个工作区。
+const Map<String, int> _awaitingSwitcherRunning = <String, int>{
+  r'D:\variFlight_work\pi-cordis-toolbox': 1,
+  r'D:\variFlight_work\VariFlightWork': 1,
+};
+const Map<String, int> _awaitingSwitcherAwaiting = <String, int>{
+  r'D:\variFlight_work\VariFlightWork': 1,
+  r'D:\variFlight_work\AcpAgentClient': 1,
+};
+
+/// 画板 09 A 的会话项样张（标题与时间照画板）。
+final List<SidebarSession> _awaitingSessions = <SidebarSession>[
+  SidebarSession(id: 'a0', title: '整理构建脚本', updatedAt: _now, messageCount: 9),
+  SidebarSession(id: 'a1', title: '分析 AAC 项目代码质量', updatedAt: _now, messageCount: 14),
+  SidebarSession(id: 'a2', title: '整理构建脚本', updatedAt: _now.subtract(const Duration(minutes: 2)), messageCount: 8),
+  SidebarSession(id: 'a3', title: '你能够看到图片内容吗', updatedAt: _now.subtract(const Duration(minutes: 7)), messageCount: 9),
+  SidebarSession(id: 'a4', title: '迁移 settings.json 的读取', updatedAt: _now.subtract(const Duration(minutes: 12)), messageCount: 6),
+  SidebarSession(id: 'a5', title: 'Loaded Agent Skills Overview', updatedAt: _now.subtract(const Duration(hours: 19)), messageCount: 11),
+];

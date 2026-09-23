@@ -708,6 +708,23 @@ abstract final class UnreadDot {
   static const double gap = 6;
 }
 
+/// 画板 09 A「侧栏条目 · 等你处理」标记（`▲ 待授权` / `ⓘ 待输入`）。画板 09 不新增 token，
+/// 这组只是把它引用的几项收成一处（画板 00 不改）。
+abstract final class AwaitingMark {
+  /// 图标与文字都用 warning：两种请求同色，种类靠图标和文字区分。
+  static Color get color => Semantic.warning;
+
+  /// 12px 图标，描边同画板 26 停靠条的图标。
+  static const double iconSize = 12;
+  static const double iconStroke = IconSizes.stroke;
+
+  /// 图标与文字 gap 4px。
+  static const double iconGap = Spacing.s4;
+
+  /// 与「N 条消息」的间距：同画板 06 绿点。
+  static const double gap = UnreadDot.gap;
+}
+
 /// 几何（所有者裁定 2026-09-15，R2 审查留下的 7 个局部常量收进来）：它们不是画板 00 的 token，而是画板上量出来的
 /// 单点尺寸；集中在这里是为了「widget 文件里不出现裸数字」。第 6 条是时长不是尺寸，按裁定与其余六条同组收纳。
 abstract final class Geometry {
@@ -977,4 +994,11 @@ abstract final class Badge {
 
   /// 超过这个数显示 `99+`。
   static const int overflowAt = 99;
+
+  /// 画板 09 B「等你处理数」徽标：几何全同上，底 warningSoft、图标与数字 warning（画板 09 引用既有 token，不新增）。
+  static Color get warningBg => Semantic.warningSoft;
+  static Color get warningFg => Semantic.warning;
+
+  /// 两枚并排（等你在左、在跑在右）时的间距 4px。
+  static const double pairGap = Spacing.s4;
 }

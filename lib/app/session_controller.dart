@@ -1,5 +1,5 @@
 // 当前会话与会话生命周期（R7.5 从 workbench_controller.dart 拆出）：当前 agent / 会话与派生态（画板 01 的两个空态、
-// 会话头标题、输入框可用性、画板 34 的状态条）、agent 能力（R6）、侧栏列表与搜索（画板 04）、画板 06 的活动指示、
+// 会话头标题、输入框可用性、画板 34 的状态条）、agent 能力（R6）、侧栏列表与搜索（画板 04）、画板 06 / 09 的活动指示、
 // 新建 / 重载 / 点选 / `session/load` / resume / close / delete / `session/list` 校对（R6）、改名与删除确认（画板 41）、
 // 本地索引的写回。协议状态仍在 `lib/projection/`（规则 2），这里只是「唯一知道桥的人」里管会话的那一段。
 //
@@ -15,6 +15,7 @@ import 'package:flutter/widgets.dart';
 import '../projection/agent_state.dart';
 import '../projection/batcher.dart';
 import '../projection/pending.dart';
+import '../projection/session_activity.dart';
 import '../projection/session_store.dart';
 import '../projection/wire.dart';
 import '../ui/popovers/topbar_popovers.dart';
@@ -190,41 +191,13 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
   /// 跑完了、还没被看过的会话（画板 06 B 的绿点）。纯客户端本地态，不落盘、不进协议。
   final Set<String> _unreadDone = <String>{};
 
-  /// 画板 06 A：有在途 prompt 的会话（出扫掠亮点线）。只有内存里有投影的会话才可能在跑，
-  /// 所以直接从会话表算，不另记一份（少一处要对齐的状态）。
-  Set<String> get runningSessionIds => <String>{
-        for (final s in sessions.all)
-          if (s.isRunning) s.sessionId,
-      };
+  /// 画板 06 A / 08 C / 09：在跑与等你处理的会话、按工作区的计数（每次从会话表与挂起队列现算）。
+  /// 工作区键同 [WorkspaceState.normalizeCwd]。**换项目不关会话**（见 [enterWorkspace]：放下不等于关掉），
+  /// 所以之前打开过的工作区里还在跑 / 在等的会话仍在表里，不必去后台探活；本次运行从没打开过的工作区自然一条都没有。
+  SessionActivity get activity => SessionActivity(sessions, workspaceKey: WorkspaceState.normalizeCwd);
 
   /// 画板 06 B：完成未读的会话。
   Set<String> get unreadSessionIds => _unreadDone;
-
-  // ---------------------------------------------------------------- 画板 08 C：跨工作区在跑数
-
-  /// 按工作区分组的在跑会话数。键是归一化后的 cwd（同 [WorkspaceState.normalizeCwd]，
-  /// 同一目录的两种写法不能被判成两个工作区）。
-  ///
-  /// 数据源与画板 06 的扫掠线是同一个：内存里的会话表。**换项目不关会话**（见 [enterWorkspace]
-  /// 的注释：放下不等于关掉），所以之前打开过的工作区里还在跑的会话仍然在这张表里，
-  /// 不必去后台探活。本次运行从没打开过的工作区自然一条都没有。
-  Map<String, int> get runningByWorkspace {
-    final out = <String, int>{};
-    for (final s in sessions.all) {
-      final String? cwd = s.cwd;
-      if (!s.isRunning || cwd == null || cwd.isEmpty) continue;
-      final key = WorkspaceState.normalizeCwd(cwd);
-      out[key] = (out[key] ?? 0) + 1;
-    }
-    return out;
-  }
-
-  /// 触发钮上的合计：所有工作区（含当前）。**没记 cwd 的在跑会话也算进来**——它确实在跑，
-  /// 只是归不到某一行上，漏掉它就不再是「别处还有多少在跑」的真数。
-  int get runningTotal => runningSessionIds.length;
-
-  /// 有在跑会话的工作区个数（触发钮 tooltip 的第二个数）。
-  int get runningWorkspaceCount => runningByWorkspace.length;
 
   /// 回合结束时点亮绿点（画板 06 D 表）：`stopReason` 是 cancelled / refusal 的不点，失败收轮（没有 `stopReason`）
   /// 的也不点 —— 取消与出错侧栏一律不表达，错误只在转录区（画板 31 / 34）。

@@ -32,7 +32,8 @@ class TopBar extends StatelessWidget {
     this.branchAnchor,
     this.dragArea,
     this.runningTotal = 0,
-    this.runningWorkspaces = 0,
+    this.awaitingTotal = 0,
+    this.activeWorkspaces = 0,
   });
 
   final String projectName;
@@ -50,10 +51,21 @@ class TopBar extends StatelessWidget {
   final VoidCallback? onMaximize;
   final VoidCallback? onClose;
 
-  /// 画板 08 C：全部工作区在跑会话合计与「有在跑会话的工作区个数」（后者只进 tooltip 文案）。
-  /// 合计为 0 时整个徽标不渲染、不留占位。
+  /// 画板 08 C / 09 B：全部工作区的在跑会话合计、等你处理的会话合计（两个数互不重叠），
+  /// 以及「有在跑或等你会话的工作区个数」（只进 tooltip 文案）。为 0 的那枚徽标不渲染、不留占位。
   final int runningTotal;
-  final int runningWorkspaces;
+  final int awaitingTotal;
+  final int activeWorkspaces;
+
+  /// 画板 09 B 的触发钮整句：为 0 的那段省略；两个数都为 0 时仍是原来的 `Recent workspace`。
+  String get _projectTooltip {
+    if (runningTotal <= 0 && awaitingTotal <= 0) return 'Recent workspace';
+    return <String>[
+      if (awaitingTotal > 0) '$awaitingTotal 个会话等你处理',
+      if (runningTotal > 0) '$runningTotal 个会话在运行',
+      '$activeWorkspaces 个工作区',
+    ].join(' · ');
+  }
 
   /// gallery 出悬浮样张用（画板 04）。
   final bool hoverProject;
@@ -100,9 +112,9 @@ class TopBar extends StatelessWidget {
               children: <Widget>[
                 Flexible(
                   child: AcpTooltip(
-                    // 画板 08 C 给触发钮定的 tooltip 是在跑数那句。**偏离**：这里不另套一层 tooltip 挂在徽标上——
+                    // 画板 08 C / 09 B 给触发钮定的 tooltip 是计数那句。**偏离**：这里不另套一层 tooltip 挂在徽标上——
                     // `AcpTooltip` 是 `MouseRegion`，套两层会两条一起弹；没有徽标时仍是原来的 `Recent workspace`。
-                    message: runningTotal > 0 ? '$runningTotal 个会话在运行 · $runningWorkspaces 个工作区' : 'Recent workspace',
+                    message: _projectTooltip,
                     child: PopoverAnchor(
                       handle: projectAnchor,
                       child: Hoverable(
@@ -110,7 +122,7 @@ class TopBar extends StatelessWidget {
                         forceHover: hoverProject,
                         builder: (context, hovered) => _chip(
                           hovered: hovered,
-                          trailing: RunningBadge.maybe(runningTotal),
+                          trailing: ActivityBadges.maybe(awaiting: awaitingTotal, running: runningTotal),
                           child: Text(projectName, style: CardText.headerTitle.copyWith(color: t.Neutral.strong), maxLines: 1, overflow: TextOverflow.ellipsis),
                         ),
                       ),
@@ -150,7 +162,7 @@ class TopBar extends StatelessWidget {
     );
   }
 
-  /// [trailing]：跟在主内容右边、**不参与挤压**的一小块（画板 08 C 的在跑数徽标：路径 ellipsis 优先让位于它）。
+  /// [trailing]：跟在主内容右边、**不参与挤压**的一小块（画板 08 C / 09 B 的徽标组：路径 ellipsis 优先让位于它）。
   static Widget _chip({required bool hovered, required Widget child, Widget? trailing}) => Container(
         height: t.Controls.compact,
         padding: t.Controls.padCompact,

@@ -1,4 +1,5 @@
-// 画板 08 C · 跨工作区在跑数：计数口径（按会话、按归一化 cwd 分组、合计含当前）与徽标的三态。
+// 画板 08 C · 跨工作区在跑数：计数口径（按会话、按归一化 cwd 分组、合计含当前）与徽标的三态；
+// 画板 09 B · 等你处理数：与在跑数互不重叠（投影层的细则在 test/projection/session_activity_test.dart）。
 //
 // 口径的关键前提是「换项目不关会话」（`SessionController.enterWorkspace` 的注释：放下不等于关掉），
 // 所以这里的用例真的去换一次项目，验的是「切走之后那条仍计在原工作区名下」。
@@ -60,20 +61,20 @@ void main() {
       await _startRunning(c, core, r'D:\repo-a'); // 同一个工作区第二条
       final sidB = await _startRunning(c, core, r'D:\repo-b');
 
-      expect(c.session.runningTotal, 3);
-      expect(c.session.runningWorkspaceCount, 2);
-      expect(c.session.runningByWorkspace[WorkspaceState.normalizeCwd(r'D:\repo-a')], 2);
-      expect(c.session.runningByWorkspace[WorkspaceState.normalizeCwd(r'D:\repo-b')], 1);
+      expect(c.session.activity.runningTotal, 3);
+      expect(c.session.activity.workspaceCount, 2);
+      expect(c.session.activity.runningByWorkspace[WorkspaceState.normalizeCwd(r'D:\repo-a')], 2);
+      expect(c.session.activity.runningByWorkspace[WorkspaceState.normalizeCwd(r'D:\repo-b')], 1);
 
       // 同一目录的另一种写法（分隔符 / 尾斜杠 / 大小写）算同一个工作区。
-      expect(c.session.runningByWorkspace[WorkspaceState.normalizeCwd('d:/repo-a/')], 2);
+      expect(c.session.activity.runningByWorkspace[WorkspaceState.normalizeCwd('d:/repo-a/')], 2);
 
       // 那条跑完了就不再计入。
       core.gates[sidB]!.complete(<String, dynamic>{'stopReason': 'end_turn'});
       await _settle();
-      expect(c.session.runningTotal, 2);
-      expect(c.session.runningWorkspaceCount, 1);
-      expect(c.session.runningByWorkspace.containsKey(WorkspaceState.normalizeCwd(r'D:\repo-b')), isFalse);
+      expect(c.session.activity.runningTotal, 2);
+      expect(c.session.activity.workspaceCount, 1);
+      expect(c.session.activity.runningByWorkspace.containsKey(WorkspaceState.normalizeCwd(r'D:\repo-b')), isFalse);
       c.dispose();
     });
 
@@ -82,8 +83,45 @@ void main() {
       final c = WorkbenchController(source: DataSource.bridge, bridge: core, scheduler: WorkbenchController.scheduleOnMicrotask)
         ..workspace.project = const ProjectRef(path: r'D:\repo', name: 'repo');
       await c.session.newSession(const AgentRef(id: 'a', name: 'a'));
-      expect(c.session.runningTotal, 0);
-      expect(c.session.runningByWorkspace, isEmpty);
+      expect(c.session.activity.runningTotal, 0);
+      expect(c.session.activity.runningByWorkspace, isEmpty);
+      c.dispose();
+    });
+  });
+
+  group('画板 09 · 等你处理', () {
+    test('换项目之后，原工作区那条卡在授权上的会话计在等你数里、不计在跑数；回应之后回到在跑', () async {
+      final core = _GatedCore();
+      final c = WorkbenchController(source: DataSource.bridge, bridge: core, scheduler: WorkbenchController.scheduleOnMicrotask);
+
+      final sidA = await _startRunning(c, core, r'D:\repo-a');
+      await _startRunning(c, core, r'D:\repo-b'); // 换到 repo-b：repo-a 那条从会话区放下，但没关
+      c.sessions.applyClientRequestEnvelope(<String, dynamic>{
+        'agentId': 'a',
+        'requestId': 'req_1',
+        'method': 'session/request_permission',
+        'params': <String, dynamic>{
+          'sessionId': sidA,
+          'toolCall': <String, dynamic>{'toolCallId': 'call_1', 'title': '删文件'},
+          'options': <Object?>[
+            <String, dynamic>{'optionId': 'ok', 'name': 'Allow', 'kind': 'allow_once'},
+          ],
+        },
+      });
+
+      final a = c.session.activity;
+      expect(a.awaitingTotal, 1);
+      expect(a.awaitingByWorkspace[WorkspaceState.normalizeCwd(r'D:\repo-a')], 1);
+      expect(a.runningByWorkspace.containsKey(WorkspaceState.normalizeCwd(r'D:\repo-a')), isFalse, reason: '等你的会话不再计入在跑数');
+      expect(a.runningTotal, 1);
+      expect(a.workspaceCount, 2, reason: 'tooltip 的工作区数 = 有在跑或等你会话的工作区个数');
+
+      // 回应之后回合还没结束：回到在跑。
+      c.sessions.maybe(sidA)!.answerPermission('req_1', 'ok');
+      final b = c.session.activity;
+      expect(b.awaitingTotal, 0);
+      expect(b.runningByWorkspace[WorkspaceState.normalizeCwd(r'D:\repo-a')], 1);
+      expect(b.runningTotal, 2);
       c.dispose();
     });
   });
