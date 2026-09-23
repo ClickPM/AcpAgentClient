@@ -2,7 +2,7 @@
 
 <!-- 保存为 iterations/iteration-NN.md。一个迭代一个文件、一项一行；流程正本见 iterations/README.md，不在这里复述。 -->
 
-> 状态：进行中　起止：2026-09-23 –　基线：`main` = `34e66be`
+> 状态：进行中（1 项已合并，待构建手测收口）　起止：2026-09-23 –　基线：`main` = `34e66be`
 
 BACKLOG P1「等待与反馈」第 1 条。原条目的结论是「要在光标处画出组字串得自己叠一层浮层，属于扩边界，先改设计稿」；
 复核发现 xterm 自己就能画（`RenderTerminal.composingText` 是公开 setter），所有者 2026-09-23 裁定按这条做、**不补画板**，偏离记 `design/DIVERGENCE.md` 第 32 条。
@@ -11,7 +11,7 @@ BACKLOG P1「等待与反馈」第 1 条。原条目的结论是「要在光标�
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | ux | 终端组字期间在光标处画出正在组的字：`TerminalIme` 把整串写进 xterm 的 `RenderTerminal.composingText`（终端字体 + 下划线），上屏 / 取消 / 失焦 / 连接被关时清掉；前面垫一格，实心块光标不盖首字母；`_ComposingKeeper` 在同一帧 layout 阶段写回（TerminalView 随 shell 输出重建会把它清回 null）。用例 `test/ui/terminal_panel_test.dart` 1 条 | BACKLOG P1「等待与反馈」第 1 条；所有者裁定 2026-09-23 | `claude/floating-layer-stacking-5efef0`（`92edf2b`） | validate 全绿 | 1 轮（cursor），0 条 | 待合并 |
+| 1 | ux | 终端组字期间在光标处画出正在组的字：`TerminalIme` 把整串写进 xterm 的 `RenderTerminal.composingText`（终端字体 + 下划线），上屏 / 取消 / 失焦 / 连接被关时清掉；前面垫一格，实心块光标不盖首字母；`_ComposingKeeper` 在同一帧 layout 阶段写回（TerminalView 随 shell 输出重建会把它清回 null）。用例 `test/ui/terminal_panel_test.dart` 1 条 | BACKLOG P1「等待与反馈」第 1 条；所有者裁定 2026-09-23 | `claude/floating-layer-stacking-5efef0` → `cad52e7`（合入 main 后快进） | validate 全绿 | 1 轮（cursor），0 条 | 已合并 |
 
 ## 收口
 
@@ -41,3 +41,8 @@ BACKLOG P1「等待与反馈」第 1 条。原条目的结论是「要在光标�
 ### 审查（1 轮，cursor CLI + `grok-4.7-high-fast`）
 
 - `cursor-review.ps1 -Scope since -Base 34e66be -Wait`，产物 `.claude/reviews/20260923-134518-review.out.md`：**findings: 0**。审查对照了 pub 缓存里 xterm 4.0.0 的 `composingText` / `_paintComposingText` 与 `updateRenderObject` 的清回路径。
+
+### 合并
+
+- 合入前 main 前进到 `8e4e1c5`（关了 P0「没有归属的终端缓冲」与 P1「行内 HTML 只认 `<br>`」）。`rounds/BACKLOG.md` 三处冲突取 main 侧，`BACKLOG-CLOSED.md` 末尾两边都留；两边都把 P1 从 6 改成 5，git 自动合成 5，按真实条数重数后 P1 = 4、合计 = 11。
+- main 带来的三处 `.dart` 改动只动注释，没有代码改动，按所有者指示不复审；合并后 validate 全绿。
