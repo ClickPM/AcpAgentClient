@@ -2,7 +2,7 @@
 
 <!-- 保存为 iterations/iteration-NN.md。一个迭代一个文件、一项一行；流程正本见 iterations/README.md，不在这里复述。 -->
 
-> 状态：待合并　起止：2026-09-23 –　基线：`main` = `34e66be`
+> 状态：已合并（待构建与手测收口）　起止：2026-09-23 –　基线：`main` = `34e66be`
 
 BACKLOG P0「会话身份与生命周期」四条一起做（下文「BACKLOG 第 N 条」按那一小节原来的顺序数）。第 1 / 2 / 4 条同根：前端没有「这条会话挂在哪条 agent 连接上」的状态，
 一直拿「内存里有没有转录（`store`）」代替；本迭代补上**挂载代次**（每个 agent 的连接换过几代 + 挂空的会话集合），三条共用。第 3 条独立。
@@ -13,10 +13,10 @@ BACKLOG P0「会话身份与生命周期」四条一起做（下文「BACKLOG �
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | fix | 载会话中途失败会留半份转录：失败时整段重放作废（`Sessions.discardUpdates`，在挂起的 batcher 队列里与清空成对排），原先有转录的原样留着；删掉 `_updateArrivals` / `noteUpdateArrival` 那套「重放了几条」的判断 | BACKLOG P0「会话身份与生命周期」第 4 条 | `claude/conversation-identity-lifecycle-p0-dd6bcc`（`9c64804` + 整改 `d9ce250` / `4fe8b13`）→ 待合并 | validate 全绿（482 项 flutter test）；未构建、未手测 | 3 轮 / cursor CLI `grok-4.7-high-fast`（`-Scope since`）：3 → 1 → **0**，high 4 条全部采纳 | 待合并 |
-| 2 | fix | 发消息可能把选中的会话静默顶掉：`send()` 按四态分流（none / attached / detached / unattachable），detached 先挂回（连上 → load / resume）再发，挂不回不开新会话、这一轮按「发出去失败」收在画板 31 的结束行；unattachable 按 R3 新开一条，输入框占位文案先说明 | BACKLOG P0「会话身份与生命周期」第 1 条 | 同上 | 同上 | 同上 | 待合并 |
-| 3 | fix | 重载或崩溃之后，别的会话发不出去：连接每换一次，这个 agent 名下内存里的会话全部标成挂空；切过去（`ensureLoaded`）或发送 / Restore / 下拉之前自动挂回。认证页的 `agent_connect` 改经会话控制器，代次不漏记 | BACKLOG P0「会话身份与生命周期」第 2 条 | 同上 | 同上 | 同上 | 待合并 |
-| 4 | fix | 认证完成后建出来的会话挂到旧目录：`_adoptSession` 拆成「登记」与「切成当前会话」，后者只在会话 cwd 属于当前项目时做；索引写回改传 `target` | BACKLOG P0「会话身份与生命周期」第 3 条 | 同上 | 同上 | 同上 | 待合并 |
+| 1 | fix | 载会话中途失败会留半份转录：失败时整段重放作废（`Sessions.discardUpdates`，在挂起的 batcher 队列里与清空成对排），原先有转录的原样留着；删掉 `_updateArrivals` / `noteUpdateArrival` 那套「重放了几条」的判断 | BACKLOG P0「会话身份与生命周期」第 4 条 | `claude/conversation-identity-lifecycle-p0-dd6bcc`（`9c64804` + 整改 `d9ce250` / `4fe8b13`）→ 合 `main` `556cdba`、整改 `2d8aa30`，`main` 快进 | validate 全绿（合并后 523 项 flutter test）；未构建、未手测 | 分支上 3 轮：3 → 1 → **0**；合并前复审 2 轮：3（high 2 / P2 1）→ **0**；high 6 条、P2 1 条全部采纳 | 已合并 |
+| 2 | fix | 发消息可能把选中的会话静默顶掉：`send()` 按四态分流（none / attached / detached / unattachable），detached 先挂回（连上 → load / resume）再发，挂不回不开新会话、这一轮按「发出去失败」收在画板 31 的结束行；unattachable 按 R3 新开一条，输入框占位文案先说明 | BACKLOG P0「会话身份与生命周期」第 1 条 | 同上 | 同上 | 同上 | 已合并 |
+| 3 | fix | 重载或崩溃之后，别的会话发不出去：连接每换一次，这个 agent 名下内存里的会话全部标成挂空；切过去（`ensureLoaded`）或发送 / Restore / 下拉之前自动挂回。认证页的 `agent_connect` 改经会话控制器，代次不漏记 | BACKLOG P0「会话身份与生命周期」第 2 条 | 同上 | 同上 | 同上 | 已合并 |
+| 4 | fix | 认证完成后建出来的会话挂到旧目录：`_adoptSession` 拆成「登记」与「切成当前会话」，后者只在会话 cwd 属于当前项目时做；索引写回改传 `target` | BACKLOG P0「会话身份与生命周期」第 3 条 | 同上 | 同上 | 同上 | 已合并 |
 
 ## 收口
 
@@ -70,6 +70,7 @@ BACKLOG P0「会话身份与生命周期」四条一起做（下文「BACKLOG �
   2. high：关掉当前会话后新建、`session/new` 回同一个 id 时关闭标记还在，新会话一开出来就是只读 → `attachedNew` 连关闭标记一起清。
   3. P2：`reattach` 一开头清空 `lastError`，等侧栏那次挂回时会把它写好的原因（认证页正在打开）换成笼统的一句 → 只在自己发起挂回时清空。
   - 三项各补一条用例，逐一退回整改时各自变红。
+- **合并前复审第 2 轮**（`-Scope since -Base 556cdba`，审 `2d8aa30`）：**0 条**，三处整改都落在原问题上。所有者指示合入，`main` 从 `c907a13` 快进到 `2d8aa30`（其间 `main` 没有新提交）。
 
 ### 合并注意
 
