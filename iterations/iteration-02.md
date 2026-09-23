@@ -21,8 +21,8 @@
 
 ## 收口
 
-- 构建 / 手测：第 1 项已随 release worktree 出包并镜像到 `D:\tools\AcpAgentClient`（2026-09-22 16:48，五处哈希双边一致、安装目录 smoke `ok: true` / `coreVersion 1.4.1`）；**第 2 / 3 / 4 / 5 / 6 项尚未构建**（第 3 / 4 项的手测项：`+` → Image 挑一张 > 20 MB 的图、敲 `@` 后立刻改词；第 5 项：重开应用 → 点一条旧会话 → 聊一句看侧栏标题还在、计数对，另开一条会话后台跑完看侧栏计数当场刷新；第 6 项：浅 → 深 → 浅，看 registry 徽章 / 设置页徽章 / 工具卡 Canceled 徽章 / 各处 chevron / 文件面板空态 / spinner / 整段对话正文（表格、行内代码底色、正文字色）全部跟着变，不用 reload 会话）。
-- 发版：不发（版本号仍 1.4.1，不打 tag、不推 GitHub、不发 release）。
+- 构建 / 手测：第 1 项已随 release worktree 出包并镜像到 `D:\tools\AcpAgentClient`（2026-09-22 16:48，五处哈希双边一致、安装目录 smoke `ok: true` / `coreVersion 1.4.1`）；**第 2 / 3 / 4 / 5 / 6 项尚未构建**（第 3 / 4 项的手测项：`+` → Image 挑一张 > 20 MB 的图、敲 `@` 后立刻改词；第 5 项：重开应用 → 点一条旧会话 → 聊一句看侧栏标题还在、计数对，另开一条会话后台跑完看侧栏计数当场刷新；第 6 项：浅 → 深 → 浅，看 registry 徽章 / 设置页徽章 / 工具卡 Canceled 徽章 / 各处 chevron / 文件面板空态 / spinner / 整段对话正文（表格、行内代码底色、正文字色）全部跟着变，不用 reload 会话）。**2026-09-23 起第 1–7 项都已随 v1.4.2 构建**并镜像到 `D:\tools\AcpAgentClient`（43 = 43 文件、五处哈希双边一致、安装目录 smoke `ok: true` / `coreVersion 1.4.2`、exe 元数据 `1.4.2+1`）；上面列的手测项仍待所有者在安装版上过一遍（自动化只到无头 smoke）。
+- 发版：**v1.4.2**（所有者指示，2026-09-23）。版本号提交 `901f36d`（`pubspec.yaml` / `rust/Cargo.toml` + `Cargo.lock` 七个本地 crate；sidecar 仍 1.21.0，规则 11），`main` 推 github 与 origin；发版前在 release worktree 跑完整 `validate.ps1` 全绿（16 道门，`flutter test` 422 项）；`package.ps1` 出三件产物、`verify-package.ps1` 全过（zip 解压即用 / 不含 sidecar 的包确实没有 / sidecar `--version` 与 `--selftest` / 安装器静默装—跑通—卸载）；annotated tag `v1.4.2` 推两个远端，GitHub release https://github.com/ClickPM/AcpAgentClient/releases/tag/v1.4.2（远端 digest 与本地 SHA-256 一致）。
 - 移出项去向：—
 - 设计稿补注记：第 1 项**直接改了画板 08 / 70 的源并重出 PNG**（规则变更写进画板更干净）；第 2 项走 `design/DIVERGENCE.md` A-16（画板没画「重放回来的历史怎么折」，按规则 3 不要求补稿）；第 3 / 4 项都不改画板（大小门的提示文案走既有的 `lastError`，菜单行为回到画板 42 本来画的样子），无偏离可记；第 5 项同样无偏离（三处都是写回取错源的缺陷，界面按画板本来就该显示真标题与真计数）；第 6 项也无偏离——这次是把实现改回画板 07 定义的深色表现，不是偏离，不记 `design/DIVERGENCE.md`。
 
