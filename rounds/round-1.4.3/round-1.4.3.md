@@ -61,4 +61,14 @@
 
 ## cursor 复审
 
-（待填）
+执行器：cursor CLI `grok-4.7-high-fast`（未回落）。
+
+### 第 1 轮（`-Scope since -Base v1.4.2`，全量，基于 `f427d66`）
+
+`.claude/reviews/20260923-121508-review.out.md`：**1 条（high 0 / P2 1 / P3 0）**；任务卡里已定不整改的三条 P3 未再报。
+
+| 级别 | finding | 核对 | 处理 |
+|---|---|---|---|
+| P2 | `composer_state.dart:291`：正文以裸 `@` 加换行结尾（`@\n`，Shift+Enter 之后）时，审查认为 `_activeToken` 的 `$` 会落在末尾换行之前、仍回 `@`，`addResourceLink` 删掉的是换行而不是 `@` | **前提不成立**：Dart 的 `RegExp` 按 ECMAScript，非 multiLine 的 `$` 只认输入末尾（那是 PCRE / Python 的语义）。同一个函数实测：`'@' → @`、`'@\n' → null`、`'看看 @\n' → null`、`'@\r\n' → null`、`'@ab\n' → null`、`'x\n@' → @`——以换行结尾时吃掉 `@` 那一步根本不触发，正文照旧 `@\n @名字 `。与 iteration-03 第 4 / 5 项审查第 3 轮那条不采纳的 finding 同一个说法 | **不采纳**；为免再被误报，在 `test/app/workbench_wiring_test.dart` 补一条用例锁住这个行为（`'@\n'` 粘贴后是 `'@\n @outside dir @shot.png '`），整个文件 34 项全过 |
+
+无采纳整改；按所有者「findings 为 0 才收」的要求，带上核对结论再发第 2 轮全量。

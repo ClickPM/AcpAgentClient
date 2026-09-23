@@ -881,5 +881,23 @@ void main() {
       expect(c.editor.text, '看看 @outside dir @shot.png ');
       c.dispose();
     });
+
+    // round-1.4.3 cursor 第 1 轮 P2 不采纳的依据：Dart 的 `RegExp` 按 ECMAScript，非 multiLine 的 `$` 只认输入末尾，
+    // 不像 PCRE / Python 那样也落在末尾换行之前，所以 `@\n` 里已经没有活动 token，吃掉裸 `@` 那一步不触发，换行不会被删。
+    test('`@` 之后换了行再粘贴：`@` 已不是活动 token，换行原样留着', () async {
+      final c = ComposerState(
+        bridge: FakeCore(),
+        store: () => null,
+        cwd: () => r'D:\proj',
+        canCompose: () => true,
+        canPromptImage: () => false,
+      );
+      c.editor.text = '@\n';
+
+      await c.pasteFromClipboard();
+
+      expect(c.editor.text, '@\n @outside dir @shot.png ');
+      c.dispose();
+    });
   });
 }
