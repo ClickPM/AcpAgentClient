@@ -49,7 +49,7 @@ BACKLOG P0「会话身份与生命周期」四条一起做（下文「BACKLOG �
 
 ### 测试
 
-- 新增 `test/app/session_attach_test.dart` 20 项（第 1 / 2 轮审查整改补 3 + 1 项，见下）：载入中途失败两项（有 / 没有原转录）、发送分流十一项（载不回、能力未知、挂不回、连上才知道挂不回、缺 Node、载入在途时发送、挂回期间点走；整改补的：连接拉起中就发送、另一条还在载时这条不提前报成功、挂不回且新开失败、挂不回且新开回了同一个 id）、重载 / 崩溃五项（重载后切另一条、崩溃后当前会话、只有 resume 的 agent、认证页连接也记一代、Regenerate 与下拉先挂回）、认证期间换项目两项（agent 型 / terminal 型）。
+- 新增 `test/app/session_attach_test.dart` 23 项（第 1 / 2 轮审查整改补 3 + 1 项、合并前复审补 3 项，见下）：载入中途失败两项（有 / 没有原转录）、发送分流十一项（载不回、能力未知、挂不回、连上才知道挂不回、缺 Node、载入在途时发送、挂回期间点走；整改补的：连接拉起中就发送、另一条还在载时这条不提前报成功、挂不回且新开失败、挂不回且新开回了同一个 id）、重载 / 崩溃五项（重载后切另一条、崩溃后当前会话、只有 resume 的 agent、认证页连接也记一代、Regenerate 与下拉先挂回）、认证期间换项目两项（agent 型 / terminal 型）。
 - **反向核对**：逐一把修法退回去（重放失败照样清空、挂空当成「没会话」、连接不记代次、认证后一律切成当前会话、认证页直连桥、Restore / 下拉不过门、发送不守「挂回期间点走」），每一处都至少让一项变红（脚本在会话的 scratchpad，不入库）。
 
 ### 代码审查
@@ -64,6 +64,12 @@ BACKLOG P0「会话身份与生命周期」四条一起做（下文「BACKLOG �
 - validate：整改后第一次全量跑在 `cargo test` 的 `pty::spawn_streams_output_and_reports_exit` 红了一次（本分支没有 Rust 改动；`wait` 返回时退出回调还没记上），第 2 轮整改后又红一次——全量 validate 6 次里 2 次，单跑、`--test-threads=1`、`--no-fail-fast` 全 workspace 都过，只在同 crate 并行且机器负载高（当时好几个副本在编）时出现。所有者 2026-09-23 裁定不记 BACKLOG；每次重跑 validate 全绿（最后一次 482 项 flutter test）。
 
 - **第 3 轮**（同一执行器，`-Scope since -Base d9ce250`，审 `4fe8b13`）：**0 条**。审查者对照 `attachOf` / `attachedNew` 与 `_newSession` / `createSession` / `_adoptSession` 核过两条路径（同 id 成功照发、失败仍返回），也确认退回旧判断时新用例会红。**0 high 收口。**
+
+- **合并前复审**（所有者 2026-09-23 指示合入 `main`；先把 `main` `c907a13` 合进分支 `556cdba`，合并时手改了代码——把 iteration-06 的「会话正在加载中」移进挂载 mixin、`_ensureAttached` 不再重复报错——所以按 `-Scope since -Base main` 审将要落进 `main` 的全部改动）：3 条，**high 2 / P2 1**，全部采纳，都只改判断：
+  1. high：会话还在加载时点「重载 agent」会再打一次 `agent_connect`（断掉正在握手的那条），又把「已在载」的立即 `false` 当成载入失败而新开一条 → 有会话在挂回 / 载入（`attachInFlight`）或正在连 agent（`_connecting`）时重载不动手；重载自己的连接也改走 `_connectOnce`。
+  2. high：关掉当前会话后新建、`session/new` 回同一个 id 时关闭标记还在，新会话一开出来就是只读 → `attachedNew` 连关闭标记一起清。
+  3. P2：`reattach` 一开头清空 `lastError`，等侧栏那次挂回时会把它写好的原因（认证页正在打开）换成笼统的一句 → 只在自己发起挂回时清空。
+  - 三项各补一条用例，逐一退回整改时各自变红。
 
 ### 合并注意
 

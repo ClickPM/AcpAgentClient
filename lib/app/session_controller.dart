@@ -519,8 +519,9 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
     // 重入守卫：等待期里会话头的重载按钮仍可点（`canReload` 全程为真，`IgnorePointer` 只包住 `_body()`），
     // 连点两下会让两条 disconnect → reconnect → load 序列交叠，且先返回的那条提前把等待态收掉
     // （审查 finding P2，2026-09-18）。判据换成 [waitingForAgent] 之后，「新会话正在开」时点重载
-    // 也一并挡住 —— 那同样是 disconnect 撞 `session/new` 的交叠。
-    if (waitingForAgent) return;
+    // 也一并挡住 —— 那同样是 disconnect 撞 `session/new` 的交叠。有会话正在挂回 / 载入、或正在连 agent 时同理
+    // （侧栏点开旧会话、「会话正在加载中」那几秒）：断开会打断它，它的「在途」又会被当成载入失败而新开一条（合并前审查 high）。
+    if (waitingForAgent || attachInFlight || _connecting.isNotEmpty) return;
     final previous = sessionId;
     // 画板 05 B 组阶段 ①：先把等待态摆出来再发命令。断开 → 重连 → load 要几百毫秒到数秒，
     // 这期间界面一动不动会被当成卡死（所有者反馈 2026-09-17）。
@@ -537,7 +538,8 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
           await _newSession(AgentRef(id: id, name: id));
           return;
         }
-        await _connect(b, id, cwd);
+        // 走合并在途连接的那条：重载期间侧栏点开别的会话，它的 `ensureConnected` 等这一次，不再另连一遍。
+        await _connectOnce(b, id, cwd);
         if (!canLoadSessionOf(id) || !await loadSession(id, previous, sessions.maybe(previous)?.cwd ?? cwd)) {
           // 不支持 loadSession：开新会话，旧转录留在内存里只读（R3 的做法）。
           // 支持但载失败：这次重放整段作废、原来那份转录原样留着（仍标挂空，点回去会再载），这里同样开新会话。

@@ -106,6 +106,9 @@ mixin SessionAttachment on ChangeNotifier, GuardedNotifier {
   /// 「会话正在加载中」（壳级提示，iteration-06）：按当前会话判——切走不挂，切回来还在挂回就又挂上。
   bool get loadingSession => _attaching.containsKey(sessionId);
 
+  /// 有会话正在挂回或载入（不论是不是当前那条）：重载 agent 要断开重连，这时候动手会打断它们（合并前审查 high）。
+  bool get attachInFlight => _attaching.isNotEmpty || _loadsInFlight.isNotEmpty;
+
   @protected
   int generationOf(String agent) => _generation[agent] ?? 0;
 
@@ -124,9 +127,12 @@ mixin SessionAttachment on ChangeNotifier, GuardedNotifier {
   }
 
   /// `session/new`（含认证页顺手开的）开在当前这条连接上：同 id 的旧会话（fake-agent 不带 `--sessions` 时
-  /// 总回同一个 id）留下的挂空标记作废。
+  /// 总回同一个 id）留下的挂空与关闭标记都作废（留着关闭标记，新会话一开出来就是只读的，合并前审查 high）。
   @protected
-  void attachedNew(String id) => _detached.remove(id);
+  void attachedNew(String id) {
+    _detached.remove(id);
+    _closedSessions.remove(id);
+  }
 
   /// ≡ 菜单 Resume 成功（发起时是第 [generation] 代）。
   @protected
@@ -240,7 +246,6 @@ mixin SessionAttachment on ChangeNotifier, GuardedNotifier {
   Future<SessionAttach> reattach() async {
     final id = sessionId;
     if (id == null) return SessionAttach.none;
-    lastError = null;
     final wasWaiting = waitingForAgent;
     waitingForAgent = true;
     touch();
@@ -248,8 +253,10 @@ mixin SessionAttachment on ChangeNotifier, GuardedNotifier {
       // 侧栏点选（或重载）已经在挂这一条：等它的结果，不另来一遍、也不把它的「在途」当成挂回失败。
       final Future<void>? pending = _attaching[id] ?? _loadsInFlight[id];
       if (pending != null) {
+        // 那一次写下的失败原因（含等它期间写的）留着，别被下面那句笼统的盖掉（合并前审查 P2）。
         await pending;
       } else {
+        lastError = null;
         await ensureLoaded(id);
       }
     } finally {

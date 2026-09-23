@@ -47,6 +47,9 @@ class _AttachCore extends FakeCore {
   /// 堵住 `agent_connect`（拉起进程要数秒的那个窗口）。
   Completer<void>? connectGate;
 
+  /// 按调用次序各堵一次 `agent_connect`（第 N 次调用等第 N 个）。
+  final List<Completer<void>> connectGates = <Completer<void>>[];
+
   /// `session/new` 抛这个错（认证等）。
   CoreCommandError? newError;
 
@@ -62,6 +65,7 @@ class _AttachCore extends FakeCore {
   Future<JsonMap> agentConnect(String agentId, {String? cwd}) async {
     calls.add('connect');
     await connectGate?.future;
+    if (connectGates.isNotEmpty) await connectGates.removeAt(0).future;
     final e = connectError;
     if (e != null) throw e;
     return <String, dynamic>{'agentId': agentId, 'initialize': initialize};
@@ -406,6 +410,27 @@ void main() {
       c.dispose();
     });
 
+    test('发送时等侧栏那次挂回：它写下的失败原因（认证页正在打开）不被笼统的一句盖掉', () async {
+      final (c, core) = await _controller(connected: false);
+      core.connectError = const CoreCommandError('auth_required', 'login first');
+      final second = Completer<void>(); // 认证页没连上的 agent 先 initialize：第二次 agent_connect 堵在这里
+      core.connectGates.addAll(<Completer<void>>[Completer<void>()..complete(), second]);
+      final selecting = c.session.selectSession(_a);
+      await Future<void>.delayed(Duration.zero);
+      expect(c.session.lastError, 'login first');
+      expect(c.session.loadingSession, isTrue, reason: '认证页还在打开，这次挂回还没收尾');
+
+      c.composer.editor.text = '现在发';
+      final sending = c.turn.send();
+      await Future<void>.delayed(Duration.zero);
+      second.complete();
+      await selecting;
+      await sending;
+
+      expect(c.sessions.maybe(_a)!.entries.whereType<TurnEntry>().single.error, 'login first');
+      c.dispose();
+    });
+
     test('挂回期间点了侧栏另一条：这条消息不改投别的会话，输入框原样留着', () async {
       final (c, core) = await _controller(connected: false);
       c.session.sessionId = _a;
@@ -451,6 +476,41 @@ void main() {
       c.composer.editor.text = '继续';
       await c.turn.send();
       expect(core.calls, <String>['load:$_b', 'prompt:$_b']);
+      c.dispose();
+    });
+
+    test('会话还在加载时点重载：不动手（不断开、不另连、不新开一条），加载照常完成', () async {
+      final (c, core) = await _controller(connected: false);
+      final gate = Completer<void>();
+      core.connectGate = gate;
+      final selecting = c.session.selectSession(_a);
+      await Future<void>.delayed(Duration.zero);
+      expect(c.session.loadingSession, isTrue);
+
+      await c.session.reloadAgent();
+      expect(core.calls, <String>['connect'], reason: '断开会打断正在握手的那条，它的「在途」又会被当成载入失败');
+
+      gate.complete();
+      await selecting;
+      expect(core.calls, <String>['connect', 'load:$_a']);
+      expect(c.session.sessionId, _a);
+      c.dispose();
+    });
+
+    test('关掉当前会话后新建、session/new 回了同一个 id：新会话不是关闭态，照常发', () async {
+      final (c, core) = await _controller();
+      _live(c, _a, <String>['A 的历史']);
+      c.session.sessionId = _a;
+      await c.session.closeSession();
+      expect(c.session.sessionClosed, isTrue);
+      core.newSessionId = _a;
+
+      await c.session.newSession(const AgentRef(id: _agent, name: _agent));
+      expect(c.session.sessionClosed, isFalse, reason: '开在当前连接上的新会话不带旧的关闭标记');
+      c.composer.editor.text = '新会话里的第一句';
+      await c.turn.send();
+
+      expect(core.calls.last, 'prompt:$_a');
       c.dispose();
     });
 
