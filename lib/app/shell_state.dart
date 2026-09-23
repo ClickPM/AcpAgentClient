@@ -27,6 +27,7 @@ class ShellState extends ChangeNotifier with GuardedNotifier {
     required this.terminals,
     required this._cwd,
     required this._onWorkbenchShown,
+    required this._onTabShown,
   });
 
   final CoreCommands? bridge;
@@ -40,6 +41,9 @@ class ShellState extends ChangeNotifier with GuardedNotifier {
 
   /// 从流量页回到工作台：当前会话又在眼前了，组合根借这个回调撤它的绿点（画板 06 的清除条件）。
   final void Function() _onWorkbenchShown;
+
+  /// 右栏换到了某个面板标签（原来不是它）：打开 Agents 标签时组合根借这个检查一次 registry 更新（画板 53，1 小时节流）。
+  final void Function(ShellTab tab) _onTabShown;
 
   bool sidebarCollapsed = false;
 
@@ -190,9 +194,11 @@ class ShellState extends ChangeNotifier with GuardedNotifier {
       return;
     }
     if (!openTabs.contains(tab)) openTabs.add(tab);
+    final shown = rightTab != tab || activeTerminalId != null;
     rightTab = tab;
     activeTerminalId = null;
     touch();
+    if (shown) _onTabShown(tab);
   }
 
   /// 侧栏底部导航点一下：没开这个面板就开；当前就是它，再点一下把右栏整个收起

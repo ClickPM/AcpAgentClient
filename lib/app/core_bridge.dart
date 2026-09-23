@@ -80,6 +80,7 @@ abstract interface class CoreCommands {
   Future<JsonMap> registryList();
   Future<JsonMap> registryRefresh({bool force});
   Future<JsonMap> registryInstall(String agentId);
+  Future<JsonMap> registryUpdate(String agentId);
   Future<JsonMap> registryCancelInstall(String agentId);
   Future<JsonMap> registryRemove(String agentId);
   Future<JsonMap> nodeStatus();
@@ -260,6 +261,9 @@ class CoreBridge implements CoreCommands {
 
   @override
   Future<JsonMap> registryInstall(String agentId) => _run(() => api.registryInstall(agentId: agentId));
+
+  @override
+  Future<JsonMap> registryUpdate(String agentId) => _run(() => api.registryUpdate(agentId: agentId));
 
   @override
   Future<JsonMap> registryCancelInstall(String agentId) => _run(() => api.registryCancelInstall(agentId: agentId));

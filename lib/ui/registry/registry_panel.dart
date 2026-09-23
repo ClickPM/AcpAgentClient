@@ -1,17 +1,79 @@
-// 画板 50 · Agents 面板（ACP Registry）：右栏 Agents 标签的正文。标题 + Learn More、搜索、All / Installed / Not Installed
-// 计数、条目列表（行 widget 在 registry_entry.dart）、缺 Node 时的受管 Node 提示卡（画板 51）。
-// 数据源 lib/projection/registry.dart；registry.json 给 name / version / desc / id / repo，安装状态是本地态。样式只取 tokens。
+// 画板 50 · Agents 面板（ACP Registry）：右栏 Agents 标签的正文。标题 + 检查时间 / 检查更新 + Learn More、搜索、
+// All / Installed / Not Installed 计数、条目列表（行 widget 在 registry_entry.dart）、缺 Node 时的受管 Node 提示卡（画板 51）。
+// 标题行的「检查中」态见画板 53。数据源 lib/projection/registry.dart；registry.json 给 name / version / desc / id / repo，
+// 安装状态是本地态。样式只取 tokens。
 
 import 'package:flutter/widgets.dart';
 
 import '../../projection/registry.dart';
 import '../../theme/tokens.dart' as t;
 import '../shell/shell_common.dart';
+import '../shell/tooltip.dart';
+import '../transcript/card_chrome.dart';
 import '../transcript/icons.dart';
 import 'registry_entry.dart';
 
 /// 官方 registry 的说明页（画板 50 的 Learn More）。
 const String registryLearnMoreUrl = 'https://agentclientprotocol.com/registry';
+
+/// 画板 50 的标题行（画板 53 顶部是它的「检查中」态）：标题 · 副标题 …… 检查于 N 分钟前 · 检查更新 · Learn More。
+/// 检查中：刷新按钮换成 spinner、时间换成「检查中…」；从没拉成功过（[fetchedAt] 为 null）不显示时间，只留刷新按钮。
+class RegistryPanelHeader extends StatelessWidget {
+  const RegistryPanelHeader({super.key, this.fetching = false, this.fetchedAt, this.now, this.onRefresh, this.onLearnMore});
+
+  final bool fetching;
+  final DateTime? fetchedAt;
+  final DateTime? now;
+  final VoidCallback? onRefresh;
+  final VoidCallback? onLearnMore;
+
+  /// 「检查于 12 分钟前」；一分钟之内写「刚刚检查过」（「检查于 刚刚」不成话）。
+  static String checkedAt(DateTime at, DateTime now) {
+    final ago = relativeTime(at, now: now);
+    return ago == '刚刚' ? '刚刚检查过' : '检查于 $ago';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final at = fetchedAt;
+    final status = fetching ? '检查中…' : (at == null ? null : checkedAt(at, now ?? DateTime.now()));
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: <Widget>[
+        Text('ACP Registry', style: t.TextStyles.title),
+        const SizedBox(width: t.Spacing.s8),
+        Expanded(child: Text('Agent Client Protocol 插件市场', style: t.TextStyles.secondary, maxLines: 1, overflow: TextOverflow.ellipsis)),
+        if (status != null) ...<Widget>[
+          Text(status, style: t.TextStyles.secondary, maxLines: 1),
+          const SizedBox(width: t.Spacing.s8),
+        ],
+        if (fetching)
+          Spinner()
+        else
+          AcpTooltip(
+            message: '检查更新',
+            child: IconButtonGhost(icon: AcpIcons.rotateCw, onTap: onRefresh, size: t.Geometry.panelIconButton),
+          ),
+        const SizedBox(width: t.Spacing.s8),
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: onLearnMore,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text('Learn More', style: t.TextStyles.secondary.copyWith(color: t.Accent.text)),
+                const SizedBox(width: t.Spacing.s4),
+                AcpIcon(AcpIcons.externalLink, color: t.Accent.text, size: t.IconSizes.toolbar),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
 
 class RegistryPanel extends StatelessWidget {
   const RegistryPanel({
@@ -27,10 +89,13 @@ class RegistryPanel extends StatelessWidget {
     this.nodeProgress,
     this.fetchError,
     this.fetching = false,
+    this.fetchedAt,
+    this.now,
     this.showLogFor = const <String>{},
     this.onSearchChanged,
     this.onFilter,
     this.onLearnMore,
+    this.onRefresh,
     this.onDownloadNode,
     this.actionsFor,
   });
@@ -50,11 +115,20 @@ class RegistryPanel extends StatelessWidget {
   final String? fetchError;
   final bool fetching;
 
+  /// 上次成功拉到 registry.json 的时间（`registry_list` 的 `fetchedAt`）；从没拉成功过为 null，标题行不显示检查时间。
+  final DateTime? fetchedAt;
+
+  /// 「N 分钟前」的基准（gallery 给固定值；不给就是现在）。
+  final DateTime? now;
+
   /// 失败态展开了日志块的条目（画板 51「查看日志」切换）。
   final Set<String> showLogFor;
   final ValueChanged<String>? onSearchChanged;
   final ValueChanged<RegistryFilter>? onFilter;
   final VoidCallback? onLearnMore;
+
+  /// 标题行的「检查更新」（画板 50；强制联网拉一次）。
+  final VoidCallback? onRefresh;
   final VoidCallback? onDownloadNode;
   final RegistryEntryActions Function(RegistryEntryData entry)? actionsFor;
 
@@ -79,30 +153,7 @@ class RegistryPanel extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: <Widget>[
-                Text('ACP Registry', style: t.TextStyles.title),
-                const SizedBox(width: t.Spacing.s8),
-                Expanded(child: Text('Agent Client Protocol 插件市场', style: t.TextStyles.secondary, maxLines: 1, overflow: TextOverflow.ellipsis)),
-                if (fetching) ...<Widget>[Spinner(), const SizedBox(width: t.Spacing.s8)],
-                MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: GestureDetector(
-                    onTap: onLearnMore,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        Text('Learn More', style: t.TextStyles.secondary.copyWith(color: t.Accent.text)),
-                        const SizedBox(width: t.Spacing.s4),
-                        AcpIcon(AcpIcons.externalLink, color: t.Accent.text, size: t.IconSizes.toolbar),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            RegistryPanelHeader(fetching: fetching, fetchedAt: fetchedAt, now: now, onRefresh: onRefresh, onLearnMore: onLearnMore),
             const SizedBox(height: t.Spacing.s12),
             Row(
               children: <Widget>[

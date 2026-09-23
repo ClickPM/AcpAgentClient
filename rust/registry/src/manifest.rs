@@ -2,7 +2,7 @@
 //! `{type: "registry"}` 条目，拉起参数不进 settings（docs/design.md § 6 第 3 条）。写走临时文件 + rename（规则 7）。
 
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -54,6 +54,9 @@ pub struct InstallManifest {
     /// sha256 校验的结果说明（「已校验」/「条目没给 sha256，跳过」）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub verify_note: Option<String>,
+    /// 升级那一刻正在运行的连接的版本（画板 53「已升级 · 待重载」）：连续升级两次都没重载时保留最早那个；升级时没有连接则为空。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous_version: Option<String>,
 }
 
 impl InstallManifest {
@@ -91,11 +94,13 @@ impl InstallManifest {
 
     /// 已安装 = 有记录且拉起用的程序 / 目录还在。
     pub fn is_intact(&self) -> bool {
-        if self.kind == "npx" {
-            self.args.first().map(|exe| Path::new(exe).is_file()).unwrap_or(false)
-        } else {
-            Path::new(&self.command).is_file()
-        }
+        self.entry_path().is_some_and(|p| p.is_file())
+    }
+
+    /// 拉起入口：npx 型是 `args[0]` 的脚本（`command` 固定是 `node`），binary 型是 `command`。判「在用」与清旧目录都按它。
+    pub fn entry_path(&self) -> Option<PathBuf> {
+        let entry = if self.kind == "npx" { self.args.first()? } else { &self.command };
+        Some(PathBuf::from(entry))
     }
 
     pub fn to_json(&self) -> Value {
@@ -129,6 +134,7 @@ mod tests {
             auth_status: AuthStatus::Unknown,
             agent_info: None,
             verify_note: None,
+            previous_version: None,
         };
         m.save(&dirs).expect("save");
         assert_eq!(InstallManifest::load(&dirs, "x").expect("load"), Some(m.clone()));

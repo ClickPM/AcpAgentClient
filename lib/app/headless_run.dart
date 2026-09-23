@@ -392,6 +392,9 @@ String? r5ReportPathFromEnvironment() {
 ///   ACP_R5_PROMPT        一轮提示词
 ///   ACP_R5_IMPORT_ZED    `1` = 从 Zed 导入（验收 4）
 ///   ACP_R5_REMOVE        `1` = 末尾 Remove 安装的 agent（验收 5）
+///   ACP_R5_UPGRADE       要升级的 registry id（画板 53，round-board-53 验收 7）：在一轮之后、Remove 之前升级，等 done / failed / cancelled
+///   ACP_R5_UPGRADE_CANCEL_AT  看到升级的某个步骤就取消（同 ACP_R5_CANCEL_AT）
+///   ACP_R5_RELOAD        `1` = 升级完 Reload Agent（验证 reloadPending 被撤掉）
 ///   ACP_R5_TIMEOUT       单步超时（秒，缺省 600）
 Future<void> runR5({required String reportPath}) async {
   final report = <String, dynamic>{'ok': false, 'steps': <String, dynamic>{}};
@@ -495,6 +498,51 @@ Future<void> runR5({required String reportPath}) async {
       steps['turn'] = _turnSummary(c, prompt)..['answers'] = answers;
     }
 
+    // ---- 升级（画板 53）：连着 agent 时升级 → reloadPending；ACP_R5_RELOAD=1 再 Reload Agent → 撤掉
+    final upgrade = _env('ACP_R5_UPGRADE');
+    if (upgrade != null) {
+      await c.agents.refreshRegistry();
+      Map<String, dynamic> snap() {
+        final e = c.agents.registry.byId(upgrade);
+        final dir = Directory('${c.dataDir}${Platform.pathSeparator}agents${Platform.pathSeparator}$upgrade');
+        return <String, dynamic>{
+          'installed': e?.installed,
+          'installedVersion': e?.installedVersion,
+          'updateAvailable': e?.updateAvailable,
+          'reloadPending': e?.reloadPending,
+          'launch': e?.launch == null ? null : <String, dynamic>{'command': e!.launch!.command, 'args': e.launch!.args},
+          'failure': e?.failure,
+          'agentDir': dir.existsSync() ? (dir.listSync().map((f) => f.path.split(Platform.pathSeparator).last).toList()..sort()) : null,
+        };
+      }
+
+      final before = snap();
+      final seen = <String>[];
+      final watch = _ProgressWatch(c, bridge, upgrade, seen, cancelAt: _env('ACP_R5_UPGRADE_CANCEL_AT'));
+      watch.attach();
+      final started = DateTime.now();
+      await c.agents.upgrade(upgrade);
+      await watch.done.future.timeout(timeout);
+      watch.detach();
+      await c.agents.refreshRegistry();
+      final result = <String, dynamic>{
+        'agentId': upgrade,
+        'connectedBefore': c.session.sessionId != null,
+        'before': before,
+        'stepsSeen': seen,
+        'elapsedMs': DateTime.now().difference(started).inMilliseconds,
+        'after': snap(),
+        'error': c.agents.lastError,
+      };
+      if (_env('ACP_R5_RELOAD') == '1' && c.session.sessionId != null) {
+        await c.session.reloadAgent().timeout(timeout);
+        // 组合根收到 initialized 会不等待地重读一次列表；这里自己再读一次，拿落定的状态。
+        await c.agents.refreshRegistry();
+        result['afterReload'] = snap()..['sessionId'] = c.session.sessionId..['sessionError'] = c.session.lastError;
+      }
+      steps['upgrade'] = result;
+    }
+
     // ---- 从 Zed 导入（验收 4）
     if (_env('ACP_R5_IMPORT_ZED') == '1') {
       final before = c.agents.registry.entries.where((e) => e.installed).map((e) => e.id).toList();
@@ -574,7 +622,7 @@ class _ProgressWatch {
     if (json == null || json['agentId'] != agentId) return;
     final step = json['step'] as String? ?? '';
     final terminal = step == 'done' || step == 'failed' || step == 'cancelled';
-    final key = terminal ? step : '${json['kind']}:$step';
+    final key = '${json['upgrade'] == true ? 'upgrade/' : ''}${terminal ? step : '${json['kind']}:$step'}';
     if (key != _last) {
       _last = key;
       final progress = json['done'] is num && json['total'] is num ? ' ${json['done']}/${json['total']}' : '';

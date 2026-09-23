@@ -1,5 +1,7 @@
-//! 安装：npx 型（`npm install` 到 `agents/<id>/`，读 `package.json` 的 `bin`）与 binary 型（下载 → sha256 → 解压到
-//! `agents/<id>/<version>/`，记 cmd / args / env）；Remove 只删 `agents/<id>/`。
+//! 安装：npx 型（`npm install` 到 `agents/<id>/<version>/`，读 `package.json` 的 `bin`）与 binary 型（下载 → sha256 → 解压到
+//! `agents/<id>/<version>/`，记 cmd / args / env）；Remove 只删 `agents/<id>/`。两型都按版本分目录（画板 53 的升级是把新版本
+//! 装在旧版旁边、通过了才切换），[`version_dir`] 取目录，[`sweep_stale`] 清掉不再被拉起入口用到的旧目录。
+//! R5 的 npx 装在 `agents/<id>/` 根上（旧布局），那种安装记录照样能拉起，升级之后由 [`sweep_stale`] 清掉根上的旧文件。
 //! Derived from zed-industries/zed crates/project/src/agent_server_store.rs @ d9e1c024f393832765a03f4de204d6c8cd9abcb2 (GPL-3.0-or-later)
 //! （`LocalRegistryNpxAgent::get_command` / `LocalRegistryArchiveAgent::get_command` / `bounded_npm_package_spec` /
 //! `read_package_executable`；去 gpui，`Task` 换 tokio；写 settings 与首次握手在 acp-core。）
@@ -64,24 +66,77 @@ pub fn read_package_executable(node_modules: &Path, name: &str) -> Result<(PathB
     Ok((package_dir.join(relative), parsed.version))
 }
 
+/// 本次安装要落到的目录：`agents/<id>/<version>/`（版本号按路径分量规则清洗，空版本记 `unversioned`）。
+/// `in_use` 是在用的拉起入口（当前安装记录的、正在运行的连接的）：目录名撞上它们所在的目录时加 `-<毫秒>` 后缀——
+/// 升级是装在旧版旁边，而安装前会先清空目标目录，撞名就等于删掉正在用的那一份。
+pub fn version_dir(dirs: &RegistryDirs, agent_id: &str, version: &str, in_use: &[PathBuf]) -> PathBuf {
+    let agent_dir = dirs.agent_dir(agent_id);
+    let name = sanitize_path_component(if version.is_empty() { "unversioned" } else { version });
+    let dir = agent_dir.join(&name);
+    if in_use.iter().any(|p| p.starts_with(&dir)) {
+        agent_dir.join(format!("{name}-{}", crate::now_ms()))
+    } else {
+        dir
+    }
+}
+
+/// 清掉 `agents/<id>/` 下不再被 `in_use`（在用的拉起入口）用到的东西：别的子目录（旧版本、`.staging-*`、旧布局的
+/// `node_modules`）与旧布局根上的 `package.json` / `package-lock.json`；`install.json` 与其他文件不动。返回删掉的路径。
+/// 删不掉的（Windows 上被进程占着）留着，下次再清。`in_use` 为空、或有入口不在 `agents/<id>/` 之下时整个不扫——
+/// 判断不了哪些在用，就一样都不删（规则 7 的同一份谨慎）。调用方负责占住该 agent 的安装槽，免得和在途的安装抢目录。
+pub fn sweep_stale(dirs: &RegistryDirs, agent_id: &str, in_use: &[PathBuf]) -> Vec<PathBuf> {
+    let agent_dir = dirs.agent_dir(agent_id);
+    let mut removed = Vec::new();
+    if in_use.is_empty() || in_use.iter().any(|p| !p.starts_with(&agent_dir)) {
+        return removed;
+    }
+    let legacy_in_use = in_use.iter().any(|p| p.starts_with(agent_dir.join("node_modules")));
+    let Ok(entries) = std::fs::read_dir(&agent_dir) else { return removed };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let name = entry.file_name();
+        if name == crate::manifest::MANIFEST_FILE || in_use.iter().any(|p| p.starts_with(&path)) {
+            continue;
+        }
+        let Ok(kind) = entry.file_type() else { continue };
+        // 只删真目录：符号链接 / 目录联接不跟进去（remove_dir_all 对联接的行为因平台而异）。
+        let gone = if kind.is_dir() {
+            std::fs::remove_dir_all(&path).is_ok()
+        } else if kind.is_file() && !legacy_in_use && (name == "package.json" || name == "package-lock.json") {
+            std::fs::remove_file(&path).is_ok()
+        } else {
+            false
+        };
+        if gone {
+            removed.push(path);
+        }
+    }
+    removed
+}
+
 fn emit(sink: &dyn ProgressSink, agent_id: &str, kind: &'static str, step: &'static str, detail: Option<String>) {
     let mut p = Progress::new(Some(agent_id), kind, step);
     p.detail = detail;
     sink.progress(p);
 }
 
-/// npx 型：`resolve` 一步（`npm install` 到 `agents/<id>/`）。返回的记录还没写盘、还没握手——那是 acp-core 的 `write_settings` /
-/// `handshake` 两步。失败时把半截的 `node_modules` 留着（下次 `npm install` 会续），只报错。
+/// npx 型：`resolve` 一步（`npm install` 到 `target`，由 [`version_dir`] 给出）。返回的记录还没写盘、还没握手——那是 acp-core
+/// 的 `write_settings` / `handshake` 两步。`target` 先清空再装；失败时留下的半截目录由调用方删（或下次 [`sweep_stale`]）。
 pub async fn install_npx(
-    dirs: &RegistryDirs,
     entry: &RegistryEntry,
     npx: &PackageDistribution,
     node: &NodeRuntime,
+    target: &Path,
     cancel: Arc<CancelToken>,
     sink: &dyn ProgressSink,
 ) -> Result<InstallManifest> {
-    let agent_dir = dirs.agent_dir(&entry.id);
-    std::fs::create_dir_all(&agent_dir)?;
+    if target.exists() {
+        std::fs::remove_dir_all(target)?;
+    }
+    std::fs::create_dir_all(target)?;
+    // npm 的 prefix 是从 cwd 往上找到的第一个带 package.json 或 node_modules 的目录：先放一个 package.json 把它钉在这里。
+    // 不放的话，旧布局（`agents/<id>/node_modules`）下 npm 会装回上一级，就地覆盖正在用的旧版。
+    std::fs::write(target.join("package.json"), NPM_PREFIX_PIN)?;
     let (package_name, spec) = bounded_npm_package_spec(&npx.package);
     emit(sink, &entry.id, "npx", "resolve", Some(npx.package.clone()));
     cancel.check()?;
@@ -94,9 +149,9 @@ pub async fn install_npx(
         "--loglevel".into(),
         "error".into(),
     ];
-    node.run_npm(&agent_dir, &args, &cancel).await?;
+    node.run_npm(target, &args, &cancel).await?;
     cancel.check()?;
-    let (executable, installed_version) = read_package_executable(&agent_dir.join("node_modules"), &package_name)?;
+    let (executable, installed_version) = read_package_executable(&target.join("node_modules"), &package_name)?;
     if !executable.is_file() {
         return Err(RegistryError::Npm(format!("npm 装完了但找不到入口 {}", executable.display())));
     }
@@ -112,20 +167,25 @@ pub async fn install_npx(
         command: "node".into(),
         args: manifest_args,
         env: npx.env.clone(),
-        dir: agent_dir.to_string_lossy().into_owned(),
+        dir: target.to_string_lossy().into_owned(),
         installed_at: crate::now_ms(),
         auth_status: AuthStatus::Unknown,
         agent_info: None,
         verify_note: None,
+        previous_version: None,
     })
 }
 
-/// binary 型：download → verify → extract 三步（画板 51），解到 `agents/<id>/<version>/`。
+/// npx 目标目录里的 `package.json`（见 [`install_npx`]）：只为钉住 npm 的 prefix，`--save-exact` 会往里写依赖。
+pub const NPM_PREFIX_PIN: &[u8] = b"{\"private\": true}\n";
+
+/// binary 型：download → verify → extract 三步（画板 51），解到 `version_dir`（由 [`version_dir`] 给出）。
 /// 中途失败 / 取消清掉 staging；`cmd` 必须是 `./` 或 `.\` 开头的相对路径且不含 `..`（照 Zed）。
 pub async fn install_binary(
     dirs: &RegistryDirs,
     entry: &RegistryEntry,
     target: &BinaryTarget,
+    version_dir: &Path,
     http: &reqwest::Client,
     cancel: Arc<CancelToken>,
     sink: &dyn ProgressSink,
@@ -133,7 +193,6 @@ pub async fn install_binary(
     let agent_dir = dirs.agent_dir(&entry.id);
     std::fs::create_dir_all(&agent_dir)?;
     let kind = archive::kind_for_url(&target.archive)?;
-    let version_dir = agent_dir.join(sanitize_path_component(if entry.version.is_empty() { "unversioned" } else { &entry.version }));
     let staging = agent_dir.join(format!(".staging-{}", crate::now_ms()));
     std::fs::create_dir_all(&staging)?;
     let result: Result<(String, Option<String>)> = async {
@@ -173,9 +232,9 @@ pub async fn install_binary(
             return Err(RegistryError::Unsupported(format!("解压后找不到 {}（{}）", target.cmd, cmd_path.display())));
         }
         archive::make_executable(&cmd_path)?;
-        let _ = std::fs::remove_dir_all(&version_dir);
-        std::fs::rename(&extracted, &version_dir)?;
-        let final_cmd = resolve_cmd(&version_dir, &target.cmd)?;
+        let _ = std::fs::remove_dir_all(version_dir);
+        std::fs::rename(&extracted, version_dir)?;
+        let final_cmd = resolve_cmd(version_dir, &target.cmd)?;
         Ok((final_cmd.to_string_lossy().into_owned(), verify_note))
     }
     .await;
@@ -196,6 +255,7 @@ pub async fn install_binary(
         auth_status: AuthStatus::Unknown,
         agent_info: None,
         verify_note,
+        previous_version: None,
     })
 }
 
@@ -357,7 +417,8 @@ mod tests {
         let sink = crate::RecordingProgress::default();
 
         let ok_target = BinaryTarget { archive: url.clone(), cmd: "./dist-package\\agent.cmd".into(), args: vec!["acp".into()], sha256: Some(sha.to_uppercase()), env: BTreeMap::new() };
-        let manifest = install_binary(&dirs, &entry, &ok_target, &http, CancelToken::new(), &sink).await.expect("install");
+        let first = version_dir(&dirs, "fake-cursor", &entry.version, &[]);
+        let manifest = install_binary(&dirs, &entry, &ok_target, &first, &http, CancelToken::new(), &sink).await.expect("install");
         assert!(Path::new(&manifest.command).is_file(), "{}", manifest.command);
         assert!(manifest.command.starts_with(&dirs.agent_dir("fake-cursor").join("2026.09.02").to_string_lossy().into_owned()));
         assert_eq!(manifest.args, vec!["acp".to_string()]);
@@ -368,11 +429,78 @@ mod tests {
         assert!(!std::fs::read_dir(dirs.agent_dir("fake-cursor")).expect("dir").any(|e| e.expect("e").file_name().to_string_lossy().starts_with(".staging")), "staging 清掉");
 
         let bad_target = BinaryTarget { sha256: Some("0".repeat(64)), ..ok_target.clone() };
-        let err = install_binary(&dirs, &entry, &bad_target, &http, CancelToken::new(), &sink).await.expect_err("mismatch");
+        // 升级的形状：同一个版本号再装一次，在用的入口挡着，目标目录得换一个名字（画板 53）。
+        let in_use = vec![manifest.entry_path().expect("entry")];
+        let second = version_dir(&dirs, "fake-cursor", &entry.version, &in_use);
+        assert_ne!(second, first, "撞上在用的目录要换名");
+        let err = install_binary(&dirs, &entry, &bad_target, &second, &http, CancelToken::new(), &sink).await.expect_err("mismatch");
         assert!(matches!(err, RegistryError::Verify { .. }), "{err:?}");
         assert!(!std::fs::read_dir(dirs.agent_dir("fake-cursor")).expect("dir").any(|e| e.expect("e").file_name().to_string_lossy().starts_with(".staging")), "失败也清 staging");
         // 上一次装好的版本目录不受篡改那次影响。
         assert!(Path::new(&manifest.command).is_file());
+
+        // 换名的目录装成功之后，旧目录不在用了 → sweep 清掉它，新的留着。
+        let upgraded = install_binary(&dirs, &entry, &ok_target, &second, &http, CancelToken::new(), &sink).await.expect("upgrade");
+        let removed = sweep_stale(&dirs, "fake-cursor", &[upgraded.entry_path().expect("entry")]);
+        assert_eq!(removed, vec![first.clone()]);
+        assert!(!first.exists() && Path::new(&upgraded.command).is_file());
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn version_dir_sidesteps_directories_in_use() {
+        let dirs = RegistryDirs::new(std::env::temp_dir().join("acp-registry-version-dir"));
+        let agent = dirs.agent_dir("x");
+        assert_eq!(version_dir(&dirs, "x", "1.2.3", &[]), agent.join("1.2.3"));
+        assert_eq!(version_dir(&dirs, "x", "", &[]), agent.join("unversioned"));
+        assert_eq!(version_dir(&dirs, "x", "1.2.3", &[agent.join("1.2.2").join("bin.js")]), agent.join("1.2.3"));
+        // 旧布局的入口在 agent 目录根上的 node_modules 里：不和任何版本目录撞。
+        assert_eq!(version_dir(&dirs, "x", "1.2.3", &[agent.join("node_modules").join("x").join("bin.js")]), agent.join("1.2.3"));
+        let dodged = version_dir(&dirs, "x", "1.2.3", &[agent.join("1.2.3").join("node_modules").join("x").join("bin.js")]);
+        assert_ne!(dodged, agent.join("1.2.3"));
+        assert!(dodged.file_name().expect("name").to_string_lossy().starts_with("1.2.3-"), "{dodged:?}");
+    }
+
+    /// 清旧目录只动「不被在用入口用到」的东西；判断不了在用的（入口不在 agent 目录下 / 没有入口）一样都不删。
+    #[test]
+    fn sweep_stale_keeps_what_is_in_use() {
+        let base = std::env::temp_dir().join(format!("acp-registry-sweep-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let dirs = RegistryDirs::new(&base);
+        let agent = dirs.agent_dir("x");
+        let layout = || {
+            for d in ["1.0.0/node_modules/x", "2.0.0/node_modules/x", ".staging-1/extracted", "node_modules/x"] {
+                std::fs::create_dir_all(agent.join(d)).expect("mkdir");
+            }
+            for f in ["1.0.0/node_modules/x/bin.js", "2.0.0/node_modules/x/bin.js", "node_modules/x/bin.js", "package.json", "package-lock.json", "install.json", "notes.txt"] {
+                std::fs::write(agent.join(f), b"x").expect("write");
+            }
+        };
+        let names = || {
+            let mut v: Vec<String> = std::fs::read_dir(&agent).expect("dir").map(|e| e.expect("e").file_name().to_string_lossy().into_owned()).collect();
+            v.sort();
+            v
+        };
+        let v2 = agent.join("2.0.0").join("node_modules").join("x").join("bin.js");
+        let legacy = agent.join("node_modules").join("x").join("bin.js");
+
+        // 新版本在用：旧版本、staging、旧布局的 node_modules 与根上的两个 package 文件都清；install.json 与别的文件不动。
+        layout();
+        assert_eq!(sweep_stale(&dirs, "x", std::slice::from_ref(&v2)).len(), 5);
+        assert_eq!(names(), vec!["2.0.0", "install.json", "notes.txt"]);
+
+        // 旧布局还有运行中的连接在用：根上的 node_modules 与 package 文件都留着。
+        let _ = std::fs::remove_dir_all(&base);
+        layout();
+        sweep_stale(&dirs, "x", &[v2.clone(), legacy.clone()]);
+        assert_eq!(names(), vec!["2.0.0", "install.json", "node_modules", "notes.txt", "package-lock.json", "package.json"]);
+
+        // 判断不了在用的：一样都不删。
+        let _ = std::fs::remove_dir_all(&base);
+        layout();
+        assert!(sweep_stale(&dirs, "x", &[]).is_empty());
+        assert!(sweep_stale(&dirs, "x", &[v2.clone(), base.join("elsewhere").join("node.exe")]).is_empty());
+        assert_eq!(names().len(), 8);
         let _ = std::fs::remove_dir_all(&base);
     }
 }
