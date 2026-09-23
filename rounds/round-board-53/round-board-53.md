@@ -2,7 +2,7 @@
 
 <!-- 画板 53 与画板 08 / 43 同类：R8 之后的单画板轮，登记在 ROUNDS.md § 7 进度表。走轮次而非迭代：新增核心命令、改 registry_list 与 registry/progress 的载荷，属改 docs/design.md § 3 契约（iterations/README.md § 0）。 -->
 
-> 状态：已完成（审查收口，第 3 轮 0 条；未合并 `main`，由所有者决定合并时机）
+> 状态：已完成（审查收口，第 3 轮 0 条）；2026-09-23 按所有者指示先合 `main@d659e42` 进分支（`c29ec88`，只有 BACKLOG 两处文档冲突、DIVERGENCE 让号成第 30 条），validate 16 项全绿（456 项测试），无代码改动不复审，随后快进合入 `main`
 
 ## 目标
 
