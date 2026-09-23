@@ -96,9 +96,9 @@ registry 型（npx / binary）agent 装好之后能看出「registry 有新版�
 
 | 步 | 做法 | 结果 |
 |---|---|---|
-| a1 首装 pi-acp | `ACP_R5_REFRESH=1 ACP_R5_INSTALL=pi-acp` | 11.8 s；装到 `agents\pi-acp .0.33\`（新布局），目录里只有 `0.0.33` 与 `install.json` |
+| a1 首装 pi-acp | `ACP_R5_REFRESH=1 ACP_R5_INSTALL=pi-acp` | 11.8 s；装到 `agents\pi-acp\0.0.33\`（新布局），目录里只有 `0.0.33` 与 `install.json` |
 | a2 撞名升级 | `install.json` 的 `version` 改成 `0.0.1` → `ACP_R5_UPGRADE=pi-acp` | 列表 `updateAvailable: 0.0.33`；进度 `upgrade/npx:resolve → upgrade/npx:handshake → upgrade/done`；目标名 `0.0.33` 撞上在用的目录 → 装到 `0.0.33-1790130028299`，`install.json` 切过去、`previousVersion: 0.0.1`；旧 `0.0.33` **留到下次启动**（第 1 轮审查 high 之后的行为；此前这一步当场清掉了它）；`updateAvailable` 归 null |
-| a3 旧布局升级 | 手工把当前目录的 `node_modules` / `package.json` / `package-lock.json` 挪回 `agents\pi-acp\` 根上、`install.json` 改成旧布局 → `ACP_R5_UPGRADE=pi-acp` | 3.9 s 升到 `agents\pi-acp .0.33\`（a2 留下的 `0.0.33` 不在用，先清空再装）；**npm 没有装回上一级**（核心从新目录的 `node_modules` 读入口，装回去就会失败）；根上三样旧布局文件留到下次启动 |
+| a3 旧布局升级 | 手工把当前目录的 `node_modules` / `package.json` / `package-lock.json` 挪回 `agents\pi-acp\` 根上、`install.json` 改成旧布局 → `ACP_R5_UPGRADE=pi-acp` | 3.9 s 升到 `agents\pi-acp\0.0.33\`（a2 留下的 `0.0.33` 不在用，先清空再装）；**npm 没有装回上一级**（核心从新目录的 `node_modules` 读入口，装回去就会失败）；根上三样旧布局文件留到下次启动 |
 | a4 重启清扫 | 什么都不做，只起一次（`ACP_R5_REFRESH=1` 让进程多活几秒） | 启动清扫删掉根上的 `node_modules` / `package.json` / `package-lock.json`，剩 `0.0.33` 与 `install.json` |
 | b1 首装 codex-acp | `ACP_R5_REFRESH=1 ACP_R5_INSTALL=codex-acp` | 133 s（npm 拉平台二进制）；`agents\codex-acp\1.13.0\` |
 | b2 连着会话升级 → Reload | `version` 改 `0.0.1` → `ACP_R5_AGENT=codex-acp ACP_R5_CWD=<worktree> ACP_R5_UPGRADE=codex-acp ACP_R5_RELOAD=1` | 新会话建好（连接活着）→ 升级 8.9 s，装到 `1.13.0-1790129367858`；**旧目录 `1.13.0` 保留**（运行中的连接在用），`install.json` 记 `previousVersion: 0.0.1`，列表 `reloadPending: "0.0.1"`；Reload Agent 之后 `reloadPending` 归 null、新连接的拉起入口在新目录。这一跑 Reload 里的 `session/load` 回了 `-32603`，退回新建会话——见 b4 |
