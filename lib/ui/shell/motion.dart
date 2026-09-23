@@ -42,18 +42,22 @@ class _MotionEnterState extends State<MotionEnter> with SingleTickerProviderStat
 
   /// 错开靠 [Interval] 的起点，不靠延后 `forward()`：延后启动那段时间里 `value` 还是 0，
   /// 但 controller 已经在跑，`epoch` 若在延迟中途又变一次就会错位。
-  late final CurvedAnimation _enter = CurvedAnimation(
-    parent: _controller,
-    curve: Interval(
-      widget.delay.inMicroseconds / (widget.delay + widget.duration).inMicroseconds,
-      1,
-      curve: t.Motion.curve,
-    ),
-  );
+  late final CurvedAnimation _enter = CurvedAnimation(parent: _controller, curve: _interval(widget));
+
+  /// 两者都是零时总长为零，按「不错开」算：`0 / 0` 是 NaN，[Interval] 的断言会炸。
+  static Interval _interval(MotionEnter w) {
+    final int total = (w.delay + w.duration).inMicroseconds;
+    return Interval(total == 0 ? 0 : w.delay.inMicroseconds / total, 1, curve: t.Motion.curve);
+  }
 
   @override
   void didUpdateWidget(MotionEnter oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // 同一元素被复用而时长 / 延迟变了：下一次播放按新参数走，不冻在首次 build 的那一套上。
+    if (oldWidget.delay != widget.delay || oldWidget.duration != widget.duration) {
+      _controller.duration = widget.delay + widget.duration;
+      _enter.curve = _interval(widget);
+    }
     if (oldWidget.epoch != widget.epoch) _controller.forward(from: 0);
   }
 

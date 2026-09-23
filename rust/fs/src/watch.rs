@@ -279,15 +279,12 @@ mod tests {
     }
 
     /// 用真的 git 再证一次：稳态仓库上连跑 `git status`（与 `git_status` 同参数）不得打 `git` 标志。
-    /// git 不在 PATH 时跳过（与 git.rs 的测试同一口径）；屏蔽用户的全局配置，免得 fsmonitor 之类介入。
+    /// git 不在 PATH 时红（与 git.rs 的测试同一口径，不跳过）；屏蔽用户的全局配置，免得 fsmonitor 之类介入。
     #[test]
     fn real_git_status_does_not_set_the_git_flag() {
         let dir = temp("real-git");
         let _ = std::fs::remove_dir_all(dir.join(".git"));
-        let Ok(init) = git(&dir, &["init", "-q"]) else {
-            eprintln!("git not on PATH; skipping");
-            return;
-        };
+        let init = git(&dir, &["init", "-q"]).expect("git not on PATH");
         assert!(init.status.success(), "git init: {}", String::from_utf8_lossy(&init.stderr));
         // 子模块（复审 finding）：`git status` 会递归进子仓库，在 `.git/modules/<name>/` 下建删锁，那个目录的
         // Modified 同样不能打标志。源仓库放在监视根之外。

@@ -313,15 +313,15 @@ mod tests {
     }
 
     /// 本机有系统 Node（R5 前置）：状态应报出来且 ≥ 22；受管目录不存在时 managed 为 None。
+    /// 没有系统 Node 就红，不跳过（跳过仍算绿会让这条断言零覆盖）。
     #[tokio::test]
-    async fn system_node_is_detected_when_present() {
+    async fn system_node_is_detected() {
         let dir = std::env::temp_dir().join(format!("acp-registry-node-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let s = status(&RegistryDirs::new(&dir)).await;
         assert!(s.managed.is_none());
-        if resolve_program("node").is_file() {
-            assert!(s.system.is_some() || s.system_error.is_some());
-        }
+        assert!(resolve_program("node").is_file(), "node not on PATH (本地开发前置 Node ≥ 22)");
+        assert!(s.system.is_some() || s.system_error.is_some());
     }
 
     /// 缓存里的系统 Node 路径已经不在了（卸载 / nvm 切走）：`locate` 不能拿它去拉子进程，要重探并回填

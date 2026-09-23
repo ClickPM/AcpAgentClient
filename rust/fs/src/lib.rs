@@ -473,12 +473,7 @@ mod tests {
             .arg(&outside)
             .output()
             .expect("mklink");
-        if !status.status.success() {
-            eprintln!("mklink /J failed; skipping: {}", String::from_utf8_lossy(&status.stderr));
-            let _ = std::fs::remove_dir_all(&dir);
-            let _ = std::fs::remove_dir_all(&outside);
-            return;
-        }
+        assert!(status.status.success(), "mklink /J failed: {}", String::from_utf8_lossy(&status.stderr));
 
         let listing = list_dir(&dir, &dir).expect("list");
         let entry = listing.entries.iter().find(|e| e.name == "link-out").expect("junction listed");
@@ -568,9 +563,7 @@ mod tests {
         let mut cur = root.clone();
         for component in real.strip_prefix(&root).expect("strip").components() {
             cur.push(component);
-            // 拆两行写：validate 的 `_meta` 契约门按子串扫，`symlink_metadata` 这行上不能再有字符串字面量。
-            let probe = std::fs::symlink_metadata(&cur);
-            let meta = probe.expect("metadata of a resolved component");
+            let meta = std::fs::symlink_metadata(&cur).expect("metadata of a resolved component");
             assert!(!is_link(&meta), "解析出来的路径里还有链接分量: {}", cur.display());
         }
 
@@ -592,14 +585,10 @@ mod tests {
                 std::os::unix::fs::symlink(outside.join("secret.txt"), &link).is_ok()
             }
         };
-        if linked {
-            assert!(matches!(resolve_inside(&dir, &link), Err(FsError::OutsideWorkspace(_))));
-            assert!(matches!(read_text_file(&dir, &link, None, None), Err(FsError::OutsideWorkspace(_))));
-        } else {
-            // 文件符号链接在 Windows 上要开发者模式或管理员；目录联接那条用例（`mklink /J`）已覆盖同一判定，
-            // 这里退一步只报一句，不让整条用例假绿：真正的越界回归在 links_inside_the_workspace_do_not_escape_read_or_write。
-            eprintln!("cannot create a file symlink here; skipping the link half of resolve_inside");
-        }
+        // 文件符号链接在 Windows 上要开发者模式或管理员（本地开发前置已要求开发者模式，见 CLAUDE.md「本地开发」）。
+        assert!(linked, "cannot create a file symlink here (Windows 要开开发者模式)");
+        assert!(matches!(resolve_inside(&dir, &link), Err(FsError::OutsideWorkspace(_))));
+        assert!(matches!(read_text_file(&dir, &link, None, None), Err(FsError::OutsideWorkspace(_))));
 
         // ③ 还不存在的路径：原样返回，新建照常。
         let fresh = dir.join("nested").join("fresh.txt");

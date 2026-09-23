@@ -25,14 +25,12 @@ import '../../ui/transcript/turn_state.dart';
 import '../board_page.dart';
 import '../fixtures_source.dart';
 import '../gallery.dart';
-
-GalleryBoard _page(String id, String title, Widget Function() build) =>
-    GalleryBoard(id: id, title: title, frame: const Size(BoardPage.width, 0), fitContent: true, build: (_) => build());
+import 'board_helpers.dart';
 
 String _agentName(FixtureReplay r) => r.sessions.agents[FixtureReplay.agentId]?.agentName ?? FixtureReplay.agentId;
 
 final List<GalleryBoard> transcriptBoards2 = <GalleryBoard>[
-  _page('18-tool-call', '标准工具调用卡', () {
+  pageBoard('18-tool-call', '标准工具调用卡', () {
     final r = FixtureReplay.replay(<String>['01-connect', '13-tool-kinds']);
     final cwd = r.session.cwd;
     return BoardPage(
@@ -62,7 +60,7 @@ final List<GalleryBoard> transcriptBoards2 = <GalleryBoard>[
       footnote: '未知 kind 安全落到 other（Rust 侧 serde other）；先到的 tool_call_update 可凭空建卡，视觉与正常卡无差异（acp-projection.md § 7 第 4 条）。edit / delete / move / think / switch_mode 复用同一行结构，只换 kind 图标。',
     );
   }),
-  _page('19-tool-failed', '工具调用失败卡', () {
+  pageBoard('19-tool-failed', '工具调用失败卡', () {
     final r = FixtureReplay.replay(<String>['01-connect', '13-tool-kinds']);
     final cwd = r.session.cwd;
     return BoardPage(
@@ -76,7 +74,7 @@ final List<GalleryBoard> transcriptBoards2 = <GalleryBoard>[
       footnote: '失败只换状态图标与 Output 底色（error.soft），不加左侧彩条、不给整卡着色。',
     );
   }),
-  _page('20-tool-cancelled', '工具已取消卡', () {
+  pageBoard('20-tool-cancelled', '工具已取消卡', () {
     final r = FixtureReplay.replay(<String>['01-connect', '10-cancel']);
     return BoardPage(
       number: '20',
@@ -88,7 +86,7 @@ final List<GalleryBoard> transcriptBoards2 = <GalleryBoard>[
       footnote: '发出 session/cancel 后，客户端把本轮未完成的工具调用标成本地 cancelled；用中性徽章而不是 error 色，与「失败」区分（acp-projection.md § 7 第 1 条）。',
     );
   }),
-  _page('21-diff-card', '文件差异对比卡', () {
+  pageBoard('21-diff-card', '文件差异对比卡', () {
     final r = FixtureReplay.replay(<String>['01-connect', '13-tool-kinds']);
     final e = r.tool('call_edit_backlog');
     final diff = e.diffs.first;
@@ -103,7 +101,7 @@ final List<GalleryBoard> transcriptBoards2 = <GalleryBoard>[
       footnote: '既定裁定：不做 Zed 的 Edits 审阅条，没有 Keep / Reject / 逐文件接受；点行只在右栏文件面板定位。增删行用 success.soft / error.soft 打底，符号列与行号列都是等宽 tabular。',
     );
   }),
-  _page('22-terminal-card', '嵌入式终端控制台卡', () {
+  pageBoard('22-terminal-card', '嵌入式终端控制台卡', () {
     final r = FixtureReplay.replay(<String>['01-connect', '24-terminal-git-log']);
     final e = r.tool('call_exec_git');
     final buffer = r.sessions.terminals['term_7f31']!;
@@ -118,7 +116,7 @@ final List<GalleryBoard> transcriptBoards2 = <GalleryBoard>[
       footnote: 'ANSI 三色按语义色映射：黄 → warning、绿 → success、青 → info/accent，不引入表外色相。终端被嵌进工具卡后即使 terminal/release 也继续显示输出（规范 SHOULD，acp-projection.md § 4）。',
     );
   }),
-  _page('23-terminal-running', '终端进行中卡', () {
+  pageBoard('23-terminal-running', '终端进行中卡', () {
     final r = FixtureReplay.replay(<String>['01-connect', '21-terminal-running'], upTo: 8);
     final e = r.tool('call_exec_r1');
     return BoardPage(
@@ -131,7 +129,7 @@ final List<GalleryBoard> transcriptBoards2 = <GalleryBoard>[
       footnote: '停止方块是 ghost 容器里的 error 色小方块，不是红色填充按钮；输出按字符边界截断（规范硬要求）。',
     );
   }),
-  _page('24-subagent', '子代理委派卡', () {
+  pageBoard('24-subagent', '子代理委派卡', () {
     final r = FixtureReplay.replay(<String>['01-connect', '14-subagent']);
     final cwd = r.session.cwd;
     return BoardPage(
@@ -146,7 +144,7 @@ final List<GalleryBoard> transcriptBoards2 = <GalleryBoard>[
       footnote: '疑点（不阻塞出稿）：本卡依赖 _meta.claudeCode.subagent，与「无 agent 特判」及 _meta 键白名单有张力，设计照原型出；不声明 AIR 能力时子代理输出仍进主转录，只是没有独立会话层级。',
     );
   }),
-  _page('25-permission', '权限授权卡', () {
+  pageBoard('25-permission', '权限授权卡', () {
     final r = FixtureReplay.replay(<String>['01-connect', '15-permission-kinds'], untilTag: 'session/request_permission');
     final p = r.first<PermissionEntry>();
     final tc = r.tool('toolu_014Qx9');
@@ -184,7 +182,7 @@ final List<GalleryBoard> transcriptBoards2 = <GalleryBoard>[
       footnote: '回应只有 { outcome: "selected", optionId } 与 { outcome: "cancelled" }；发出 session/cancel 后所有挂起的权限请求 MUST 以 cancelled 回应。请求里带的是 ToolCallUpdate，可能只有 toolCallId，标题与 kind 要从已累积的 tool call 取。',
     );
   }),
-  _page('26-awaiting', 'Awaiting Confirmation', () {
+  pageBoard('26-awaiting', 'Awaiting Confirmation', () {
     final r = FixtureReplay.replay(<String>['01-connect', '15-permission-kinds'], untilTag: 'session/request_permission');
     final p = r.first<PermissionEntry>();
     final tc = r.tool('toolu_014Qx9');
@@ -203,7 +201,7 @@ final List<GalleryBoard> transcriptBoards2 = <GalleryBoard>[
       footnote: '停靠条常驻在输入框上方，Scroll 把转录滚到对应卡片；elicitation 可能是 requestScope（无 sessionId），队列不能只按会话索引（acp-projection.md § 3.2）。',
     );
   }),
-  _page('27-elicitation-form', '表单模式交互卡', () {
+  pageBoard('27-elicitation-form', '表单模式交互卡', () {
     final r = FixtureReplay.replay(<String>['01-connect', '16-elicitation'], untilTag: 'elicitation/create');
     final el = r.first<ElicitationEntry>();
     final who = _agentName(r);
@@ -221,7 +219,7 @@ final List<GalleryBoard> transcriptBoards2 = <GalleryBoard>[
       footnote: '回应 { action: "accept", content } / "decline" / "cancel"。未知 type 的属性客户端应忽略该字段；字段标题与描述一律取 schema 的 title / description，不自造文案。',
     );
   }),
-  _page('28-elicitation-url', '链接跳转交互卡', () {
+  pageBoard('28-elicitation-url', '链接跳转交互卡', () {
     ElicitationEntry url(FixtureReplay r) => r.all<ElicitationEntry>().firstWhere((e) => e.isUrl);
     final a = FixtureReplay.replay(<String>['01-connect', '16-elicitation'], upTo: 4);
     final b = FixtureReplay.replay(<String>['01-connect', '16-elicitation'], upTo: 4);
@@ -240,7 +238,7 @@ final List<GalleryBoard> transcriptBoards2 = <GalleryBoard>[
       footnote: '完成由 agent 发 elicitation/complete 通知收尾；无会话阶段（requestScope）也可能收到本卡，见画板 52。',
     );
   }),
-  _page('29-plan', '计划卡', () {
+  pageBoard('29-plan', '计划卡', () {
     final full = FixtureReplay.replay(<String>['01-connect', '17-plan-payloads']);
     final mid = FixtureReplay.replay(<String>['01-connect', '17-plan-payloads'], upTo: 5);
     final cwd = full.session.cwd;
@@ -265,7 +263,7 @@ final List<GalleryBoard> transcriptBoards2 = <GalleryBoard>[
       footnote: '稳定版 plan 是整份替换、没有 id；unstable 的 plan_update / plan_removed 才有 planId 与三种载荷，需客户端声明 plan 能力（已裁定声明）。✕ 只隐藏本地呈现，不回写 agent。',
     );
   }),
-  _page('30-context-window', '上下文窗口浮窗', () {
+  pageBoard('30-context-window', '上下文窗口浮窗', () {
     final low = FixtureReplay.replay(<String>['01-connect', '19-usage'], upTo: 1).session.usage;
     final cost = FixtureReplay.replay(<String>['01-connect', '19-usage'], upTo: 2).session.usage;
     final high = FixtureReplay.replay(<String>['01-connect', '19-usage']).session.usage;
@@ -287,7 +285,7 @@ final List<GalleryBoard> transcriptBoards2 = <GalleryBoard>[
       footnote: 'usage_update 是会话级上下文窗口，不是每轮增量；cost 可选（amount + ISO 4217 currency）。回合级 usage 走 session/prompt 的返回值，落在画板 31 的回合结束行。',
     );
   }),
-  _page('31-turn-state', '回合态与结束', () {
+  pageBoard('31-turn-state', '回合态与结束', () {
     final r = FixtureReplay.replay(<String>['01-connect', '02-turn-read', '03-permission-edit', '04-terminal', '05-elicitation-config', '06-compaction', '07-tolerance', '08-end-turn', '18-stop-reasons']);
     final agent = r.sessions.agents[FixtureReplay.agentId];
     final title = 'New ${agent?.agentTitle ?? agent?.agentName ?? 'Agent'} Session';
@@ -308,7 +306,7 @@ final List<GalleryBoard> transcriptBoards2 = <GalleryBoard>[
       footnote: '轮的边界是客户端自己切的（协议流里没有轮开始 / 结束标记）；后四种 stopReason 用 warning / error / 中性徽章与正常结束区分，徽章文字即协议枚举原值。',
     );
   }),
-  _page('32-content-blocks', '非文本内容块', () {
+  pageBoard('32-content-blocks', '非文本内容块', () {
     final r = FixtureReplay.replay(<String>['01-connect', '22-content-blocks']);
     final blocks = r.all<MessageEntry>().firstWhere((m) => m.messageId == 'msg_cb1').blocks;
     ContentBlockWire of(ContentBlockType type, {bool blob = false}) =>
@@ -330,7 +328,7 @@ final List<GalleryBoard> transcriptBoards2 = <GalleryBoard>[
       footnote: 'promptCapabilities 只约束客户端往 session/prompt 塞什么，不约束 agent 发什么；五种块在消息、思考、工具卡内容里都可能出现。图像位是占位，实现里换成真实 base64 预览。',
     );
   }),
-  _page('33-compaction', '上下文压缩卡', () {
+  pageBoard('33-compaction', '上下文压缩卡', () {
     CompactionEntry at(int upTo, String id) => FixtureReplay.replay(<String>['01-connect', '20-compaction-states'], upTo: upTo).session.compactions[id]!;
     final failed = FixtureReplay.replay(<String>['01-connect', '20-compaction-states']).session.compactions['cmp_42']!;
     return BoardPage(
@@ -346,7 +344,7 @@ final List<GalleryBoard> transcriptBoards2 = <GalleryBoard>[
       footnote: 'unstable 变体，需客户端声明 session.compaction（已裁定声明）；摘要按 chunk 追加，卡片高度随之增长。',
     );
   }),
-  _page('34-agent-state', 'agent 状态与错误', () {
+  pageBoard('34-agent-state', 'agent 状态与错误', () {
     final r = FixtureReplay.replay(<String>['01-connect']);
     final agents = r.sessions.agents;
     const id = FixtureReplay.agentId;

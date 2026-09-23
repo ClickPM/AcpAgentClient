@@ -1,6 +1,7 @@
 // 组合根与它的八个子对象共用的通知与错误边界（R7.5 组合根拆分）：原 `WorkbenchController` 的
 // `_guard` / `_touch` / `_disposed` / `lastError` 原样搬到这里，一份代码九个对象混入。
-// `FilesState` / `LocalTerminals` / `AppearanceController` 各自还有一份同样的挡板，本轮不收编（记 rounds/BACKLOG.md）。
+// iteration-04 又收编了 `FilesState` / `LocalTerminals` / `AppearanceController` / `TranscriptFolds` 各自那份挡板
+// （后两者没有桥命令的错误边界，只用 [GuardedNotifier.disposed] 与 [GuardedNotifier.touch]）。
 
 import 'package:flutter/foundation.dart';
 
@@ -16,13 +17,17 @@ mixin GuardedNotifier on ChangeNotifier {
   /// 已经 dispose：之后的 [touch] 不再通知。
   bool get disposed => _disposed;
 
+  /// [guard] 打日志的前缀：组合根与八个子对象都是 `workbench`，文件面板 / 本地终端各用自己的。
+  @protected
+  String get logTag => 'workbench';
+
   /// 命令统一的错误边界：桥抛出的 `BridgeError` 记到 [lastError]，不让它掀掉整棵树。
   Future<T?> guard<T>(Future<T> Function() body) async {
     try {
       return await body();
     } catch (e) {
       lastError = describeError(e);
-      debugPrint('[workbench] ${describeError(e)}');
+      debugPrint('[$logTag] ${describeError(e)}');
       if (!_disposed) notifyListeners();
       return null;
     }

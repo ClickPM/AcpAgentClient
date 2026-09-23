@@ -7,7 +7,6 @@ import 'package:flutter/widgets.dart';
 import '../../theme/tokens.dart' as t;
 import '../../ui/files/file_tree.dart';
 import '../../ui/files/files_panel.dart';
-import '../../ui/popovers/composer_popovers.dart';
 import '../../ui/shell/app_shell.dart';
 import '../../ui/shell/composer.dart';
 import '../../ui/shell/right_panel.dart';
@@ -20,6 +19,7 @@ import '../../ui/terminal/local_terminal.dart';
 import '../../ui/terminal/terminal_panel.dart';
 import '../fixtures_source.dart';
 import '../gallery.dart';
+import 'board_helpers.dart';
 import 'shell_boards.dart';
 
 // ---------------------------------------------------------------- 本地假数据
@@ -111,44 +111,6 @@ LocalTerminal _exited() {
 
 // ---------------------------------------------------------------- 取数小工具
 
-TextEditingController _c([String text = '']) => TextEditingController(text: text);
-
-String _agentTitle(FixtureReplay r) {
-  final a = r.sessions.agents[FixtureReplay.agentId];
-  return a?.agentTitle ?? a?.agentName ?? 'Agent';
-}
-
-String _sessionTitle(FixtureReplay r) => r.session.title ?? 'New ${_agentTitle(r)} Session';
-
-String? _currentName(FixtureReplay r, String category) {
-  for (final o in r.session.configOptions) {
-    if (o.category == category) return configCurrentName(o);
-  }
-  return null;
-}
-
-/// 输入框里的三个下拉：与 shell_boards 同一口径，保持 PNG 的顺序与条目（见那边的注）。
-List<ComposerOption> _composerOptions(FixtureReplay r) {
-  final options = <ComposerOption>[];
-  for (final category in const <String>['model', 'thought_level', 'mode']) {
-    final label = _currentName(r, category);
-    if (label == null) continue;
-    options.add(ComposerOption(
-      label: label,
-      maxWidth: category == 'model' ? t.Geometry.composerModelMaxWidth : null,
-    ));
-  }
-  return options;
-}
-
-/// 整窗画板：`SelectableRegion` / `EditableText` / xterm 需要 Overlay 祖先（真实应用由 `MaterialApp` 提供）。
-GalleryBoard _window(String id, String title, WidgetBuilder build) => GalleryBoard(
-      id: id,
-      title: title,
-      frame: const Size(1440, 900),
-      build: (context) => Overlay(initialEntries: <OverlayEntry>[OverlayEntry(builder: build)]),
-    );
-
 /// 「局部」样张：画板给的 680 宽，外框 1px base 边框。
 GalleryBoard _partial(String id, String title, double height, WidgetBuilder build) => GalleryBoard(
       id: id,
@@ -174,14 +136,14 @@ Widget _mainColumn(FixtureReplay r, {bool menuSelected = true}) {
   final s = r.session;
   return WorkbenchColumn(
     topBar: const TopBar(projectName: galleryProject, branch: galleryBranch, windowControls: false),
-    sessionHeader: SessionHeader(title: _sessionTitle(r), menuSelected: menuSelected),
-    body: NewSessionEmpty(title: _sessionTitle(r)),
+    sessionHeader: SessionHeader(title: fixtureSessionTitle(r), menuSelected: menuSelected),
+    body: NewSessionEmpty(title: fixtureSessionTitle(r)),
     composer: Composer(
-      controller: _c(),
+      controller: boardText(),
       focusNode: FocusNode(),
-      placeholder: 'Message to ${_agentTitle(r)} , @ to include context , / for commands',
+      placeholder: 'Message to ${fixtureAgentTitle(r)} , @ to include context , / for commands',
       usage: s.usage,
-      options: _composerOptions(r),
+      options: boardComposerOptions(s),
     ),
   );
 }
@@ -191,14 +153,14 @@ Widget _sidebar(ShellTab active) => Sidebar(
       now: galleryNow,
       selectedId: 's1',
       activeTab: active,
-      searchController: _c(),
+      searchController: boardText(),
       searchFocusNode: FocusNode(),
     );
 
 // ---------------------------------------------------------------- 画板
 
 final List<GalleryBoard> panelBoards = <GalleryBoard>[
-  _window('60a-files-panel', '文件面板', (_) {
+  windowBoard('60a-files-panel', '文件面板', (_) {
     final r = FixtureReplay.replay(<String>['01-connect', '25-config-options', '19-usage'], upTo: 1);
     const files = PanelTab.shell(ShellTab.files);
     return AppShell(
@@ -209,7 +171,7 @@ final List<GalleryBoard> panelBoards = <GalleryBoard>[
         active: files,
         body: FilesPanel(
           tree: _tree(),
-          filterController: _c(),
+          filterController: boardText(),
           filterFocusNode: FocusNode(),
           selectedPath: '$_root/AGENTS.md',
           viewer: _agentsViewer,
@@ -232,7 +194,7 @@ final List<GalleryBoard> panelBoards = <GalleryBoard>[
       ],
     );
   }),
-  _window('61a-terminal-panel', '终端面板 · 运行中', (_) {
+  windowBoard('61a-terminal-panel', '终端面板 · 运行中', (_) {
     final r = FixtureReplay.replay(<String>['01-connect', '25-config-options', '19-usage'], upTo: 1);
     const first = PanelTab.terminal('term_local_1', 'VariFlightWork');
     return AppShell(

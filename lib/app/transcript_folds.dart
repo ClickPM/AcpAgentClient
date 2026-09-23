@@ -13,6 +13,7 @@ import 'package:flutter/foundation.dart';
 import '../projection/turn_fold.dart';
 import '../projection/wire.dart';
 import 'core_bridge.dart';
+import 'guarded.dart';
 
 /// `settings.json` 的 `transcript` 段（Rust 侧 `settings::Transcript`）。
 class TranscriptPrefs {
@@ -28,7 +29,7 @@ class TranscriptPrefs {
   JsonMap toJson() => <String, dynamic>{'collapse_finished_turns': collapseFinishedTurns};
 }
 
-class TranscriptFolds extends ChangeNotifier {
+class TranscriptFolds extends ChangeNotifier with GuardedNotifier {
   TranscriptFolds({this.bridge});
 
   /// 没有桥（gallery / 单测）就只在内存里生效，不落盘。
@@ -42,8 +43,6 @@ class TranscriptFolds extends ChangeNotifier {
   /// 用户手动切过的回合（true = 折叠，false = 展开）。没记过的按默认值算。
   final Expando<bool> _explicit = Expando<bool>('turn fold');
 
-  bool _disposed = false;
-
   /// [start] 这一趟读盘的完成信号；改设置前要先等它，免得读盘回来把用户刚点的那一下盖回去。
   Future<void>? _hydration;
 
@@ -55,12 +54,6 @@ class TranscriptFolds extends ChangeNotifier {
 
   /// 全局开关的当前值。
   bool get autoCollapse => _stored ?? autoCollapseDefault;
-
-  @override
-  void dispose() {
-    _disposed = true;
-    super.dispose();
-  }
 
   /// 启动：读一次盘。失败只是回到默认开，不挡启动。
   Future<void> start() {
@@ -81,7 +74,7 @@ class TranscriptFolds extends ChangeNotifier {
       return;
     }
     // 读盘期间用户已经点过了：他的选择更新，不要拿盘上的旧值盖回去。
-    if (_disposed || _edited || loaded == _stored) return;
+    if (disposed || _edited || loaded == _stored) return;
     _stored = loaded;
     notifyListeners();
   }
@@ -101,7 +94,7 @@ class TranscriptFolds extends ChangeNotifier {
     _edited = true;
     if (_stored != value) {
       _stored = value;
-      if (!_disposed) notifyListeners();
+      touch();
     }
     await _awaitHydration();
     // 这一笔已经被后来的点击顶掉了就别再发（发布前审查 P2，2026-09-22）：两次点击会并行走到这里，

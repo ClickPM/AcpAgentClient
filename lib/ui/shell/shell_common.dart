@@ -128,7 +128,14 @@ class DashedBox extends StatelessWidget {
 
 /// 悬浮态包装：把 hover 交给 builder（画板 04 的会话项悬浮、顶栏项目名 / 分支名悬浮）。
 class Hoverable extends StatefulWidget {
-  const Hoverable({super.key, required this.builder, this.onTap, this.cursor = SystemMouseCursors.click, this.forceHover = false});
+  const Hoverable({
+    super.key,
+    required this.builder,
+    this.onTap,
+    this.cursor = SystemMouseCursors.click,
+    this.forceHover = false,
+    this.onHoverChanged,
+  });
 
   final Widget Function(BuildContext context, bool hovered) builder;
   final VoidCallback? onTap;
@@ -137,6 +144,10 @@ class Hoverable extends StatefulWidget {
   /// gallery 里强制成悬浮态（画板 04 要出悬浮样张）。
   final bool forceHover;
 
+  /// 悬浮态变了（进出鼠标时，报的是交给 builder 的那个值）：外面要跟着做事的用它
+  /// （路径芯片让卡片放开裁剪、附件芯片开关预览浮层），只改自己样子的用 builder 就够。
+  final ValueChanged<bool>? onHoverChanged;
+
   @override
   State<Hoverable> createState() => _HoverableState();
 }
@@ -144,13 +155,18 @@ class Hoverable extends StatefulWidget {
 class _HoverableState extends State<Hoverable> {
   bool _hover = false;
 
+  void _set(bool hover) {
+    setState(() => _hover = hover);
+    widget.onHoverChanged?.call(hover || widget.forceHover);
+  }
+
   @override
   Widget build(BuildContext context) {
     final child = widget.builder(context, _hover || widget.forceHover);
     return MouseRegion(
       cursor: widget.cursor,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
+      onEnter: (_) => _set(true),
+      onExit: (_) => _set(false),
       child: widget.onTap == null ? child : GestureDetector(behavior: HitTestBehavior.opaque, onTap: widget.onTap, child: child),
     );
   }

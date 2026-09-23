@@ -14,6 +14,7 @@ import '../../ui/transcript/user_message.dart';
 import '../board_page.dart';
 import '../fixtures_source.dart';
 import '../gallery.dart';
+import 'board_helpers.dart';
 
 /// flutter_tester 不做平台字体回退，Mermaid 主题只能给一个家族名：gallery 里用随包的 Noto Sans SC
 /// （即 tokens 的 `Fonts.cjkFallback` 首项，真机用 `Fonts.sans` + 平台回退），不再依赖本机的微软雅黑。
@@ -31,13 +32,10 @@ MessageEntry _agentMessage(FixtureReplay r, String messageId) =>
 MessageEntry _userMessage(FixtureReplay r, String messageId) =>
     r.all<MessageEntry>().firstWhere((m) => m.messageId == messageId && m.role == MessageRole.user);
 
-GalleryBoard _page(String id, String title, Widget Function() build) =>
-    GalleryBoard(id: id, title: title, frame: const Size(BoardPage.width, 0), fitContent: true, build: (_) => build());
-
 // 画板 10（Restore Checkpoint 分隔线）已废弃（所有者裁定 2026-09-17）：它点下去与画板 11 用户气泡上的 Restore
 // 是同一个动作（本地截断 + 同会话重发），且工作台画板 01 / 02 / 03 的转录里本来就没有这条线。对照页一并撤掉。
 final List<GalleryBoard> transcriptBoards = <GalleryBoard>[
-  _page('11-user-message', '用户消息气泡', () {
+  pageBoard('11-user-message', '用户消息气泡', () {
     final r = FixtureReplay.replay(<String>['01-connect', '11-rich-text']);
     final msg = _userMessage(r, 'msg_u2');
     return BoardPage(
@@ -71,7 +69,7 @@ final List<GalleryBoard> transcriptBoards = <GalleryBoard>[
       footnote: 'chunk 流里只有可选 messageId；把连续 chunk 合成一条气泡的规则由客户端定（acp-projection.md § 7 第 2 条）。',
     );
   }),
-  _page('12-assistant-text', '助手富文本正文', () {
+  pageBoard('12-assistant-text', '助手富文本正文', () {
     final r = FixtureReplay.replay(<String>['01-connect', '11-rich-text']);
     return BoardPage(
       number: '12',
@@ -83,7 +81,7 @@ final List<GalleryBoard> transcriptBoards = <GalleryBoard>[
       footnote: '文件链接与任务清单复选框可点：链接落右栏文件面板，复选框只改本地呈现态，不回写 agent。',
     );
   }),
-  _page('13-code-block', '代码块卡片', () {
+  pageBoard('13-code-block', '代码块卡片', () {
     final r = FixtureReplay.replay(<String>['01-connect', '11-rich-text']);
     final code = fenceBody(_agentMessage(r, 'msg_r2').text);
     final longLine = fenceBody(_agentMessage(r, 'msg_r3').text);
@@ -102,7 +100,7 @@ final List<GalleryBoard> transcriptBoards = <GalleryBoard>[
       footnote: '语法着色只用中性色阶 + accent（关键字）+ success（字符串）+ warning（类型 / 数字）+ n.placeholder（注释），不引入表外色相。',
     );
   }),
-  _page('14-gfm-table', 'GFM 表格', () {
+  pageBoard('14-gfm-table', 'GFM 表格', () {
     final r = FixtureReplay.replay(<String>['01-connect', '11-rich-text']);
     return BoardPage(
       number: '14',
@@ -114,7 +112,7 @@ final List<GalleryBoard> transcriptBoards = <GalleryBoard>[
       footnote: '表头用 surface #eeeef1，斑马行用 panel #f4f4f6；数字列开 tabular-nums。',
     );
   }),
-  _page('15-mermaid', 'Mermaid 图', () {
+  pageBoard('15-mermaid', 'Mermaid 图', () {
     final r = FixtureReplay.replay(<String>['01-connect', '11-rich-text']);
     final msg = _agentMessage(r, 'msg_r5');
     return BoardPage(
@@ -128,7 +126,7 @@ final List<GalleryBoard> transcriptBoards = <GalleryBoard>[
       footnote: '渲染在客户端完成；节点只用中性色阶的两级表面，不引入配色。',
     );
   }),
-  _page('16-math', '数学公式', () {
+  pageBoard('16-math', '数学公式', () {
     final r = FixtureReplay.replay(<String>['01-connect', '11-rich-text']);
     return BoardPage(
       number: '16',
@@ -140,7 +138,7 @@ final List<GalleryBoard> transcriptBoards = <GalleryBoard>[
       footnote: '公式用等宽 + 斜体变量；块级公式上下各留 12，用发丝线与正文分隔；数字开 tabular-nums。',
     );
   }),
-  _page('17-thinking', '思考折叠块', () {
+  pageBoard('17-thinking', '思考折叠块', () {
     final streaming = FixtureReplay.replay(<String>['01-connect', '12-thinking'], upTo: 4);
     final done = FixtureReplay.replay(<String>['01-connect', '12-thinking']);
     return BoardPage(

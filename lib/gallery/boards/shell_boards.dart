@@ -39,6 +39,7 @@ import '../../ui/transcript/turn_fold_row.dart';
 import '../board_page.dart';
 import '../fixtures_source.dart';
 import '../gallery.dart';
+import 'board_helpers.dart';
 
 // ---------------------------------------------------------------- 本地假数据（协议之外）
 
@@ -83,25 +84,14 @@ const List<MentionItem> _mentionRecent = <MentionItem>[
   MentionItem(path: 'D:/repo/rounds/BACKLOG.md', name: 'BACKLOG.md', parent: 'rounds/'),
 ];
 
-// ---------------------------------------------------------------- 输入控件（gallery 里都是只读样张）
-
-TextEditingController _c([String text = '']) => TextEditingController(text: text);
-
 // ---------------------------------------------------------------- 取数小工具
-
-String _agentTitle(FixtureReplay r) {
-  final a = r.sessions.agents[FixtureReplay.agentId];
-  return a?.agentTitle ?? a?.agentName ?? 'Agent';
-}
 
 String _agentName(FixtureReplay r) {
   final a = r.sessions.agents[FixtureReplay.agentId];
   return a?.agentName ?? FixtureReplay.agentId;
 }
 
-String _sessionTitle(FixtureReplay r) => r.session.title ?? 'New ${_agentTitle(r)} Session';
-
-String _composerPlaceholder(FixtureReplay r) => 'Message to ${_agentTitle(r)} , @ to include context , / for commands';
+String _composerPlaceholder(FixtureReplay r) => 'Message to ${fixtureAgentTitle(r)} , @ to include context , / for commands';
 
 ConfigOptionWire? _option(SessionStore s, String category) {
   for (final o in s.configOptions) {
@@ -120,29 +110,6 @@ List<ConfigOptionWire> _unknownCategory(SessionStore s) => <ConfigOptionWire>[
       for (final o in s.configOptions)
         if (o.type == 'select' && !const <String>['mode', 'model', 'model_config', 'thought_level'].contains(o.category)) o,
     ];
-
-String? _currentName(SessionStore s, String category) {
-  final o = _option(s, category);
-  return o == null ? null : configCurrentName(o);
-}
-
-/// 画板 01 / 03 输入框里的三个下拉：PNG 是按「模型 · 思考强度 · 模式」排的，画板未按固定档序重出之前，
-/// 对照板保持 PNG 的顺序与条目（真输入框已改成按档序把每条 configOption 都平铺出来，见 rounds/BACKLOG.md）。
-List<ComposerOption> _composerOptions(
-  SessionStore s, {
-  List<String> categories = const <String>['model', 'thought_level', 'mode'],
-}) {
-  final options = <ComposerOption>[];
-  for (final category in categories) {
-    final label = _currentName(s, category);
-    if (label == null) continue;
-    options.add(ComposerOption(
-      label: label,
-      maxWidth: category == 'model' ? t.Geometry.composerModelMaxWidth : null,
-    ));
-  }
-  return options;
-}
 
 /// 把 fixtures 的线上行按 `acp/traffic` 的 payload 形状喂进 TrafficStore（核心侧做的就是这件事）。
 TrafficStore _traffic(List<String> files, {required String agentId}) {
@@ -173,21 +140,10 @@ Widget _transcript(FixtureReplay r) => Padding(
       child: TranscriptList(r.session, agentName: _agentName(r)),
     );
 
-/// 整窗画板：`SelectableRegion` 与 `EditableText` 需要 Overlay 祖先（真实应用由 `MaterialApp` 提供）。
-GalleryBoard _window(String id, String title, WidgetBuilder build) => GalleryBoard(
-      id: id,
-      title: title,
-      frame: const Size(1440, 900),
-      build: (context) => Overlay(initialEntries: <OverlayEntry>[OverlayEntry(builder: build)]),
-    );
-
-GalleryBoard _page(String id, String title, Widget Function() build) =>
-    GalleryBoard(id: id, title: title, frame: const Size(BoardPage.width, 0), fitContent: true, build: (_) => build());
-
 // ---------------------------------------------------------------- 画板
 
 final List<GalleryBoard> shellBoards = <GalleryBoard>[
-  _window('01a-workbench-empty', '工作台 · 新会话（状态 1：有 agent 的新会话）', (_) {
+  windowBoard('01a-workbench-empty', '工作台 · 新会话（状态 1：有 agent 的新会话）', (_) {
     // 用量取 19-usage 的第一条（1% · 10k / 1M，无 cost）；configOptions 取 25 的第一条（mode = Write）。
     final r = FixtureReplay.replay(<String>['01-connect', '25-config-options', '19-usage'], upTo: 1);
     final s = r.session;
@@ -196,30 +152,30 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
         sessions: _sessions,
         now: _now,
         selectedId: 's1',
-        searchController: _c(),
+        searchController: boardText(),
         searchFocusNode: FocusNode(),
       ),
       main: WorkbenchColumn(
         topBar: const TopBar(projectName: _project, branch: _branch),
-        sessionHeader: SessionHeader(title: _sessionTitle(r)),
-        body: NewSessionEmpty(title: _sessionTitle(r)),
+        sessionHeader: SessionHeader(title: fixtureSessionTitle(r)),
+        body: NewSessionEmpty(title: fixtureSessionTitle(r)),
         composer: Composer(
-          controller: _c(),
+          controller: boardText(),
           focusNode: FocusNode(),
           placeholder: _composerPlaceholder(r),
           usage: s.usage,
-          options: _composerOptions(s),
+          options: boardComposerOptions(s),
         ),
       ),
     );
   }),
-  _window('01b-workbench-noagent', '工作台 · 新会话（状态 2：尚无已安装 agent）', (_) {
+  windowBoard('01b-workbench-noagent', '工作台 · 新会话（状态 2：尚无已安装 agent）', (_) {
     return AppShell(
       sidebar: Sidebar(
         sessions: const <SidebarSession>[],
         now: _now,
         activeTab: ShellTab.agents,
-        searchController: _c(),
+        searchController: boardText(),
         searchFocusNode: FocusNode(),
       ),
       main: WorkbenchColumn(
@@ -227,7 +183,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
         sessionHeader: const SessionHeader(title: 'No Agent', hasAgent: false, canRename: false, canReload: false),
         body: const NoAgentEmpty(),
         composer: Composer(
-          controller: _c(),
+          controller: boardText(),
           focusNode: FocusNode(),
           placeholder: '安装并选择一个 agent 后即可输入',
           enabled: false,
@@ -235,7 +191,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
       ),
     );
   }),
-  _window('02-workbench-running', '工作台 · 进行中的一轮', (_) {
+  windowBoard('02-workbench-running', '工作台 · 进行中的一轮', (_) {
     // 停在挂起的权限请求上：回合仍在进行（会话头 spinner + 发送位是停止方块 + Awaiting 停靠条）。
     final r = FixtureReplay.replay(
       <String>['01-connect', '25-config-options', '02-turn-read', '03-permission-edit'],
@@ -249,20 +205,20 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
         sessions: _sessions,
         now: _now,
         selectedId: 's1',
-        searchController: _c(),
+        searchController: boardText(),
         searchFocusNode: FocusNode(),
       ),
       main: WorkbenchColumn(
         topBar: const TopBar(projectName: _project, branch: _branch),
-        sessionHeader: SessionHeader(title: _sessionTitle(r), running: s.isRunning),
+        sessionHeader: SessionHeader(title: fixtureSessionTitle(r), running: s.isRunning),
         body: _transcript(r),
         composer: Composer(
-          controller: _c(),
+          controller: boardText(),
           focusNode: FocusNode(),
           placeholder: _composerPlaceholder(r),
           running: s.isRunning,
           usage: s.usage,
-          options: _composerOptions(s),
+          options: boardComposerOptions(s),
           docks: <Widget>[
             ?AwaitingDock.forPending(
               first,
@@ -275,7 +231,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
       ),
     );
   }),
-  _window('03-workbench-done', '工作台 · 回合结束 + 右栏展开', (_) {
+  windowBoard('03-workbench-done', '工作台 · 回合结束 + 右栏展开', (_) {
     final r = FixtureReplay.replay(<String>['01-connect', '25-config-options', '02-turn-read', '08-end-turn']);
     final s = r.session;
     final plan = s.plans[PlanCardEntry.stablePlanId];
@@ -285,19 +241,19 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
         now: _now,
         selectedId: 's1',
         activeTab: ShellTab.files,
-        searchController: _c(),
+        searchController: boardText(),
         searchFocusNode: FocusNode(),
       ),
       main: WorkbenchColumn(
         topBar: const TopBar(projectName: _project, branch: _branch, windowControls: false),
-        sessionHeader: SessionHeader(title: _sessionTitle(r), menuSelected: true),
+        sessionHeader: SessionHeader(title: fixtureSessionTitle(r), menuSelected: true),
         body: _transcript(r),
         composer: Composer(
-          controller: _c(),
+          controller: boardText(),
           focusNode: FocusNode(),
           placeholder: _composerPlaceholder(r),
           usage: s.usage,
-          options: _composerOptions(s),
+          options: boardComposerOptions(s),
           docks: <Widget>[if (plan != null) PlanCard(plan, initiallyCollapsed: true, cwd: s.cwd)],
         ),
       ),
@@ -307,7 +263,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
         active: const PanelTab.shell(ShellTab.files),
         body: FilesPanel(
           tree: _board03Tree(),
-          filterController: _c(),
+          filterController: boardText(),
           filterFocusNode: FocusNode(),
           selectedPath: '$_board03Root/AGENTS.md',
           viewer: const FileViewerData(
@@ -323,7 +279,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
       ),
     );
   }),
-  _page('04-sidebar-states', '侧栏与顶栏状态', () {
+  pageBoard('04-sidebar-states', '侧栏与顶栏状态', () {
     final r = FixtureReplay.replay(<String>['01-connect']);
     // ignore: unused_local_variable
     final renaming = _sessions[2];
@@ -337,16 +293,16 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
               SidebarSessionRow(_sessions[1], now: _now),
               SidebarSessionRow(_sessions[1], now: _now, forceHover: true),
               SidebarSessionRow(_sessions[0], now: _now, selected: true),
-              SidebarSessionRow(renaming, now: _now, renaming: true, renameController: _c(renaming.title), renameFocusNode: FocusNode()),
+              SidebarSessionRow(renaming, now: _now, renaming: true, renameController: boardText(renaming.title), renameFocusNode: FocusNode()),
             ])),
         BoardSection('搜索 · 输入中（命中片段高亮）',
             child: _panel(<Widget>[
-              SidebarSearchField(controller: _c('Flutter'), focusNode: FocusNode()),
+              SidebarSearchField(controller: boardText('Flutter'), focusNode: FocusNode()),
               SidebarSessionRow(_sessions[2], now: _now, query: 'Flutter'),
             ])),
         BoardSection('搜索 · 无结果',
             child: _panel(<Widget>[
-              SidebarSearchField(controller: _c('registry'), focusNode: FocusNode()),
+              SidebarSearchField(controller: boardText('registry'), focusNode: FocusNode()),
               const SizedBox(height: t.Geometry.sidebarEmptyHeight, child: SidebarEmpty(searching: true)),
             ])),
         const BoardSection('顶栏 · 项目名悬浮（可切换项目）',
@@ -365,7 +321,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
           '本画板的样张按「有 delete 能力」画，01-connect 的 initialize 给的是 ${_sessionCaps(r).keys.join(' / ')}。',
     );
   }),
-  _page('06-session-activity', '侧栏会话活动指示', () {
+  pageBoard('06-session-activity', '侧栏会话活动指示', () {
     return BoardPage(
       number: '06',
       title: '侧栏会话活动指示',
@@ -402,7 +358,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
           '偏离：清除条件里的「窗口聚焦」这一维没有实现（宿主没给这个信号），按「当前会话 + 停在工作台页」判。',
     );
   }),
-  _page('08-interaction-upgrades', '交互增强 · 回合折叠 / 跨工作区在跑数', () {
+  pageBoard('08-interaction-upgrades', '交互增强 · 回合折叠 / 跨工作区在跑数', () {
     final SessionStore twoLine = _foldSample(model: 'Gemini 3.8 Flash High (CLIProxy)');
     final SessionStore oneLine = _foldSample();
     final SessionStore failed = _foldSample(failures: 1);
@@ -448,7 +404,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
               openProjects: _switcherOpen,
               recentProjects: _switcherRecent,
               currentPath: _switcherOpen.first.path,
-              searchController: _c(),
+              searchController: boardText(),
               searchFocusNode: FocusNode(),
               runningOf: (p) => _switcherRunning[p.path] ?? 0,
             ))),
@@ -462,7 +418,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
           '徽标图标用既有的 AcpIcons.rotateCw（画板画的是同一个 lucide 字形的 r=8 版本，11px 下差别在 1px 以内）。',
     );
   }),
-  _page('40-composer-popovers', '输入框弹层合集', () {
+  pageBoard('40-composer-popovers', '输入框弹层合集', () {
     final r = FixtureReplay.replay(<String>['01-connect', '25-config-options'], upTo: 1);
     final s = r.session;
     final usage = FixtureReplay.replay(<String>['01-connect', '19-usage'], upTo: 1).session.usage;
@@ -477,7 +433,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
         BoardSection('模型选择器（category model，分组 + 当前项对勾）',
             child: _left(ConfigSelectPopover(
               option: model,
-              searchController: _c(),
+              searchController: boardText(),
               searchFocusNode: FocusNode(),
               showLeadingMark: true,
               hoveredValue: 'gpt-5-6-terra',
@@ -500,7 +456,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
           '图标位用中性占位、Latest 省略（记 BACKLOG，归下个设计轮）。',
     );
   }),
-  _page('41-topbar-popovers', '顶栏与侧栏弹层合集', () {
+  pageBoard('41-topbar-popovers', '顶栏与侧栏弹层合集', () {
     final r = FixtureReplay.replay(<String>['01-connect']);
     final sessionCaps = _sessionCaps(r);
     final renaming = _sessions[2];
@@ -514,27 +470,27 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
               openProjects: _openProjects,
               recentProjects: _recentProjects,
               currentPath: _openProjects[1].path,
-              searchController: _c(),
+              searchController: boardText(),
               searchFocusNode: FocusNode(),
             ))),
         BoardSection('分支切换 · 默认（列本地分支，当前分支出对勾）',
             child: _left(BranchSwitcherPopover(
               branches: _branches,
               current: _branch,
-              controller: _c(),
+              controller: boardText(),
               focusNode: FocusNode(),
             ))),
         BoardSection('分支切换 · 输入了新名字（列表按搜索过滤，末尾是 Create branch … from …）',
             child: _left(BranchSwitcherPopover(
               branches: _branches,
               current: _branch,
-              controller: _c('feat/tokens'),
+              controller: boardText('feat/tokens'),
               focusNode: FocusNode(),
               query: 'feat/tokens',
             ))),
         BoardSection('新建会话 · 选 agent（图标位是单色占位，R5 registry 带来各 agent 的 logo）',
             child: _left(NewSessionAgentPopover(agents: <AgentRef>[
-              AgentRef(id: FixtureReplay.agentId, name: _agentTitle(r)),
+              AgentRef(id: FixtureReplay.agentId, name: fixtureAgentTitle(r)),
             ]))),
         BoardSection('会话头 ≡ 菜单（动作由 sessionCapabilities 驱动）',
             child: _left(SessionMenuPopover(
@@ -544,7 +500,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
             ))),
         BoardSection('会话项 · 重命名（行内编辑）',
             child: _panel(<Widget>[
-              SidebarSessionRow(renaming, now: _now, renaming: true, renameController: _c(renaming.title), renameFocusNode: FocusNode()),
+              SidebarSessionRow(renaming, now: _now, renaming: true, renameController: boardText(renaming.title), renameFocusNode: FocusNode()),
             ])),
         BoardSection('会话项 · 删除确认', child: _left(DeleteSessionConfirm(title: renaming.title))),
       ],
@@ -553,7 +509,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
           '动作本身在 R6 接。',
     );
   }),
-  _page('42-inline-menus', '输入框内联菜单', () {
+  pageBoard('42-inline-menus', '输入框内联菜单', () {
     final r = FixtureReplay.replay(<String>['01-connect']);
     final commands = r.session.commands;
     return BoardPage(
@@ -565,19 +521,19 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
             child: _left(const MentionMenu(files: _mentionFiles, directories: _mentionDirs, recent: _mentionRecent))),
         BoardSection('输入框里的 @ 提及（菜单浮在输入框上方）',
             child: Composer(
-              controller: _c('给 @val'),
+              controller: boardText('给 @val'),
               focusNode: FocusNode(),
               placeholder: '',
-              options: _composerOptions(r.session, categories: const <String>['mode']),
+              options: boardComposerOptions(r.session, categories: const <String>['mode']),
               inlineMenu: const MentionMenu(files: _mentionFiles, directories: _mentionDirs, recent: _mentionRecent),
             )),
         BoardSection('/ 命令菜单（命令名 + 描述 + 参数提示）', child: _left(SlashCommandMenu(commands: commands))),
         BoardSection('输入框里的 / 命令',
             child: Composer(
-              controller: _c('/co'),
+              controller: boardText('/co'),
               focusNode: FocusNode(),
               placeholder: '',
-              options: _composerOptions(r.session, categories: const <String>['mode']),
+              options: boardComposerOptions(r.session, categories: const <String>['mode']),
               inlineMenu: SlashCommandMenu(commands: commands),
             )),
       ],
@@ -586,7 +542,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
           '分组按所有者裁定 2026-09-15 只渲染单组 Commands（AvailableCommand 没有分组与来源字段）。',
     );
   }),
-  _page('43-session-timeline', '会话时间线弹层', () {
+  pageBoard('43-session-timeline', '会话时间线弹层', () {
     return BoardPage(
       number: '43',
       title: '会话时间线弹层',
@@ -619,7 +575,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
           '点一行转录区 0ms 跳到该条，目标块顶边对齐转录区顶部内边距 16。',
     );
   }),
-  _window('80-traffic', 'ACP 流量调试', (_) {
+  windowBoard('80-traffic', 'ACP 流量调试', (_) {
     final r = FixtureReplay.replay(<String>['01-connect', '02-turn-read', '08-end-turn']);
     final agentId = _agentName(r);
     final store = _traffic(<String>['01-connect', '02-turn-read', '90-rejected', '08-end-turn'], agentId: agentId);
@@ -633,7 +589,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
         sessions: _sessions,
         now: _now,
         selectedId: 's1',
-        searchController: _c(),
+        searchController: boardText(),
         searchFocusNode: FocusNode(),
       ),
       main: Container(
@@ -645,7 +601,7 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
             Expanded(
               child: TrafficPage(
                 store: store,
-                filterController: _c(),
+                filterController: boardText(),
                 filterFocusNode: FocusNode(),
                 stderrAgentId: agentId,
                 initiallyExpanded: expanded,

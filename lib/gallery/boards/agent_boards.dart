@@ -26,6 +26,7 @@ import '../../ui/shell/transcript_empty.dart';
 import '../board_page.dart';
 import '../fixtures_source.dart';
 import '../gallery.dart';
+import 'board_helpers.dart';
 
 // ---------------------------------------------------------------- 本地假数据（协议之外）
 
@@ -107,8 +108,6 @@ const CustomCommand _dshCommand = CustomCommand(
   env: <String, String>{'DSH_LOG': 'info'},
 );
 
-TextEditingController _c([String text = '']) => TextEditingController(text: text);
-
 /// 画板 51 的安装进度样张：进度对象直接按 `registry/progress` 的 payload 形状经 [RegistryState.applyProgress] 构造，
 /// 速率与剩余时间由两次采样算出（和真实事件流同一条路）。
 InstallProgress _progressOf(List<JsonMap> events, {String agentId = 'x'}) {
@@ -143,36 +142,26 @@ const List<JsonMap> _codexAuthMethods = <JsonMap>[
   <String, dynamic>{'type': 'terminal', 'id': 'codex-login', 'name': 'Sign in with Codex CLI', 'args': <String>['--login']},
 ];
 
-GalleryBoard _window(String id, String title, WidgetBuilder build) => GalleryBoard(
-      id: id,
-      title: title,
-      frame: const Size(1440, 900),
-      build: (context) => Overlay(initialEntries: <OverlayEntry>[OverlayEntry(builder: build)]),
-    );
-
-GalleryBoard _page(String id, String title, Widget Function() build) =>
-    GalleryBoard(id: id, title: title, frame: const Size(BoardPage.width, 0), fitContent: true, build: (_) => build());
-
 /// 画板 51 / 52 的状态卡：560 宽、左对齐。
 Widget _card(Widget child) => Align(alignment: Alignment.centerLeft, child: SizedBox(width: t.Geometry.stateCardWidth, child: child));
 
 // ---------------------------------------------------------------- 画板
 
 final List<GalleryBoard> agentBoards = <GalleryBoard>[
-  _window('50-registry', 'Agents 面板（ACP Registry）', (_) {
+  windowBoard('50-registry', 'Agents 面板（ACP Registry）', (_) {
     final r = FixtureReplay.replay(<String>['01-connect', '25-config-options', '19-usage'], upTo: 1);
     final s = r.session;
     final agent = r.sessions.agents[FixtureReplay.agentId];
     final title = 'New ${agent?.agentTitle ?? agent?.agentName ?? 'Agent'} Session';
     final installed = _registry.where((e) => e.installed).length;
     return AppShell(
-      sidebar: Sidebar(sessions: _sessions, now: _now, selectedId: 's1', activeTab: ShellTab.agents, searchController: _c(), searchFocusNode: FocusNode()),
+      sidebar: Sidebar(sessions: _sessions, now: _now, selectedId: 's1', activeTab: ShellTab.agents, searchController: boardText(), searchFocusNode: FocusNode()),
       main: WorkbenchColumn(
         topBar: const TopBar(projectName: _project, branch: _branch, windowControls: false),
         sessionHeader: SessionHeader(title: title, menuSelected: true),
         body: NewSessionEmpty(title: title),
         composer: Composer(
-          controller: _c(),
+          controller: boardText(),
           focusNode: FocusNode(),
           placeholder: 'Message to ${agent?.agentTitle ?? 'Agent'} , @ to include context , / for commands',
           usage: s.usage,
@@ -183,7 +172,7 @@ final List<GalleryBoard> agentBoards = <GalleryBoard>[
         active: const PanelTab.shell(ShellTab.agents),
         body: RegistryPanel(
           entries: _registry,
-          searchController: _c(),
+          searchController: boardText(),
           searchFocusNode: FocusNode(),
           installedCount: installed,
           notInstalledCount: _registry.length - installed,
@@ -193,7 +182,7 @@ final List<GalleryBoard> agentBoards = <GalleryBoard>[
       rightPanelWidth: t.Geometry.registryPanelWidth,
     );
   }),
-  _page('51-registry-states', 'Registry 条目状态', () {
+  pageBoard('51-registry-states', 'Registry 条目状态', () {
     final npx = _progressOf(<JsonMap>[
       <String, dynamic>{'kind': 'npx', 'step': 'resolve', 'detail': '@sourcegraph/amp-acp@0.9.0'},
     ]);
@@ -257,7 +246,7 @@ final List<GalleryBoard> agentBoards = <GalleryBoard>[
           '「需要认证」的描述不写死 ChatGPT（规则 2）。',
     );
   }),
-  _page('52-auth', 'agent 认证', () {
+  pageBoard('52-auth', 'agent 认证', () {
     return BoardPage(
       number: '52',
       title: 'agent 认证',
@@ -278,14 +267,14 @@ final List<GalleryBoard> agentBoards = <GalleryBoard>[
           '认证成功后自动重试原来的 session/new。requestScope 卡的说明文字用 elicitation 自带的 message。',
     );
   }),
-  _window('70-settings', '设置', (_) {
+  windowBoard('70-settings', '设置', (_) {
     final agents = <RegistryEntryData>[
       _registry[0],
       const RegistryEntryData(id: 'codex-acp', name: 'Codex', version: '1.11.0', description: '', installed: true, installedVersion: '1.11.0', authStatus: AuthStatus.needsAuth),
       const RegistryEntryData(id: 'dsh-acp-interactive', name: 'dsh-acp-interactive', version: '', description: '', kind: DistributionKind.custom, installed: true, custom: _dshCommand),
     ];
     return AppShell(
-      sidebar: Sidebar(sessions: _sessions, now: _now, selectedId: 's1', activeTab: ShellTab.settings, searchController: _c(), searchFocusNode: FocusNode()),
+      sidebar: Sidebar(sessions: _sessions, now: _now, selectedId: 's1', activeTab: ShellTab.settings, searchController: boardText(), searchFocusNode: FocusNode()),
       main: Container(
         color: t.Surface.canvas,
         child: Column(
@@ -301,9 +290,9 @@ final List<GalleryBoard> agentBoards = <GalleryBoard>[
                 node: const NodeStatus(system: NodeInfo(version: 'v22.14.0', path: r'C:\Program Files\nodejs\node.exe')),
                 editingId: 'dsh-acp-interactive',
                 editFields: CustomEditFields(
-                  command: _c(_dshCommand.command),
-                  args: _c(_dshCommand.argsText),
-                  env: _c(_dshCommand.envText),
+                  command: boardText(_dshCommand.command),
+                  args: boardText(_dshCommand.argsText),
+                  env: boardText(_dshCommand.envText),
                   focus: FocusNode(),
                 ),
                 // 画板 70 的「转录」分组（画板 08 B 的全局开关）：gallery 里给一个无桥的控制器，只在内存里。

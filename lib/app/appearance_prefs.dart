@@ -29,6 +29,7 @@ import 'package:flutter/services.dart';
 
 import '../theme/tokens.dart' as t;
 import 'core_bridge.dart';
+import 'guarded.dart';
 import 'paths.dart';
 
 /// 四个字体轴。
@@ -457,7 +458,7 @@ class FontRegistry {
 }
 
 /// 外观偏好的读写与生效。挂在组合根上，[AcpApp] 监听它重建整棵树。
-class AppearanceController extends ChangeNotifier {
+class AppearanceController extends ChangeNotifier with GuardedNotifier {
   AppearanceController({this.bridge, FontRegistry? registry}) : registry = registry ?? FontRegistry();
 
   /// 没有桥（gallery / 单测）就只在内存里生效，不落盘。
@@ -473,11 +474,6 @@ class AppearanceController extends ChangeNotifier {
   /// 当前生效的主题。
   t.AppTheme get theme => _prefs.resolvedTheme;
 
-  /// [start] 与 [setAxis] 里都有 `await`（扫盘、读写设置），期间窗口可能已经关掉。
-  /// 对已 dispose 的 [ChangeNotifier] 调 [notifyListeners] 在 debug 下会断言失败，
-  /// 而且那时候也没人再需要这次结果了。
-  bool _disposed = false;
-
   /// [start] 这一趟读盘的完成信号（没跑过 [start] 的 gallery / 单测里是 null）。
   ///
   /// 改设置前必须先等它：读盘回来之前 `_prefs` 还是空的，拿它算出来的全量快照里
@@ -492,12 +488,6 @@ class AppearanceController extends ChangeNotifier {
   /// 文件不存在不算失败 —— Rust 侧 `appearance()` 读不到文件时回的是空外观，GET 正常返回 `{}`，
   /// 那种情况下盘上本来就没东西可丢。只有桥真的报错（核心还没 `core_init`、IPC 挂了）才是 false。
   bool _readSettingsOk = false;
-
-  @override
-  void dispose() {
-    _disposed = true;
-    super.dispose();
-  }
 
   /// 启动：先扫字体文件，再读设置并生效。任何一步失败都只是回到缺省外观，不挡启动。
   Future<void> start() {
@@ -525,7 +515,8 @@ class AppearanceController extends ChangeNotifier {
       debugPrint('appearance: 字体扫描失败，全部回默认: $e');
     }
     final AppearancePrefs? loaded = await _readSettings();
-    if (_disposed) return;
+    // 扫盘、读设置都要 await，期间窗口可能已经关掉：对已 dispose 的对象通知在 debug 下会断言失败。
+    if (disposed) return;
     _applyLocally(loaded ?? const AppearancePrefs(), notify: false);
     // 扫描结果（哪些可选字体本机有）本身就是设置页要用的状态，**与「字体选择有没有变」无关**。
     // 没存过设置时 `Fonts.apply` 返回 false，若沿用 `_applyLocally` 的「变了才通知」，
@@ -571,7 +562,7 @@ class AppearanceController extends ChangeNotifier {
   /// `_prefs` 还会变（[_hydrate] 会把盘上的灌进来），先算好就等于拿空快照去整段覆盖。
   Future<void> _edit(AppearancePrefs Function(AppearancePrefs current) change) async {
     await _awaitHydration();
-    if (_disposed) return;
+    if (disposed) return;
     final CoreCommands? bridge = this.bridge;
 
     // 用户是按**界面上看得见的这一份**点的，相对操作（[toggleTheme]）必须对准它算。
@@ -584,7 +575,7 @@ class AppearanceController extends ChangeNotifier {
     bool hydratedLate = false;
     if (bridge != null && !_readSettingsOk) {
       final AppearancePrefs? retried = await _readSettings();
-      if (_disposed) return;
+      if (disposed) return;
       if (retried != null) {
         next = _overlay(base: retried, seen: seen, edited: next);
         hydratedLate = true;
@@ -642,6 +633,6 @@ class AppearanceController extends ChangeNotifier {
       codeCjk: fonts.resolved(FontAxis.codeCjk),
     );
     final bool themeChanged = t.Theming.apply(next.resolvedTheme);
-    if (notify && (fontsChanged || themeChanged) && !_disposed) notifyListeners();
+    if (notify && (fontsChanged || themeChanged)) touch();
   }
 }

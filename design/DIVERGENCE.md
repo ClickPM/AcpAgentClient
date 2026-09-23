@@ -27,7 +27,7 @@
 8. **画板 40 / 41 / 42 弹层的「条目多到出屏」一态**：三张都按「条目有几行就多高」画的 → 实现给内容区封顶 `Geometry.menuMaxHeight`（320）并在内部滚动，键盘上下键把高亮移出视口时自动露出，搜索框钉在滚动区之外。起因是模型列表长到 20+ 时弹层顶出窗口、下面的条目既看不见也选不中。（2026-09-18）
 9. **画板 05 B 组的第二个触发**：B 组「带等待期的替换」只写了会话头的 reload 图标 → 实现把**新建会话**（会话头 `+` 选 agent、`send()` 现开一条）也接进同一套（`reloading` 改名 `waitingForAgent`，转录降到 `opacity.pending` 且不可交互 + 会话头那只 spinner，不新增元素）。（2026-09-18）
 10. **壳上 14 个入口的悬停提示**：画板 00 没有 tooltip 这一组 token、画板 01–04 / 40 也没画提示条这一态 → 实现加了（`lib/ui/shell/tooltip.dart`；底色 / 边框 / 圆角 / 字样借弹层与 secondary 那几档，出现延迟 `motion.fast × 4`，几何值收在 `Geometry.tooltip*`）。（2026-09-18）
-11. **画板 40 的会话配置渲染**：画板画成「模型 / 思考强度 / 模式三个固定下拉 + 未知分类一个面板 + boolean 一个面板」→ 实现改成**固定档序平铺**（`mode → model → model_config → thought_level → 其余`，档内保持数组顺序，一条 configOption 一格，boolean 就地开关）。依据是实测五个 agent 里四个在旧渲染下丢格（dsh 的 `permission`、codex 的 `collaboration_mode`、claude 的 `agent` 与 `fast`、cursor 的 `fast`）。**gallery 的 `_composerOptions` 仍按 PNG 的三格口径渲染，与真输入框不同**。（2026-09-18）
+11. **画板 40 的会话配置渲染**：画板画成「模型 / 思考强度 / 模式三个固定下拉 + 未知分类一个面板 + boolean 一个面板」→ 实现改成**固定档序平铺**（`mode → model → model_config → thought_level → 其余`，档内保持数组顺序，一条 configOption 一格，boolean 就地开关）。依据是实测五个 agent 里四个在旧渲染下丢格（dsh 的 `permission`、codex 的 `collaboration_mode`、claude 的 `agent` 与 `fast`、cursor 的 `fast`）。**gallery 的 `boardComposerOptions`（`lib/gallery/boards/board_helpers.dart`） 仍按 PNG 的三格口径渲染，与真输入框不同**。（2026-09-18）
 12. **画板 25 的快捷键标签与范围下拉**：画板在三个按钮上画了 `Kbd` 标签（Allow `Alt-Shift-A` / Deny `Alt-Shift-X` / 范围下拉 `Ctrl-Alt-A`），全应用没有任何对应的按键处理 → 实现去掉标签、按钮按内容收窄，不做快捷键；同时把范围下拉从卡片自己的 `Stack` 改成走 `PopoverAnchor` 浮在 Overlay 上（之前转录里下一张卡绘制顺序更晚，会把展开的菜单压住）。（2026-09-18）
 
 13. **画板 01 侧栏顶部的标记**：画板画的是临时标记 → 实现换成 `design/brand/` 里的正式应用标记（`lib/ui/shell/app_logo.dart` 按同一几何拼，所有者裁定 2026-09-17）。（2026-09-17）

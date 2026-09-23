@@ -11,14 +11,13 @@ import '../projection/wire.dart';
 import '../theme/tokens.dart' as t;
 import '../ui/terminal/local_terminal.dart';
 import 'core_bridge.dart';
+import 'guarded.dart';
 
-class LocalTerminals extends ChangeNotifier {
+class LocalTerminals extends ChangeNotifier with GuardedNotifier {
   LocalTerminals({this.bridge});
 
   final CoreCommands? bridge;
   final List<LocalTerminal> tabs = <LocalTerminal>[];
-  String? lastError;
-  bool _disposed = false;
 
   LocalTerminal? byId(String id) {
     for (final tab in tabs) {
@@ -52,12 +51,12 @@ class LocalTerminals extends ChangeNotifier {
       } else {
         tabs.add(term);
       }
-      _touch();
+      touch();
       return id;
     } catch (e) {
       lastError = describeError(e);
       debugPrint('[terminals] open failed: ${describeError(e)}');
-      _touch();
+      touch();
       return null;
     }
   }
@@ -79,11 +78,11 @@ class LocalTerminals extends ChangeNotifier {
     if (term == null || !term.running) return;
     if (term.cols == cols && term.rows == rows) return;
     term.recordSize(cols, rows);
-    _guard(() => bridge!.terminalResize(id, cols: cols, rows: rows));
+    guard(() => bridge!.terminalResize(id, cols: cols, rows: rows));
   }
 
   /// 画板 61 的停止方块：结束 shell 进程（标签留着，状态行变已退出）。
-  Future<void> stop(String id) => _guard(() => bridge!.terminalKill(id));
+  Future<void> stop(String id) => guard(() => bridge!.terminalKill(id));
 
   /// 关掉标签：核心 kill + 释放；本地丢掉模型。
   Future<void> close(String id) async {
@@ -92,8 +91,8 @@ class LocalTerminals extends ChangeNotifier {
     tabs.remove(term);
     term.removeListener(_forward);
     term.dispose();
-    _touch();
-    await _guard(() => bridge!.terminalClose(id));
+    touch();
+    await guard(() => bridge!.terminalClose(id));
   }
 
   /// 重启：同一个 cwd、同一个位置换一个新 shell；返回新 id。
@@ -130,31 +129,20 @@ class LocalTerminals extends ChangeNotifier {
     }
   }
 
-  Future<void> _guard(Future<Object?> Function() body) async {
-    try {
-      await body();
-    } catch (e) {
-      lastError = describeError(e);
-      debugPrint('[terminals] ${describeError(e)}');
-      _touch();
-    }
-  }
+  @override
+  String get logTag => 'terminals';
 
-  void _forward() => _touch();
-
-  void _touch() {
-    if (!_disposed) notifyListeners();
-  }
+  void _forward() => touch();
 
   @override
   void dispose() {
-    _disposed = true;
+    markDisposed();
     for (final tab in tabs) {
       tab.removeListener(_forward);
       tab.dispose();
       // 丢掉模型的同时也收掉核心里的 shell（kill + 释放），不然它活到 core_shutdown（审查 finding，2026-09-16）。
       final b = bridge;
-      if (b != null) unawaited(_guard(() => b.terminalClose(tab.id)));
+      if (b != null) unawaited(guard(() => b.terminalClose(tab.id)));
     }
     tabs.clear();
     super.dispose();

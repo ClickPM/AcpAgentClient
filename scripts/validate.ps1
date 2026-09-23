@@ -89,9 +89,10 @@ try {
             }
         }
         # 其他文件里带 _meta 的行不得携带字符串字面量键：键只能来自 meta_keys 常量。
+        # 按整词认 _meta（前后都不是标识符字符）：symlink_metadata / terminal_exit_meta 这类标识符里的子串不算。
         $bad = ($rustRoots | ForEach-Object { Get-SourceFiles $_ @("*.rs") }) |
             Where-Object { $_.Name -notin @("meta_keys.rs", "frb_generated.rs") } |
-            Select-String -Pattern '_meta' |
+            Select-String -Pattern '\b_meta\b' |
             Where-Object { $_.Line -notmatch '^\s*//' -and (($_.Line -replace '"_meta"', '') -match '"[A-Za-z][\w.\-]*"') }
         if ($bad) { throw ("_meta lines with literal keys (use acp_core::meta_keys):`n" + (($bad | ForEach-Object { "$($_.Path):$($_.LineNumber): $($_.Line.Trim())" }) -join "`n")) }
     }

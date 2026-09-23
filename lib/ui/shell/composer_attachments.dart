@@ -61,6 +61,8 @@ class AttachmentChip extends StatefulWidget {
 class _AttachmentChipState extends State<AttachmentChip> {
   final LayerLink _link = LayerLink();
   final OverlayPortalController _preview = OverlayPortalController();
+
+  /// 悬浮态本身由 [Hoverable] 管；这里记一份，是因为 [previewOpen] 变了要重算预览开不开。
   bool _hover = false;
 
   /// base64 只解一次：组合根每次 `_touch()` 都会重建这枚芯片，每帧解一张几百 KB 的图既费 CPU
@@ -102,7 +104,7 @@ class _AttachmentChipState extends State<AttachmentChip> {
   }
 
   void _setHover(bool hover) {
-    setState(() => _hover = hover);
+    _hover = hover;
     _sync(hover || widget.previewOpen);
   }
 
@@ -146,12 +148,16 @@ class _AttachmentChipState extends State<AttachmentChip> {
             ],
           ),
         ),
-        child: MouseRegion(onEnter: (_) => _setHover(true), onExit: (_) => _setHover(false), child: _chip()),
+        child: Hoverable(
+          cursor: MouseCursor.defer,
+          onHoverChanged: _setHover,
+          builder: (context, hovered) => _chip(hovered),
+        ),
       ),
     );
   }
 
-  Widget _chip() {
+  Widget _chip(bool hovered) {
     final size = _bytes == null ? '' : formatBytes(_bytes!.length);
     return Container(
       height: t.Controls.compact,
@@ -180,10 +186,10 @@ class _AttachmentChipState extends State<AttachmentChip> {
                 _sync(false);
                 widget.onRemove!.call();
               },
-              builder: (context, hovered) => AcpIcon(
+              builder: (context, onX) => AcpIcon(
                 AcpIcons.x,
                 size: t.IconSizes.toolbar,
-                color: _hover || widget.previewOpen ? (hovered ? t.Neutral.text : t.Accent.text) : t.Accent.soft,
+                color: hovered || widget.previewOpen ? (onX ? t.Neutral.text : t.Accent.text) : t.Accent.soft,
               ),
             ),
           ],

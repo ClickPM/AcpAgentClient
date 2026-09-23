@@ -405,28 +405,42 @@ class AcpButton extends StatefulWidget {
 }
 
 class _AcpButtonState extends State<AcpButton> {
-  bool _hover = false;
+  /// 按下态是按钮自己的；悬浮态走 [Hoverable]。
   bool _down = false;
 
   @override
   Widget build(BuildContext context) {
+    final disabled = !widget.enabled;
+    return Hoverable(
+      cursor: disabled ? SystemMouseCursors.basic : SystemMouseCursors.click,
+      builder: (context, hovered) => GestureDetector(
+        onTapDown: disabled ? null : (_) => setState(() => _down = true),
+        onTapUp: disabled ? null : (_) => setState(() => _down = false),
+        onTapCancel: disabled ? null : () => setState(() => _down = false),
+        onTap: disabled ? null : widget.onTap,
+        child: _body(hovered),
+      ),
+    );
+  }
+
+  Widget _body(bool hovered) {
     final primary = widget.kind == ButtonKind.primary;
     final disabled = !widget.enabled;
     Color? bg;
     Color fg;
     switch (widget.kind) {
       case ButtonKind.primary:
-        bg = disabled ? t.Neutral.surface : (_down ? t.Accent.active : (_hover ? t.Accent.active : t.Accent.base));
+        bg = disabled ? t.Neutral.surface : (_down ? t.Accent.active : (hovered ? t.Accent.active : t.Accent.base));
         fg = disabled ? t.Neutral.placeholder : t.Accent.onAccent;
       case ButtonKind.ghost:
-        bg = _down ? t.Overlays.active : (_hover ? t.Overlays.hover : null);
+        bg = _down ? t.Overlays.active : (hovered ? t.Overlays.hover : null);
         fg = widget.labelColor ?? t.Neutral.text;
       case ButtonKind.outline:
-        bg = _down ? t.Overlays.active : (_hover ? t.Neutral.hoverSolid : t.Surface.popover);
+        bg = _down ? t.Overlays.active : (hovered ? t.Neutral.hoverSolid : t.Surface.popover);
         fg = widget.labelColor ?? t.Neutral.text;
     }
     final iconColor = widget.iconColor ?? fg;
-    final child = Container(
+    return Container(
       height: widget.height,
       padding: widget.height == t.Controls.compact ? t.Controls.padCompact : t.Controls.padStandard,
       decoration: BoxDecoration(
@@ -448,18 +462,6 @@ class _AcpButtonState extends State<AcpButton> {
           ],
           if (widget.trailing != null) ...<Widget>[const SizedBox(width: t.Spacing.s4), widget.trailing!],
         ],
-      ),
-    );
-    return MouseRegion(
-      cursor: disabled ? SystemMouseCursors.basic : SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        onTapDown: disabled ? null : (_) => setState(() => _down = true),
-        onTapUp: disabled ? null : (_) => setState(() => _down = false),
-        onTapCancel: disabled ? null : () => setState(() => _down = false),
-        onTap: disabled ? null : widget.onTap,
-        child: child,
       ),
     );
   }

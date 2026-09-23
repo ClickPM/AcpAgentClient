@@ -756,11 +756,9 @@ mod tests {
     #[cfg(windows)]
     #[test]
     fn spawn_shell_command_runs_cmd_wrappers_on_windows() {
+        // 环境缺失就红，不跳过：Node ≥ 22 是本地开发前置，npm.cmd 随它来。
         let has_npm = std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()).any(|d| d.join("npm.cmd").is_file());
-        if !has_npm {
-            eprintln!("npm.cmd not on PATH; skipping");
-            return;
-        }
+        assert!(has_npm, "npm.cmd not on PATH");
         let recorder = Arc::new(Recorder::default());
         let manager = TerminalManager::new(recorder.clone());
         let id = manager

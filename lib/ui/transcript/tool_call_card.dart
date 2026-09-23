@@ -10,6 +10,7 @@ import 'package:flutter/widgets.dart';
 import '../../projection/entries.dart';
 import '../../projection/wire.dart';
 import '../../theme/tokens.dart' as t;
+import '../shell/shell_common.dart';
 import 'card_chrome.dart';
 import 'content_blocks.dart';
 import 'icons.dart';
@@ -87,57 +88,47 @@ class ToolStatusIcon extends StatelessWidget {
 }
 
 /// 副标题位置的路径芯片：悬浮出 6% 底 + 「Go to File」提示（落右栏文件面板，R4 接 onGoToFile）。
-class _PathChip extends StatefulWidget {
-  const _PathChip(this.text, {this.onGoToFile, this.hoveredInitially = false, this.onHoverChanged});
+class _PathChip extends StatelessWidget {
+  const _PathChip(this.text, {this.onGoToFile, this.forceHover = false, this.onHoverChanged});
 
   final String text;
   final VoidCallback? onGoToFile;
-  final bool hoveredInitially;
+
+  /// gallery 的悬浮样张（画板 18）。
+  final bool forceHover;
+
+  /// 悬浮时「Go to File」提示伸出芯片之外：卡片据此放开裁剪。
   final ValueChanged<bool>? onHoverChanged;
 
   @override
-  State<_PathChip> createState() => _PathChipState();
-}
-
-class _PathChipState extends State<_PathChip> {
-  late bool _hover = widget.hoveredInitially;
-
-  @override
   Widget build(BuildContext context) {
-    final chip = Container(
-      decoration: BoxDecoration(color: _hover ? t.Overlays.hover : null, borderRadius: t.Radii.chip),
-      padding: _hover ? t.Spacing.chip : EdgeInsets.zero,
-      child: Text(widget.text, style: CardText.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
-    );
-    return MouseRegion(
-      cursor: widget.onGoToFile == null ? SystemMouseCursors.basic : SystemMouseCursors.click,
-      onEnter: (_) {
-        setState(() => _hover = true);
-        widget.onHoverChanged?.call(true);
+    return Hoverable(
+      cursor: onGoToFile == null ? SystemMouseCursors.basic : SystemMouseCursors.click,
+      onTap: onGoToFile,
+      forceHover: forceHover,
+      onHoverChanged: onHoverChanged,
+      builder: (context, hovered) {
+        final chip = Container(
+          decoration: BoxDecoration(color: hovered ? t.Overlays.hover : null, borderRadius: t.Radii.chip),
+          padding: hovered ? t.Spacing.chip : EdgeInsets.zero,
+          child: Text(text, style: CardText.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+        );
+        if (!hovered) return chip;
+        return Stack(
+          clipBehavior: Clip.none,
+          children: <Widget>[
+            chip,
+            Positioned(
+              top: t.Controls.compact,
+              left: 0,
+              child: Popover(
+                padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s8, vertical: t.Spacing.s4),
+                child: Text('Go to File', style: t.TextStyles.meta),
+              ),
+            ),
+          ],
+        );
       },
-      onExit: (_) {
-        setState(() => _hover = widget.hoveredInitially);
-        widget.onHoverChanged?.call(widget.hoveredInitially);
-      },
-      child: GestureDetector(
-        onTap: widget.onGoToFile,
-        child: _hover
-            ? Stack(
-                clipBehavior: Clip.none,
-                children: <Widget>[
-                  chip,
-                  Positioned(
-                    top: t.Controls.compact,
-                    left: 0,
-                    child: Popover(
-                      padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s8, vertical: t.Spacing.s4),
-                      child: Text('Go to File', style: t.TextStyles.meta),
-                    ),
-                  ),
-                ],
-              )
-            : chip,
-      ),
     );
   }
 }
@@ -183,7 +174,7 @@ class _ToolCallCardState extends State<ToolCallCard> {
                 ? null
                 : _PathChip(
                     subtitle,
-                    hoveredInitially: widget.pathHoveredInitially,
+                    forceHover: widget.pathHoveredInitially,
                     onHoverChanged: (h) => setState(() => _pathHover = h),
                     onGoToFile: loc?.path == null || goTo == null ? null : () => goTo(loc!.path!, loc.line?.toInt()),
                   ),

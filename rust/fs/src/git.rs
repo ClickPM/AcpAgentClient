@@ -352,10 +352,8 @@ mod tests {
     fn branches_of_this_repo() {
         let cwd = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
         let list = branches(&cwd).expect("branches");
-        if !list.available {
-            eprintln!("git not on PATH; skipping");
-            return;
-        }
+        // 环境缺失就红，不跳过（跳过仍算绿会让这几条断言零覆盖）。
+        assert!(list.available, "git not on PATH");
         assert!(list.is_repo, "repo root should be a work tree");
         let current = list.current.clone().expect("current branch");
         assert!(list.branches.iter().any(|b| b.name == current), "current {current} not in {:?}", list.branches);
@@ -370,11 +368,7 @@ mod tests {
         let run = |args: &[&str]| {
             Command::new("git").arg("-C").arg(&dir).args(args).output()
         };
-        let Ok(init) = run(&["init", "-q", "-b", "main"]) else {
-            eprintln!("git not on PATH; skipping");
-            let _ = std::fs::remove_dir_all(&dir);
-            return;
-        };
+        let init = run(&["init", "-q", "-b", "main"]).expect("git not on PATH");
         assert!(init.status.success(), "git init failed: {}", String::from_utf8_lossy(&init.stderr));
         // 提交需要身份；只设仓库级配置，不碰用户的全局配置（规则 7）。
         let _ = run(&["config", "user.name", "acp-test"]);
@@ -429,10 +423,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("mkdir");
         let run = |args: &[&str]| Command::new("git").arg("-C").arg(&dir).args(args).output();
-        let Ok(init) = run(&["init", "-q", "-b", "main"]) else {
-            eprintln!("git not on PATH; skipping");
-            return;
-        };
+        let init = run(&["init", "-q", "-b", "main"]).expect("git not on PATH");
         assert!(init.status.success());
         let _ = run(&["config", "user.name", "acp-test"]);
         let _ = run(&["config", "user.email", "acp-test@example.invalid"]);

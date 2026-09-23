@@ -11,8 +11,9 @@ import '../theme/tokens.dart' as t;
 import '../ui/files/file_tree.dart';
 import '../ui/files/files_panel.dart';
 import 'core_bridge.dart';
+import 'guarded.dart';
 
-class FilesState extends ChangeNotifier {
+class FilesState extends ChangeNotifier with GuardedNotifier {
   FilesState({this.bridge});
 
   final CoreCommands? bridge;
@@ -28,14 +29,12 @@ class FilesState extends ChangeNotifier {
   FileViewerData? viewer;
   FileViewMode viewMode = FileViewMode.preview;
   int? highlightLine;
-  String? lastError;
 
   /// git 徽章的原始条目（`git_status` 的 entries；非仓库为空）。
   bool gitAvailable = false;
 
   StreamSubscription<JsonMap>? _watch;
   Timer? _searchDebounce;
-  bool _disposed = false;
 
   /// 搜索去抖：`fs_search` 是一次目录遍历，逐键触发没有意义。取动效 token 的 base（160ms）当去抖窗口。
   static const Duration searchDebounce = t.Motion.base;
@@ -53,7 +52,7 @@ class FilesState extends ChangeNotifier {
     // 不等 cancel：frb 流的取消是 Dart 侧关端口，Rust 侧监视器由 `fs_unwatch` 明确停掉。
     unawaited(_watch?.cancel());
     _watch = null;
-    if (previous != null && bridge != null) unawaited(_guard(() => bridge!.fsUnwatch(previous)));
+    if (previous != null && bridge != null) unawaited(guard(() => bridge!.fsUnwatch(previous)));
     tree?.removeListener(_forward);
     tree = null;
     root = path;
@@ -61,13 +60,13 @@ class FilesState extends ChangeNotifier {
     viewer = null;
     highlightLine = null;
     searchResults = const <FileEntry>[];
-    _touch();
+    touch();
     final b = bridge;
     if (path == null || b == null) return;
     final t = FileTree(root: path, loader: (dir) => _list(b, path, dir));
     t.addListener(_forward);
     tree = t;
-    await _guard(() => t.reload());
+    await guard(() => t.reload());
     // 这中间又换了项目：树与监视都已经归新的那一轮管，旧的一轮不能再往 [_watch] 上写
     // ——写上去会把新的那条订阅挤掉（挤掉的那条既不会被 cancel，Rust 侧也不会收到 `fs_unwatch`）。
     if (epoch != _projectEpoch) return;
@@ -96,7 +95,7 @@ class FilesState extends ChangeNotifier {
     final dirs = change['dirs'];
     if (dirs is List) {
       for (final d in dirs) {
-        if (d is String) await _guard(() => t.refreshDir(d));
+        if (d is String) await guard(() => t.refreshDir(d));
       }
       final open = selectedPath;
       if (open != null && dirs.any((d) => d is String && _isParentOf(d, open))) {
@@ -131,7 +130,7 @@ class FilesState extends ChangeNotifier {
       do {
         _badgesNeedRerun = false;
         await _readBadges();
-      } while (_badgesNeedRerun && !_disposed);
+      } while (_badgesNeedRerun && !disposed);
     } finally {
       _refreshingBadges = false;
     }
@@ -142,7 +141,7 @@ class FilesState extends ChangeNotifier {
     final r = root;
     final t = tree;
     if (b == null || r == null || t == null) return;
-    await _guard(() async {
+    await guard(() async {
       final status = await b.gitStatus(r);
       gitAvailable = status['available'] == true && status['isRepo'] == true;
       final entries = status['entries'];
@@ -161,14 +160,14 @@ class FilesState extends ChangeNotifier {
   Future<void> refresh() async {
     final t = tree;
     if (t == null) return;
-    await _guard(() => t.reload());
+    await guard(() => t.reload());
     await refreshBadges();
   }
 
   Future<void> toggleDir(FileNode node) async {
     final t = tree;
     if (t == null) return;
-    await _guard(() => t.toggle(node));
+    await guard(() => t.toggle(node));
   }
 
   void toggleSearch() {
@@ -182,7 +181,7 @@ class FilesState extends ChangeNotifier {
       _searchDebounce?.cancel();
       tree?.setFilter(filter.text);
     }
-    _touch();
+    touch();
   }
 
   void onFilterChanged(String text) {
@@ -193,7 +192,7 @@ class FilesState extends ChangeNotifier {
     _searchDebounce?.cancel();
     if (text.trim().isEmpty) {
       searchResults = const <FileEntry>[];
-      _touch();
+      touch();
       return;
     }
     _searchDebounce = Timer(searchDebounce, () => _search(text));
@@ -203,7 +202,7 @@ class FilesState extends ChangeNotifier {
     final b = bridge;
     final r = root;
     if (b == null || r == null) return;
-    await _guard(() async {
+    await guard(() async {
       final result = await b.fsSearch(r, query, limit: searchLimit);
       List<FileEntry> of(Object? raw) => <FileEntry>[
             if (raw is List)
@@ -214,7 +213,7 @@ class FilesState extends ChangeNotifier {
       if (filter.text.trim() != query.trim()) return;
       searchResults = <FileEntry>[...of(result['files']), ...of(result['directories'])];
     });
-    _touch();
+    touch();
   }
 
   // ---------------------------------------------------------------- 查看器
@@ -231,7 +230,7 @@ class FilesState extends ChangeNotifier {
   /// 定位：树里展开到该文件、查看器打开它；给了 `line` 就切到 Source 并高亮那一行（画板 18 / 21 / 11 / Follow）。
   Future<void> openPath(String path, {int? line}) async {
     final t = tree;
-    if (t != null) await _guard(() => t.reveal(path));
+    if (t != null) await guard(() => t.reveal(path));
     selectedPath = path;
     highlightLine = line;
     if (line != null) viewMode = FileViewMode.source;
@@ -242,7 +241,7 @@ class FilesState extends ChangeNotifier {
     final b = bridge;
     final r = root;
     if (b == null || r == null) return;
-    await _guard(() async {
+    await guard(() async {
       final c = await b.fsRead(r, path);
       final name = path.split(RegExp(r'[\\/]')).last;
       final rel = relativeTo(r, path);
@@ -257,42 +256,30 @@ class FilesState extends ChangeNotifier {
         truncated: c['truncated'] == true,
       );
     });
-    _touch();
+    touch();
   }
 
   void setViewMode(FileViewMode mode) {
     viewMode = mode;
-    _touch();
+    touch();
   }
 
   // ---------------------------------------------------------------- 杂项
 
-  Future<T?> _guard<T>(Future<T> Function() body) async {
-    try {
-      return await body();
-    } catch (e) {
-      lastError = describeError(e);
-      debugPrint('[files] ${describeError(e)}');
-      _touch();
-      return null;
-    }
-  }
+  @override
+  String get logTag => 'files';
 
-  void _forward() => _touch();
-
-  void _touch() {
-    if (!_disposed) notifyListeners();
-  }
+  void _forward() => touch();
 
   @override
   void dispose() {
-    _disposed = true;
+    markDisposed();
     _searchDebounce?.cancel();
     _watch?.cancel();
     // 取消 frb 流只关 Dart 端口，Rust 侧的监视器要 `fs_unwatch` 才停（审查 finding，2026-09-16）。
     final r = root;
     final b = bridge;
-    if (r != null && b != null) unawaited(_guard(() => b.fsUnwatch(r)));
+    if (r != null && b != null) unawaited(guard(() => b.fsUnwatch(r)));
     tree?.removeListener(_forward);
     filter.dispose();
     filterFocus.dispose();

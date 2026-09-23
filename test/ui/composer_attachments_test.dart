@@ -6,8 +6,8 @@
 import 'package:acp_agent_client/projection/wire.dart';
 import 'package:acp_agent_client/theme/tokens.dart' as t;
 import 'package:acp_agent_client/ui/shell/composer_attachments.dart';
-import 'package:acp_agent_client/ui/shell/shell_common.dart';
 import 'package:acp_agent_client/ui/transcript/card_chrome.dart';
+import 'package:acp_agent_client/ui/transcript/icons.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -82,7 +82,11 @@ void main() {
     final removed = <ContentBlockWire>[];
     await pump(tester, blocks, onRemove: removed.add);
 
-    await tester.tap(find.descendant(of: find.byType(AttachmentChip).last, matching: find.byType(Hoverable)));
+    // 芯片本身也走 Hoverable（iteration-04），所以按 × 图标找，不按「芯片里的 Hoverable」找。
+    await tester.tap(find.descendant(
+      of: find.byType(AttachmentChip).last,
+      matching: find.byWidgetPredicate((w) => w is AcpIcon && w.body == AcpIcons.x),
+    ));
     await tester.pump();
 
     expect(removed, <ContentBlockWire>[blocks[1]]);

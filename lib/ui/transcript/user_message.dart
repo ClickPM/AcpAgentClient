@@ -9,6 +9,7 @@ import 'package:flutter/widgets.dart';
 import '../../projection/entries.dart';
 import '../../projection/wire.dart';
 import '../../theme/tokens.dart' as t;
+import '../shell/shell_common.dart';
 import 'card_chrome.dart';
 import 'icons.dart';
 
@@ -216,33 +217,26 @@ class _UserMessageState extends State<UserMessage> {
 }
 
 /// `@` 提及芯片：默认 accent.soft 底；悬浮加 6% 深色容器。
-class MentionChip extends StatefulWidget {
+class MentionChip extends StatelessWidget {
   const MentionChip({super.key, required this.label, this.onTap, this.hoveredInitially = false});
 
   final String label;
   final VoidCallback? onTap;
+
+  /// gallery 的悬浮样张（画板 11）：给 true 就一直是悬浮态（移出也不退）。
   final bool hoveredInitially;
 
   @override
-  State<MentionChip> createState() => _MentionChipState();
-}
-
-class _MentionChipState extends State<MentionChip> {
-  late bool _hover = widget.hoveredInitially;
-
-  @override
   Widget build(BuildContext context) {
-    final chip = Container(
-      decoration: BoxDecoration(color: t.Accent.soft, borderRadius: t.Radii.chip),
-      foregroundDecoration: _hover ? BoxDecoration(color: t.Overlays.hover, borderRadius: t.Radii.chip) : null,
-      padding: t.Spacing.chip,
-      child: Text(widget.label, style: t.TextStyles.mono.copyWith(color: t.Accent.text)),
-    );
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = widget.hoveredInitially),
-      child: GestureDetector(onTap: widget.onTap, child: chip),
+    return Hoverable(
+      onTap: onTap,
+      forceHover: hoveredInitially,
+      builder: (context, hovered) => Container(
+        decoration: BoxDecoration(color: t.Accent.soft, borderRadius: t.Radii.chip),
+        foregroundDecoration: hovered ? BoxDecoration(color: t.Overlays.hover, borderRadius: t.Radii.chip) : null,
+        padding: t.Spacing.chip,
+        child: Text(label, style: t.TextStyles.mono.copyWith(color: t.Accent.text)),
+      ),
     );
   }
 }

@@ -7,6 +7,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../theme/tokens.dart' as t;
+import 'shell_common.dart';
 
 class ColumnSplitter extends StatefulWidget {
   const ColumnSplitter({super.key, required this.onDelta, this.onDragEnd, this.onReset});
@@ -25,39 +26,40 @@ class ColumnSplitter extends StatefulWidget {
 }
 
 class _ColumnSplitterState extends State<ColumnSplitter> {
-  bool _hovered = false;
+  /// 拖拽态是把手自己的；悬浮态走 [Hoverable]。
   bool _dragging = false;
 
   @override
   Widget build(BuildContext context) {
-    final active = _hovered || _dragging;
-    return MouseRegion(
+    return Hoverable(
       cursor: SystemMouseCursors.resizeLeftRight,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        // 只认鼠标与触控笔：触屏上横扫整窗不该变成拖分栏。
-        supportedDevices: const <PointerDeviceKind>{PointerDeviceKind.mouse, PointerDeviceKind.stylus},
-        onDoubleTap: widget.onReset,
-        onHorizontalDragStart: (_) => setState(() => _dragging = true),
-        onHorizontalDragUpdate: (d) => widget.onDelta(d.delta.dx),
-        onHorizontalDragEnd: (_) {
-          setState(() => _dragging = false);
-          widget.onDragEnd?.call();
-        },
-        onHorizontalDragCancel: () => setState(() => _dragging = false),
-        child: SizedBox(
-          width: t.Geometry.splitterHit,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            // stretch：压上去的那条线要和分栏线一样通到底。
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              // 静息时不画（分栏线是两栏容器自己的边框），悬停 / 拖拽时压一条 accent 上去。
-              Container(width: t.Borders.width, color: active ? t.Accent.base : null),
-            ],
-          ),
+      builder: (context, hovered) => _handle(hovered || _dragging),
+    );
+  }
+
+  Widget _handle(bool active) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      // 只认鼠标与触控笔：触屏上横扫整窗不该变成拖分栏。
+      supportedDevices: const <PointerDeviceKind>{PointerDeviceKind.mouse, PointerDeviceKind.stylus},
+      onDoubleTap: widget.onReset,
+      onHorizontalDragStart: (_) => setState(() => _dragging = true),
+      onHorizontalDragUpdate: (d) => widget.onDelta(d.delta.dx),
+      onHorizontalDragEnd: (_) {
+        setState(() => _dragging = false);
+        widget.onDragEnd?.call();
+      },
+      onHorizontalDragCancel: () => setState(() => _dragging = false),
+      child: SizedBox(
+        width: t.Geometry.splitterHit,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          // stretch：压上去的那条线要和分栏线一样通到底。
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            // 静息时不画（分栏线是两栏容器自己的边框），悬停 / 拖拽时压一条 accent 上去。
+            Container(width: t.Borders.width, color: active ? t.Accent.base : null),
+          ],
         ),
       ),
     );
