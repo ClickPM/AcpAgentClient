@@ -544,7 +544,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       ],
       attachments: c.composer.pendingImages,
       onRemoveAttachment: c.composer.removePendingBlock,
-      onPaste: c.composer.pasteImageFromClipboard,
+      onPaste: c.composer.pasteFromClipboard,
       inlineMenu: c.composer.inlineMenu,
       onInlineMenuMove: c.composer.moveInlineMenuSelection,
       onInlineMenuPick: c.composer.pickInlineMenuSelection,
@@ -651,10 +651,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
 
   Future<void> _addFiles() async {
     c.composer.plusAnchor.hide();
-    final files = await openFiles();
-    for (final f in files) {
-      c.composer.addResourceLink(f.path, f.name);
-    }
+    await c.composer.startMention();
   }
 
   Future<void> _addImage() async {

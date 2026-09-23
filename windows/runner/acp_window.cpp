@@ -180,8 +180,18 @@ void AcpWindowRegisterChannel(flutter::FlutterEngine* engine, HWND window) {
           }
           result->Success();
         } else if (method == "readClipboardImages") {
-          // 剪贴板图片（acp_clipboard.h）：Dart 侧的 Ctrl+V 不再拉 powershell 读剪贴板。
-          result->Success(AcpClipboardReadImages());
+          // 剪贴板里的文件列表 / 位图（acp_clipboard.h）：Dart 侧的 Ctrl+V 不再拉 powershell 读剪贴板。
+          // 参数 {"bitmap": false} = 不要位图（agent 不收图时只取文件路径，截图像素不必搬过通道）；缺省要。
+          bool include_bitmap = true;
+          if (const auto* args = std::get_if<flutter::EncodableMap>(call.arguments())) {
+            const auto it = args->find(flutter::EncodableValue("bitmap"));
+            if (it != args->end()) {
+              if (const bool* flag = std::get_if<bool>(&it->second)) {
+                include_bitmap = *flag;
+              }
+            }
+          }
+          result->Success(AcpClipboardReadImages(include_bitmap));
         } else {
           result->NotImplemented();
         }

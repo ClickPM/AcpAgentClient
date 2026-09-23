@@ -18,6 +18,8 @@
 | 5 | fix | 会话索引（`sessions.json`）写回取错源的三处同根因缺陷：① `SessionIndex.upsert` 的标题退回索引里已有的（含会话头 `sessionTitle` 那一半）；② `saveIndex` 收一个 `SessionStore`，收轮时由 `TurnController._runTurn` 传刚跑完那条；③ `session/list` 校对的 cwd 过滤改走 `WorkspaceState.normalizeCwd` | BACKLOG P0「会话身份与生命周期」1 条 + P1「数据一致性」2 条（iteration-01 候选 A 的 13 / 14 / 15） | `claude/session-index-write-bugs-3c53b0` → `7264fd5`（快进） | validate 全绿 | 2 轮，2 条（high 1 / P2 1）→ 0 high | 已合并 |
 | 6 | fix | 换主题 / 换字体之后界面只切一半：`MarkdownBody` 按 `Fonts.generation` 判过期（照抄 `_SourceView`） + 10 个叶子 widget 摘掉 `const` 构造 | BACKLOG P1「主题与渲染」2 条 | `claude/theme-font-partial-rebuild-471573` → `62b6bf8`（快进） | validate 全绿（`flutter test` 408 项，新增 5 项） | 1 轮 / cursor CLI `grok-4.7-high-fast`，**0 条** | 已合并 |
 | 7 | fix | 风扇狂转：① 文件树 git 徽章自激空转——`git status` 自己建删 `.git/index.lock`（Windows 还连带一条 `.git` 目录的 Modified），watcher 把它当 `.git` 变化上报，前端据此再跑 `git status`，仓库零改动时每秒起 2–6 个 `git.exe`；② `Spinner` 与侧栏扫掠线两处常驻动画没有 `RepaintBoundary`，会话运行中整窗每帧重栅格（2880×1800 @ 120Hz 核显实测 GPU 44–64%）。修：`rust/fs/src/watch.rs` 的 `classify` 跳过 `.git` 之下目录身上与 `*.lock` 的事件（两条新测试，其一用真 git 带子模块复现）；两处动画包 `RepaintBoundary`。实测见「备注 · 风扇狂转」 | 所有者报障 2026-09-22 | `fix-fs-watch-loop` → `4e1be6b`（快进） | validate 全绿（2026-09-22，整改后重跑亦全绿）；未构建 | 2 轮（cursor）：第 1 轮 1（high 1，采纳）、第 2 轮 0 | 已合并 |
+| 8 | fix | `+` → Files & Directories 选不了目录：原生文件对话框（`openFiles`）只有「选文件」模式，点目录只会进到下一级。改成照 Zed 往输入框插 `@`、弹画板 42 的 `@` 菜单（根目录一层的文件与目录，接着打字就是搜索），`ComposerState.startMention` | 所有者报障 2026-09-23（改法按推荐项裁定） | `claude/directory-selector-check-fab211`（基线 `8b56dbc`） | validate 全绿（整改后 `flutter test` 432 项）；headless 构建 + 真剪贴板探针，见「备注 · 第 8 / 9 项」 | 3 轮 / cursor CLI `grok-4.7-high-fast`（`-Scope worktree`）：2 → 2 → 1，high 0；P2 5 条采纳 3、不采纳 2 → **0 high 收口** | 待提交 |
+| 9 | ux | Ctrl+V 粘贴资源管理器里复制的文件与目录：**默认按路径**加成 `resource_link`（`@名字`），agent 收图时图片文件照旧成芯片，空的与超限的图片文件退回路径；不收图时通道带 `{"bitmap": false}`，runner 不取位图。读取仍是 runner 的 Win32 `CF_HDROP`（`acp_clipboard.cpp`，不拉 powershell） | 所有者 2026-09-23 当场要求 | 同上 | 同上 | 同上 | 待提交 |
 
 ## 收口
 
@@ -190,3 +192,29 @@
 - 真 git 测试的 racy 坑：刚写的文件与索引落在同一秒时 git 每次 `status` 都补写索引（真变化，照常打标志）直到时钟跨秒，测试三跑两挂；让文件比索引老 1.1 秒后连跑五轮稳定。
 - GPU 一侧：`lib/` 里 `RepaintBoundary` 出现 0 次（全仓 6 处都在 `test/`）；显示器 2880×1800 @ 120Hz、Radeon 780M 核显。机制成立，但爆发当下没抓到对应的 UI 状态，效果要构建后手测（会话运行中看 GPU 引擎占用）。
 - 立刻止血的办法：把项目从那个 6 万文件的仓库切走或关掉应用；git 风暴与会话是否在跑无关。
+
+### 第 8 / 9 项（输入框加路径：`+` 选目录 / 粘贴复制的文件，2026-09-23）
+
+**第 8 项的根因**：`file_selector` 的 `openFiles()` 在 Windows 上是 `IFileOpenDialog` 的选文件模式；系统对话框只有「选文件」与「选文件夹」（`FOS_PICKFOLDERS`）两种，没有两者都能选的模式，所以点目录只会进到下一级。Zed 的同名项根本不弹原生对话框（`thread_view.rs` 里 `insert_context_type("file")`，弹应用内的补全列表），我们的画板 42 `@` 菜单本来就把文件与目录分组列出，改法按所有者裁定的推荐项照 Zed：`ComposerState.startMention` 往正文末尾插 `@`（前面不是空白就先补一个空格）、聚焦、自己调 `onChanged`（程序改 `editor.text` 不触发输入框回调）。代价：这条路只列会话 cwd 下的东西，项目外的由第 9 项接。`openFiles` 那条路随之删掉，`file_selector` 仍给 Image 与 Open Local Folders 用。
+
+**第 9 项**：runner 的 `CF_HDROP` 读取（`acp_clipboard.cpp`，2026-09-20 起就是 Win32 原生、不拉 powershell）本来就把**所有**路径（含目录）交给 Dart，只是 Dart 侧把非图片的丢了；这次 C++ 只加一个参数 `{"bitmap": false}`（agent 不收图时不取位图，截图像素不搬过通道），分流全在 `readClipboard`：目录 → 路径；文件在「agent 收图 + 图片扩展名 + 1 字节到 20 MB」时读成图，其余（非图片、空文件、超限、agent 不收图）→ 路径。超限的图片文件以前是报「图片太大」丢掉，现在退回路径（文件就在磁盘上，agent 按路径读得到）；截图位图超限仍报错。粘贴入口改名 `pasteImageFromClipboard` → `pasteFromClipboard`，Dart 函数 `readClipboardImages` → `readClipboard`；**通道方法名 `readClipboardImages` 没改**（C++ 少动一处，注释已写明它也给文件与目录）。
+
+**验证**
+- `powershell -File scripts/validate.ps1` 全绿（16 道门；`flutter test` 429 项，新增 7 项：`+` 插 `@` 三条、粘贴接线一条、`readClipboard` 的分流三条——真临时目录，含大写扩展名、空图、稀疏撑到 20 MB + 1 的 jpg；审查整改又加 2 项，见下）。`flutter analyze` 不增 info（`workbench_wiring_test.dart` 加 `services` 导入带出的那条已顺手去掉）。
+- **Windows 实测（规则 9）**：`flutter build windows --release -t lib/main_headless.dart`（225 s，runner C++ 无警告）→ 复制到 `D:\cargo-target\AcpAgentClient\dirsel\headless`，`pwsh -STA` 脚本（`D:\cargo-target\AcpAgentClient\dirsel\clip-files-test.ps1`，不入库，照 `rounds/round-quality/clip-test.ps1` 的路子）用 `System.Windows.Forms.Clipboard` 往真剪贴板放三样再跑 `ACP_CLIPBOARD_PROBE`：
+  - 文件列表 `[项目 外\, notes.txt, 截图.png, huge.jpg(20 MB + 1)]`：收图档 `images` = `截图.png`（`image/png`、64×48、左上 `[255,0,0,255]`），`paths` = 其余三条且顺序照剪贴板；不收图档 0 图、四条全是路径。放文件列表后 `ContainsText=False`（粘贴不会被「剪贴板里有文本」那道判断挡掉；这是 .NET `SetFileDropList` 的剪贴板，资源管理器复制时是否同样不带文本归手测）。
+  - 位图 64×48：收图档 1 张 PNG（201 B，左上像素对）；不收图档 **0 图 0 路径** —— runner 认了 `{"bitmap": false}`。
+  - 纯文本：两档都空。
+- 未做：GUI 里的 Ctrl+V 与 `+` 菜单（本机没有 GUI 自动化通道，见 BACKLOG 的 `computer-use` 条）。手测项：资源管理器里复制一个项目外的目录 + 一个 `.md` + 一张图 → 输入框里 Ctrl+V，看到 `@目录名 @x.md ` 与一枚图片芯片；换一个不收图的 agent 再贴，图也变成 `@x.png`；`+` → Files & Directories，看到 `@` 菜单列出根目录一层、能选目录。
+
+**审查**（cursor CLI `grok-4.7-high-fast`，未回落；整批未提交，范围 `-Scope worktree`）
+- 第 1 轮 2 条（high 0 / P2 2），**都采纳**，都是最小改动，各带一条「撤掉整改即红」的回归用例（撤掉后两条都红、恢复后全绿）：
+  ① **粘贴时开着的 `@` / `/` 菜单不关**：先点 Files & Directories（`@` 菜单开着）再 Ctrl+V，`_appendToComposer` 改了正文却不清菜单，Enter 会去挑菜单项而不是发送；`/` 菜单开着时 Enter 还会把整段正文换成 `/命令 `，刚贴的 `@x` 从正文消失、`resource_link` 却留在待发块里。整改：`_appendToComposer` 末尾 `_clearInlineMenu()`（追加后正文以空格结尾，不可能还有 token；在途的 fs 结果按既有过期判据自己丢）。Sessions / Branch Diff 两条走同一个函数，一并受益。
+  ② **一个图片文件读不了会清空整批**：`readClipboard` 整段循环一个 `try`，某张图 `readAsBytes` 抛（共享冲突 / 拒绝访问）就 `return empty`，前面分好的路径全丢、也不报错。整改：只把那一张的 `length` / `readAsBytes` 用 `on FileSystemException` 接住，读不了就退回路径。用例用 `RandomAccessFile.lockSync()` 锁住那张 PNG（Windows 的 `LockFileEx` 按句柄生效，别的句柄读会 `ERROR_LOCK_VIOLATION`；非 Windows 跳过）。
+- 顺手改掉一条被本次改动弄过时的注释（`_canPromptImage` 上的「不支持图片的 agent 连剪贴板都不用读」）。
+- 第 2 轮 2 条（high 0 / P2 2），都是冲着第 1 轮整改的：
+  ③ **采纳**：先点 Files & Directories（正文 `@`）再贴路径，正文成 `@ @outside dir @shot.png `，那个裸 `@` 会跟着发出去。整改：`addResourceLink` 追加前若光标处是裸 `@`，先去掉它——贴进来的第一条就是它的补全（`看看 @` → `看看 @x `；`a@` 这种前面没空白的不算 token、不动）。只改这一处，Sessions / Branch Diff 的 `[名字]` 不吃 `@`。第 1 轮那条用例补断言正文、另加一条「前面有话」；撤掉整改两条都红。
+  ④ **不采纳**：「只贴图片时开着的 `@` 菜单不关」。贴图不改正文，光标处的 `@` 还在，菜单与正文一致——手敲 `@` 再贴截图也是这样，改动之前就是这个行为；硬关掉反而留下一个没有菜单的活动 `@`（下一个按键又会弹出来）。不是缺陷，不记 BACKLOG。
+- 第 3 轮 1 条（high 0 / P2 1），**不采纳**：审查认为正文是 `@\n`（菜单开着时 Shift+Enter）时 `_activeToken` 仍回 `@`、整改会删掉换行而非 `@`。前提不成立——那是 Python / PCRE 的 `$`（可匹配在结尾换行之前）；Dart 的 `RegExp` 按 ECMAScript，非 `multiLine` 的 `$` 只认输入末尾。实测同一个函数：`'@' → @`、`'@\n' → null`、`'看看 @\n' → null`、`'@\r\n' → null`、`'a@' → null`，所以以换行结尾时整改那行根本不触发，正文照旧 `@\n @名字 `（换行后的 `@` 已不是待补全的 token，留着合理）。无整改，**审查收口：0 high**。
+
+**与设计稿的关系**：第 8 项不是偏离（画板 40 只画了这一行，没画点下去是什么；落到画板 42 已有的菜单）。第 9 项是实现先行，记 `design/DIVERGENCE.md` 第 28 条；`docs/design.md` § 9 粘贴那条下面补了一段。
