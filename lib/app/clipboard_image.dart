@@ -3,7 +3,7 @@
 // 剪贴板（`acp/window` 通道的 `readClipboardImages`，windows/runner/acp_clipboard.cpp）：先看文件列表
 // （资源管理器里复制的图片文件），再看位图（截图工具 / 企业微信截图）。位图回来的是 BGRA 像素，PNG 编码在
 // 这里用 dart:ui 自带的编码器做，不落临时文件、不拉子进程。
-// 非 Windows 暂时返回空（macOS / Linux 的实现记在 rounds/BACKLOG.md）。
+// 非 Windows 暂时返回空（macOS / Linux 暂不做，所有者裁定 2026-09-23；原条目在 rounds/BACKLOG-CLOSED.md）。
 
 import 'dart:io';
 import 'dart:ui' as ui;

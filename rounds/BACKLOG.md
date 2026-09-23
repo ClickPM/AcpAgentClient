@@ -20,10 +20,10 @@
 | **P1 看得见的粗糙** | 22 | 用户看得见的不一致、缺等待态、行为不符直觉。能用，膈应；攒批做。 |
 | **P2 功能缺口** | 11 | 该有没有的能力。**全部需所有者裁定才能进轮次**，多数还要先改设计稿。 |
 | P3 设计稿欠账 | — | **已整体释放**到 `design/DIVERGENCE.md`，见下面的占位小节 |
-| **P4 平台与分发** | 7 | macOS / Linux、构建链、sidecar 打包。跟 R8 走。 |
+| **P4 平台与分发** | 5 | 构建链、sidecar 打包。跟 R8 走。macOS / Linux 暂不做（所有者裁定 2026-09-23：目前没有 mac 设备），原「跨平台」2 条已关闭。 |
 | **P5 内部工程与验收** | 19 | 用户无感：测试、行数门、文档措辞、验收自动化。有空就做。 |
 | X 卡在上游 / 协议 | — | **已撤档**：不是本项目的问题不进本表（所有者裁定 2026-09-23），见下面的占位小节 |
-| | **66** | |
+| | **64** | |
 
 **新增条目**：挑一档追在该档末尾，照同样的三行格式写。不新开档位；一条只进一档。
 **只收本项目自己的问题**：问题出在上游（agent、zed、xterm 等依赖）或协议本身的，不进本表（所有者裁定 2026-09-23，X 档因此撤掉）；其中实现因此与画板对不上的，照规则 3 记 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)。
@@ -225,17 +225,7 @@
 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)，按「实现已超越画板 / 画板画错 / 实现有意少做」
 分三节记着，那几处以实现为准、PNG 不再是它们的验收基准。档位留空占位，不重排编号。
 
-## P4 · 平台与分发（7）
-
-### 跨平台（2）
-
-- [ ] **macOS 构建还没把 cargokit 挂进 Xcode**
-  - **产品**：macOS 版现在构建不出来。
-  - **技术**：R0 macOS 构建（R8）要把 cargokit 挂进 Xcode（runner 级脚本阶段或 podspec），与 Windows 的 runner CMake 方式对应；frb 模板的 rust_builder 插件路径已不用 (2026-09-15)
-
-- [ ] **剪贴板图片只落了 Windows**
-  - **产品**：macOS / Linux 上 Ctrl+V 只贴文本，图片粘不进去。
-  - **技术**：剪贴板图片只落了 Windows（`lib/app/clipboard_image.dart` 由 runner 走 Win32 读（`windows/runner/acp_clipboard.cpp`；2026-09-20 之前是拉 `powershell.exe` 读 `System.Windows.Forms.Clipboard`），位图与文件列表两条路都实测过）；macOS / Linux 上 `readClipboardImages` 直接回空，Ctrl+V 只贴文本。要做得各写一条本机路径（`osascript` / `pbpaste`、`wl-paste` / `xclip`），或裁定引一个剪贴板包（规则 1 清单外）。另：剪贴板里是文本时提前 return，不去读位图 (2026-09-18)
+## P4 · 平台与分发（5）
 
 ### 构建链（3）
 
