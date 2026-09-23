@@ -100,3 +100,11 @@
 ### 第 4 轮（`-Scope since -Base 625013b`，同第 3 轮范围，基于 `8d1a219`）
 
 `.claude/reviews/20260923-170057-review.out.md`：**findings: 0**。审查自己复核了顺序（发起方等 `whenComplete` 派生 Future、先恢复，并在让出事件循环前同步跑到 `_loadsInFlight[id] = load`），第 3 轮那条 P2 无反例、未再报。**审查收口**。
+
+## 发布与打扫（2026-09-23）
+
+- `12dfbef` 快进合入 `main`，推 github 与 origin；tag `v1.4.4` 推两远端；GitHub release 带三件产物（zip 107.3 MB / nosidecar zip 46.2 MB / setup.exe 79.0 MB，哈希见 release 正文）。`package.ps1` 231 s、`verify-package.ps1` 25 s VERIFY OK；sidecar 仍 `0612a12f95aa`（源码未动，规则 11）。
+- 安装版 `D:\tools\AcpAgentClient` 镜像（`/XF zed-agent-acp.exe`，43 = 43，五处哈希一致），临时 `APPDATA` 下 smoke `coreVersion 1.4.4`、`droppedEvents 0`。
+- 缓存：共用 target `debug` 按 cargo 自报的在用集合剪枝（454 个 hash；deps 2.64 + build 0.12 + incremental 14.49 GB，重跑三条 cargo 0 重编，剩 10.79 GB）；四个已合并 worktree 的独立 target（iter05 / theme / toast / awaiting）、`dist\stage`、1.4.3 三件产物、两处 `build\test_cache` 整删，72.93 GB。
+- 分支与 worktree：10 条已合并分支删掉（9 条 `claude/*` + `claude/review-1.4.4`），9 个 worktree 注销、4 个旧空壳删掉；`.claude\worktrees\` 下 8 个空壳目录被别的会话进程按着，等它们退出后 `rmdir` 即可。`vendor\upstream` 9 项完好。
+- 本轮用的四个脚本入库在本目录（纯 ASCII，`powershell -File` 直接跑）：`release-package.ps1`（出包 + 验收 + 哈希）、`release-mirror.ps1`（镜像 + 五处哈希 + 临时 APPDATA smoke）、`prune-cargo-debug.ps1`（cargo debug 剪枝，`-DryRun` 只报数）、`cleanup-worktrees.ps1`（拆已合并 worktree 与分支，先拆联接、守卫 `vendor\upstream`，`-DryRun` 预览）。
