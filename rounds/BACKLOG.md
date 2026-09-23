@@ -16,29 +16,22 @@
 
 | 档 | 条数 | 这档是什么 |
 |---|---|---|
-| **P0 真缺陷** | 10 | 会丢内容、作用到错对象、吃光资源、静默失败。撞上就是事故，排进最近的轮次。 |
+| **P0 真缺陷** | 7 | 会丢内容、作用到错对象、吃光资源、静默失败。撞上就是事故，排进最近的轮次。 |
 | **P1 看得见的粗糙** | 22 | 用户看得见的不一致、缺等待态、行为不符直觉。能用，膈应；攒批做。 |
-| **P2 功能缺口** | 10 | 该有没有的能力。**全部需所有者裁定才能进轮次**，多数还要先改设计稿。 |
+| **P2 功能缺口** | 1 | 该有没有的能力。**全部需所有者裁定才能进轮次**，多数还要先改设计稿。 |
 | P3 设计稿欠账 | — | **已整体释放**到 `design/DIVERGENCE.md`，见下面的占位小节 |
-| **P4 平台与分发** | 7 | macOS / Linux、构建链、sidecar 打包。跟 R8 走。 |
-| **P5 内部工程与验收** | 19 | 用户无感：测试、行数门、文档措辞、验收自动化。有空就做。 |
-| **X 卡在上游 / 协议** | 6 | 我们动不了，等 agent 侧或 zed 升版本。只盯着，不排期。 |
-| | **74** | |
+| P4 平台与分发 | — | **已清空**（2026-09-23）：跨平台暂不做、构建链两条关闭、sidecar 两条移到 `BACKLOG-ZED.md`，见下面的占位小节；以后平台与分发的新问题照常记这一档 |
+| **P5 内部工程与验收** | 16 | 用户无感：测试、行数门、文档措辞、验收自动化。有空就做。 |
+| X 卡在上游 / 协议 | — | **已撤档**：不是本项目的问题不进本表（所有者裁定 2026-09-23），见下面的占位小节 |
+| | **46** | |
 
 **新增条目**：挑一档追在该档末尾，照同样的三行格式写。不新开档位；一条只进一档。
+**只收本项目自己的问题**：问题出在上游（agent、zed、xterm 等依赖）或协议本身的，不进本表（所有者裁定 2026-09-23，X 档因此撤掉）；其中实现因此与画板对不上的，照规则 3 记 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)。
+**agent 的私有协议扩展目前不接**（所有者裁定 2026-09-23）：某个 agent 自定的 `_meta` 键或私有流程（如 codex-acp 的 `api-key` / `gateway` 认证）不是 ACP 标准，接它就是按 agent 特判（规则 2），这类诉求不进本表。
+**内置 Zed agent（sidecar）的问题不进本表**：记 [`BACKLOG-ZED.md`](BACKLOG-ZED.md)（所有者裁定 2026-09-23：原先本表的 4 条连同统筹时新盘点出的 5 条都移到那里，**当前不修**）；背景与上游限制见 [`docs/zed-agent.md`](../docs/zed-agent.md)。
 **关闭条目**：把**技术行连同结论压成一行** `- [x]` 剪到 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md) 末尾（那份是平铺存档，不分档），本文删掉这三行。
 
-## P0 · 真缺陷（10）
-
-### 附件与剪贴板（2）
-
-- [ ] **编辑带图的消息会把图弄丢**
-  - **产品**：用户改一句话重发，原来贴的图就没了，界面上没有任何提示。图片粘贴落地后更容易撞上。
-  - **技术**：用户消息的编辑重发（画板 11 的 Regenerate）只带回文本：`UserMessage.plainText` 不认 `image` / `audio` 块，`onRegenerate` 也只传一个 `String`，所以带图的消息一编辑就把图丢了（Restore Checkpoint 走原样 JSON，不受影响）。图片粘贴落地后这条更容易撞上。要修得让编辑态保留非文本块并随重发原样带回 (2026-09-18) → **R7.5 拆分后的新家**：`TurnController.restore` (2026-09-20)
-
-- [ ] **剪贴板文件列表没有张数门**
-  - **产品**：在图片文件夹里全选复制再粘贴，一百张照片会全部收下、吃掉一两个 G 内存，然后一条消息发出去。上限取几张是产品取舍，等裁定。
-  - **技术**：`lib/app/clipboard_image.dart` 的剪贴板**文件列表**那条路只有单张大小门（20 MB），没有张数门：`GetFileDropList()` 给的是资源管理器里选中的全部文件，在图片文件夹里 Ctrl+A / Ctrl+C 再 Ctrl+V 会把每张都收下，每张在内存里还存三份（`ClipboardImage.bytes` + base64 字符串约 1.33 倍 + 芯片解回来的 `_bytes`），100 张 5 MB 的照片约 1.5 GB，随后整块进一条 `session/prompt`。最小修复是循环里加一句张数上限并计入已有的 `skippedTooLarge` 提示，但**上限取几张是产品取舍**，等所有者定。发布前审查第 2 轮 P3 (2026-09-18)
+## P0 · 真缺陷（7）
 
 ### 会话身份与生命周期（4）
 
@@ -71,12 +64,6 @@
 - [ ] **没有归属的终端缓冲谁都删不到**
   - **产品**：认证用的可见终端、agent 只轮询没嵌进卡的终端，它们的缓冲留到进程结束；一次运行里开的终端越多涨得越多（单条上限 64 KB）。
   - **技术**：1.4.1 复审 没有归属的终端缓冲不回收：`TerminalStore` 是跨会话共享的一张表，2026-09-22 把 `clear()` 改成按 `SessionStore.ownedTerminalIds` 只删自己的之后，经 `acp/terminal_output` 或 `lib/app/auth_state.dart` 的 `terminals.ensure(id)` 建出来、却从未挂到任何工具卡上的缓冲（认证用的可见终端、agent 只用 `terminal/output` 轮询没嵌进卡的终端）两个集合都不在，谁都删不到，留到进程结束（单条上限 64 KB，条数随一次运行里的终端数长）。复审 P3 已顺手在 `Sessions.forget` 里删掉本会话名下的那几个；认证终端要在认证收尾处释放，另做 (2026-09-22)
-
-### 显示（1）
-
-- [ ] **终端里的中文会错位**
-  - **产品**：终端面板一出现中文，字符网格就错开，表格和对齐全乱。R7.6 之前就存在，不是字体切换引入的。
-  - **技术**：**等宽里的中文宽度不是 2:1，终端面板遇到中文就错位**。等宽渲染按字符格子走，中文必须正好是拉丁的两倍宽；随包的 Noto Sans SC 汉字是全角 1em，而 Geist Mono 的 advance 约 0.6em，2×0.6 ≠ 1。**这是 R7.6 之前就存在的问题，不是字体切换引入的**。R7.6 给了出路（代码等宽中文轴可选更纱黑体 Sarasa Mono SC，它专门做了 2:1 对齐），但默认组合仍然错位。根治要么换默认的等宽 CJK 字体，要么在终端渲染层按 cell 宽度矫正 —— 都超出「加个开关」的范围，需所有者裁定 (2026-09-20)
 
 ## P1 · 看得见的粗糙（22）
 
@@ -180,55 +167,13 @@
   - **产品**：把解析过程中的某一级**目录**换成链接，还是能跟出工作区。末段链接与词法漏判已经挡住了。
   - **技术**：`fs/read_text_file` / `write_text_file` / `read_file` 的 symlink TOCTOU **只收窄了、没堵死**（cursor 2026-09-22 finding；2026-09-22 已改成经 `resolve_inside` 用解析后的真实路径去开，末段链接与词法漏判都挡住了）：canonicalize 与 open 之间把解出来的某一级**目录**换成链接，照样跟得出去。要堵死得逐级用目录句柄打开（`openat` / Windows 的 `FILE_FLAG_OPEN_REPARSE_POINT` 逐级校验），std 没有这套 API、手写要 `unsafe`（规则 6），第三方库（cap-std 之类）不在规则 1 白名单里。威胁模型也要一起看：agent 是本机子进程、跟用户同权限，绕开这两个回调直接读写本来就没人拦，这道边界防的是实现得糙的 agent、不是有敌意的进程。真要做先裁定「引 cap-std」还是「就这样」 (2026-09-22)
 
-## P2 · 功能缺口（11）
+## P2 · 功能缺口（1）
 
-### 外观（3）
-
-- [ ] **设置页还没有字号**
-  - **产品**：字体能换、字号不能，界面字太小或太大只能忍着。
-  - **技术**：round-design 设置页的外观设置：**字体切换已于 R7.6 落地**（四轴，2026-09-20 所有者裁定）、**深色主题已于 2026-09-20 落地**（画板 07，切换按钮在侧栏标题条右端），**字号仍未做**；字号要先改设计稿 (2026-09-14，2026-09-20 更新)
-
-- [ ] **字体下拉只列候选表里那几款**
-  - **产品**：用户装了别的字体在下拉里看不到，只能手写进 `settings.json`。
-  - **技术**：系统已装字体的**全量枚举**下拉。现在只认候选表里那几款（按文件名探测），用户装了别的字体只能手写进 `settings.json`。枚举要在 Rust 侧扫字体目录 + 解析 TTF 的 name 表拿 family 名（文件名 ≠ family 名），得新引 `ttf-parser` 之类，撞规则 1，R7.6 因此没做 (2026-09-20)
+### 外观（1）
 
 - [ ] **主题没有「跟随系统」**
   - **产品**：系统切深色，应用不跟；现在只有浅色 / 深色两档一个切换按钮。
   - **技术**：主题的「跟随系统」档。现在只有浅色 / 深色两档（所有者 2026-09-20 要的是一个切换按钮）。跟随系统要读 `MediaQuery.platformBrightness` 并在系统切换时跟着走，按钮也得变成三态或挪进设置页；画板 07 与画板 70 都没有这一档，要先改设计稿 (2026-09-20)
-
-### 合规与分发（1）
-
-- [ ] **没有「关于 / 致谢」界面**
-  - **产品**：**随包分发给别人之前的硬前置**：MiSans 与 HarmonyOS Sans 的协议都要求在软件里显著注明使用了该字体。只在本机自用时不涉及。
-  - **技术**：**「关于 / 致谢」界面**。MiSans 与 HarmonyOS Sans 的协议都要求在软件里显著注明使用了该字体，随包分发给别人之前必须有这个去处；只在本机自用时不涉及。设计稿里没有这块，要先改设计稿 (2026-09-20)
-
-### agent 接入（3）
-
-- [ ] **registry 的 uvx 分发类型没做**
-  - **产品**：registry 里 uvx 分发的 agent 装不了（Zed 也没做）。
-  - **技术**：立项 registry 的 `uvx` 分发类型：Zed 也未实现，首期不做；要做需引入 `uv` 的检测与下载 (2026-09-11)
-
-- [ ] **codex 的 api-key / gateway 两种认证没接**
-  - **产品**：codex 只能靠环境变量给密钥，界面上给不了。
-  - **技术**：R5 codex-acp 的 `api-key` 方法带 `_meta["api-key"]`（客户端可在 `authenticate` 的 `_meta` 里直接递密钥）与 `gateway` 方法（需客户端声明 `auth._meta.gateway`）：两者都要新增 `_meta` 键（规则 2 / `docs/design.md` § 4），本轮只走环境变量 `OPENAI_API_KEY` / `CODEX_API_KEY`（agent 自己从 env 读）；要做先裁定 (2026-09-16)
-
-- [ ] **Zed agent 的斜杠命令发出去只是普通消息**
-  - **产品**：`/` 菜单里看得到 `compact`，点了没有压缩效果；MCP prompt 与 skill 调用同理。
-  - **技术**：R7 sidecar 不走 `NativeAgentConnection::prompt` 而是直接消费 `Thread::send` 的事件流（理由见 `sidecar/zed-agent-acp/src/session.rs` 文件头），于是 Zed 的斜杠命令分流（`/compact`、MCP prompt、skill 调用）没有接上：`available_commands_update` 照常投影（前端 `/` 菜单能看到 `compact`），但发出去只是一条普通消息。要接上得把那段分流逻辑复制出来（`agent.rs` 的 `Command::parse` 一大段），或等上游把 `handle_thread_events` 公开 (2026-09-17)
-
-### 投影与输入（3）
-
-- [ ] **Zed agent 的子代理不投影**
-  - **产品**：Zed agent 开的子代理在界面上完全看不见，只进日志。
-  - **技术**：R7 Zed 的子代理（`ThreadEvent::SubagentSpawned`）是**另一条会话**，事件不经过本轮的流；画板 24 的子代理卡只认 `docs/design.md` § 4 清单里的 `_meta` 键，而清单里没有 Zed 的键，所以 sidecar 只记日志、不投影。要做得先给 § 4 加键并进所有者裁定 (2026-09-17)
-
-- [ ] **输入框里的 @ / 命令不显示成芯片**
-  - **产品**：输入时是纯文本，只有发出去之后的用户气泡里才有彩色芯片。
-  - **技术**：R3 输入框正文是纯文本（`EditableText`），`@mention` / `/command` 不做行内彩色芯片；芯片只在已发送的用户气泡里（画板 11）。要在输入框里出芯片需要富文本输入控件，先记着 (2026-09-15)
-
-- [ ] **认证页的终端不能打中文**
-  - **产品**：认证要输中文时打不进去。目前那里只需要敲密钥和选项号这类 ASCII。
-  - **技术**：terminal auth 的可见终端（画板 52，`lib/ui/registry/auth_page.dart`）没有接 `TerminalIme`：那里要敲的是密钥 / 选项号这类 ASCII，暂时不接；哪天认证流程要输中文再说 (2026-09-17)
 
 ## P3 · 设计稿欠账 —— 已整体释放
 
@@ -236,43 +181,13 @@
 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)，按「实现已超越画板 / 画板画错 / 实现有意少做」
 分三节记着，那几处以实现为准、PNG 不再是它们的验收基准。档位留空占位，不重排编号。
 
-## P4 · 平台与分发（7）
+## P4 · 平台与分发 —— 已清空
 
-### 跨平台（2）
+所有者裁定 2026-09-23，这一档的 7 条都已移出，档位留空占位，不重排编号：「跨平台」2 条关闭（目前没有 mac 设备，
+macOS / Linux 暂不做）；「构建链」里中文路径兜底与 Rust 版本漂移 2 条关闭；sidecar 体积 1 条关闭（R8 已给出两个数字）；
+sidecar 的另 2 条（languages crate、`0-dev` 目录名）移到 [`BACKLOG-ZED.md`](BACKLOG-ZED.md)。以后平台与分发的新问题照常追在这里。
 
-- [ ] **macOS 构建还没把 cargokit 挂进 Xcode**
-  - **产品**：macOS 版现在构建不出来。
-  - **技术**：R0 macOS 构建（R8）要把 cargokit 挂进 Xcode（runner 级脚本阶段或 podspec），与 Windows 的 runner CMake 方式对应；frb 模板的 rust_builder 插件路径已不用 (2026-09-15)
-
-- [ ] **剪贴板图片只落了 Windows**
-  - **产品**：macOS / Linux 上 Ctrl+V 只贴文本，图片粘不进去。
-  - **技术**：剪贴板图片只落了 Windows（`lib/app/clipboard_image.dart` 由 runner 走 Win32 读（`windows/runner/acp_clipboard.cpp`；2026-09-20 之前是拉 `powershell.exe` 读 `System.Windows.Forms.Clipboard`），位图与文件列表两条路都实测过）；macOS / Linux 上 `readClipboardImages` 直接回空，Ctrl+V 只贴文本。要做得各写一条本机路径（`osascript` / `pbpaste`、`wl-paste` / `xclip`），或裁定引一个剪贴板包（规则 1 清单外）。另：剪贴板里是文本时提前 return，不去读位图 (2026-09-18)
-
-### 构建链（3）
-
-- [ ] **中文路径构建失败时的兜底形态还没评估**
-  - **产品**：工作副本路径含中文 / 空格时构建可能失败，兜底方案（独立 acp-host.exe）没定；现在靠 `build.ps1` 的目录联接兜住。
-  - **技术**：立项 若 R0 在中文用户名路径下 `flutter build windows` 因 cargokit 路径失败，`CARGO_TARGET_DIR` 指 ASCII 路径仍不够时评估形态 B（独立 `acp-host.exe`），见 `docs/research.md` § 9.3 (2026-09-12)
-
-- [ ] **Flutter 构建用的 Rust 版本会漂移**
-  - **产品**：本机 stable 升级后 Flutter 构建悄悄换了编译器版本；`rust-toolchain.toml` 钉的只管 `validate.ps1` 里的 cargo。
-  - **技术**：R0 cargokit 只认 `rustup run stable`（它的 `toolchain` 选项只有 stable / beta / nightly），`rust-toolchain.toml` 钉的 1.98.1 只约束 `validate.ps1` 里的 cargo；本机 stable 升级后 Flutter 构建会用新版。要么给 cargokit 打补丁读 rust-toolchain.toml，要么接受漂移并在 validate 里比对两者版本 (2026-09-15)
-
-- [ ] **sidecar 缺 languages crate，Zed agent 的语法工具退化**
-  - **产品**：Zed agent 的 `read_file` outline 模式与跳转类工具退化成纯文本；编辑、终端、grep、权限不受影响。装上 VS 的「Spectre 缓解库」组件即可恢复。
-  - **技术**：R7 sidecar 没带 `languages` crate（它唯一地依赖 `pet`，`pet` 打开 `msvc_spectre_libs` 的 `error` 特性，本机 VS 2022 BuildTools 没装「Spectre 缓解库」组件，build.rs 直接 panic）。代价：sidecar 里 `LanguageRegistry` 为空，Zed agent 靠语法树的工具（`read_file` 的 outline 模式、跳转类工具）退化成纯文本；编辑、终端、grep、权限不受影响。装上那个 VS 组件后取消 `sidecar/zed-agent-acp/Cargo.toml` 里那一行注释即可恢复 (2026-09-17)
-
-### sidecar 打包（2）
-
-- [ ] **sidecar 的数据目录落在 0-dev 下**
-  - **产品**：只影响目录名，数据已经隔离。
-  - **技术**：R7 sidecar 的 release channel 解析成 `dev`（`ZED_RELEASE_CHANNEL` 没设，`release_channel` 的编译期缺省），所以它的 `db/` 落在 `0-dev` 下。数据已经隔离，这项只影响目录名；要对齐得在 sidecar 的 build.rs 里显式设一个 channel (2026-09-17)
-
-- [ ] **sidecar 体积是打包时的大头**
-  - **产品**：装包体积主要由 sidecar 决定（zed 那套 wasmtime / tree-sitter / alacritty 依赖）；R8 要给出含 / 不含两个数字。
-  - **技术**：R7 debug 构建的 sidecar 是 276 MB（release 见任务卡）。R8 打包要给出含 / 不含 sidecar 两个体积数字时，注意 zed 那套依赖（wasmtime、tree-sitter、alacritty）是大头 (2026-09-17)
-
-## P5 · 内部工程与验收（19）
+## P5 · 内部工程与验收（16）
 
 ### R7.5 收尾（4）
 
@@ -328,20 +243,6 @@
   - **产品**：用户无感。写 `symlink_metadata` 这类标识符会被门禁误抦，2026-09-22 踩到过一次。
   - **技术**：`scripts/validate.ps1` 的「`_meta` 键」契约门按**子串**扫 `_meta`，`symlink_metadata` / `session_metadata` 这类标识符会连坐：同一行上再有任何字符串字面量就报「_meta lines with literal keys」。2026-09-22 加 `rust/fs/src/lib.rs` 的用例时踩到，当场把那行拆成两行绕开。最小修复是把模式收紧成 `"_meta"` 或给它加词边界；改门禁要小心别把真该拦的放过去 (2026-09-22)
 
-### 文档与记录（3）
-
-- [ ] **终端 ANSI 青色改过（变更记录）**
-  - **产品**：浅色下的终端配色也跟着变了，手测时留意。**这条是记录，不是待办。**
-  - **技术**：终端 ANSI 的青从 `Semantic.info` 改成了 `Accent.text`（2026-09-20，落画板 07 § 2.9 的列头）。改之前蓝与青是同一个色值，终端里两种前景分不开；画板 07 的浅色行写的就是 `#4a59c9` = `accent.text`，所以这是把实现对回画板，不是改画板。**浅色下的终端配色因此也变了**，所有者手测时留意一下 (2026-09-20)
-
-- [ ] **日志文件名按 UTC**
-  - **产品**：用户无感。跨日的两小时里排障时文件名与本地日期对不上。
-  - **技术**：R5 `logs/acp-<日期>.log` 的日期按 UTC（不引 chrono）；跨日的两小时里文件名与本地日期对不上。要本地日期得裁定引 chrono 或自写时区读取 (2026-09-16)
-
-- [ ] **docs/design.md § 2 的措辞待确认**
-  - **产品**：用户无感。文档写的是 git 依赖，实际是参考转写，等所有者确认后改成定稿措辞。
-  - **技术**：R5 `docs/design.md` § 2 的「Node 与下载」行原定直接 git 依赖 Zed `node_runtime` 等 crate，R5 改为参考转写（理由见 `rounds/round-05/round-05.md` 偏离 1），待所有者确认后把 § 2 那一行改成定稿措辞 (2026-09-16)
-
 ### 代码质量（quality 批）（4）
 
 - [ ] **桥的四层手写转发**
@@ -360,28 +261,8 @@
   - **产品**：用户无感。本轮只并了 `IconButtonGhost` 与 `PanelIconButton`。
   - **技术**：quality 其余自带 hover 的 widget 没有并到 `Hoverable`：`AcpButton` 多一个按下态 `_down`，`composer_attachments` / `splitter` / `tool_call_card` / `user_message` 各一份 `bool _hover`（后两者带 `hoveredInitially`，语义是「初始悬浮」不是 `forceHover`）。本轮只并了 `IconButtonGhost` 与 `PanelIconButton` (2026-09-20)
 
-## X · 卡在上游 / 协议（6）
+## X · 卡在上游 / 协议 —— 已撤档
 
-- [ ] **Gemini CLI 还不能作为一等 agent**
-  - **产品**：接不进来。Zed 目前靠合成 terminal auth 方法过渡，等官方 auth methods 落地。
-  - **技术**：立项 Gemini CLI 作为一等 agent：Zed 目前靠合成 terminal auth 方法过渡，等官方 auth methods 落地再议 (2026-09-11)
-
-- [ ] **终端当前搜索命中在深色下对比不够**
-  - **产品**：现在看不见——终端搜索根本还没有入口。`xterm` 只给一个 `searchHitForeground`，两种命中共用。
-  - **技术**：终端「当前搜索命中」的前景色在深色下对比不够。画板 07 § 2.9 要的是「命中 = warning.soft 底 + strong 字，**当前**命中 = warning 底 + canvas 字」，但 `xterm` 4.0.0 的 `TerminalTheme` 只有一个 `searchHitForeground`，两种命中共用；实现取了前者（`t.Neutral.strong`），于是深色下当前命中是 #f0f0f4 压在 #d8a83c 上。终端搜索目前没有入口，看不见；真要修得给 xterm 提 PR 或自己画命中层 (2026-09-20)
-
-- [ ] **dsh 的 --setup 在 Windows 上看不见提示**
-  - **产品**：盲打密钥 + 回车能存上并自动重试成功，但用户看不到「Enter DeepSeek API key:」。上游缺陷（所有者自己的项目），客户端不做 agent 特判。
-  - **技术**：R1 dsh-acp-interactive 1.3.0 的 `--setup` 在 Windows TTY 上**看不见提示**：`secretQuestion` 在 `readline.question()` 返回后立刻 `muted = true`，而 Node 在 Windows 上对 TTY 的写是异步的（`process.stderr` 文档：TTY 在 Windows 异步），readline terminal 模式的提示由多次 `write` 组成，第一段之后的都在 muted 之后才被处理而被吞掉；`TERM=dumb`（非 terminal 模式，单次写）或管道 stdin 都正常。本项目实测（`rounds/round-01/round-01.md` 验收 1）：pty 里 readline 活着、盲打密钥 + 回车能保存并自动重试 `session/new` 成功，只是用户看不到 "Enter DeepSeek API key:"。是上游（所有者自己的项目）的缺陷，客户端不做 agent 特判（规则 2）；R3 认证页出来前请上游修（把提示写完再 muted，或非 terminal 模式）(2026-09-15)
-
-- [ ] **claude-agent-acp 载回会话后 / 菜单是空的**
-  - **产品**：重开应用点进 claude 的旧会话，`/` 菜单空着，直到下一轮对话。其余四个 agent 都会重放。
-  - **技术**：R6 claude-agent-acp 0.76.0 的 `session/load` 不重放 `available_commands_update`（pi-acp / codex-acp / cursor / dsh 都会），所以重开应用载回它的会话后 `/` 菜单是空的，直到下一轮对话。不做 agent 特判（规则 2），照原样呈现；要补只能等 agent 侧改 (2026-09-16)
-
-- [ ] **Zed agent 的上下文压缩投影不出去**
-  - **产品**：压缩过程界面上看不到。zed 钉版本的 acp 2.0.0 没有这个 unstable 伞，单独改特性集会撞规则 10。
-  - **技术**：R7 上下文压缩（`ThreadEvent::ContextCompaction*`）投影不出去：画板 33 走 unstable 的 `compaction_update`，而 zed 钉版本的 `agent-client-protocol` 2.0.0 的 `unstable` 伞里没有 `unstable_session_compaction`（2.1.0 才有），单独改特性集会撞规则 10。等 zed 升 acp 版本后再复议 (2026-09-17)
-
-- [ ] **读 threads.db 失败和真的没有会话长得一样**
-  - **产品**：Zed agent 的会话列表为空时，分不清是读库出错还是本来就空。上游是静默 return。
-  - **技术**：R7 上游 `ThreadStore::spawn_reload`（`vendor/upstream/zed/crates/agent/src/thread_store.rs`）在连库或读表失败时是**静默 return**（`let Ok(..) else { return }`），任务照常完成、`threads` 保持原样 —— 对刚建好的 store 就是空的。于是「读 `threads.db` 失败」和「真的一条会话都没有」在外面长得一模一样。sidecar 侧只能靠「强制重扫 + 空表再重扫一次」滤掉偶发失败（`list_sessions`），拿不到真正的错误。要根治得等上游把错误露出来（或我们自己绕开 `ThreadStore` 直接查库，代价是复制一份 schema 知识）(2026-09-17)
+所有者裁定 2026-09-23：**不是本项目的问题不进 BACKLOG**。原先这一档的 6 条连同结论压成一行剪到
+[`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md) 末尾；其中「终端当前搜索命中」同时是画板 07 § 2.9 的偏离，
+另记 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md) C-28。档位留空占位，不重排编号。

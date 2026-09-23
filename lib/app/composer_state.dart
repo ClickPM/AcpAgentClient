@@ -37,7 +37,7 @@ class ComposerState extends ChangeNotifier with GuardedNotifier {
   /// 输入框可用（粘贴图片先看它）。
   final bool Function() _canCompose;
 
-  /// `promptCapabilities.image`：不支持图片的 agent 连剪贴板都不用读。
+  /// `promptCapabilities.image`：不支持图片的 agent 不取位图，复制的图片文件也按路径引用。
   final bool Function() _canPromptImage;
 
   final TextEditingController editor = TextEditingController();
@@ -268,9 +268,34 @@ class ComposerState extends ChangeNotifier with GuardedNotifier {
 
   // ---------------------------------------------------------------- `+` 的四项（画板 40）
 
-  void addResourceLink(String path, String name) {
+  /// Files & Directories（照 Zed 的做法）：往正文末尾插一个 `@`、聚焦，弹出画板 42 的 `@` 菜单——根目录一层的
+  /// 文件与目录，接着打字就是搜索，挑中走 [_pickMention] 同一条路。不再弹原生对话框：Windows 的文件对话框只有
+  /// 「选文件」与「选文件夹」两种模式，选文件那种点目录只会进到下一级，目录加不进来（所有者报障 2026-09-23）。
+  /// 程序改 `editor.text` 不会触发输入框的 `onChanged`，所以这里自己调 [onChanged]。
+  Future<void> startMention() async {
+    final sep = editor.text.isEmpty || RegExp(r'\s$').hasMatch(editor.text) ? '' : ' ';
+    editor.text = '${editor.text}$sep@';
+    editor.selection = TextSelection.collapsed(offset: editor.text.length);
+    focus.requestFocus();
+    touch();
+    await onChanged(editor.text);
+  }
+
+  /// 指向磁盘上某个文件或目录的 `resource_link`，正文里留一个 `@名字`（与 `@` 菜单挑中是同一个形状）。
+  /// 粘贴进来的路径走这里：项目外的文件与目录只有这条路加得进来。
+  void addResourceLink(String path) {
+    final name = _baseName(path);
     pendingBlocks.add(<String, dynamic>{'type': 'resource_link', 'uri': _fileUri(path), 'name': name});
+    // 光标处是还没打词的裸 `@`（刚点了 Files & Directories，或刚敲了 `@`）：贴进来的这条就是它的补全，
+    // 不在正文里留一个孤零零的 `@` 跟着发出去（审查 P2，2026-09-23）。一次贴多条时只有第一条吃掉它。
+    if (_activeToken(editor.text) == '@') editor.text = editor.text.substring(0, editor.text.length - 1);
     _appendToComposer('@$name');
+  }
+
+  /// 路径的最后一段（`D:\a\b\` → `b`）；整条都是分隔符（不该发生）就原样用。
+  static String _baseName(String path) {
+    final parts = path.split(RegExp(r'[\\/]')).where((s) => s.isNotEmpty);
+    return parts.isEmpty ? path : parts.last;
   }
 
   /// 输入框顶部芯片条的数据：待发的 `image` 块本身（规则 2，不另存一份视图状态）。
@@ -297,11 +322,22 @@ class ComposerState extends ChangeNotifier with GuardedNotifier {
     touch();
   }
 
-  /// 拿到原始字节的那条路（`+` → Image 从文件选择器挑的图）：大小门在这里，**判在 base64 之前**。
+  /// 输入框里已有几张图（[promptImageCountLimit] 按它算剩几张）。
+  int get _pendingImageCount => pendingBlocks.where((b) => b['type'] == 'image').length;
+
+  /// 张数门的提示，剪贴板与文件选择器两条路同一句。
+  static const String _tooManyImages = '一条消息最多带 $promptImageCountLimit 张图，多出来的没有加进输入框';
+
+  /// 拿到原始字节的那条路（`+` → Image 从文件选择器挑的图）：张数门与大小门都在这里，**判在 base64 之前**。
   /// 超 [clipboardImageSizeLimit] 的直接回报、不编码——base64 出来的字符串比原字节还大三分之一，
   /// 在 UI isolate 上同步建那一下正是界面卡住的原因，判在 [addImage] 里就已经晚了。
   /// 文案与剪贴板那条路同一句、不写死 MB 数（两条路的门不是同一个数，见 [clipboardImageSizeLimit]）。
   void addImageBytes(Uint8List bytes, String mimeType, {String? path}) {
+    if (_pendingImageCount >= promptImageCountLimit) {
+      lastError = _tooManyImages;
+      touch();
+      return;
+    }
     if (bytes.length > clipboardImageSizeLimit) {
       lastError = '图片太大，没有加进输入框';
       touch();
@@ -311,26 +347,45 @@ class ComposerState extends ChangeNotifier with GuardedNotifier {
   }
 
   /// Ctrl/Cmd+V（输入框的按键回调只管调这里，判断全在这）：剪贴板里是文本就什么都不做——
-  /// 那一下已经由 `EditableText` 自己贴进去了；是截图 / 图片文件才加成 `image` 块。
-  Future<void> pasteImageFromClipboard() async {
+  /// 那一下已经由 `EditableText` 自己贴进去了。资源管理器里复制的文件与目录默认按路径加成 `resource_link`
+  /// （[addResourceLink]）；agent 收图时，图片文件与截图加成 `image` 块。怎么分见 [readClipboard]。
+  Future<void> pasteFromClipboard() async {
     if (!_canCompose()) return;
     // 按键回调是 fire-and-forget（`onPaste?.call()` 没人 await），所以这里自己兜住：
     // `Clipboard.getData` 在剪贴板被别的进程占着时会抛 `PlatformException`，不兜就成了未捕获的异步错误。
     await guard(() async {
       final text = await Clipboard.getData(Clipboard.kTextPlain);
       if ((text?.text ?? '').isNotEmpty) return;
-      if (!_canPromptImage()) return; // 不支持图片的 agent：连剪贴板都不用读
-      final result = await readClipboardImages();
-      if (result.skippedTooLarge) {
-        // 不写死 MB 数：剪贴板里的图有两道门（编码后 20 MB / 位图像素 256 MB），共用这一个旗标。
+      // 不收图的 agent 照样要读：复制的文件按路径引用与图无关（位图那半 runner 就不取了）。
+      // 剩几张按输入框里已有的算（满了传 0：剪贴板里真有图才报「最多 N 张」，空剪贴板不误报）。
+      final remaining = promptImageCountLimit - _pendingImageCount;
+      final result = await readClipboard(images: _canPromptImage(), maxImages: remaining < 0 ? 0 : remaining);
+      var tooMany = result.skippedTooMany;
+      var added = false;
+      for (final image in result.images) {
+        // 连按两下 Ctrl+V 时两次读取是并发的，各按读之前的余量收：落进输入框这一下再按当前的张数判一次。
+        if (_pendingImageCount >= promptImageCountLimit) {
+          tooMany = true;
+          break;
+        }
+        addImage(base64Encode(image.bytes), image.mimeType, path: image.path);
+        added = true;
+      }
+      // 路径不受张数门管（不进内存、不占 prompt 里的图片额度）。
+      for (final path in result.paths) {
+        addResourceLink(path);
+        added = true;
+      }
+      if (tooMany) {
+        // 两种都有时报张数：收满了，被大小门跳掉的那几张反正也进不来。
+        lastError = _tooManyImages;
+        touch();
+      } else if (result.skippedTooLarge) {
+        // 不写死 MB 数：截图位图有两道门（编码后 20 MB / 像素 256 MB），共用这一个旗标。
         lastError = '图片太大，没有加进输入框';
         touch();
       }
-      if (result.images.isEmpty) return;
-      for (final image in result.images) {
-        addImage(base64Encode(image.bytes), image.mimeType, path: image.path);
-      }
-      focus.requestFocus();
+      if (added) focus.requestFocus();
     });
   }
 
@@ -346,6 +401,10 @@ class ComposerState extends ChangeNotifier with GuardedNotifier {
     final sep = editor.text.isEmpty || editor.text.endsWith(' ') ? '' : ' ';
     editor.text = '${editor.text}$sep$label ';
     editor.selection = TextSelection.collapsed(offset: editor.text.length);
+    // 正文此刻以空格结尾，光标处不可能还有 `@` / `/` token：开着的内联菜单（先点了 Files & Directories 再
+    // Ctrl+V）要一起关掉，否则 Enter 选的是菜单项而不是发送（审查 P2，2026-09-23）。在途的 fs 结果回来时
+    // 按过期判据自己丢掉。
+    _clearInlineMenu();
     touch();
   }
 }

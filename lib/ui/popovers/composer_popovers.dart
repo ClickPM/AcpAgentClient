@@ -215,7 +215,7 @@ class UnknownCategoryPopover extends StatelessWidget {
 }
 
 /// `+` 的上下文加入弹层（画板 40，裁定后只剩四项）：
-/// Files & Directories → `file_selector` → `resource_link`；Sessions → 本地转录文本作 embedded resource；
+/// Files & Directories → 输入框里插 `@`、弹画板 42 的 `@` 菜单 → `resource_link`；Sessions → 本地转录文本作 embedded resource；
 /// Image → `image` 块（受 `promptCapabilities.image` 门）；Branch Diff → `git diff` 输出作 embedded resource。
 class PlusPopover extends StatelessWidget {
   const PlusPopover({

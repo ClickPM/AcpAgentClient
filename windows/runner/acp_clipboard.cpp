@@ -34,7 +34,7 @@ struct ClipboardCloser {
   ~ClipboardCloser() { ::CloseClipboard(); }
 };
 
-// CF_HDROP：资源管理器里复制的文件。只给路径（UTF-8），是不是图片、字节多大都由 Dart 侧看。
+// CF_HDROP：资源管理器里复制的文件与目录。只给路径（UTF-8），是文件还是目录、是不是图片、字节多大都由 Dart 侧看。
 bool ReadFileList(flutter::EncodableList& out) {
   HANDLE handle = ::GetClipboardData(CF_HDROP);
   if (handle == nullptr) {
@@ -111,7 +111,7 @@ bool ReadBitmap(flutter::EncodableList& out) {
 
 }  // namespace
 
-flutter::EncodableValue AcpClipboardReadImages() {
+flutter::EncodableValue AcpClipboardReadImages(bool include_bitmap) {
   flutter::EncodableList items;
   try {
     if (!OpenClipboardWithRetry()) {
@@ -119,7 +119,7 @@ flutter::EncodableValue AcpClipboardReadImages() {
     }
     ClipboardCloser closer;
     // 顺序与原来一致：先文件列表，再位图。
-    if (!ReadFileList(items)) {
+    if (!ReadFileList(items) && include_bitmap) {
       ReadBitmap(items);
     }
   } catch (const std::exception&) {

@@ -116,7 +116,7 @@ registry 型（npx / binary）agent 装好之后能看出「registry 有新版�
 
 ### 偏离
 
-- binary 升级的说明行写「新版本解压完成后才切换」而不是画板注记的「握手通过」——binary 的安装与升级都不做首次握手，照写就是在说一件没发生的事。已记 `design/DIVERGENCE.md` 第 28 条。
+- binary 升级的说明行写「新版本解压完成后才切换」而不是画板注记的「握手通过」——binary 的安装与升级都不做首次握手，照写就是在说一件没发生的事。已记 `design/DIVERGENCE.md` 第 30 条（合 main 时让号：main 同日加了 28 / 29）。
 - gallery 的 53 页是 800 宽单列（沿用 51 的 `BoardPage` 版式），画板是 1200 宽两列；只影响对照页排版。
 
 ### 踩的坑

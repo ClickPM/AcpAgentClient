@@ -66,7 +66,7 @@
 | 50 | Agents 面板（ACP Registry） | agent 管理 | round-design | `design/round-design/50-registry.dc.html` | `design/round-design/50-registry.png` | — | 已实现（R5）· 2026-09-23 标题行加检查时间与刷新、Codex 行换成可升级态（已实现，随画板 53，`registry-upgrade` 分支） | — |
 | 51 | Registry 条目状态 | agent 管理 | round-design | `design/round-design/51-registry-states.dc.html` | `design/round-design/51-registry-states.png` | — | 已实现（R5） | — |
 | 52 | agent 认证 | agent 管理 | round-design | `design/round-design/52-auth.dc.html` | `design/round-design/52-auth.png` | — | 已实现（R5） | — |
-| 53 | Registry 升级态 | agent 管理 | round-design | `design/round-design/53-registry-upgrade.dc.html` | `design/round-design/53-registry-upgrade.png` | https://claude.ai/design/p/3add6fd9-05b9-4cbd-9892-dec110c50983?file=53-registry-upgrade.dc.html | 已实现（board-53，`registry-upgrade` 分支，2026-09-23；binary 升级说明行见 DIVERGENCE 第 28 条） | — |
+| 53 | Registry 升级态 | agent 管理 | round-design | `design/round-design/53-registry-upgrade.dc.html` | `design/round-design/53-registry-upgrade.png` | https://claude.ai/design/p/3add6fd9-05b9-4cbd-9892-dec110c50983?file=53-registry-upgrade.dc.html | 已实现（board-53，`registry-upgrade` 分支，2026-09-23；binary 升级说明行见 DIVERGENCE 第 30 条） | — |
 | 60 | 文件面板 | 文件面板 | round-design | `design/round-design/60-files-panel.dc.html` | `design/round-design/60-files-panel.png` | — | 已实现（R4） | — |
 | 61 | 终端面板 | 文件面板（右栏） | round-design | `design/round-design/61-terminal-panel.dc.html` | `design/round-design/61-terminal-panel.png` | — | 已实现（R4） | — |
 | 70 | 设置 | 设置（2026-09-17 起是右栏的一个标签） | round-design | `design/round-design/70-settings.dc.html` | `design/round-design/70-settings.png` | — | 已实现（R5）· 2026-09-17 改为右栏标签（画板本身未改）· 2026-09-22 新增「转录」分组（已实现，随画板 08） | — |

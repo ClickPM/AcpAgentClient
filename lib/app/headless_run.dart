@@ -1094,11 +1094,13 @@ String? clipboardProbePathFromEnvironment() => _env(clipboardProbeEnv);
 
 /// 剪贴板探针（规则 9 的 Windows 实测口子）：读一次剪贴板（走 runner 的 `readClipboardImages`），每张图记来源 /
 /// mimeType / 字节数；PNG 另解一遍记尺寸与左上角像素，验位图那条路的 BGRA → PNG 没把通道或行序弄反。
+/// 按路径引用的那一份（复制的文件与目录）原样记进 `paths`。主读按「agent 收图」；另按「不收图」再读一次记进
+/// `withoutImages`，验 runner 认 `{"bitmap": false}`（剪贴板里是截图时那一份应当什么都没有）。
 Future<void> runClipboardProbe({required String reportPath}) async {
   final report = <String, dynamic>{'ok': false};
   var exitCode = 1;
   try {
-    final result = await readClipboardImages();
+    final result = await readClipboard(images: true);
     final images = <Map<String, dynamic>>[];
     for (final image in result.images) {
       final entry = <String, dynamic>{'mimeType': image.mimeType, 'path': image.path, 'bytes': image.bytes.length};
@@ -1113,7 +1115,11 @@ Future<void> runClipboardProbe({required String reportPath}) async {
       images.add(entry);
     }
     report['images'] = images;
+    report['paths'] = result.paths;
     report['skippedTooLarge'] = result.skippedTooLarge;
+    report['skippedTooMany'] = result.skippedTooMany;
+    final plain = await readClipboard(images: false);
+    report['withoutImages'] = <String, dynamic>{'images': plain.images.length, 'paths': plain.paths};
     report['ok'] = true;
     exitCode = 0;
   } catch (e, st) {
