@@ -5,6 +5,7 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' show AppExitResponse;
 
 import 'package:acp_agent_client/app/app.dart';
 import 'package:acp_agent_client/app/clipboard_image.dart';
@@ -50,6 +51,22 @@ class SlowCore extends FakeCore {
   Future<JsonMap> sessionCancel(String agentId, String sessionId) {
     order.add('cancel');
     return super.sessionCancel(agentId, sessionId);
+  }
+}
+
+/// `core_shutdown` 挂着不返回，直到 [release]；用来复现「收尾途中再点一次 ✕」。
+class _GatedShutdownCore extends FakeCore {
+  final Completer<void> _gate = Completer<void>();
+
+  void release() {
+    if (!_gate.isCompleted) _gate.complete();
+  }
+
+  @override
+  Future<JsonMap> coreShutdown() async {
+    shutdowns++;
+    await _gate.future;
+    return <String, dynamic>{'terminals': 0, 'agents': 0};
   }
 }
 
@@ -684,6 +701,34 @@ void main() {
     await tester.pump();
     expect(t.Theming.mode, t.AppTheme.light, reason: '系统切到浅色，didChangePlatformBrightness 要转给外观控制器');
     expect(t.Neutral.canvas, t.Theming.lightColors.canvas);
+  });
+
+  // BACKLOG P0「退出时 agent 的子进程没回收」：收尾要几秒，这期间窗口不动，用户会再点一次 ✕。
+  // 第二次请求若直接放行，进程就在 `core_shutdown` 途中退出，agent 进程树留成孤儿。
+  testWidgets('收尾途中再点一次 ✕：只收一次尾，两次关窗请求都等它收完', (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.runAsync(loadGalleryFonts);
+    final core = _GatedShutdownCore();
+    await tester.pumpWidget(AcpApp(source: DataSource.bridge, bridge: core));
+    await tester.pump();
+
+    AppExitResponse? first;
+    AppExitResponse? second;
+    unawaited(tester.binding.handleRequestAppExit().then((r) => first = r));
+    await tester.pump();
+    unawaited(tester.binding.handleRequestAppExit().then((r) => second = r));
+    await tester.pump();
+    expect(core.shutdowns, 1, reason: '收尾只发一次');
+    expect(first, isNull, reason: '收尾还没回来');
+    expect(second, isNull, reason: '第二次也要等收尾，不能直接放行');
+
+    core.release();
+    await tester.pump();
+    expect(first, AppExitResponse.exit);
+    expect(second, AppExitResponse.exit);
+    expect(core.shutdowns, 1);
   });
 
   // ---------------------------------------------------------------- 输入框（ComposerState）的两条回归

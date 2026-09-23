@@ -45,13 +45,14 @@ class _AcpAppState extends State<AcpApp> with WidgetsBindingObserver {
   /// 关窗前的收尾（R4 验收 4：应用退出时子进程全部回收）：Windows 引擎把 `WM_CLOSE` 转成 `System.requestAppExit`，
   /// 这里等核心 `core_shutdown`（释放终端、断开 agent）回来再放行。
   late final AppLifecycleListener _lifecycle = AppLifecycleListener(onExitRequested: _onExitRequested);
-  bool _shuttingDown = false;
+
+  /// 只收一次尾，但每一次关窗请求都等它：收尾要几秒（agent 不理 stdin EOF 时要等满 `DISCONNECT_GRACE` 再杀树），
+  /// 这期间窗口一动不动，用户多半会再点一次 ✕。第二次若直接放行，进程就在收尾途中退出，agent 进程树留成孤儿
+  /// （BACKLOG P0「退出时 agent 的子进程没回收」）。
+  Future<void>? _shutdown;
 
   Future<AppExitResponse> _onExitRequested() async {
-    if (!_shuttingDown) {
-      _shuttingDown = true;
-      await _controller.shutdown();
-    }
+    await (_shutdown ??= _controller.shutdown());
     return AppExitResponse.exit;
   }
 

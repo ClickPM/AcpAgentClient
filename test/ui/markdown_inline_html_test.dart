@@ -56,7 +56,7 @@ void main() {
   });
 
   testWidgets('只认 <br>：其余行内 HTML 与行内代码里的 <br> 都不动', (tester) async {
-    // 现状记录，不是期望值：成对标签（<kbd> / <sub> / <span> …）仍原样显示，见 rounds/BACKLOG.md。
+    // 成对标签（<kbd> / <sub> / <span> …）原样显示是定下的行为：所有者 2026-09-23 关闭、不做，见 rounds/BACKLOG-CLOSED.md。
     await pumpMarkdown(tester, '按 <kbd>Ctrl</kbd> 键；行内代码 `<br>` 不动');
 
     expect(find.text('按 <kbd>Ctrl</kbd> 键；行内代码 <br> 不动'), findsOneWidget);

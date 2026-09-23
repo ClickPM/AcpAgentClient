@@ -168,10 +168,7 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
   List<SidebarSession> get visibleSessions {
     if (search.isEmpty) return sidebarSessions;
     final q = search.toLowerCase();
-    return <SidebarSession>[
-      for (final s in sidebarSessions)
-        if (s.title.toLowerCase().contains(q)) s,
-    ];
+    return sidebarSessions.where((s) => s.title.toLowerCase().contains(q)).toList();
   }
 
   /// 会话头的 agent 标记。
@@ -552,14 +549,17 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
   /// 正在 `session/load` 的会话（同一条不并发）。
   final Set<String> _loadsInFlight = <String>{};
 
+  /// 正在由 [_ensureLoaded] 载回的会话；[loadingSession] 按当前会话判——切走不挂「会话正在加载中」，切回来还在载就又挂上。
+  final Set<String> _loadingSessions = <String>{};
+  bool get loadingSession => _loadingSessions.contains(sessionId);
+
   /// 每条会话到达过多少条 `session/update`（见 [noteUpdateArrival]）。
   final Map<String, int> _updateArrivals = <String, int>{};
 
   /// `session/list` 校对出来的「agent 侧已经没有了」的会话（裁定 2026-09-15：只校对，不自动删、不自动加）。
   final Set<String> missingOnAgent = <String>{};
 
-  /// 侧栏点到一条内存里没有转录的会话：连上它的 agent 再 `session/load`。
-  /// agent 没声明 `loadSession` 就什么都不做（转录空着，画板 01 的空态）。
+  /// 侧栏点到一条内存里没有转录的会话：连上它的 agent 再 `session/load`；没声明 `loadSession` 就什么都不做（画板 01 的空态）。
   Future<void> _ensureLoaded(String id) async {
     final b = bridge;
     final owner = _sessionAgent[id];
@@ -573,6 +573,8 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
       touch();
       return;
     }
+    // 同一条已在载就不再来一遍（再一次 `agent_connect` 会断掉正在握手的进程）；不另 touch：[selectSession] 刚 touch 过、之间没有 await。
+    if (!_loadingSessions.add(id)) return;
     await guard(() async {
       await _ensureConnected(b, owner, cwd);
       if (canLoadSessionOf(owner)) {
@@ -586,6 +588,7 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
         _closedSessions.remove(id);
       }
     });
+    _loadingSessions.remove(id); // guard 不会抛，不用 finally
     touch();
   }
 

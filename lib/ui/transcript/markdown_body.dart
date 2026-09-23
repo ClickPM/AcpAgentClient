@@ -41,7 +41,8 @@ class _LatexSyntax extends md.InlineSyntax {
 /// 于是 `<br>` 会留在 `md.Text` 的文本里被逐字画出来。GFM 的表格单元格装不下真换行，agent 普遍拿 `<br>` 换行
 /// （2026-09-20 实机：pi 的扩展清单表格整列显示成字面 `<br>`），所以这一个标签要认。
 /// 必须排在 `InlineHtmlSyntax` 之前：InlineParser 按 syntaxes 顺序取第一个匹配的。
-/// 其余行内 HTML（`<sub>` / `<kbd>` / `<span>` 等成对标签）照旧原样显示，见 rounds/BACKLOG.md。
+/// 其余行内 HTML（`<sub>` / `<kbd>` / `<span>` 等成对标签）照旧原样显示：实测里只有 `<br>` 常见，其余不做
+/// （所有者 2026-09-23 关闭，见 rounds/BACKLOG-CLOSED.md）。
 class HtmlLineBreakSyntax extends md.InlineSyntax {
   HtmlLineBreakSyntax() : super(r'<br\s*/?>', caseSensitive: false);
 
