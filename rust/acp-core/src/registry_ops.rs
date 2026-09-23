@@ -359,7 +359,7 @@ impl Core {
     }
 
     /// 切换：新安装记录继承认证状态，记下运行中那条连接的版本（`reloadPending` 用），写盘即切换。返回清旧目录时要留下的
-    /// 入口——没有连接就只留新入口，有连接就连它的入口一起留（推迟到它断开后的下次启动），认不出连接的入口就先不清（`None`）。
+    /// 入口：新的、当前安装记录的、运行中连接的（这几个目录都推迟到下次启动清），认不出连接的入口就这次不清（`None`）。
     fn commit_upgrade(&self, current: &InstallManifest, mut next: InstallManifest) -> Result<Option<Vec<PathBuf>>> {
         let dirs = self.registry_dirs();
         let id = current.id.clone();
@@ -395,7 +395,7 @@ impl Core {
         })
     }
 
-    /// 启动时清一遍各 agent 目录里不再用到的旧版本（升级时有连接在用而推迟的那些；画板 53）。后台跑，此时还没有任何连接，
+    /// 启动时清一遍各 agent 目录里不再用到的旧版本（升级切换时一律推迟的那些；画板 53）。后台跑，此时还没有任何连接，
     /// 在用的只有安装记录的入口；清某个 agent 时占住它的安装槽，这期间来的安装 / 升级直接报「正在安装」，不和清扫抢目录。
     pub fn sweep_stale_installs(self: &Arc<Self>) {
         let core = self.clone();
@@ -585,15 +585,19 @@ fn reload_pending_of(manifest: &InstallManifest, live: Option<Option<PathBuf>>) 
 /// 升级切换那一刻（`live` 同上）：新安装记录要记的 `previousVersion`，与清旧目录时要留下的入口（`None` = 这次先不清）。
 fn switch_plan(current: &InstallManifest, next: &InstallManifest, live: Option<Option<PathBuf>>) -> (Option<String>, Option<Vec<PathBuf>>) {
     let previous = match &live {
-        None => None,
-        Some(Some(entry)) if current.entry_path().as_deref() == Some(entry.as_path()) => Some(current.version.clone()),
         // 运行中那条比当前安装记录还旧（连续升级两次都没重载）或认不出：保留最早记下的那个版本。
-        Some(_) => current.previous_version.clone().or_else(|| Some(current.version.clone())),
+        Some(Some(entry)) if current.entry_path().as_deref() != Some(entry.as_path()) => {
+            current.previous_version.clone().or_else(|| Some(current.version.clone()))
+        }
+        Some(None) => current.previous_version.clone().or_else(|| Some(current.version.clone())),
+        // 连着的就是当前这版，或看起来没连着：记当前这版（没连着时它不会被用到——`reloadPending` 要有一条入口对不上的连接）。
+        _ => Some(current.version.clone()),
     };
+    // 当前安装记录的入口一律留着，留给下次启动清扫：`agent_connect` 拉起新进程的那段时间里连接表里没有它（先摘掉旧连接、
+    // connect 完才插回），而那个进程是按当前安装记录拉起的——看不见不等于没人在用（审查 high，2026-09-23）。
     let keep = match live {
-        None => Some(next.entry_path().into_iter().collect()),
-        Some(Some(entry)) => Some(next.entry_path().into_iter().chain(std::iter::once(entry)).collect()),
         Some(None) => None,
+        live => Some(next.entry_path().into_iter().chain(current.entry_path()).chain(live.flatten()).collect()),
     };
     (previous, keep)
 }
@@ -666,15 +670,21 @@ mod tests {
         let mut current = manifest(&agent.join("2.0.0"), "2.0.0");
         let next = manifest(&agent.join("3.0.0"), "3.0.0");
         let next_entry = next.entry_path().expect("entry");
-        // 没连着：不记旧版本，只留新入口。
-        assert_eq!(switch_plan(&current, &next, None), (None, Some(vec![next_entry.clone()])));
-        // 连着的就是当前这版：记它，连它的入口一起留。
-        let running = current.entry_path().expect("entry");
-        assert_eq!(switch_plan(&current, &next, Some(Some(running.clone()))), (Some("2.0.0".into()), Some(vec![next_entry.clone(), running])));
-        // 连着的是更早的一版（升级两次都没重载）：保留最早记下的版本，留它的入口。
+        let current_entry = current.entry_path().expect("entry");
+        // 看起来没连着：当前安装记录的入口照样留（可能正有一条按它拉起、还没进连接表的连接，审查 high）。
+        assert_eq!(switch_plan(&current, &next, None), (Some("2.0.0".into()), Some(vec![next_entry.clone(), current_entry.clone()])));
+        // 连着的就是当前这版：记它，它的入口留着。
+        assert_eq!(
+            switch_plan(&current, &next, Some(Some(current_entry.clone()))),
+            (Some("2.0.0".into()), Some(vec![next_entry.clone(), current_entry.clone(), current_entry.clone()]))
+        );
+        // 连着的是更早的一版（升级两次都没重载）：保留最早记下的版本，三个入口都留。
         current.previous_version = Some("1.0.0".into());
         let older = agent.join("1.0.0").join("dist-package").join("agent.cmd");
-        assert_eq!(switch_plan(&current, &next, Some(Some(older.clone()))), (Some("1.0.0".into()), Some(vec![next_entry, older])));
+        assert_eq!(
+            switch_plan(&current, &next, Some(Some(older.clone()))),
+            (Some("1.0.0".into()), Some(vec![next_entry, current_entry, older]))
+        );
         // 认不出连接的入口：这次不清。
         assert_eq!(switch_plan(&current, &next, Some(None)), (Some("1.0.0".into()), None));
     }
@@ -756,7 +766,7 @@ mod tests {
     }
 
     /// binary 型升级全链路（验收 1）：可升级判定 → 已安装时拒绝首装 → 升级（进度都带 upgrade）→ 安装记录切到新目录、认证状态
-    /// 与 settings env 继承、旧目录清掉 → 同版本再升被拒；新版本坏了（sha256 不符）时旧版原样可用、新目录不留；
+    /// 与 settings env 继承、旧目录留到下次启动 → 同版本再升被拒；新版本坏了（sha256 不符）时旧版原样可用、新目录不留；
     /// 启动清扫删掉残留的旧目录、不动在用的那个。
     #[test]
     fn binary_upgrade_switches_only_after_success_and_sweeps_the_old_directory() {
@@ -797,8 +807,8 @@ mod tests {
         assert!(Path::new(&upgraded.command).starts_with(agent_dir.join("2.0.0")), "{}", upgraded.command);
         assert!(upgraded.is_intact());
         assert_eq!(upgraded.auth_status, AuthStatus::Authenticated, "认证状态继承");
-        assert_eq!(upgraded.previous_version, None, "升级时没有连接");
-        assert!(!v1.exists(), "旧目录不在用了就清掉");
+        assert_eq!(upgraded.previous_version.as_deref(), Some("1.0.0"));
+        assert!(v1.exists(), "旧目录留给下次启动清（切换那一刻可能正有按它拉起的连接）");
         assert!(matches!(core.settings().get("fake-bin").expect("get"), Some(AgentServer::Registry { env: e, .. }) if e == env), "settings env 不动");
         assert_eq!(list_entry(&core)["updateAvailable"], Value::Null);
         assert!(core.registry_update("fake-bin").is_err(), "已是当前版本");
@@ -817,7 +827,7 @@ mod tests {
             }
             std::thread::sleep(Duration::from_millis(25));
         }
-        assert!(!stale.exists(), "启动清扫删掉不在用的旧目录");
+        assert!(!stale.exists() && !v1.exists(), "启动清扫删掉不在用的旧目录");
         assert!(Path::new(&upgraded.command).is_file(), "在用的留着");
 
         core.registry_update("fake-bin").expect("start");

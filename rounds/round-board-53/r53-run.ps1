@@ -4,6 +4,7 @@
 #   a1  fresh install of pi-acp (npx, versioned layout)
 #   a2  install.json "version" rewritten to 0.0.1 -> upgrade (target dir name collides with the one in use -> suffixed)
 #   a3  legacy layout rebuilt by hand (node_modules at the agent root) -> upgrade (npm must not install into the parent)
+#   a4  plain start -> startup sweep removes the old version dirs and the legacy root files
 #   b1  fresh install of codex-acp
 #   b2  version rewritten -> new session (connected) -> upgrade -> reloadPending -> Reload Agent -> cleared
 #   b3  plain start -> startup sweep removes the directory the old connection was using
@@ -83,6 +84,11 @@ if ($Only -eq "" -or $Only -eq "a") {
     Write-Host ("  legacy layout: dir={0} entry={1}" -f $m.Json.dir, $m.Json.args[0])
     Show-AgentDir $a "pi-acp"
     Invoke-Run "a3-upgrade-legacy" $a @{ ACP_R5_UPGRADE = "pi-acp" }
+    Show-AgentDir $a "pi-acp"
+
+    # Old version dirs (and the legacy root files) are left for the next start; a plain start sweeps them.
+    Invoke-Run "a4-restart-sweep" $a @{ ACP_R5_REFRESH = "1" }
+    Start-Sleep -Seconds 1
     Show-AgentDir $a "pi-acp"
 }
 

@@ -22,7 +22,7 @@ registry 型（npx / binary）agent 装好之后能看出「registry 有新版�
 3. **并排装、通过才切换**：目标目录与当前目录撞名（版本号 sanitize 后相同）时加后缀；npx 装完用新拉起参数做一次握手，通过才写 `install.json`；binary 与首次安装一致不握手（解压成功即切换）。失败 / 取消只删新目录，旧 `install.json`、settings 条目与 env、认证状态都不动；认证状态与 settings env 继承。
 4. **握手的临时连接不发 `acp/agent_state`**：它与正在运行的连接同一个 agentId，事件会让前端把运行中的连接当成已退出；流量（`acp/traffic`）照发。
 5. **不打断运行中的连接**：核心每个 agent 一条连接，所以升级后运行中的连接仍是旧版，`registry_list` 带 `reloadPending`（运行中那条的版本）；`install.json` 记 `previousVersion`（连续升级两次不重载时保留最早那个）。前端在该 agent 重连 / 退出时重读列表把提示撤掉。
-6. **旧目录清理**：只删「不被在用的拉起入口所在」的目录——升级成功且没有运行中连接时当场清；有连接时推迟到下次启动（启动时后台扫一遍，扫某个 agent 时占住它的安装槽，免得和紧接着的安装 / 升级撞上）。只删 `agents/<id>/` 下的子目录（旧版本目录、`.staging-*`）与旧布局根上的 `package.json` / `package-lock.json`；拉起入口不在 `agents/<id>/` 之下时整个 agent 不扫。
+6. **旧目录清理**：只删「不被在用的拉起入口所在」的目录。~~升级成功且没有运行中连接时当场清~~（第 1 轮审查 high 之后改为：切换时当前安装记录的入口也一律留着，旧版本目录推迟到下次启动清——连接表里看不见正在按旧记录拉起的连接）；启动时后台扫一遍，扫某个 agent 时占住它的安装槽，免得和紧接着的安装 / 升级撞上。只删 `agents/<id>/` 下的子目录（旧版本目录、`.staging-*`）与旧布局根上的 `package.json` / `package-lock.json`；拉起入口不在 `agents/<id>/` 之下时整个 agent 不扫。
 7. **进度载荷**：`registry/progress` 加 `upgrade: bool`；npx 升级的步骤是 `resolve → handshake` 两步（没有 `write_settings`，那一条升级前就有）。
 8. `registry_install` 对已安装且完整的条目拒绝（改走 `registry_update`）：否则首装的回滚会连旧版一起删。
 
@@ -96,9 +96,10 @@ registry 型（npx / binary）agent 装好之后能看出「registry 有新版�
 
 | 步 | 做法 | 结果 |
 |---|---|---|
-| a1 首装 pi-acp | `ACP_R5_REFRESH=1 ACP_R5_INSTALL=pi-acp` | 15.6 s；装到 `agents\pi-acp\0.0.33\`（新布局），目录里只有 `0.0.33` 与 `install.json` |
-| a2 撞名升级 | `install.json` 的 `version` 改成 `0.0.1` → `ACP_R5_UPGRADE=pi-acp` | 列表 `updateAvailable: 0.0.33`；进度 `upgrade/npx:resolve → upgrade/npx:handshake → upgrade/done`，2.3 s；目标名 `0.0.33` 撞上在用的目录 → 装到 `0.0.33-1790129191013`；切换后旧 `0.0.33` 清掉；`updateAvailable` 归 null |
-| a3 旧布局升级 | 手工把 `node_modules` / `package.json` / `package-lock.json` 挪回 `agents\pi-acp\` 根上、`install.json` 改成旧布局 → `ACP_R5_UPGRADE=pi-acp` | 2.3 s 升到 `agents\pi-acp\0.0.33\`；**npm 没有装回上一级**（核心从新目录的 `node_modules` 读入口，装回去就会失败）；根上三样旧布局文件切换后全部清掉，剩 `0.0.33` 与 `install.json` |
+| a1 首装 pi-acp | `ACP_R5_REFRESH=1 ACP_R5_INSTALL=pi-acp` | 11.8 s；装到 `agents\pi-acp .0.33\`（新布局），目录里只有 `0.0.33` 与 `install.json` |
+| a2 撞名升级 | `install.json` 的 `version` 改成 `0.0.1` → `ACP_R5_UPGRADE=pi-acp` | 列表 `updateAvailable: 0.0.33`；进度 `upgrade/npx:resolve → upgrade/npx:handshake → upgrade/done`；目标名 `0.0.33` 撞上在用的目录 → 装到 `0.0.33-1790130028299`，`install.json` 切过去、`previousVersion: 0.0.1`；旧 `0.0.33` **留到下次启动**（第 1 轮审查 high 之后的行为；此前这一步当场清掉了它）；`updateAvailable` 归 null |
+| a3 旧布局升级 | 手工把当前目录的 `node_modules` / `package.json` / `package-lock.json` 挪回 `agents\pi-acp\` 根上、`install.json` 改成旧布局 → `ACP_R5_UPGRADE=pi-acp` | 3.9 s 升到 `agents\pi-acp .0.33\`（a2 留下的 `0.0.33` 不在用，先清空再装）；**npm 没有装回上一级**（核心从新目录的 `node_modules` 读入口，装回去就会失败）；根上三样旧布局文件留到下次启动 |
+| a4 重启清扫 | 什么都不做，只起一次（`ACP_R5_REFRESH=1` 让进程多活几秒） | 启动清扫删掉根上的 `node_modules` / `package.json` / `package-lock.json`，剩 `0.0.33` 与 `install.json` |
 | b1 首装 codex-acp | `ACP_R5_REFRESH=1 ACP_R5_INSTALL=codex-acp` | 133 s（npm 拉平台二进制）；`agents\codex-acp\1.13.0\` |
 | b2 连着会话升级 → Reload | `version` 改 `0.0.1` → `ACP_R5_AGENT=codex-acp ACP_R5_CWD=<worktree> ACP_R5_UPGRADE=codex-acp ACP_R5_RELOAD=1` | 新会话建好（连接活着）→ 升级 8.9 s，装到 `1.13.0-1790129367858`；**旧目录 `1.13.0` 保留**（运行中的连接在用），`install.json` 记 `previousVersion: 0.0.1`，列表 `reloadPending: "0.0.1"`；Reload Agent 之后 `reloadPending` 归 null、新连接的拉起入口在新目录。这一跑 Reload 里的 `session/load` 回了 `-32603`，退回新建会话——见 b4 |
 | b3 重启清扫 | 什么都不做，只起一次（`ACP_R5_REFRESH=1` 让进程多活几秒） | 启动清扫删掉 `1.13.0`，剩 `1.13.0-1790129367858` 与 `install.json` |
@@ -112,5 +113,6 @@ registry 型（npx / binary）agent 装好之后能看出「registry 有新版�
 ### 踩的坑
 
 - **共用 `CARGO_TARGET_DIR` 会串代码**：第一次无头构建报 `no method named registry_update found for Arc<Core>`——cargo 给 path 依赖算产物哈希用的是**相对 workspace 根的路径**，所有副本的 `acp-core` 落在同一个产物文件名上，新鲜与否只比「产物 mtime vs 本副本源文件 mtime」；别的副本 09:46 在 `cargokit` 目录编过一次 release，比我 09:44 最后改的源文件新，于是被当成新鲜直接用了。反过来，我第一次 `validate.ps1` 在共用 debug 目录编出的 `acp-core` 也会被其他副本当新鲜用，所以收尾时 `CARGO_TARGET_DIR=D:/cargo-target/AcpAgentClient cargo clean -p acp-core -p registry -p acp_bridge -p acp-smoke`（dev profile，4358 个文件 / 17.9 GiB，含历代变体与 incremental；清之前确认没有 cargo / rustc 在跑）。之后本分支的构建与 validate 一律 `-CargoTargetDir D:\cargo-target\AcpAgentClient-upgrade`。
+- 第 1 轮审查 high（切换时连接表里看不见正在按旧安装记录拉起的连接，当场清会删掉它要用的目录）整改后，旧版本目录一律推迟到下次启动清；a 组按整改后的构建重跑过（上表），b 组的 b2 本来就是「有连接 → 推迟」，行为不变。
 - 升级后清旧目录原本在 tokio 工作线程上同步删（node_modules 动辄几百 MB），改成 `spawn_blocking`（与本段实测同一个提交；真跑用的是改后的构建）。
 
