@@ -60,6 +60,8 @@ class _UserMessageState extends State<UserMessage> {
   bool get _editing => _state == UserMessageState.editing;
 
   /// 编辑框里的纯文本：text 块原样，提及块写成 `@name`（重发时 R3 再把 `@name` 还原成 resource_link）。
+  /// `image` / `audio` 块不进编辑框、也不随重发带回：编辑历史消息只改文字、原图不保留，是产品取舍不是缺陷
+  /// （所有者裁定 2026-09-23，与 Claude Code 的做法一致；见 rounds/BACKLOG-CLOSED.md）。
   static String plainText(MessageEntry e) {
     final b = StringBuffer();
     for (final block in e.blocks) {

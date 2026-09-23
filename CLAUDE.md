@@ -22,12 +22,12 @@ This file provides guidance to Claude Code when working in this repository.
 AcpAgentClient/
 ├── CLAUDE.md / AGENTS.md / README.md      约定、审查者指针、简介
 ├── ROUNDS.md                              轮次总览与 roadmap：R0–R8 拆解、画板 → 轮次 → widget 文件、裁定门、进度表
-├── docs/                                  background / requirements / research / design / acp-projection / review-workflow
+├── docs/                                  background / requirements / research / design / acp-projection / review-workflow / zed-agent（内置 Zed agent 的开发文档）
 ├── design/                                设计稿与简报：design/round-NN/{input/（交给 Claude Design 的简报与附件）, canvas.json, NN-<画板>.dc.html, NN-<画板>.png}
 │                                          + design/README.md 画板索引（编号 / 名称 / .dc.html / PNG / 画布 URL）
 │                                          + design/DIVERGENCE.md 画板与实现的偏离清单（这几处以实现为准，不要求补稿）
 │                                          + design/brand/（应用图标 app-icon.svg 与标记来源；不是画板，见 design/brand/README.md）
-├── rounds/                                README（目录约定）/ TEMPLATE（任务卡模板）/ BACKLOG（轮次与迭代共用的唯一入口）
+├── rounds/                                README（目录约定）/ TEMPLATE（任务卡模板）/ BACKLOG（轮次与迭代共用的唯一入口）/ BACKLOG-ZED（内置 Zed agent 专属，当前不修）/ BACKLOG-CLOSED（两份共用的存档）
 │                                          + rounds/round-NN/{round-NN.md, BLOCKED.md}（轮次级数据与脚本可放子目录）
 ├── iterations/                            敏捷迭代（2026-09-22 起）：README（流程正本 + 迭代清单）/ TEMPLATE / iteration-NN.md（一迭代一文件、一项一行，不建子目录）
 ├── .claude/                               cursor-review.ps1（审查启动脚本）+ cursor-review-prompt.md（任务书契约，入库）
@@ -83,7 +83,7 @@ AcpAgentClient/
 - **回落只认硬失败**（`cursor-agent` 未安装 / 未登录 / 启动失败 / 限流 / 后台进程已死而 `.out` 仍空），「等得久」「改动小」不是理由；回落原因写进任务卡。回落 = 主会话用 Agent 工具委派一个只读子代理，提示词是「读 `.claude/cursor-review-prompt.md`，把 `{{RANGE}}` 当作 `<范围>`、`{{NOTE}}` 当作 `<要点>` 执行，只输出结论不改文件」；范围口径不变（前两轮 `main...HEAD`，第 3 轮起 `<上一轮已审提交>..HEAD`）。
 - 同一验收项针对性整改后连续 2 次仍不过 → 写 `rounds/round-NN/BLOCKED.md` 停下呼人，禁止放宽验收（rounds/README.md）。
 - 分支：每轮在 `round-NN` 分支开发，审查通过后合并 `main`；纯文档与微修可直接 `main`。R7 合并后（2026-09-17 起）所有者手测报障的修复也直接在 `main` 上做：每批是否构建、是否走独立审查由所有者逐批指示，不走的在提交说明里写明「未构建 / 未审查（所有者指定）」；走审查的按同一套缺陷门禁（发布前审查 → 整改 → 复审）。这一段的汇总在 `ROUNDS.md` § 7「main 直改」行；设计稿因此滞后的项记 [`design/DIVERGENCE.md`](design/DIVERGENCE.md)（规则 3，**不要求补稿**），不再进 `rounds/BACKLOG.md`。**2026-09-22 起这类工作按迭代流程登记在 `iterations/`**（ROUNDS.md § 7「main 直改」行封存，不再追加）。
-- 跨轮次发现的问题写 `rounds/BACKLOG.md`，不当场顺手改。
+- 跨轮次发现的问题写 `rounds/BACKLOG.md`，不当场顺手改；出在上游（agent、zed、xterm 等依赖）或协议本身的不是本项目的问题，不进 BACKLOG（所有者裁定 2026-09-23）；内置 Zed agent（sidecar）的问题记 `rounds/BACKLOG-ZED.md`，当前不修（所有者裁定 2026-09-23，背景见 `docs/zed-agent.md`）。
 
 ## 硬性规则
 

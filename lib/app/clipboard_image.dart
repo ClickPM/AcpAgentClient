@@ -4,7 +4,7 @@
 // （资源管理器里复制的文件与目录，`CF_HDROP`），再看位图（截图工具 / 企业微信截图）。文件列表在这里分成
 // 「读成图」与「按路径引用」两份；位图回来的是 BGRA 像素，PNG 编码在这里用 dart:ui 自带的编码器做，
 // 不落临时文件、不拉子进程。
-// 非 Windows 暂时返回空（macOS / Linux 的实现记在 rounds/BACKLOG.md）。
+// 非 Windows 暂时返回空（macOS / Linux 暂不做，所有者裁定 2026-09-23；原条目在 rounds/BACKLOG-CLOSED.md）。
 
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -45,25 +45,40 @@ const int clipboardImageSizeLimit = 20 * 1024 * 1024;
 /// 不给像素，这里按同一个数判成「太大」，不先编码再量。256 MB = 8192×8192 的 32 位位图，8K 整屏（133 MB）也在内。
 const int clipboardBitmapBytesLimit = 256 * 1024 * 1024;
 
+/// 一条消息最多带几张图（所有者裁定 2026-09-23：20 张），剪贴板与 `+` → Image 两条路共用，按输入框里已有的算总数。
+/// 剪贴板的文件列表是资源管理器里选中的全部文件：图片文件夹里 Ctrl+A / Ctrl+C 再 Ctrl+V 一次就是上百张，
+/// 每张在内存里要存三份（原字节 + base64 + 芯片解回来的），随后整块进一条 `session/prompt`。
+const int promptImageCountLimit = 20;
+
 /// 读一次剪贴板的结果：[images] 加成 `image` 块，[paths]（文件与目录）加成指向它们的 `resource_link`。
-typedef ClipboardContent = ({List<ClipboardImage> images, List<String> paths, bool skippedTooLarge});
+typedef ClipboardContent = ({
+  List<ClipboardImage> images,
+  List<String> paths,
+  bool skippedTooLarge,
+  bool skippedTooMany,
+});
 
 /// 读一次剪贴板。复制的文件与目录**默认按路径引用**（所有者 2026-09-23）；只有「agent 收图（[images]）且是图片扩展名、
 /// 大小在 [clipboardImageSizeLimit] 以内的文件」才读成图——空文件与超限的图片文件也退回路径：它就在磁盘上，
 /// agent 按路径自己读得到，不必因为太大整个丢掉。[images] 为 false 时连位图都不向 runner 要（截图像素不搬过通道）。
+/// 读成图的最多收 [maxImages] 张（调用方传「上限减去输入框里已有的」，可以是 0）。
 /// `skippedTooLarge` = 截图位图因为太大被跳过了，两道门共用这个旗标：编码后的 PNG 超 [clipboardImageSizeLimit]，
 /// 或像素缓冲超 [clipboardBitmapBytesLimit]。两道门的数不一样，所以提示文案不能写死某一个数
 /// （调用方 `ComposerState.pasteFromClipboard`）。
+/// `skippedTooMany` = 收满 [maxImages] 张之后还有该读成图的：张数门判在读文件 / 编码**之前**，多出来的一张都不进内存，
+/// 也不退回路径（多出来的没有加进输入框，所有者裁定的口径）；只跳过这一张，后面的目录与非图片文件照样按路径收。
 /// 没有 runner（flutter_tester、非 Windows）或剪贴板读不到时回空：粘贴文本那一下已经由输入框自己做完了，
 /// 这里只是没捞到东西，不该把粘贴这件事搞砸。
-Future<ClipboardContent> readClipboard({required bool images}) async {
-  const ClipboardContent empty = (images: <ClipboardImage>[], paths: <String>[], skippedTooLarge: false);
+Future<ClipboardContent> readClipboard({required bool images, int maxImages = promptImageCountLimit}) async {
+  const ClipboardContent empty =
+      (images: <ClipboardImage>[], paths: <String>[], skippedTooLarge: false, skippedTooMany: false);
   try {
     final items = await AppWindow.invoke<List<Object?>>('readClipboardImages', <String, Object?>{'bitmap': images});
     if (items == null) return empty;
     final read = <ClipboardImage>[];
     final paths = <String>[];
     var skipped = false;
+    var tooMany = false;
     for (final item in items) {
       if (item is! Map) continue;
       final path = item['path'];
@@ -82,6 +97,11 @@ Future<ClipboardContent> readClipboard({required bool images}) async {
             final file = File(path);
             final length = await file.length();
             if (length > 0 && length <= clipboardImageSizeLimit) {
+              // 张数门在读字节之前；`continue` 而不是 `break`：后面的目录与非图片文件不受张数门管。
+              if (read.length >= maxImages) {
+                tooMany = true;
+                continue;
+              }
               read.add(ClipboardImage(bytes: await file.readAsBytes(), mimeType: mime, path: path));
               continue;
             }
@@ -96,6 +116,10 @@ Future<ClipboardContent> readClipboard({required bool images}) async {
       final width = item['width'];
       final height = item['height'];
       if (width is! int || height is! int) continue;
+      if (read.length >= maxImages) {
+        tooMany = true;
+        continue;
+      }
       if (width * height * 4 > clipboardBitmapBytesLimit) {
         // runner 超过同一个数时只回尺寸、不给像素，所以这里判的是「它已经放弃了」。
         skipped = true;
@@ -111,7 +135,7 @@ Future<ClipboardContent> readClipboard({required bool images}) async {
       }
       read.add(ClipboardImage(bytes: png, mimeType: 'image/png'));
     }
-    return (images: read, paths: paths, skippedTooLarge: skipped);
+    return (images: read, paths: paths, skippedTooLarge: skipped, skippedTooMany: tooMany);
   } catch (e) {
     debugPrint('[clipboard] read failed: $e');
     return empty;

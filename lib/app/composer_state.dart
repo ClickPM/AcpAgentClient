@@ -322,11 +322,22 @@ class ComposerState extends ChangeNotifier with GuardedNotifier {
     touch();
   }
 
-  /// 拿到原始字节的那条路（`+` → Image 从文件选择器挑的图）：大小门在这里，**判在 base64 之前**。
+  /// 输入框里已有几张图（[promptImageCountLimit] 按它算剩几张）。
+  int get _pendingImageCount => pendingBlocks.where((b) => b['type'] == 'image').length;
+
+  /// 张数门的提示，剪贴板与文件选择器两条路同一句。
+  static const String _tooManyImages = '一条消息最多带 $promptImageCountLimit 张图，多出来的没有加进输入框';
+
+  /// 拿到原始字节的那条路（`+` → Image 从文件选择器挑的图）：张数门与大小门都在这里，**判在 base64 之前**。
   /// 超 [clipboardImageSizeLimit] 的直接回报、不编码——base64 出来的字符串比原字节还大三分之一，
   /// 在 UI isolate 上同步建那一下正是界面卡住的原因，判在 [addImage] 里就已经晚了。
   /// 文案与剪贴板那条路同一句、不写死 MB 数（两条路的门不是同一个数，见 [clipboardImageSizeLimit]）。
   void addImageBytes(Uint8List bytes, String mimeType, {String? path}) {
+    if (_pendingImageCount >= promptImageCountLimit) {
+      lastError = _tooManyImages;
+      touch();
+      return;
+    }
     if (bytes.length > clipboardImageSizeLimit) {
       lastError = '图片太大，没有加进输入框';
       touch();
@@ -346,20 +357,35 @@ class ComposerState extends ChangeNotifier with GuardedNotifier {
       final text = await Clipboard.getData(Clipboard.kTextPlain);
       if ((text?.text ?? '').isNotEmpty) return;
       // 不收图的 agent 照样要读：复制的文件按路径引用与图无关（位图那半 runner 就不取了）。
-      final result = await readClipboard(images: _canPromptImage());
-      if (result.skippedTooLarge) {
+      // 剩几张按输入框里已有的算（满了传 0：剪贴板里真有图才报「最多 N 张」，空剪贴板不误报）。
+      final remaining = promptImageCountLimit - _pendingImageCount;
+      final result = await readClipboard(images: _canPromptImage(), maxImages: remaining < 0 ? 0 : remaining);
+      var tooMany = result.skippedTooMany;
+      var added = false;
+      for (final image in result.images) {
+        // 连按两下 Ctrl+V 时两次读取是并发的，各按读之前的余量收：落进输入框这一下再按当前的张数判一次。
+        if (_pendingImageCount >= promptImageCountLimit) {
+          tooMany = true;
+          break;
+        }
+        addImage(base64Encode(image.bytes), image.mimeType, path: image.path);
+        added = true;
+      }
+      // 路径不受张数门管（不进内存、不占 prompt 里的图片额度）。
+      for (final path in result.paths) {
+        addResourceLink(path);
+        added = true;
+      }
+      if (tooMany) {
+        // 两种都有时报张数：收满了，被大小门跳掉的那几张反正也进不来。
+        lastError = _tooManyImages;
+        touch();
+      } else if (result.skippedTooLarge) {
         // 不写死 MB 数：截图位图有两道门（编码后 20 MB / 像素 256 MB），共用这一个旗标。
         lastError = '图片太大，没有加进输入框';
         touch();
       }
-      if (result.images.isEmpty && result.paths.isEmpty) return;
-      for (final image in result.images) {
-        addImage(base64Encode(image.bytes), image.mimeType, path: image.path);
-      }
-      for (final path in result.paths) {
-        addResourceLink(path);
-      }
-      focus.requestFocus();
+      if (added) focus.requestFocus();
     });
   }
 

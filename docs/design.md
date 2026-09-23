@@ -35,7 +35,7 @@ Flutter 宿主进程（Dart）
 | 前端类型 | 手写薄封装 `lib/projection/wire.dart`（15 变体 + 5 种内容块 + 3 种工具卡内容 + 两类请求；所有者裁定 2026-09-15，不做构建期生成） | 只做字段访问与判别；合规性由 Rust 侧用 rust-sdk 类型反序列化 `test/fixtures/` 的测试兜底；运行期零协议依赖 |
 | Dart ↔ Rust 桥 | flutter_rust_bridge v2 | Rust 侧 `rust/bridge` crate 暴露 `api.rs`；Dart 侧生成物入库 `lib/bridge/`；payload 一律 JSON `String` |
 | registry 与安装 | Zed `agent_registry_store.rs`、`agent_server_store.rs` | 整体复制；删 remote / collab 路径；`Entity` / `Task` 换 tokio；`fs::Fs` 换 `tokio::fs`；结构体对照官方 `agent.schema.json` |
-| Node 与下载 | Zed `node_runtime`、`http_client/github_download.rs`、`util/archive.rs` | 原定直接 git 依赖（不含 gpui）；R5 实施时改为**参考转写**到 `rust/registry/src/{node,install,archive}.rs`（reqwest + sha2 + 系统 `tar`）：Zed 的 `node_runtime` 把受管 Node 写到它自己的 `paths::data_dir()`、拉进 smol / async-std 第二套运行时与 Zed 整仓 git 依赖，与「数据目录只多 `node/`」和 tokio 单运行时冲突。R5 任务卡「偏离」段记理由，待所有者确认 |
+| Node 与下载 | Zed `node_runtime`、`http_client/github_download.rs`、`util/archive.rs` | 原定直接 git 依赖（不含 gpui）；R5 实施时改为**参考转写**到 `rust/registry/src/{node,install,archive}.rs`（reqwest + sha2 + 系统 `tar`）：Zed 的 `node_runtime` 把受管 Node 写到它自己的 `paths::data_dir()`、拉进 smol / async-std 第二套运行时与 Zed 整仓 git 依赖，与「数据目录只多 `node/`」和 tokio 单运行时冲突。理由记 R5 任务卡「偏离」段，所有者 2026-09-23 确认按参考转写定稿 |
 | 连接与认证语义 | Zed `agent_servers/acp.rs` 非测试部分 | 转写：能力声明、AuthRequired 映射、terminal auth、session 控制、config options、elicitation、流量日志 |
 | 终端回调语义 | Zed `acp_thread/terminal.rs` | 转写：输出字节上限、wait_for_exit、kill、release |
 | 文件面板 | 自研 | `std::fs` + `notify`；不做索引服务 |
@@ -137,10 +137,12 @@ Flutter 宿主进程（Dart）
 
 ## 8. zed-agent-acp sidecar
 
+> 版本、sidecar 化细节、客户端集成、上游限制汇总在 [`zed-agent.md`](zed-agent.md)，待办在 [`rounds/BACKLOG-ZED.md`](../rounds/BACKLOG-ZED.md)（2026-09-23，当前不修）；本节只留决策。
+
 - 独立 cargo workspace（`sidecar/zed-agent-acp/`），path 依赖指向 `vendor/upstream/zed/crates/*`；GPL-3.0-or-later。
 - 引导：复制 `eval_cli/src/headless.rs`；`session/new` 时 `Project::local` + `create_worktree(cwd)` + `NativeAgent::new`。
 - 映射：`initialize` → 固定能力（`loadSession` + `sessionCapabilities.{list, delete, resume, close}`，`authMethods` 空）；`session/new` / `session/load` / `session/list` / `session/delete` → `NativeAgentConnection` 与 `ThreadStore`；`session/resume` = load 的不重放版；`session/close` = 放掉 `AcpThread` 引用；`session/prompt` → `Thread::send` 得到 `ThreadEvent` 流；`session/cancel` → `Thread::cancel`；模型选择走 **config options**（一个 `select`，id `model`），**不**声明 `modes`。
-- 事件翻译：`ThreadEvent::{UserMessage, AgentText, AgentThinking, ToolCall, ToolCallUpdate, SubagentSpawned, Retry, ContextCompaction*}` → `session/update`；`ToolCallAuthorization` → `session/request_permission`，结果写回 `response`；`Elicitation` → `elicitation/create`；`Stop` → `PromptResponse`。
+- 事件翻译：`ThreadEvent::{UserMessage, AgentText, AgentThinking, ToolCall, ToolCallUpdate}` → `session/update`（`SubagentSpawned` / `Retry` 只记日志，`ContextCompaction*` 因 acp 2.0.0 发不出去，见 [`zed-agent.md`](zed-agent.md) § 2.5 / § 4.1）；`ToolCallAuthorization` → `session/request_permission`，结果写回 `response`；`Elicitation` → `elicitation/create`；`Stop` → `PromptResponse`。
 - 终端：沿用 Zed 的 `NativeThreadEnvironment::create_terminal`（进程内 `terminal` crate），输出经 § 4 的 `_meta.terminal_info / terminal_output / terminal_exit` 三键推给客户端 —— 终端是 agent 进程内的，客户端没有它的句柄，不能走 `terminal/*`。
 - **数据（R7 实测后按推荐项落地 2026-09-17，待所有者确认）：配置共用、数据隔离。** sidecar 以
   `--zed-settings <%APPDATA%/Zed/settings.json>` **只读**沿用 Zed 的模型与密钥配置（所有者裁定 2026-09-15），

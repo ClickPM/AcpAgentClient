@@ -1069,6 +1069,7 @@ Future<void> runClipboardProbe({required String reportPath}) async {
     report['images'] = images;
     report['paths'] = result.paths;
     report['skippedTooLarge'] = result.skippedTooLarge;
+    report['skippedTooMany'] = result.skippedTooMany;
     final plain = await readClipboard(images: false);
     report['withoutImages'] = <String, dynamic>{'images': plain.images.length, 'paths': plain.paths};
     report['ok'] = true;

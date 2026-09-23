@@ -74,11 +74,15 @@ bool IsWindowMaximized(HWND window) {
 }
 
 // 最大化时客户区会比工作区大出一圈边框，手动缩回去，否则右边与下边会被裁掉。
+// 显示器按 `rect`（系统提议的新窗口矩形）找，不能按窗口当前位置：最大化窗口从最小化还原时，
+// 这条消息到的那一刻窗口还停在 (-32000,-32000)，`MonitorFromWindow(DEFAULTTONULL)` 回 NULL，
+// 修正被跳过，整个画面四边各溢出屏幕一圈边框（所有者报障「用一阵后顶栏与底栏按钮偏移」，2026-09-23）。
+// Chromium 的 HWNDMessageHandler::OnNCCalcSize 在同一处有同样的说明。
 void AdjustMaximizedClientRect(HWND window, RECT& rect) {
   if (!IsWindowMaximized(window)) {
     return;
   }
-  HMONITOR monitor = ::MonitorFromWindow(window, MONITOR_DEFAULTTONULL);
+  HMONITOR monitor = ::MonitorFromRect(&rect, MONITOR_DEFAULTTONEAREST);
   if (!monitor) {
     return;
   }
