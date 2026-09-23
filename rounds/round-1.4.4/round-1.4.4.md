@@ -86,3 +86,13 @@
 | high | 重载断开途中（`agent_disconnect` 等旧连接的宽限）再点当前会话：agent 已 `exited`、会话判挂空，点击走 `ensureLoaded` 先发起 `agent_connect`，重载随后合并进这一次；连接回来时点击那条先恢复、先把 `session/load` 记进 `_loadsInFlight`，重载的 `loadSession` 看到「已在载」立刻回 `false`，被当成载入失败去 `createSession`——用户被切到新会话，同 id 时还会被在途的重放把旧转录铺回去 | 属实：用例复现（不修时 `calls` 多出 `new`）。`_connectOnce` 的发起方等的是 `whenComplete` 派生的 Future、合并方等的是原始 Future，监听按注册顺序回调，发起方（点击）先恢复 | **采纳**：`loadSession` 已在载时返回 `_loadsInFlight` 里那一个 Future 而不是 `false`（`lib/app/session_attach.dart`）；`_AttachCore` 加 `disconnectGate`，`session_attach_test` 补一条「重载断开途中再点当前会话」 |
 
 采纳整改 → 第 3 轮起只审整改 diff（`625013b..HEAD`）。
+
+### 第 3 轮（`-Scope since -Base 625013b`，只审整改 diff，基于 `d33189d`）
+
+`.claude/reviews/20260923-164911-review.out.md`：**1 条（high 0 / P2 1 / P3 0）**。
+
+| 级别 | finding | 核对 | 处理 |
+|---|---|---|---|
+| P2 | 新用例复现的是「点击先发起连接」，审查认为这种顺序下重载反而先恢复、先进 `loadSession`，`inFlight` 分支走不到，去掉整改用例仍通过 | **前提不成立，两处实测**：① 整改前（`git stash` 掉 `session_attach.dart`）跑这条用例**失败**，`calls` 是 `['disconnect', 'connect', 'load:sess_a', 'new']`——重载正是拿到了 `false` 才 `createSession`；② 独立脚本（scratchpad `listener_order.dart`）：原始 Future 完成时按注册顺序回调，`whenComplete` 派生的等待者（发起方，创建时注册）先恢复，后 `await` 原始 Future 的合并方后恢复。审查说的顺序正好反了；它给的「重载先占住连接、点击再合并」那种顺序下重载先进 `loadSession`、点击走 `ensureLoaded` 的 `started` 分支，本来就没有缺陷 | **不采纳**：用例已经锁住行为，只在用例里补一行注释记下核实结果（注释改动，未重跑 validate）；下一轮 `-Note` 点名 |
+
+无采纳整改；按所有者「findings 为 0 才收」的要求，带上核对结论再发第 4 轮（同范围）。

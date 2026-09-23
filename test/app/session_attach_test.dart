@@ -507,6 +507,8 @@ void main() {
       // 会话判挂空，点击走 ensureLoaded → 先发起 agent_connect；重载随后合并进这一次连接，但连接回来时点击那条
       // 先恢复、先把 session/load 记进在途表。重载的 loadSession 若把「已在载」当成 false，就会 createSession
       // 把这条顶掉（同 id 时还会被在途的重放把旧转录铺回来）。
+      // 顺序已实测（第 3 轮复审质疑过）：发起方等的是 whenComplete 派生的 Future、先注册先恢复，所以点击先进 loadSession；
+      // 去掉整改再跑，calls 多出一次 new。
       final (c, core) = await _controller();
       _live(c, _a, <String>['A 的历史']);
       c.session.sessionId = _a;
