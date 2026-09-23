@@ -2,7 +2,7 @@
 
 <!-- 保存为 iterations/iteration-NN.md。一个迭代一个文件、一项一行；流程正本见 iterations/README.md，不在这里复述。 -->
 
-> 状态：进行中　起止：2026-09-23 –　基线：`main` = `34e66be`
+> 状态：待合并　起止：2026-09-23 –　基线：`main` = `34e66be`
 
 BACKLOG P0「会话身份与生命周期」四条一起做（下文「BACKLOG 第 N 条」按那一小节原来的顺序数）。第 1 / 2 / 4 条同根：前端没有「这条会话挂在哪条 agent 连接上」的状态，
 一直拿「内存里有没有转录（`store`）」代替；本迭代补上**挂载代次**（每个 agent 的连接换过几代 + 挂空的会话集合），三条共用。第 3 条独立。
@@ -13,17 +13,22 @@ BACKLOG P0「会话身份与生命周期」四条一起做（下文「BACKLOG �
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | fix | 载会话中途失败会留半份转录：失败时整段重放作废（`Sessions.discardUpdates`，在挂起的 batcher 队列里与清空成对排），原先有转录的原样留着；删掉 `_updateArrivals` / `noteUpdateArrival` 那套「重放了几条」的判断 | BACKLOG P0「会话身份与生命周期」第 4 条 | `claude/conversation-identity-lifecycle-p0-dd6bcc` | | | 进行中 |
-| 2 | fix | 发消息可能把选中的会话静默顶掉：`send()` 按四态分流（none / attached / detached / unattachable），detached 先挂回（连上 → load / resume）再发，挂不回不开新会话、这一轮按「发出去失败」收在画板 31 的结束行；unattachable 按 R3 新开一条，输入框占位文案先说明 | BACKLOG P0「会话身份与生命周期」第 1 条 | 同上 | | | 进行中 |
-| 3 | fix | 重载或崩溃之后，别的会话发不出去：连接每换一次，这个 agent 名下内存里的会话全部标成挂空；切过去（`ensureLoaded`）或发送 / Restore / 下拉之前自动挂回。认证页的 `agent_connect` 改经会话控制器，代次不漏记 | BACKLOG P0「会话身份与生命周期」第 2 条 | 同上 | | | 进行中 |
-| 4 | fix | 认证完成后建出来的会话挂到旧目录：`_adoptSession` 拆成「登记」与「切成当前会话」，后者只在会话 cwd 属于当前项目时做；索引写回改传 `target` | BACKLOG P0「会话身份与生命周期」第 3 条 | 同上 | | | 进行中 |
+| 1 | fix | 载会话中途失败会留半份转录：失败时整段重放作废（`Sessions.discardUpdates`，在挂起的 batcher 队列里与清空成对排），原先有转录的原样留着；删掉 `_updateArrivals` / `noteUpdateArrival` 那套「重放了几条」的判断 | BACKLOG P0「会话身份与生命周期」第 4 条 | `claude/conversation-identity-lifecycle-p0-dd6bcc`（`9c64804` + 整改 `d9ce250` / `4fe8b13`）→ 待合并 | validate 全绿（482 项 flutter test）；未构建、未手测 | 3 轮 / cursor CLI `grok-4.7-high-fast`（`-Scope since`）：3 → 1 → **0**，high 4 条全部采纳 | 待合并 |
+| 2 | fix | 发消息可能把选中的会话静默顶掉：`send()` 按四态分流（none / attached / detached / unattachable），detached 先挂回（连上 → load / resume）再发，挂不回不开新会话、这一轮按「发出去失败」收在画板 31 的结束行；unattachable 按 R3 新开一条，输入框占位文案先说明 | BACKLOG P0「会话身份与生命周期」第 1 条 | 同上 | 同上 | 同上 | 待合并 |
+| 3 | fix | 重载或崩溃之后，别的会话发不出去：连接每换一次，这个 agent 名下内存里的会话全部标成挂空；切过去（`ensureLoaded`）或发送 / Restore / 下拉之前自动挂回。认证页的 `agent_connect` 改经会话控制器，代次不漏记 | BACKLOG P0「会话身份与生命周期」第 2 条 | 同上 | 同上 | 同上 | 待合并 |
+| 4 | fix | 认证完成后建出来的会话挂到旧目录：`_adoptSession` 拆成「登记」与「切成当前会话」，后者只在会话 cwd 属于当前项目时做；索引写回改传 `target` | BACKLOG P0「会话身份与生命周期」第 3 条 | 同上 | 同上 | 同上 | 待合并 |
 
 ## 收口
 
-- 构建 / 手测：
-- 发版：
-- 移出项去向：
-- 设计稿补注记：
+- 构建 / 手测：未构建。所有者手测项（真 agent，Windows）：
+  1. **重载后切另一条**：同一个声明了 `loadSession` 的 agent 开两条会话 A、B；在 A 上点会话头「重载 agent」，再点侧栏 B 发一句 → 不撞 `unknown session`，B 先把历史载回来再回复。
+  2. **崩溃后接着发**：任务管理器结束 agent 进程（或 fake-agent 带 `--crash-after`），在当前会话直接发一句 → 转录变暗转圈一会儿，随后照常回复。
+  3. **载不回不顶掉**：让一条旧会话载不回（agent 侧删掉它的会话记录），点开它发一句 → 不新开会话、侧栏高亮不跳，转录里多一轮带失败原因的结束行，输入框清空。
+  4. **挂不回先说明**：既没有 `loadSession` 也没有 `resume` 的 agent，重载后点回旧会话 → 输入框占位是「这条会话在当前连接上无法继续，发送会新开一条」；发送新开一条。
+  5. **认证期间换项目**：未登录的 agent 在项目 A 发第一条 → 认证页 → 顶栏换到项目 B → 完成登录 → 界面停在 B（空态），切回 A 侧栏里有这条新会话。
+- 发版：不发（所有者定）。
+- 移出项去向：—（同一项目里认证期间切了会话仍被顶掉的那一半记 BACKLOG P1「壳与交互」；`pty` 测试偶发判红记 P5「测试」）。
+- 设计稿补注记：`design/DIVERGENCE.md` 第 33 条（画板 05 B 组第三个触发、画板 31 失败态的第二个来源、画板 01 / 40 输入框一句占位文案）。
 
 ## 备注
 
@@ -57,6 +62,8 @@ BACKLOG P0「会话身份与生命周期」四条一起做（下文「BACKLOG �
   - 残留（不采纳，记在这里）：`loadSession` 的 Future 靠排队闭包完成，排在它前面的闭包要是抛错，`UpdateBatcher.flush` 按既有语义丢掉队列里余下的闭包，等它的调用方会一直等下去。闭包都是投影层的应用函数（未知变体只丢不抛），与改前「抛错后 UI 不再刷新这一批」是同一类既有风险，不为它改 batcher 的错误语义。
 - **第 2 轮**（同一执行器，`-Scope since -Base 9c64804`，审 `d9ce250`，约 10 分钟）：1 条，**high 1**，采纳：第 1 轮第 3 条的整改把「`sessionId` 还是原来那条」当成「新会话没开出来」，而 `session/new` 可以回同一个 id（fake-agent 不带 `--sessions` 时总是这样），那时会话其实已经挂上、发送却被丢掉 → 改成 id 没变**且**这条仍没挂上才返回（只改判断）。补一条用例，退回旧判断时变红。审查者另外核对了 `_connectOnce` 与 `Completer` 两处整改，没有新缺陷；残留那条未再计。
 - validate：整改后第一次全量跑在 `cargo test` 的 `pty::spawn_streams_output_and_reports_exit` 红了一次（本分支没有 Rust 改动；`wait` 返回时退出回调还没记上），第 2 轮整改后又红一次——全量 validate 6 次里 2 次，单跑、`--test-threads=1`、`--no-fail-fast` 全 workspace 都过，只在同 crate 并行且机器负载高（当时好几个副本在编）时出现。记 BACKLOG P5「测试」；每次重跑 validate 全绿（最后一次 482 项 flutter test）。
+
+- **第 3 轮**（同一执行器，`-Scope since -Base d9ce250`，审 `4fe8b13`）：**0 条**。审查者对照 `attachOf` / `attachedNew` 与 `_newSession` / `createSession` / `_adoptSession` 核过两条路径（同 id 成功照发、失败仍返回），也确认退回旧判断时新用例会红。**0 high 收口。**
 
 ### 合并注意
 
