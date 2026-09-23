@@ -1,7 +1,8 @@
 // 画板 61 的模型与 widget（R4 画板阶段）：本地终端的分块 UTF-8 解码（跨块的汉字不切坏）、退出状态与耗时、
-// 状态行文案、停止方块只在运行中出现、右栏标签的相等性。
+// 状态行文案、停止方块只在运行中出现、右栏标签的相等性；中文输入法的组字 / 上屏与光标处的组字串。
 
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:acp_agent_client/ui/shell/right_panel.dart';
 import 'package:acp_agent_client/ui/shell/shell_common.dart';
@@ -11,7 +12,7 @@ import 'package:acp_agent_client/ui/transcript/terminal_card.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:xterm/xterm.dart' show TerminalKey;
+import 'package:xterm/xterm.dart' show TerminalKey, TerminalView, TerminalViewState;
 
 Widget host(Widget child) => Directionality(
       textDirection: TextDirection.ltr,
@@ -109,6 +110,71 @@ void main() {
     );
     await tester.pump();
     expect(sent.join(), '世界');
+  });
+
+  testWidgets('中文输入法：正在组的字画在光标处（不被块光标盖住）；shell 输出冲不掉，上屏 / 取消 / 失焦后清掉', (tester) async {
+    final term = LocalTerminal(id: 't', title: 'x', cwd: r'D:\w', onInput: (_) {});
+    await tester.pumpWidget(host(TerminalPanel(terminal: term, autofocus: true)));
+    await tester.pump(); // autofocus 结算
+    await tester.pump(); // IME 层在首帧之后开连接
+
+    final Finder view = find.byType(TerminalView);
+    // 空终端一个字形都没有，画出来的段落只可能是组字串（xterm 逐格画字、空格不画）。
+    expect(view, paintsExactlyCountTimes(#drawParagraph, 0));
+
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(text: 'ni', composing: TextRange(start: 0, end: 2)),
+    );
+    await tester.pump();
+    ui.Paragraph? composing;
+    expect(
+      view,
+      paints
+        ..something((Symbol method, List<dynamic> args) {
+          if (method != #drawParagraph) return false;
+          composing = args[0] as ui.Paragraph;
+          return true;
+        }),
+    );
+    // xterm 从光标格起画（占位符宽 = 光标 x），再在光标格上盖实心块光标：组字串前垫了一格，
+    // 所以段落右端 = 光标格 + 「n」「i」两格，两个字母都在光标之后。
+    final double cell = tester.state<TerminalViewState>(view).renderTerminal.cellSize.width;
+    final ui.TextBox caret = composing!.getBoxesForPlaceholders().single;
+    expect(composing!.longestLine, moreOrLessEquals(caret.right + 3 * cell, epsilon: 0.5));
+
+    // 组字期间 shell 来了一段输出（换行，不添字形）：面板随之重建，TerminalView 会把组字串清回它自己的 null。
+    // 必须在同一帧写回——之后渲染对象不该再脏着等下一帧（等下一帧 = 先画出一帧空的，输出不断时一直闪）。
+    term.writeBytes(utf8.encode('\r\n'));
+    await tester.pump();
+    expect(view, paintsExactlyCountTimes(#drawParagraph, 1));
+    expect(tester.state<TerminalViewState>(view).renderTerminal.debugNeedsPaint, isFalse);
+
+    // 上屏：组字串清掉（上屏的字交给 shell，回显由 shell 负责，这里的假 shell 不回显）。
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(text: '你', selection: TextSelection.collapsed(offset: 1)),
+    );
+    await tester.pump();
+    expect(view, paintsExactlyCountTimes(#drawParagraph, 0));
+
+    // Esc 取消组字：引擎回一个空串。
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(text: 'hao', composing: TextRange(start: 0, end: 3)),
+    );
+    await tester.pump();
+    expect(view, paintsExactlyCountTimes(#drawParagraph, 1));
+    tester.testTextInput.updateEditingValue(TextEditingValue.empty);
+    await tester.pump();
+    expect(view, paintsExactlyCountTimes(#drawParagraph, 0));
+
+    // 组字到一半焦点走了：连接关掉，组字串一起清。
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(text: 'shi', composing: TextRange(start: 0, end: 3)),
+    );
+    await tester.pump();
+    expect(view, paintsExactlyCountTimes(#drawParagraph, 1));
+    FocusManager.instance.primaryFocus!.unfocus();
+    await tester.pump();
+    expect(view, paintsExactlyCountTimes(#drawParagraph, 0));
   });
 
   testWidgets('状态行：运行中显示 cwd + 停止方块；退出后显示退出码且没有停止方块', (tester) async {

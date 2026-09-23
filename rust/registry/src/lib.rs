@@ -213,12 +213,14 @@ impl CancelToken {
         if self.is_cancelled() { Err(RegistryError::Cancelled) } else { Ok(()) }
     }
 
-    /// 等到取消（已取消则立即返回）。
+    /// 等到取消（已取消则立即返回）。先建 `Notified` 再看标志：`notify_waiters` 只叫醒已经建好的等待者，
+    /// 反过来写的话，「看完标志、还没建等待者」那一瞬间到的 `cancel` 会被漏掉，这里就一直等下去。
     pub async fn cancelled(&self) {
+        let notified = self.notify.notified();
         if self.is_cancelled() {
             return;
         }
-        self.notify.notified().await;
+        notified.await;
     }
 }
 
