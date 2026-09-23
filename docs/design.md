@@ -35,7 +35,7 @@ Flutter 宿主进程（Dart）
 | 前端类型 | 手写薄封装 `lib/projection/wire.dart`（15 变体 + 5 种内容块 + 3 种工具卡内容 + 两类请求；所有者裁定 2026-09-15，不做构建期生成） | 只做字段访问与判别；合规性由 Rust 侧用 rust-sdk 类型反序列化 `test/fixtures/` 的测试兜底；运行期零协议依赖 |
 | Dart ↔ Rust 桥 | flutter_rust_bridge v2 | Rust 侧 `rust/bridge` crate 暴露 `api.rs`；Dart 侧生成物入库 `lib/bridge/`；payload 一律 JSON `String` |
 | registry 与安装 | Zed `agent_registry_store.rs`、`agent_server_store.rs` | 整体复制；删 remote / collab 路径；`Entity` / `Task` 换 tokio；`fs::Fs` 换 `tokio::fs`；结构体对照官方 `agent.schema.json` |
-| Node 与下载 | Zed `node_runtime`、`http_client/github_download.rs`、`util/archive.rs` | 原定直接 git 依赖（不含 gpui）；R5 实施时改为**参考转写**到 `rust/registry/src/{node,install,archive}.rs`（reqwest + sha2 + 系统 `tar`）：Zed 的 `node_runtime` 把受管 Node 写到它自己的 `paths::data_dir()`、拉进 smol / async-std 第二套运行时与 Zed 整仓 git 依赖，与「数据目录只多 `node/`」和 tokio 单运行时冲突。R5 任务卡「偏离」段记理由，待所有者确认 |
+| Node 与下载 | Zed `node_runtime`、`http_client/github_download.rs`、`util/archive.rs` | 原定直接 git 依赖（不含 gpui）；R5 实施时改为**参考转写**到 `rust/registry/src/{node,install,archive}.rs`（reqwest + sha2 + 系统 `tar`）：Zed 的 `node_runtime` 把受管 Node 写到它自己的 `paths::data_dir()`、拉进 smol / async-std 第二套运行时与 Zed 整仓 git 依赖，与「数据目录只多 `node/`」和 tokio 单运行时冲突。理由记 R5 任务卡「偏离」段，所有者 2026-09-23 确认按参考转写定稿 |
 | 连接与认证语义 | Zed `agent_servers/acp.rs` 非测试部分 | 转写：能力声明、AuthRequired 映射、terminal auth、session 控制、config options、elicitation、流量日志 |
 | 终端回调语义 | Zed `acp_thread/terminal.rs` | 转写：输出字节上限、wait_for_exit、kill、release |
 | 文件面板 | 自研 | `std::fs` + `notify`；不做索引服务 |
