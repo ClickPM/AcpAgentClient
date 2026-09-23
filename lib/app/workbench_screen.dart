@@ -34,6 +34,7 @@ import '../ui/shell/right_panel.dart';
 import '../ui/shell/shell_common.dart';
 import '../ui/shell/sidebar.dart';
 import '../ui/shell/session_header.dart';
+import '../ui/shell/toast.dart';
 import '../ui/shell/topbar.dart';
 import '../ui/shell/transcript_empty.dart';
 import '../ui/terminal/terminal_panel.dart';
@@ -399,8 +400,16 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
           timelineAnchor: c.session.timelineAnchor,
           menuAnchor: c.session.sessionMenuAnchor,
         ),
-        body: _body(),
+        body: _toastLayer(_body()),
         composer: _composer(),
+      );
+
+  /// 壳级提示（设计稿之外的增补，所有者 2026-09-23）：「会话正在加载中」与各处的错误，叠在正文区顶上（会话头正下方）。
+  /// 叠在 [_body] 外面：等待期的变暗与挡点击只管正文，提示条不跟着变暗。
+  Widget _toastLayer(Widget child) => ToastLayer(
+        toasts: c.toasts.visible(loadingSession: c.session.loadingSession),
+        onDismiss: c.toasts.dismiss,
+        child: child,
       );
 
   /// 画板 05 的 A 组（会话内容整块替换的入场）与 B 组（等待期：重载 agent、新建会话）都落在中栏这一块。
@@ -958,12 +967,12 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
           children: <Widget>[
             _topBar(windowControls: _windowControlsInTopBar),
             Expanded(
-              child: TrafficPage(
+              child: _toastLayer(TrafficPage(
                 store: c.traffic,
                 filterController: c.shell.trafficFilter,
                 filterFocusNode: c.shell.trafficFilterFocus,
                 stderrAgentId: c.session.agentId,
-              ),
+              )),
             ),
           ],
         ),

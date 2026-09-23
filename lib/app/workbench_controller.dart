@@ -44,6 +44,7 @@ import 'paths.dart';
 import 'session_index.dart';
 import 'shell_state.dart';
 import 'session_controller.dart';
+import 'toasts.dart';
 import 'transcript_folds.dart';
 import 'turn_controller.dart';
 import 'workspace_state.dart';
@@ -61,8 +62,12 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   WorkbenchController({required this.source, this.bridge, FlushScheduler? scheduler})
       : _scheduler = scheduler ?? _scheduleOnFrame {
     // 阶段 A：子对象的通知全部转发到根。在构造函数里接而不是 start() 里：不 start 也能用（单测这么用）。
-    for (final child in <ChangeNotifier>[shell, workspace, agents, auth, composer, turn, session]) {
+    for (final child in <ChangeNotifier>[shell, workspace, agents, auth, composer, turn, session, toasts]) {
       child.addListener(notifyListeners);
+    }
+    // 错误的前台出口：谁的 `lastError` 写进一句，都落成一条 toast（BACKLOG「失败没有出口」）。
+    for (final source in <GuardedNotifier>[this, shell, workspace, agents, auth, composer, turn, session, files, terminals]) {
+      source.reportError = toasts.error;
     }
   }
 
@@ -81,6 +86,9 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   /// 回合折叠（画板 08 B）：全局开关 + 每个回合的展开态。**不转发到根**——折叠只影响转录列表，
   /// 而 `TranscriptList` 自己听它；转发上来会让点一次摘要行重建整个工作台。
   late final TranscriptFolds folds = TranscriptFolds(bridge: bridge);
+
+  /// 壳级提示（toast，设计稿之外的增补，所有者 2026-09-23）：各对象 `lastError` 的前台出口 + 「会话正在加载中」。
+  final Toasts toasts = Toasts();
 
   /// 文件面板（画板 60）与终端面板（画板 61）的接线状态（R4）。
   late final FilesState files = FilesState(bridge: bridge);
@@ -316,7 +324,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     files.dispose();
     terminals.dispose();
     folds.dispose();
-    for (final child in <ChangeNotifier>[shell, workspace, agents, auth, composer, turn, session]) {
+    for (final child in <ChangeNotifier>[shell, workspace, agents, auth, composer, turn, session, toasts]) {
       child.removeListener(notifyListeners);
       child.dispose();
     }

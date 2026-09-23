@@ -296,14 +296,9 @@ Future<void> runR6({required String reportPath}) async {
   } catch (e, st) {
     report['error'] = e.toString();
     report['stack'] = st.toString();
-    report['lastError'] = controller?.session.lastError;
+    report['lastError'] = controller?.toasts.latest;
   }
-  try {
-    await controller?.shutdown();
-  } on Object catch (e) {
-    report['shutdownError'] = e.toString();
-  }
-  controller?.dispose();
+  await _shutdown(controller, report);
   _finish(reportPath, report, exitCode, 'r6');
 }
 
@@ -579,8 +574,9 @@ Future<void> runR5({required String reportPath}) async {
   } catch (e, st) {
     report['error'] = e.toString();
     report['stack'] = st.toString();
-    report['lastError'] = controller?.session.lastError;
+    report['lastError'] = controller?.toasts.latest;
   }
+  await _shutdown(controller, report);
   _finish(reportPath, report, exitCode, 'r5');
 }
 
@@ -1050,8 +1046,10 @@ Future<void> runR3({required String reportPath}) async {
   } catch (e, st) {
     report['error'] = e.toString();
     report['stack'] = st.toString();
-    report['lastError'] = controller?.session.lastError;
+    report['lastError'] = controller?.toasts.latest;
   }
+  // 正常走完的那条上面已经收过尾（报告里的 `steps.shutdown`），这里再调一次是空转；中途出错跳出来的靠这一下。
+  await _shutdown(controller, report);
   _finish(reportPath, report, exitCode, 'r3');
 }
 
@@ -1073,6 +1071,18 @@ Map<String, dynamic> _turnSummary(WorkbenchController c, String prompt) {
     // 最后一条 agent 消息的开头：一轮没发工具调用时，看这里就知道 agent 说了什么（如凭据错误）。
     'lastAgentMessage': _lastAgentMessage(store),
   };
+}
+
+/// 各模式在 [_finish] 之前都要走的一步：断开全部 agent、释放终端（与关窗同一条 `shutdown()`）。`exit()` 不跑析构，
+/// 没断开的 agent 进程树会留成孤儿——R5 实测 Cursor 拉的 node.exe 在无头进程退出后还活着（BACKLOG P0「退出时 agent 的
+/// 子进程没回收」）。出错跳出 try 的那条路也要走到这里，所以放在 try / catch 之后。`shutdown()` 可重复调。
+Future<void> _shutdown(WorkbenchController? controller, Map<String, dynamic> report) async {
+  try {
+    await controller?.shutdown();
+  } on Object catch (e) {
+    report['shutdownError'] = e.toString();
+  }
+  controller?.dispose();
 }
 
 /// 各模式共用的收尾：写报告（目录不存在就建）、退出码即结论；报告写不出去也算失败。
