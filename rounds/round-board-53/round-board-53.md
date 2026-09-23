@@ -102,7 +102,7 @@ registry 型（npx / binary）agent 装好之后能看出「registry 有新版�
 | b1 首装 codex-acp | `ACP_R5_REFRESH=1 ACP_R5_INSTALL=codex-acp` | 133 s（npm 拉平台二进制）；`agents\codex-acp\1.13.0\` |
 | b2 连着会话升级 → Reload | `version` 改 `0.0.1` → `ACP_R5_AGENT=codex-acp ACP_R5_CWD=<worktree> ACP_R5_UPGRADE=codex-acp ACP_R5_RELOAD=1` | 新会话建好（连接活着）→ 升级 8.9 s，装到 `1.13.0-1790129367858`；**旧目录 `1.13.0` 保留**（运行中的连接在用），`install.json` 记 `previousVersion: 0.0.1`，列表 `reloadPending: "0.0.1"`；Reload Agent 之后 `reloadPending` 归 null、新连接的拉起入口在新目录。这一跑 Reload 里的 `session/load` 回了 `-32603`，退回新建会话——见 b4 |
 | b3 重启清扫 | 什么都不做，只起一次（`ACP_R5_REFRESH=1` 让进程多活几秒） | 启动清扫删掉 `1.13.0`，剩 `1.13.0-1790129367858` 与 `install.json` |
-| b4 带一轮再升级 | `version` 改 `0.0.1` → 同 b2 再加 `ACP_R5_PROMPT="Reply with exactly: ok"` | 一轮 `end_turn`；升级装到空出来的 `1.13.0`，在用的 `…-1790129367858` 保留，`reloadPending: "0.0.1"`；Reload 后 `session/load` 在新版本上**载回原会话**（会话 id 不变、无错误），`reloadPending` 归 null。**b2 的 `-32603` 与升级无关**：codex-acp 没跑过一轮的会话不落盘，`session/load` 载不回来（不升级、直接 Reload 同样如此） |
+| b4 带一轮再升级 | `version` 改 `0.0.1` → 同 b2 再加 `ACP_R5_PROMPT="Reply with exactly: ok"` | 一轮 `end_turn`；升级装到空出来的 `1.13.0`，在用的 `…-1790129367858` 保留，`reloadPending: "0.0.1"`；Reload 后 `session/load` 在新版本上**载回原会话**（会话 id 不变、无错误），`reloadPending` 归 null。**b2 的 `-32603` 看来与升级无关**：同一流程带一轮之后就载得回来，推断是 codex-acp 没跑过一轮的会话不落盘、`session/load` 载不回来（「不升级、空会话直接 Reload」的对照没有跑） |
 
 ### 偏离
 
