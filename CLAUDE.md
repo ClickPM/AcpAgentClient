@@ -83,7 +83,7 @@ AcpAgentClient/
 - **回落只认硬失败**（`cursor-agent` 未安装 / 未登录 / 启动失败 / 限流 / 后台进程已死而 `.out` 仍空），「等得久」「改动小」不是理由；回落原因写进任务卡。回落 = 主会话用 Agent 工具委派一个只读子代理，提示词是「读 `.claude/cursor-review-prompt.md`，把 `{{RANGE}}` 当作 `<范围>`、`{{NOTE}}` 当作 `<要点>` 执行，只输出结论不改文件」；范围口径不变（前两轮 `main...HEAD`，第 3 轮起 `<上一轮已审提交>..HEAD`）。
 - 同一验收项针对性整改后连续 2 次仍不过 → 写 `rounds/round-NN/BLOCKED.md` 停下呼人，禁止放宽验收（rounds/README.md）。
 - 分支：每轮在 `round-NN` 分支开发，审查通过后合并 `main`；纯文档与微修可直接 `main`。R7 合并后（2026-09-17 起）所有者手测报障的修复也直接在 `main` 上做：每批是否构建、是否走独立审查由所有者逐批指示，不走的在提交说明里写明「未构建 / 未审查（所有者指定）」；走审查的按同一套缺陷门禁（发布前审查 → 整改 → 复审）。这一段的汇总在 `ROUNDS.md` § 7「main 直改」行；设计稿因此滞后的项记 [`design/DIVERGENCE.md`](design/DIVERGENCE.md)（规则 3，**不要求补稿**），不再进 `rounds/BACKLOG.md`。**2026-09-22 起这类工作按迭代流程登记在 `iterations/`**（ROUNDS.md § 7「main 直改」行封存，不再追加）。
-- 跨轮次发现的问题写 `rounds/BACKLOG.md`，不当场顺手改。
+- 跨轮次发现的问题写 `rounds/BACKLOG.md`，不当场顺手改；出在上游（agent、zed、xterm 等依赖）或协议本身的不是本项目的问题，不进 BACKLOG（所有者裁定 2026-09-23）。
 
 ## 硬性规则
 

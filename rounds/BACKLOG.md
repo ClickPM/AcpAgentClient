@@ -22,10 +22,11 @@
 | P3 设计稿欠账 | — | **已整体释放**到 `design/DIVERGENCE.md`，见下面的占位小节 |
 | **P4 平台与分发** | 7 | macOS / Linux、构建链、sidecar 打包。跟 R8 走。 |
 | **P5 内部工程与验收** | 19 | 用户无感：测试、行数门、文档措辞、验收自动化。有空就做。 |
-| **X 卡在上游 / 协议** | 6 | 我们动不了，等 agent 侧或 zed 升版本。只盯着，不排期。 |
-| | **72** | |
+| X 卡在上游 / 协议 | — | **已撤档**：不是本项目的问题不进本表（所有者裁定 2026-09-23），见下面的占位小节 |
+| | **66** | |
 
 **新增条目**：挑一档追在该档末尾，照同样的三行格式写。不新开档位；一条只进一档。
+**只收本项目自己的问题**：问题出在上游（agent、zed、xterm 等依赖）或协议本身的，不进本表（所有者裁定 2026-09-23，X 档因此撤掉）；其中实现因此与画板对不上的，照规则 3 记 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)。
 **关闭条目**：把**技术行连同结论压成一行** `- [x]` 剪到 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md) 末尾（那份是平铺存档，不分档），本文删掉这三行。
 
 ## P0 · 真缺陷（7）
@@ -348,28 +349,8 @@
   - **产品**：用户无感。本轮只并了 `IconButtonGhost` 与 `PanelIconButton`。
   - **技术**：quality 其余自带 hover 的 widget 没有并到 `Hoverable`：`AcpButton` 多一个按下态 `_down`，`composer_attachments` / `splitter` / `tool_call_card` / `user_message` 各一份 `bool _hover`（后两者带 `hoveredInitially`，语义是「初始悬浮」不是 `forceHover`）。本轮只并了 `IconButtonGhost` 与 `PanelIconButton` (2026-09-20)
 
-## X · 卡在上游 / 协议（6）
+## X · 卡在上游 / 协议 —— 已撤档
 
-- [ ] **Gemini CLI 还不能作为一等 agent**
-  - **产品**：接不进来。Zed 目前靠合成 terminal auth 方法过渡，等官方 auth methods 落地。
-  - **技术**：立项 Gemini CLI 作为一等 agent：Zed 目前靠合成 terminal auth 方法过渡，等官方 auth methods 落地再议 (2026-09-11)
-
-- [ ] **终端当前搜索命中在深色下对比不够**
-  - **产品**：现在看不见——终端搜索根本还没有入口。`xterm` 只给一个 `searchHitForeground`，两种命中共用。
-  - **技术**：终端「当前搜索命中」的前景色在深色下对比不够。画板 07 § 2.9 要的是「命中 = warning.soft 底 + strong 字，**当前**命中 = warning 底 + canvas 字」，但 `xterm` 4.0.0 的 `TerminalTheme` 只有一个 `searchHitForeground`，两种命中共用；实现取了前者（`t.Neutral.strong`），于是深色下当前命中是 #f0f0f4 压在 #d8a83c 上。终端搜索目前没有入口，看不见；真要修得给 xterm 提 PR 或自己画命中层 (2026-09-20)
-
-- [ ] **dsh 的 --setup 在 Windows 上看不见提示**
-  - **产品**：盲打密钥 + 回车能存上并自动重试成功，但用户看不到「Enter DeepSeek API key:」。上游缺陷（所有者自己的项目），客户端不做 agent 特判。
-  - **技术**：R1 dsh-acp-interactive 1.3.0 的 `--setup` 在 Windows TTY 上**看不见提示**：`secretQuestion` 在 `readline.question()` 返回后立刻 `muted = true`，而 Node 在 Windows 上对 TTY 的写是异步的（`process.stderr` 文档：TTY 在 Windows 异步），readline terminal 模式的提示由多次 `write` 组成，第一段之后的都在 muted 之后才被处理而被吞掉；`TERM=dumb`（非 terminal 模式，单次写）或管道 stdin 都正常。本项目实测（`rounds/round-01/round-01.md` 验收 1）：pty 里 readline 活着、盲打密钥 + 回车能保存并自动重试 `session/new` 成功，只是用户看不到 "Enter DeepSeek API key:"。是上游（所有者自己的项目）的缺陷，客户端不做 agent 特判（规则 2）；R3 认证页出来前请上游修（把提示写完再 muted，或非 terminal 模式）(2026-09-15)
-
-- [ ] **claude-agent-acp 载回会话后 / 菜单是空的**
-  - **产品**：重开应用点进 claude 的旧会话，`/` 菜单空着，直到下一轮对话。其余四个 agent 都会重放。
-  - **技术**：R6 claude-agent-acp 0.76.0 的 `session/load` 不重放 `available_commands_update`（pi-acp / codex-acp / cursor / dsh 都会），所以重开应用载回它的会话后 `/` 菜单是空的，直到下一轮对话。不做 agent 特判（规则 2），照原样呈现；要补只能等 agent 侧改 (2026-09-16)
-
-- [ ] **Zed agent 的上下文压缩投影不出去**
-  - **产品**：压缩过程界面上看不到。zed 钉版本的 acp 2.0.0 没有这个 unstable 伞，单独改特性集会撞规则 10。
-  - **技术**：R7 上下文压缩（`ThreadEvent::ContextCompaction*`）投影不出去：画板 33 走 unstable 的 `compaction_update`，而 zed 钉版本的 `agent-client-protocol` 2.0.0 的 `unstable` 伞里没有 `unstable_session_compaction`（2.1.0 才有），单独改特性集会撞规则 10。等 zed 升 acp 版本后再复议 (2026-09-17)
-
-- [ ] **读 threads.db 失败和真的没有会话长得一样**
-  - **产品**：Zed agent 的会话列表为空时，分不清是读库出错还是本来就空。上游是静默 return。
-  - **技术**：R7 上游 `ThreadStore::spawn_reload`（`vendor/upstream/zed/crates/agent/src/thread_store.rs`）在连库或读表失败时是**静默 return**（`let Ok(..) else { return }`），任务照常完成、`threads` 保持原样 —— 对刚建好的 store 就是空的。于是「读 `threads.db` 失败」和「真的一条会话都没有」在外面长得一模一样。sidecar 侧只能靠「强制重扫 + 空表再重扫一次」滤掉偶发失败（`list_sessions`），拿不到真正的错误。要根治得等上游把错误露出来（或我们自己绕开 `ThreadStore` 直接查库，代价是复制一份 schema 知识）(2026-09-17)
+所有者裁定 2026-09-23：**不是本项目的问题不进 BACKLOG**。原先这一档的 6 条连同结论压成一行剪到
+[`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md) 末尾；其中「终端当前搜索命中」同时是画板 07 § 2.9 的偏离，
+另记 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md) C-28。档位留空占位，不重排编号。
