@@ -296,7 +296,7 @@ Future<void> runR6({required String reportPath}) async {
   } catch (e, st) {
     report['error'] = e.toString();
     report['stack'] = st.toString();
-    report['lastError'] = controller?.session.lastError;
+    report['lastError'] = controller?.toasts.latest;
   }
   try {
     await controller?.shutdown();
@@ -579,7 +579,7 @@ Future<void> runR5({required String reportPath}) async {
   } catch (e, st) {
     report['error'] = e.toString();
     report['stack'] = st.toString();
-    report['lastError'] = controller?.session.lastError;
+    report['lastError'] = controller?.toasts.latest;
   }
   _finish(reportPath, report, exitCode, 'r5');
 }
@@ -1050,7 +1050,7 @@ Future<void> runR3({required String reportPath}) async {
   } catch (e, st) {
     report['error'] = e.toString();
     report['stack'] = st.toString();
-    report['lastError'] = controller?.session.lastError;
+    report['lastError'] = controller?.toasts.latest;
   }
   _finish(reportPath, report, exitCode, 'r3');
 }

@@ -278,9 +278,10 @@ class ShellState extends ChangeNotifier with GuardedNotifier {
       touch();
       return;
     }
+    // 开不起来的原因记在 `terminals.lastError` 上，组合根已把它接到 toast；这里不再抄一份——
+    // 抄过来会同一句报两遍，而且 `terminals.lastError` 成功后不清，下次开成功也会把上次的错再报一遍。
     final id = await terminals.open(cwd);
     if (id != null) activeTerminalId = id;
-    lastError = terminals.lastError ?? lastError;
     touch();
   }
 

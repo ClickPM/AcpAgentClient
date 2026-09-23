@@ -9,8 +9,18 @@ import '../ui/shell/popover_anchor.dart';
 import 'core_bridge.dart';
 
 mixin GuardedNotifier on ChangeNotifier {
-  /// 最近一次桥命令的错误：谁的命令谁记，组合根不再聚合（BACKLOG「`lastError` 在产品 UI 上没有出口」那条做壳级提示位时再聚合）。
-  String? lastError;
+  /// 最近一次桥命令的错误：谁的命令谁记。写进来的每一句（非 null）同时交给 [reportError]——
+  /// 组合根把它接到壳级提示（toast，`lib/app/toasts.dart`）上，于是二十几处 `lastError = …` 不用逐处改就都有了前台出口。
+  String? get lastError => _lastError;
+  set lastError(String? value) {
+    _lastError = value;
+    if (value != null) reportError?.call(value);
+  }
+
+  String? _lastError;
+
+  /// 错误的前台出口，组合根构造时接线；单测里单独 new 的对象不接，就只记不报。
+  void Function(String message)? reportError;
 
   bool _disposed = false;
 

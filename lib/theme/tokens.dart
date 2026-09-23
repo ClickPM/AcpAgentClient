@@ -978,3 +978,31 @@ abstract final class Badge {
   /// 超过这个数显示 `99+`。
   static const int overflowAt = 99;
 }
+
+/// 壳级提示（toast）：设计稿之外的增补，所有者 2026-09-23 直接要求（见 lib/ui/shell/toast.dart、design/DIVERGENCE.md）。
+/// 底色 / 边框 / 圆角 / 阴影借弹层那几档（`Popover`），字样借 [TextStyles.body]，图标借工具栏那档；
+/// 这里只收它自己的几何与时长。
+abstract final class Toast {
+  /// 提示条离中栏正文区上沿的距离（会话头正下方）。
+  static const double top = Spacing.s12;
+
+  /// 左右至少留的白：窄窗口时提示条不贴着中栏两边。
+  static const double sideMargin = Spacing.s24;
+
+  /// 最大宽度：错误原文可能很长，超了在这个宽度内折行。
+  static const double maxWidth = 560;
+
+  /// 最多折几行：再长的截断（全文在日志与流量面板里）。
+  static const int maxLines = 4;
+
+  /// 单行时的高度（含上下内边距）：与画板 34 状态条的单行同高。
+  static const double minHeight = Controls.input + Spacing.s8;
+
+  static const EdgeInsets padding = EdgeInsets.symmetric(horizontal: Spacing.s12, vertical: Spacing.s4);
+
+  /// 图标与文字、文字与关闭键、上下两条提示之间的间隙。
+  static const double gap = Spacing.s8;
+
+  /// 错误提示自动收起的时长；鼠标停在提示条上时不计时，移开后重新计。
+  static const Duration errorDuration = Duration(seconds: 6);
+}
