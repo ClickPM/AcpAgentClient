@@ -44,6 +44,12 @@ class _AttachCore extends FakeCore {
   /// `agent_connect` 抛这个错（缺 Node 等）。
   CoreCommandError? connectError;
 
+  /// 堵住 `agent_connect`（拉起进程要数秒的那个窗口）。
+  Completer<void>? connectGate;
+
+  /// `session/new` 抛这个错（认证等）。
+  CoreCommandError? newError;
+
   /// `session/load` 期间的动作：用例在这里「重放」（往 batcher 里塞 update）或抛错。
   Future<JsonMap> Function(String sessionId)? onLoad;
 
@@ -52,6 +58,7 @@ class _AttachCore extends FakeCore {
   @override
   Future<JsonMap> agentConnect(String agentId, {String? cwd}) async {
     calls.add('connect');
+    await connectGate?.future;
     final e = connectError;
     if (e != null) throw e;
     return <String, dynamic>{'agentId': agentId, 'initialize': initialize};
@@ -66,6 +73,8 @@ class _AttachCore extends FakeCore {
   @override
   Future<JsonMap> sessionNew(String agentId, String cwd) async {
     calls.add('new');
+    final e = newError;
+    if (e != null) throw e;
     return <String, dynamic>{'sessionId': 'sess_new_${++_newCount}'};
   }
 
@@ -308,6 +317,77 @@ void main() {
       c.dispose();
     });
 
+    test('点开没连上的旧会话、连接还在拉起时就发送：只连一次、只载一次，消息照常发到这条', () async {
+      final (c, core) = await _controller(connected: false);
+      final gate = Completer<void>();
+      core.connectGate = gate;
+      core.onLoad = (id) async {
+        _replay(c, id, 'h1', '历史');
+        return <String, dynamic>{};
+      };
+      final selecting = c.session.selectSession(_a);
+      await Future<void>.delayed(Duration.zero);
+      c.composer.editor.text = '马上发';
+      final sending = c.turn.send();
+      await Future<void>.delayed(Duration.zero);
+      gate.complete();
+      await selecting;
+      await sending;
+
+      expect(core.calls, <String>['connect', 'load:$_a', 'prompt:$_a'], reason: '第二次 agent_connect 会把刚拉起的那条断掉');
+      expect(_texts(c.sessions.maybe(_a)!), <String>['历史', '马上发']);
+      c.dispose();
+    });
+
+    test('另一条会话还在载时，这条的载入不提前报成功：发送等转录真的换过来再落', () async {
+      final (c, core) = await _controller();
+      final gateB = Completer<void>();
+      core.onLoad = (id) async {
+        if (id == _b) {
+          await gateB.future;
+        } else {
+          _replay(c, id, 'h1', 'A 的历史');
+        }
+        return <String, dynamic>{};
+      };
+      final selectingB = c.session.selectSession(_b);
+      await Future<void>.delayed(Duration.zero);
+      final selectingA = c.session.selectSession(_a); // A 的 session/load 先回来，B 还挂着 batcher
+      await Future<void>.delayed(Duration.zero);
+      expect(c.session.attachOf(_a), SessionAttach.detached, reason: '清空与重放还没跑，不能算挂上');
+      c.composer.editor.text = 'A 上的一句';
+      final sending = c.turn.send();
+      await Future<void>.delayed(Duration.zero);
+      gateB.complete();
+      await selectingB;
+      await selectingA;
+      await sending;
+
+      expect(core.calls.where((x) => x == 'load:$_a'), hasLength(1));
+      expect(core.calls.last, 'prompt:$_a');
+      expect(_texts(c.sessions.maybe(_a)!), <String>['A 的历史', 'A 上的一句'], reason: '这句话不能被随后才跑的清空抹掉');
+      c.dispose();
+    });
+
+    test('挂不回、内存里有转录、新开会话又没开出来：不把消息发给旧 sessionId，原因不被盖掉', () async {
+      final (c, core) = await _controller(initialize: _initialize(loadSession: false, caps: <String>[]));
+      _live(c, _a, <String>['A 的历史']);
+      c.session.sessionId = _a;
+      c.sessions.applyAgentState(<String, dynamic>{'agentId': _agent, 'state': 'exited', 'code': 1});
+      expect(c.session.attachOf(_a), SessionAttach.unattachable);
+      core.newError = const CoreCommandError('acp', 'quota exceeded');
+
+      c.composer.editor.text = '你好';
+      await c.turn.send();
+
+      expect(core.calls.where((x) => x.startsWith('prompt:')), isEmpty);
+      expect(c.session.sessionId, _a);
+      expect(c.session.lastError, 'quota exceeded');
+      expect(c.turn.lastError, isNull);
+      expect(c.composer.editor.text, '你好', reason: '输入框里的文本原样留着');
+      c.dispose();
+    });
+
     test('挂回期间点了侧栏另一条：这条消息不改投别的会话，输入框原样留着', () async {
       final (c, core) = await _controller(connected: false);
       c.session.sessionId = _a;
@@ -320,8 +400,12 @@ void main() {
       final sending = c.turn.send();
       await Future<void>.delayed(Duration.zero);
       expect(c.session.waitingForAgent, isTrue);
-      await c.session.selectSession(_b);
+      // B 的载入要等 A 那次放开 batcher 才算完（`loadSession` 的 Future 等排队的清空 / 重放真的跑完），所以先不 await。
+      final selectingB = c.session.selectSession(_b);
+      await Future<void>.delayed(Duration.zero);
+      expect(c.session.sessionId, _b);
       gate.complete();
+      await selectingB;
       await sending;
 
       expect(core.calls.where((x) => x.startsWith('prompt:')), isEmpty);

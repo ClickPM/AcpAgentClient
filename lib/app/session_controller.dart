@@ -480,7 +480,21 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
   /// 不然这个 agent 名下内存里的会话还当自己挂着，发出去撞 `-32602 unknown session`。
   Future<void> connectAgent(String agent, String? cwd) async {
     final b = bridge;
-    if (b != null) await _connect(b, agent, cwd);
+    if (b != null) await _connectOnce(b, agent, cwd);
+  }
+
+  /// 正在 `agent_connect` 的 agent：并发的第二次等这一次，不另发（核心的 `agent_connect` 会先断开已有连接，
+  /// 两次交叠就是把刚拉起的那条杀掉——点开一条没连上的旧会话、紧接着发送就是这个窗口；cursor 审查 high，iteration-07）。
+  final Map<String, Future<void>> _connecting = <String, Future<void>>{};
+
+  Future<void> _connectOnce(CoreCommands b, String agent, String? cwd) {
+    final pending = _connecting[agent];
+    if (pending != null) return pending;
+    final Future<void> connecting = _connect(b, agent, cwd);
+    _connecting[agent] = connecting;
+    return connecting.whenComplete(() {
+      if (identical(_connecting[agent], connecting)) _connecting.remove(agent);
+    });
   }
 
   /// `agent_connect` + 把返回的 `initialize` 立刻落进 agent 状态表。
@@ -495,12 +509,12 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
     return result;
   }
 
-  /// 已经连着就不动它（`agent_connect` 会先断开旧连接，重连会把正在跑的会话一起杀掉）。
+  /// 已经连着就不动它（`agent_connect` 会先断开旧连接，重连会把正在跑的会话一起杀掉）；正在连就等那一次。
   @override
   Future<void> ensureConnected(String agent, String cwd) async {
     final b = bridge;
     if (b == null || sessions.agents[agent]?.state == AgentLifecycle.initialized) return;
-    await _connect(b, agent, cwd);
+    await _connectOnce(b, agent, cwd);
   }
 
   /// `session/new` 的结果落到投影层；会话的 cwd 属于当前项目时才切成当前会话。

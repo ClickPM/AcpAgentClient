@@ -36,16 +36,26 @@ BACKLOG P0「会话身份与生命周期」四条一起做（下文「BACKLOG �
 
 ### 实现要点
 
-- **挂载那一段是个 mixin**（`SessionAttachment`，`lib/app/session_attach.dart`）：账本（每个 agent 的连接代次、挂空集合）、关闭态（`_closedSessions` / `_closeEpoch` 从会话控制器搬过来——关掉也是「不挂在连接上」的一种）、四态查询 `attachOf`、挂回 `ensureLoaded` / `reattach`、`loadSession`。会话控制器混入它，公开 API（`c.session.attachOf` / `loadSession` / `sessionClosed` …）不变；它要的会话控制器状态与动作列成抽象成员（`ownerOf` / `cwdOf` / `capsOf` / `ensureConnected` / `onConnectError` 等，原先的私有方法改成 `@protected` 覆写）。`session_controller.dart` 1006 → 850 行。`scripts/validate.ps1` 依赖方向门给它登记了三条边（会话控制器自己那几条的子集），一轮对话多一条 → `session_attach.dart`（只用四态枚举）。
-- **缺省是挂着的**：只有 `agent_connect`（`_connect`，含认证页那条——原先认证页直接调桥，改成经会话控制器的 `connectAgent`）、载入 / 恢复开始、挂回失败留下的转录会把会话标成挂空；`session/new` 与载入 / 恢复成功摘掉标记，且只认发起时那一代。测试与 fixtures 直接建的 store、`session/update` 顺带建的 store 都按挂着算，既有 277 项接线测试一条没改。进程已 `exited` 还没重连的也不算挂着。
+- **挂载那一段是个 mixin**（`SessionAttachment`，`lib/app/session_attach.dart`）：账本（每个 agent 的连接代次、挂空集合）、关闭态（`_closedSessions` / `_closeEpoch` 从会话控制器搬过来——关掉也是「不挂在连接上」的一种）、四态查询 `attachOf`、挂回 `ensureLoaded` / `reattach`、`loadSession`。会话控制器混入它，公开 API（`c.session.attachOf` / `loadSession` / `sessionClosed` …）不变；它要的会话控制器状态与动作列成抽象成员（`ownerOf` / `cwdOf` / `capsOf` / `ensureConnected` / `onConnectError` 等，原先的私有方法改成 `@protected` 覆写）。`session_controller.dart` 1006 → 850 行（整改后 864）。`scripts/validate.ps1` 依赖方向门给它登记了三条边（会话控制器自己那几条的子集），一轮对话多一条 → `session_attach.dart`（只用四态枚举）。
+- **缺省是挂着的**：只有 `agent_connect`（`_connect`，含认证页那条——原先认证页直接调桥，改成经会话控制器的 `connectAgent`）、载入 / 恢复开始、挂回失败留下的转录会把会话标成挂空；`session/new` 与载入 / 恢复成功摘掉标记，且只认发起时那一代。测试与 fixtures 直接建的 store、`session/update` 顺带建的 store 都按挂着算，既有 277 项接线 / 投影测试的断言一条没改。进程已 `exited` 还没重连的也不算挂着。
 - **发送**：`TurnController.send` 先查四态。挂空时 `reattach`（等待期同新建会话，画板 05 B 组），期间用户在侧栏点走了就不发、输入框原样留着（等待期里侧栏仍可点，不守这一下消息会改投别的会话）；挂回失败走 `_failDetached`，用户消息 + 原因落进转录的失败轮（`detachedStore` 在内存里没有转录时建一份、仍标挂空，下次载入成功被整段重放换掉）。Restore / Regenerate / 两个下拉走 `_ensureAttached`：挂不回什么都不动；挂回时整段重放过的，点的那条气泡已经不在转录里，Restore 就此作罢（气泡的本地 id 重放后会被重新编号，不能拿旧 id 去截断）。
 - **载入**：同一条正在载入时，切过去 / 发送都等那一次（`_loadsInFlight` 从集合改成「id → 那一次的 Future」），不另发、也不会让发送先落进转录再被随后的重放清掉。失败时第一个闭包从「清空」换成 `Sessions.discardUpdates`，队尾补 `acceptUpdates`（原先没有转录的顺带 `forget`）。
 - **认证期间换项目**：`_adoptSession` 返回 store、`createSession` / `adoptAuthSession` 都按 `target` 写索引；只在 `workspace.inCurrentWorkspace(cwd)` 时改 `agentId` / `sessionId` / `sessionEpoch` 并切回工作台。同一项目里认证期间点开了另一条会话、认证成功后被新会话顶掉的那一半没做（要在三个认证入口都带上发起时的选中态记号，属机制类），记 BACKLOG P1「壳与交互」。
 
 ### 测试
 
-- 新增 `test/app/session_attach_test.dart` 16 项：载入中途失败两项（有 / 没有原转录）、发送分流七项（载不回、能力未知、挂不回、连上才知道挂不回、缺 Node、载入在途时发送、挂回期间点走）、重载 / 崩溃五项（重载后切另一条、崩溃后当前会话、只有 resume 的 agent、认证页连接也记一代、Regenerate 与下拉先挂回）、认证期间换项目两项（agent 型 / terminal 型）。
+- 新增 `test/app/session_attach_test.dart` 19 项（第 1 轮审查整改补 3 项，见下）：载入中途失败两项（有 / 没有原转录）、发送分流十项（载不回、能力未知、挂不回、连上才知道挂不回、缺 Node、载入在途时发送、挂回期间点走；整改补的：连接拉起中就发送、另一条还在载时这条不提前报成功、挂不回且新开失败）、重载 / 崩溃五项（重载后切另一条、崩溃后当前会话、只有 resume 的 agent、认证页连接也记一代、Regenerate 与下拉先挂回）、认证期间换项目两项（agent 型 / terminal 型）。
 - **反向核对**：逐一把修法退回去（重放失败照样清空、挂空当成「没会话」、连接不记代次、认证后一律切成当前会话、认证页直连桥、Restore / 下拉不过门、发送不守「挂回期间点走」），每一处都至少让一项变红（脚本在会话的 scratchpad，不入库）。
+
+### 代码审查
+
+- **第 1 轮**（cursor CLI `grok-4.7-high-fast`，`-Scope since -Base 34e66be`，审 `9c64804`，约 10 分钟）：3 条，**high 3**，全部采纳整改：
+  1. 同一次挂回在 `ensureConnected` 的等待窗口里会连打两次 `agent_connect`（点开没连上的旧会话、紧接着发送；核心的 `agent_connect` 先断开已有连接，后到的发送把消息写成失败轮、随后被先开始的那次载入清掉）→ 会话控制器按 agent 合并在途的连接（`_connectOnce`，认证页的 `connectAgent` 同走它）；`ensureLoaded` 连上之后再查一次在途载入，等那一次。
+  2. `session/load` 在 batcher 还被另一次载入挂着时就报成功（`_attached` 在队列之外、`finally` 才 release）→ 摘挂空标记与转录换过来放进同一个排队闭包，`loadSession` 的 Future 等排队的清空 / 重放 / 收尾真的跑完才完成（`Completer`）；失败路径的 `forget` 同样在完成之前生效。
+  3. 挂不回、内存里有转录、`newSession` 又失败时仍会往旧 sessionId 发 `session/prompt` 并盖掉原因 → `send` 在 `newSession` 之后 `sessionId` 还是原来那条就返回。
+  - 三项各补一条用例，逐一把整改退回去时各自变红。
+  - 残留（不采纳，记在这里）：`loadSession` 的 Future 靠排队闭包完成，排在它前面的闭包要是抛错，`UpdateBatcher.flush` 按既有语义丢掉队列里余下的闭包，等它的调用方会一直等下去。闭包都是投影层的应用函数（未知变体只丢不抛），与改前「抛错后 UI 不再刷新这一批」是同一类既有风险，不为它改 batcher 的错误语义。
+- validate：整改后第一次全量跑在 `cargo test` 的 `pty::spawn_streams_output_and_reports_exit` 红了一次（本分支没有 Rust 改动；`wait` 返回时退出回调还没记上，同一副本连跑 3 次都过），记 BACKLOG P5「测试」；重跑 validate 全绿（481 项 flutter test）。
 
 ### 合并注意
 

@@ -202,6 +202,13 @@ mixin SessionAttachment on ChangeNotifier, GuardedNotifier {
       touch();
       return;
     }
+    // 连上之前另一条路（侧栏点选 / 发送）可能已经开始载同一条：等那一次，不把它「在途」的立即 false 当成挂回失败。
+    final started = _loadsInFlight[id];
+    if (started != null) {
+      await started;
+      touch();
+      return;
+    }
     await guard(() => _attach(b, owner, id, cwd));
     touch();
   }
@@ -258,6 +265,8 @@ mixin SessionAttachment on ChangeNotifier, GuardedNotifier {
 
   /// `session/load`（R6）：整段历史由 agent 用 `session/update` 重放，**重放期间不逐条刷新 UI**——
   /// 事件照常入队，但 batcher 挂起到命令返回后一次性刷完。成功返回 true。
+  /// 返回的 Future 要等排进 batcher 的清空 / 重放 / 收尾**真的跑完**才完成：别的会话也在载时 batcher 还挂着，
+  /// 早一步报成功，发送会先落进转录、再被随后才跑的清空抹掉（cursor 审查 high，iteration-07）。
   Future<bool> loadSession(String agent, String id, String cwd) {
     final b = bridge;
     // 同一条会话不并发 load：连点两下（或重载 agent 撞上侧栏点击）会重放两遍。
@@ -281,6 +290,7 @@ mixin SessionAttachment on ChangeNotifier, GuardedNotifier {
     // 原样留着（关掉 / 重载 / 崩溃之后重点开的唯一一份就在这儿，审查 finding high），原先没有的把空壳收回。
     // 以前分「一条都没重放 / 重放到一半」两种处理，后一种会留下半份转录。
     var failed = false;
+    final settled = Completer<bool>();
     // hold 与 release 必须严格配对：中间任何一步抛出都得 release，否则 UI 从此不再刷新。
     batcher.hold();
     try {
@@ -293,11 +303,17 @@ mixin SessionAttachment on ChangeNotifier, GuardedNotifier {
         }
       });
       final result = await b.sessionLoad(agent, id, cwd);
-      batcher.enqueue(() => s.applyLoadSession(result));
       // 这中间要是有人把它 close 了，别把「已关闭」标记抹掉（审查 finding P2：load 与 close 并发）。
       if ((_closeEpoch[id] ?? 0) == closeEpoch) _closedSessions.remove(id);
-      _attached(id, agent, generation);
-      return true;
+      // 摘挂空标记与转录真的换过来是同一步：在那之前它还算挂空，发送会等这一次载入。
+      batcher.enqueue(() {
+        try {
+          s.applyLoadSession(result);
+        } finally {
+          _attached(id, agent, generation);
+          settled.complete(true);
+        }
+      });
     } catch (e) {
       failed = true;
       lastError = describeError(e);
@@ -305,10 +321,11 @@ mixin SessionAttachment on ChangeNotifier, GuardedNotifier {
       batcher.enqueue(() {
         sessions.acceptUpdates(id);
         if (fresh) sessions.forget(id);
+        settled.complete(false);
       });
-      return false;
     } finally {
       batcher.release();
     }
+    return settled.future;
   }
 }

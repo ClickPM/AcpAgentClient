@@ -66,6 +66,9 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
         // 失败（认证 / 缺 Node / 没选项目）时 `newSession` 已经把错误与认证页安排好，输入框里的文本原样留着。
         if (state == SessionAttach.none || state == SessionAttach.unattachable) {
           await session.newSession(session.agentRefOf(id));
+          // 挂不回的那条开新会话没开出来：它的转录还在内存里，不能落到下面把这句话发给当前连接上不存在的旧 sessionId，
+          // 再拿 `-32602` 盖掉 `newSession` 写好的原因（cursor 审查 high，iteration-07）。
+          if (target != null && session.sessionId == target) return;
         }
       } finally {
         _startingSession = false;
