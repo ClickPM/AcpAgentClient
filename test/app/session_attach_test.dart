@@ -50,6 +50,9 @@ class _AttachCore extends FakeCore {
   /// `session/new` 抛这个错（认证等）。
   CoreCommandError? newError;
 
+  /// `session/new` 回这个 id（fake-agent 不带 `--sessions` 时总回同一个）；不设就每次回新的。
+  String? newSessionId;
+
   /// `session/load` 期间的动作：用例在这里「重放」（往 batcher 里塞 update）或抛错。
   Future<JsonMap> Function(String sessionId)? onLoad;
 
@@ -75,7 +78,7 @@ class _AttachCore extends FakeCore {
     calls.add('new');
     final e = newError;
     if (e != null) throw e;
-    return <String, dynamic>{'sessionId': 'sess_new_${++_newCount}'};
+    return <String, dynamic>{'sessionId': newSessionId ?? 'sess_new_${++_newCount}'};
   }
 
   @override
@@ -385,6 +388,21 @@ void main() {
       expect(c.session.lastError, 'quota exceeded');
       expect(c.turn.lastError, isNull);
       expect(c.composer.editor.text, '你好', reason: '输入框里的文本原样留着');
+      c.dispose();
+    });
+
+    test('挂不回、新开的会话回了同一个 id：它已经挂在新连接上，照常发出去', () async {
+      final (c, core) = await _controller(initialize: _initialize(loadSession: false, caps: <String>[]));
+      _live(c, _a, <String>['A 的历史']);
+      c.session.sessionId = _a;
+      c.sessions.applyAgentState(<String, dynamic>{'agentId': _agent, 'state': 'exited', 'code': 1});
+      core.newSessionId = _a;
+
+      c.composer.editor.text = '你好';
+      await c.turn.send();
+
+      expect(core.calls, <String>['connect', 'new', 'prompt:$_a']);
+      expect(c.composer.editor.text, isEmpty);
       c.dispose();
     });
 

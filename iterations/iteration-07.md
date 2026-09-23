@@ -44,7 +44,7 @@ BACKLOG P0「会话身份与生命周期」四条一起做（下文「BACKLOG �
 
 ### 测试
 
-- 新增 `test/app/session_attach_test.dart` 19 项（第 1 轮审查整改补 3 项，见下）：载入中途失败两项（有 / 没有原转录）、发送分流十项（载不回、能力未知、挂不回、连上才知道挂不回、缺 Node、载入在途时发送、挂回期间点走；整改补的：连接拉起中就发送、另一条还在载时这条不提前报成功、挂不回且新开失败）、重载 / 崩溃五项（重载后切另一条、崩溃后当前会话、只有 resume 的 agent、认证页连接也记一代、Regenerate 与下拉先挂回）、认证期间换项目两项（agent 型 / terminal 型）。
+- 新增 `test/app/session_attach_test.dart` 20 项（第 1 / 2 轮审查整改补 3 + 1 项，见下）：载入中途失败两项（有 / 没有原转录）、发送分流十一项（载不回、能力未知、挂不回、连上才知道挂不回、缺 Node、载入在途时发送、挂回期间点走；整改补的：连接拉起中就发送、另一条还在载时这条不提前报成功、挂不回且新开失败、挂不回且新开回了同一个 id）、重载 / 崩溃五项（重载后切另一条、崩溃后当前会话、只有 resume 的 agent、认证页连接也记一代、Regenerate 与下拉先挂回）、认证期间换项目两项（agent 型 / terminal 型）。
 - **反向核对**：逐一把修法退回去（重放失败照样清空、挂空当成「没会话」、连接不记代次、认证后一律切成当前会话、认证页直连桥、Restore / 下拉不过门、发送不守「挂回期间点走」），每一处都至少让一项变红（脚本在会话的 scratchpad，不入库）。
 
 ### 代码审查
@@ -55,7 +55,8 @@ BACKLOG P0「会话身份与生命周期」四条一起做（下文「BACKLOG �
   3. 挂不回、内存里有转录、`newSession` 又失败时仍会往旧 sessionId 发 `session/prompt` 并盖掉原因 → `send` 在 `newSession` 之后 `sessionId` 还是原来那条就返回。
   - 三项各补一条用例，逐一把整改退回去时各自变红。
   - 残留（不采纳，记在这里）：`loadSession` 的 Future 靠排队闭包完成，排在它前面的闭包要是抛错，`UpdateBatcher.flush` 按既有语义丢掉队列里余下的闭包，等它的调用方会一直等下去。闭包都是投影层的应用函数（未知变体只丢不抛），与改前「抛错后 UI 不再刷新这一批」是同一类既有风险，不为它改 batcher 的错误语义。
-- validate：整改后第一次全量跑在 `cargo test` 的 `pty::spawn_streams_output_and_reports_exit` 红了一次（本分支没有 Rust 改动；`wait` 返回时退出回调还没记上，同一副本连跑 3 次都过），记 BACKLOG P5「测试」；重跑 validate 全绿（481 项 flutter test）。
+- **第 2 轮**（同一执行器，`-Scope since -Base 9c64804`，审 `d9ce250`，约 10 分钟）：1 条，**high 1**，采纳：第 1 轮第 3 条的整改把「`sessionId` 还是原来那条」当成「新会话没开出来」，而 `session/new` 可以回同一个 id（fake-agent 不带 `--sessions` 时总是这样），那时会话其实已经挂上、发送却被丢掉 → 改成 id 没变**且**这条仍没挂上才返回（只改判断）。补一条用例，退回旧判断时变红。审查者另外核对了 `_connectOnce` 与 `Completer` 两处整改，没有新缺陷；残留那条未再计。
+- validate：整改后第一次全量跑在 `cargo test` 的 `pty::spawn_streams_output_and_reports_exit` 红了一次（本分支没有 Rust 改动；`wait` 返回时退出回调还没记上），第 2 轮整改后又红一次——全量 validate 6 次里 2 次，单跑、`--test-threads=1`、`--no-fail-fast` 全 workspace 都过，只在同 crate 并行且机器负载高（当时好几个副本在编）时出现。记 BACKLOG P5「测试」；每次重跑 validate 全绿（最后一次 482 项 flutter test）。
 
 ### 合并注意
 

@@ -67,8 +67,9 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
         if (state == SessionAttach.none || state == SessionAttach.unattachable) {
           await session.newSession(session.agentRefOf(id));
           // 挂不回的那条开新会话没开出来：它的转录还在内存里，不能落到下面把这句话发给当前连接上不存在的旧 sessionId，
-          // 再拿 `-32602` 盖掉 `newSession` 写好的原因（cursor 审查 high，iteration-07）。
-          if (target != null && session.sessionId == target) return;
+          // 再拿 `-32602` 盖掉 `newSession` 写好的原因（cursor 审查 high，iteration-07）。判「开出来没有」看挂没挂上，
+          // 不只看 id：`session/new` 可以回同一个 id（fake-agent 不带 `--sessions` 时总是这样，复审 high）。
+          if (target != null && session.sessionId == target && session.attachOf(target) != SessionAttach.attached) return;
         }
       } finally {
         _startingSession = false;

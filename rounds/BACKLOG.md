@@ -113,7 +113,7 @@ sidecar 的另 2 条（languages crate、`0-dev` 目录名）移到 [`BACKLOG-ZE
 
 - [ ] **`pty` 的 `spawn_streams_output_and_reports_exit` 偶发判红**
   - **产品**：用户无感；`scripts/validate.ps1` 偶尔在 `cargo test` 一步红一次，重跑就过。
-  - **技术**：`rust/pty/src/lib.rs` 那条测试在 `manager.wait(&id)` 返回之后立刻断言 `recorder.exits.len() == 1`，而退出回调由 pty 的读线程另行上报，`wait` 返回时它可能还没记上（实测 `left: 0, right: 1`，同一副本连跑 3 次都过；iteration-07 的分支没有任何 Rust 改动时撞上的，机器上当时并行跑着好几个副本）。最小修法是断言前等一下退出回调（有界轮询），或让 `wait` 在返回前与上报同步——后者动产品代码，先按前者 (iteration-07, 2026-09-23)
+  - **技术**：`rust/pty/src/lib.rs` 那条测试在 `manager.wait(&id)` 返回之后立刻断言 `recorder.exits.len() == 1`，而退出回调由 pty 的读线程另行上报，`wait` 返回时它可能还没记上（实测 `left: 0, right: 1`；全量 validate 6 次里红 2 次，单跑、`--test-threads=1` 都过，只在同 crate 的测试并行且机器负载高时出现；iteration-07 的分支没有任何 Rust 改动时撞上的，机器上当时并行跑着好几个副本）。最小修法是断言前等一下退出回调（有界轮询），或让 `wait` 在返回前与上报同步——后者动产品代码，先按前者 (iteration-07, 2026-09-23)
 
 ## X · 卡在上游 / 协议 —— 已撤档
 
