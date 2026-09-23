@@ -86,9 +86,9 @@ powershell -File scripts/package.ps1           # 打包 zip 与安装器 → dis
 
 ## 状态
 
-当前 **v1.4.1**，Windows x64。逐版本的改动见 [Releases](https://github.com/ClickPM/AcpAgentClient/releases)；开发轮次与进度表在 [`ROUNDS.md`](ROUNDS.md)。2026-09-22 起 R0–R8 主体完成、进入敏捷迭代阶段：日常的缺陷修复、交互优化与单画板功能按 [`iterations/`](iterations/README.md) 的迭代流程走（一迭代一文件、一项一行、一轮审查），轮次流程保留给核心大迭代。
+当前 **v1.4.2**，Windows x64。逐版本的改动见 [Releases](https://github.com/ClickPM/AcpAgentClient/releases)；开发轮次与进度表在 [`ROUNDS.md`](ROUNDS.md)。2026-09-22 起 R0–R8 主体完成、进入敏捷迭代阶段：日常的缺陷修复、交互优化与单画板功能按 [`iterations/`](iterations/README.md) 的迭代流程走（一迭代一文件、一项一行、一轮审查），轮次流程保留给核心大迭代。
 
-v1.4.1 是 v1.4.0 之后合入 `main` 的六批改动的**复审与整改版**，其中三批此前没走过独立审查：先由 Claude 自主审查一遍、20 条 findings 逐条处理（含 2 条 high：删掉再新建同 id 的会话会被本地索引静默删掉；画板 70 的转录开关因读盘排在 `core_init` 之前而既读不回也存不下），再经 cursor 复审两轮归零。细目见 [`rounds/round-1.4.1/round-1.4.1.md`](rounds/round-1.4.1/round-1.4.1.md)。
+v1.4.2 是第一个按迭代流程出的版本（[`iteration-02`](iterations/iteration-02.md) 七项）：修掉「风扇狂转」的两条根因（文件树 git 徽章被 `git status` 自己建删的 `index.lock` 触发自激空转；两处常驻动画让会话运行时整窗每帧重绘）、回合折叠的两条口径（含失败的回合照常自动折叠；`session/load` 重放回来的历史也能折）、会话索引写回取错源的三处缺陷、输入框两条（文件选择器加图的大小门、`@` 菜单改词后自己弹出），以及换主题 / 换字体后界面只切一半。第 2–7 项各经 cursor 审查、0 条 high 收口。
 
 还没做的：macOS 与 Linux 构建、安装包签名。跨轮次的待办与待裁定项在 [`rounds/BACKLOG.md`](rounds/BACKLOG.md)。
 

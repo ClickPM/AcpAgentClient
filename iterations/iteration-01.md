@@ -8,10 +8,10 @@
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | tidy | 建立敏捷迭代流程（`iterations/` 正本 + 模板 + 本文件），与轮次并列；CLAUDE.md「开发模式」改成两条流程的摘要，ROUNDS.md § 7「main 直改」行封存 | 所有者 2026-09-22 | `claude/agile-process-project-cleanup-7d1d7a` → 待合并 | validate -Quick | 待所有者指定 | 待合并 |
-| 2 | tidy | 副产物梳理：`scripts/README.md`、`test/README.md` 两份索引；`rounds/README.md` 补与迭代的关系与允许的子目录；`design/README.md` 补画板修订简报（`input/revision-NN.md`）的约定 | 同上 | 同上 | 同上 | 同上 | 待合并 |
-| 3 | tidy | 文档与源码对齐（清单见「备注」）：`docs/design.md` § 1 / § 3 / § 9 / § 10、`docs/background.md` 时间线、`docs/review-workflow.md`、README、AGENTS.md 与审查任务书的白名单口径、`test/fixtures/README.md` 的失效路径、五张任务卡的过期状态行、BACKLOG 三条已消解的条目 | 同上 | 同上 | 同上 | 同上 | 待合并 |
-| 4 | tidy | 合入 `main@2650a2f`（v1.4.1 复审轮），解 README 冲突并按 v1.4.1 的内容更新文档（详见「备注 · 合并 main」） | main 前进 | 同上 | validate -Quick | 同上 | 待合并 |
+| 1 | tidy | 建立敏捷迭代流程（`iterations/` 正本 + 模板 + 本文件），与轮次并列；CLAUDE.md「开发模式」改成两条流程的摘要，ROUNDS.md § 7「main 直改」行封存 | 所有者 2026-09-22 | `claude/agile-process-project-cleanup-7d1d7a` → `a7063cf`（快进，2026-09-22） | validate -Quick | 待所有者指定 | 已合并 |
+| 2 | tidy | 副产物梳理：`scripts/README.md`、`test/README.md` 两份索引；`rounds/README.md` 补与迭代的关系与允许的子目录；`design/README.md` 补画板修订简报（`input/revision-NN.md`）的约定 | 同上 | 同上 | 同上 | 同上 | 已合并 |
+| 3 | tidy | 文档与源码对齐（清单见「备注」）：`docs/design.md` § 1 / § 3 / § 9 / § 10、`docs/background.md` 时间线、`docs/review-workflow.md`、README、AGENTS.md 与审查任务书的白名单口径、`test/fixtures/README.md` 的失效路径、五张任务卡的过期状态行、BACKLOG 三条已消解的条目 | 同上 | 同上 | 同上 | 同上 | 已合并 |
+| 4 | tidy | 合入 `main@2650a2f`（v1.4.1 复审轮），解 README 冲突并按 v1.4.1 的内容更新文档（详见「备注 · 合并 main」） | main 前进 | 同上 | validate -Quick | 同上 | 已合并 |
 
 ## 候选清单（待所有者圈定进本迭代或下一个）
 
@@ -21,8 +21,8 @@
 
 1. `ShellState.closeTab` 关掉最后一个面板标签会把整栏收起（R4 第 4 轮 P2）——`openTabs` 空而终端非空时把 `activeTerminalId` 设成最后一个终端。
 2. `rust/fs/src/lib.rs` 的 R3 用例 `junctions_are_not_followed_out_of_the_workspace` 建不出链接就 `return`，改成红（R4）。
-3. `ComposerState._updateMentionMenu` await 之后无条件写回（P3）——加「光标处的 token 还是原来那个才写回」。
-4. `ComposerState.addImage` 没有大小门（P3）——复用 `clipboardImageSizeLimit` 判一次并记 `composer.lastError`。
+3. **（已由 iteration-02 第 4 项 修掉，已合并 `main`）** `ComposerState._updateMentionMenu` await 之后无条件写回（P3）——加「光标处的 token 还是原来那个才写回」。
+4. **（已由 iteration-02 第 3 项 修掉，已合并 `main`）** `ComposerState.addImage` 没有大小门（P3）——复用 `clipboardImageSizeLimit` 判一次并记 `composer.lastError`。
 5. `lib/ui/shell/motion.dart` `didUpdateWidget` 只比 `epoch`（P3）——同步 `duration` / `delay`。
 6. `workbench_screen._body()` 两支 widget 类型不同导致首条消息整树重建（P3）——两支都包 `MotionEnter`。
 7. `scripts/validate.ps1` 的 `_meta` 门按子串扫、`symlink_metadata` 连坐（2026-09-22）——模式收成 `"_meta"` 或加词边界。
@@ -31,9 +31,9 @@
 10. R0 cargokit 只认 `rustup run stable`、与 `rust-toolchain.toml` 可能漂移——取「接受漂移、validate 里比对两者版本」那一支。
 11. R7 sidecar 的 release channel 落成 `dev`——`build.rs` 显式设 channel（只影响 `db/` 目录名）。
 12. 认证用的可见终端在认证收尾处没有释放（1.4.1 复审 P3 的另一半；`Sessions.forget` 已收掉本会话名下那几个）——在 `lib/app/auth_state.dart` 的收尾里 `terminals.remove` 掉它。
-13. 载回来的会话在下一轮后丢标题。**已按合并后的代码核实仍未修**：`SessionIndex.upsert` 写的是 `s.title ?? titleFallback`，而 `titleFallback` 是会话头的占位串 `New <agent> Session`，载回来的会话 `store.title` 为 null 时就把索引里原来有意义的标题盖掉。最小修复是再退一层到索引里已有的那一行的标题。
-14. 收轮那次 `saveIndex()` 写的是**当前选中**会话而非刚跑完那一轮的。**已核实仍未修**：`saveIndex()` 取的是 `store`，`turn_controller` 收轮时无参调用它；后台会话跑完时刷的是前台那条的计数。最小修复是给 `saveIndex` 收一个 `SessionStore` 参数。
-15. `session/list` 校对按 cwd **原串**比，侧栏过滤按归一后比。**已核实仍未修**：`reconcileSessions` 里是 `entry['cwd'] != scope` 直接比串，而 `WorkspaceState.normalizeCwd` 已存在并被在跑数分组与 `inScope` 用着。最小修复是这一处也走 `normalizeCwd`。
+13. **（已由 iteration-02 第 5 项 修掉，已合并 `main`）** 载回来的会话在下一轮后丢标题。**已按合并后的代码核实仍未修**：`SessionIndex.upsert` 写的是 `s.title ?? titleFallback`，而 `titleFallback` 是会话头的占位串 `New <agent> Session`，载回来的会话 `store.title` 为 null 时就把索引里原来有意义的标题盖掉。最小修复是再退一层到索引里已有的那一行的标题。
+14. **（已由 iteration-02 第 5 项 修掉，已合并 `main`）** 收轮那次 `saveIndex()` 写的是**当前选中**会话而非刚跑完那一轮的。**已核实仍未修**：`saveIndex()` 取的是 `store`，`turn_controller` 收轮时无参调用它；后台会话跑完时刷的是前台那条的计数。最小修复是给 `saveIndex` 收一个 `SessionStore` 参数。
+15. **（已由 iteration-02 第 5 项 修掉，已合并 `main`）** `session/list` 校对按 cwd **原串**比，侧栏过滤按归一后比。**已核实仍未修**：`reconcileSessions` 里是 `entry['cwd'] != scope` 直接比串，而 `WorkspaceState.normalizeCwd` 已存在并被在跑数分组与 `inScope` 用着。最小修复是这一处也走 `normalizeCwd`。
 
 **B. 需所有者裁定**（机制类修复或产品取舍，按审查边界不能在迭代里顺手做）
 
@@ -50,7 +50,7 @@
 - 桥的四层手写转发塌成一处（quality 第 6 项）；`appearance_prefs` 的 data-class 样板（第 7 项）。
 - 依赖环境的测试跳过仍算绿——统一成红或引 ignore 标记。
 
-**C. 需先改设计稿**（BACKLOG「设计稿补注记」与「先改设计稿」的条目，攒成一个设计轮走轮次流程）
+**C. 需先改设计稿**（BACKLOG「设计稿补注记」与「先改设计稿」的条目，攒成一个设计轮走轮次流程）——**2026-09-22 BACKLOG 重构之后**，原「设计稿欠账」一档（23 条）已整体搬到 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)（所有者裁定 2026-09-20 不要求补稿），BACKLOG 的 P3 只剩占位；下面这份清单是重构前抄的，现以 DIVERGENCE 与 BACKLOG 为准
 
 - 补注记（实现先行）：画板 00 tooltip 一组 token；01 空态画各 agent logo；01–03 / 40 附件芯片条与预览；05 B 组触发补新建会话；25 去快捷键标签 + 范围下拉浮层；31「一轮没走到结束值」失败态；40 会话配置固定档序平铺；40 / 41 / 42 弹层封顶滚动；70「外观」小节（字体四轴 + 主题行）；07 的 `SvgTint.mark` 与切换按钮；08 的 `$preview` 收紧；`Thread → Session` 文案（00 / 01 / 02 / 03 / 06 / 31 / 40 / 50 / 60 / 61）；01–04 / 40 悬停提示样张；04 删除图标一律显示。
 - 扩边界（要新画）：深色页面画板 90 / 91 / 92；壳级错误提示位（`lastError` 出口）；侧栏后台会话挂起请求的徽章 / 停靠条跨会话；项目切换器上「被放下的会话正挂着请求」的徽章；registry 无 sha256 时 `verify_note` 的出口；画板 80 的返回入口；会话菜单（Resume / Close）的入口（41 / 03）；窗口最小尺寸或窄窗折叠；弹层「上方放不下翻到下方」；终端组字串浮层；第三条「等 agent」路径（侧栏点未载入会话）的等待态；「关于 / 致谢」界面；主题「跟随系统」档；设置页字号；registry 型 agent 的升级态；输入框内的 `@` / `/` 芯片。
