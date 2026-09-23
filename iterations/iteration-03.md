@@ -16,6 +16,7 @@ v1.4.2 之后的第一批：BACKLOG P0「附件与剪贴板」两条，所有者
 | 4 | fix | `+` → Files & Directories 选不了目录：原生文件对话框（`openFiles`）只有「选文件」模式，点目录只会进到下一级。改成照 Zed 往输入框插 `@`、弹画板 42 的 `@` 菜单（根目录一层的文件与目录，接着打字就是搜索），`ComposerState.startMention` | 所有者报障 2026-09-23（改法按推荐项裁定） | `claude/directory-selector-check-fab211`（基线 `8b56dbc`）→ `4b4a3b0`（合入 `main` 2a7c2e9 的合并提交，与第 1 项的张数门合并，见备注；快进） | validate 全绿（整改后 432 项；合 `main` 后 441 项）；headless 构建 + 真剪贴板探针，见「备注 · 第 4 / 5 项」 | 3 轮 / cursor CLI `grok-4.7-high-fast`（`-Scope worktree`）：2 → 2 → 1，high 0；P2 5 条采纳 3、不采纳 2 → **0 high 收口**；合 `main` 后全量复审（`main...HEAD`）1 轮 **0 条** | 已合并 |
 | 5 | ux | Ctrl+V 粘贴资源管理器里复制的文件与目录：**默认按路径**加成 `resource_link`（`@名字`），agent 收图时图片文件照旧成芯片，空的与超限的图片文件退回路径；不收图时通道带 `{"bitmap": false}`，runner 不取位图。读取仍是 runner 的 Win32 `CF_HDROP`（`acp_clipboard.cpp`，不拉 powershell） | 所有者 2026-09-23 当场要求 | 同上 | 同上 | 同上 | 已合并 |
 | 6 | fix | 终端面板里空格之后打的字看不见：终端主题的 ANSI 白 / 亮白取了 `n.canvas`（= 底色），而 PSReadLine 给参数 / 成员 / 类型上色用 `ESC[37m`、数字用 `ESC[97m`。`terminalTokenTheme` 改成白 = `n.text`、亮白 = `n.strong`（终端卡、terminal auth 共用这张表，一并修好），画板 07 § 2.9 的取值记 `design/DIVERGENCE.md` 第 31 条 | 所有者报障 2026-09-23（截图：`cc` 之后的参数不显示） | 直改 `main` → `98e96a5` | validate 全绿；未构建、未手测 | 1 轮 / cursor CLI `grok-4.7-high-fast`（`-Scope worktree`）：**0 条** | 已合并 |
+| 7 | fix | 退出时 agent 的子进程没回收：① 无头 R3 / R5 / R6 在 try / catch 之后一律走共用的 `_shutdown` 再 `exit()`（R5 原来根本不收尾、R3 出错时不收尾）；② `core_shutdown` 连「还在握手」的 `agent_connect` 一起收：`Core` 加收尾令牌 `closing` + 在途闸门 `connect_gate`，握手中的立刻 kill、等进程树结束回 `cancelled`，收尾之后的 `agent_connect` 一律回 `cancelled`；`CancelToken::cancelled` 的漏唤醒竞态顺带修掉；③ 收尾途中再点一次 ✕ 不再直接放行：`AcpApp._onExitRequested` 每次请求都等同一个收尾 future | BACKLOG P0「资源与静默失败」第 1 条 | `claude/issue-review-b69b43`（基线 `34e66be`） | 未构建（所有者指定）：没编译、没跑测试，新增的两条用例（Rust `shutdown_kills_an_agent_still_in_its_handshake`、Dart「收尾途中再点一次 ✕」）也还没跑过；规则 9 的 Windows 实测待补，见备注 | 1 轮 / cursor CLI `grok-4.7-high-fast`（`-Scope worktree`）：**0 条** | 待合并（未提交） |
 
 ## 收口
 
@@ -83,3 +84,22 @@ BACKLOG 原文的症状是一次粘贴收下上百张；只按单次粘贴设门
 **验证**：`validate.ps1` 全量 **VALIDATE OK**（`flutter test` 461 项，`flutter analyze` 16 条 info 与基线同数）；`appearance_prefs_test.dart` 深浅两套各锁 `white` / `brightWhite` 的取值，并断言两者都不等于 canvas 与 panel。未构建 release、未在 GUI 里手测。
 **审查**：1 轮 cursor CLI `grok-4.7-high-fast`（`-Scope worktree`），**0 条**（`.claude/reviews/20260923-115436-review.out.md`）。
 **手测项**：终端面板里敲 `git log --oneline -3`、`Get-ChildItem -Path .` 之类带参数的命令，空格后的参数、数字都看得见；深色主题下同样；agent 工具卡里的终端输出照常。
+
+### 第 7 项 · 退出时回收 agent 子进程（2026-09-23）
+
+**根因**：BACKLOG 原条目写的「关窗路径要接到 `agent_disconnect`」R4 就接上了（`AppLifecycleListener.onExitRequested` → `WorkbenchController.shutdown` → `core_shutdown`；Flutter 引擎在 `flutter/platform` 通道有监听后才把 `WM_CLOSE` 转成 `System.requestAppExit`，`D:\flutter\engine\src\flutter\shell\platform\windows\windows_lifecycle_manager.cc` 核过；顶栏 ✕ 是 `PostMessage(WM_CLOSE)`，同一条路）。还漏两处：
+- **无头口子**：`runR5` 走完直接 `_finish` → `exit()`，一次都不收尾；`runR3` 只在正常走完时收尾，出错跳进 catch 就不收。`exit()` 不跑析构、`kill_on_drop` 不生效，实测的孤儿 PID 42768 出在这里。R6 原本就在 try / catch 之后收尾，三个模式现在共用它那段写法（`_shutdown`）。R3 正常路径因此会收两次尾，第二次是空转（连接表已空）。
+- **产品关窗 · 握手中的连接**：`core_shutdown` 只清连接表，而 `agent_connect` 要握完 `initialize` 才把连接插进表。关窗那一刻还在握手的连接（Cursor 是 `cursor-agent.cmd` → `powershell -File cursor-agent.ps1` → `node.exe`，冷启动要好几秒）谁都看不见，`core_shutdown` 清完空表就放行，进程一退，整棵树留成孤儿。
+- **产品关窗 · 连点两次 ✕**：`AcpApp._onExitRequested` 用一个 `_shuttingDown` 布尔挡重入，只有第一次请求在等收尾，第二次直接回 `exit`。收尾要几秒（Cursor 不理 stdin EOF，得等满 `DISCONNECT_GRACE` 3 s 再杀树），这期间窗口一动不动，用户多半会再点一次 ✕，引擎收到第二个 `exit` 就关窗退进程，收尾被腰斩。这条很可能才是产品里最常见的触发。改成缓存收尾的 future（`_shutdown ??= _controller.shutdown()`），每次请求都 `await` 它。
+
+**改法**（契约零 diff：没有新命令、没有新事件，`docs/design.md` § 3 的 `core_shutdown` 一行补了「全部 agent 含握手中的」口径）：
+- `Core.closing`（`registry::CancelToken`）：`core_shutdown` 第一步就置位；`agent_connect` 在入口 `check()`，并把它交给 `AgentConnection::connect` 的新参数 `abort`。
+- `AgentConnection::connect_transport` 的握手与 `abort.cancelled()` 赛跑：令牌先到，就先把 kill 发给 `exit_watcher`（不等 `DISCONNECT_GRACE`，握手没完成，没什么可优雅收的），再走原有的 `disconnect`，等到进程树结束才回 `cancelled`。registry 安装 / 升级的两处握手传 `None`，行为不变。
+- `Core.connect_gate`（`tokio::sync::RwLock<()>`）：`agent_connect` 全程持读锁，`core_shutdown` 拿写锁 = 等在途的全部落定（被中止的已杀完树，赢了赛跑的已插进表）。顺序是先拿锁再看令牌：看到「未置位」时收尾一定还没拿到写锁。已连上的那批在等闸门之前就开始断开，两段宽限期并行、不叠加（Dart 侧只等 8 s）；过了闸门再清一遍连接表。
+- `CancelToken::cancelled` 原来先看标志、再建 `Notified`，两步之间到的 `cancel` 会被漏掉、一直等下去（`notify_waiters` 只叫醒已经建好的等待者，tokio 1.53 `Notify::notified` 的文档写明「建好即可收到，不必先 poll」）。改成先建再看。安装取消那几处用的是同一个令牌，一并受益。
+
+**没做**：`registry_install` / `registry_update` / `node_download` 的后台任务不在收尾范围，另记 BACKLOG P0「安装或升级进行中关掉应用……」。
+
+**验证**：未构建（所有者指定），没编译、没跑测试。`rust/acp-core/src/core.rs` 新增 `shutdown_kills_an_agent_still_in_its_handshake`：自定义 agent 是个永远不回 `initialize` 的长命令（Windows `cmd /c ping -n 30 127.0.0.1 > nul`），看到 `spawned` 就调 `core_shutdown`，断言 10 s 内返回、在途的 `agent_connect` 回 `cancelled`、发出 `exited`、收尾之后的 `agent_connect` 回 `cancelled` 并且不再拉进程。`test/app/workbench_wiring_test.dart` 新增「收尾途中再点一次 ✕」：`coreShutdown` 挂住，连发两次 `handleRequestAppExit`，断言只收一次尾、两次都在收尾回来之后才得到 `exit`。规则 9 的 Windows 实测待补：构建后选 Cursor 新建会话，在「正在连接」时点 ✕（再补一次：连上之后连点两下 ✕），关窗后 `Get-Process node, powershell | Where-Object { $_.Path -like '*cursor-agent*' -or $_.Path -like '*WindowsPowerShell*' }` 应为空；再连上一条会话后关窗，同样为空；无头 R5（`ACP_R5_REPORT`）跑完后同样为空。
+
+**审查**：1 轮 cursor CLI `grok-4.7-high-fast`（未回落；未提交，`-Scope worktree`），**0 条**（`.claude/reviews/20260923-134701-review.out.md`）。审查者核对了加锁 / 看令牌的顺序、中止后等到 `finish` 才放读锁、`agent_connect` future 仍为 `Send`、tokio 1.53 `notify_waiters` 的语义，以及两条新用例能否编译。13:44 先发过一次，发起后补上第 ③ 处（连点 ✕），当即中止重发，那次没出结论（只留下 `20260923-134403-review.prompt.md`）。

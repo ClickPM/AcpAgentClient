@@ -53,9 +53,9 @@
 
 ### 资源与静默失败（3）
 
-- [ ] **退出时 agent 的子进程没回收**
-  - **产品**：关掉应用，Cursor 拉起的 node.exe 还在用户机器上跑着（实测 PID 42768，要手动杀）。
-  - **技术**：R5 无头实跑以 `exit()` 结束进程时不走 `agent_disconnect`，Cursor 的 `cursor-agent.cmd`（cmd.exe 包装）随进程一起没了、它拉的 `dist-package/node.exe` 却留成孤儿（实测 PID 42768，手动 `taskkill /T`）。R4 验收 4「应用退出时子进程全部回收」要把桌面应用的关闭路径（`AcpApp.dispose` / Windows runner 的 `WM_CLOSE`）与无头口子都接到 `agent_disconnect`（`taskkill /F /T`） (2026-09-16) → **R7.5 拆分后的新家**：组合根 `shutdown` (2026-09-20)
+- [ ] **安装或升级进行中关掉应用，npm 与握手用的 agent 进程没人收**
+  - **产品**：Agents 面板里正在装 / 升级一个 agent 时关掉应用，`npm install` 在后台自己跑完才退；恰好卡在最后「握手」那几秒的话，拉起来验版本的那个 agent 进程可能留下来。
+  - **技术**：`core_shutdown` 管的是连接表与在途的 `agent_connect`（iteration-03 第 7 项），`registry_install` / `registry_update` 的后台任务（`installs` 表里的 `CancelToken`）与 `node_download` 不在它的收尾范围：npm 子进程随应用退出没人杀（有界，装完自己退），握手那条临时连接靠 `registry_ops.rs` 的 `tokio::select!` 丢 future → `exit_watcher` 异步 `kill_tree`，收尾时令牌没人取消、也没人等。要修得在收尾时取消这些令牌，并等安装任务从 `installs` 表里摘掉（中途含回滚删目录，那步最多 5 s），和 Dart 侧 `shutdown()` 的 8 s 总等待一起算 (2026-09-23)
 
 - [ ] **失败没有出口，用户看到的是「点了没反应」**
   - **产品**：新建会话失败、删除失败、附件超限，界面上什么都不说，只有日志里有一句。「没选项目」和「这一轮发失败」已各自有出口，其余仍是静默。

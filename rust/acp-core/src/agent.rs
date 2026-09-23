@@ -17,6 +17,7 @@ use std::time::Duration;
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1 as acp;
 use agent_client_protocol::{Agent, Client, ConnectTo, ConnectionTo, Lines, Responder, UntypedMessage, is_incoming_transport_closed};
+use registry::{CancelToken, RegistryError};
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{oneshot, watch};
@@ -717,12 +718,14 @@ impl std::fmt::Debug for AgentConnection {
 
 impl AgentConnection {
     /// 拉起子进程并完成 `initialize`。`cwd` 是 agent 进程的工作目录；`terminals` 是核心共享的终端表（`terminal/*` 回调用）。
+    /// `abort` 是核心的收尾令牌（`core_shutdown`）：握手期间它先到，就结束进程树、等到退出再回 `cancelled`。
     pub async fn connect(
         agent_id: String,
         launch: LaunchSpec,
         cwd: Option<PathBuf>,
         sink: Arc<dyn EventSink>,
         terminals: Arc<pty::TerminalManager>,
+        abort: Option<&CancelToken>,
     ) -> Result<Arc<Self>> {
         let shared = Arc::new(Shared::new(agent_id, sink, true, terminals));
         let mut cmd = command::build_command(&launch, cwd.as_deref());
@@ -746,7 +749,7 @@ impl AgentConnection {
             Box::pin(outgoing_sink(shared.clone(), stdin)),
             Box::pin(incoming_stream(shared.clone(), stdout)),
         );
-        Self::connect_transport(shared, launch, transport, Some(kill_tx)).await
+        Self::connect_transport(shared, launch, transport, Some(kill_tx), abort).await
     }
 
     /// 测试入口：不拉进程，用任意 `ConnectTo<Client>` 传输（例如 SDK 的 `Channel`）；退出 = 传输结束。
@@ -758,7 +761,7 @@ impl AgentConnection {
         terminals: Arc<pty::TerminalManager>,
     ) -> Result<Arc<Self>> {
         let shared = Arc::new(Shared::new(agent_id, sink, false, terminals));
-        Self::connect_transport(shared, launch, transport, None).await
+        Self::connect_transport(shared, launch, transport, None, None).await
     }
 
     async fn connect_transport(
@@ -766,6 +769,7 @@ impl AgentConnection {
         launch: LaunchSpec,
         transport: impl ConnectTo<Client> + 'static,
         kill: Option<oneshot::Sender<()>>,
+        abort: Option<&CancelToken>,
     ) -> Result<Arc<Self>> {
         let (conn_tx, conn_rx) = oneshot::channel::<ConnectionTo<Agent>>();
         let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
@@ -878,7 +882,23 @@ impl AgentConnection {
         let request = acp::InitializeRequest::new(ProtocolVersion::V1)
             .client_capabilities(capabilities::client_capabilities(&shared.agent_id))
             .client_info(capabilities::client_info());
-        let response = match race_exit(&shared, connection.send_request(request).block_task()).await {
+        let handshake = race_exit(&shared, connection.send_request(request).block_task());
+        let initialized = match abort {
+            None => handshake.await,
+            Some(abort) => tokio::select! {
+                result = handshake => result,
+                _ = abort.cancelled() => {
+                    // 核心在收尾（关窗 / 无头退出）：这条连接还不在连接表里，不在这里结束进程树就会留成孤儿
+                    // （Cursor 的 cmd → powershell → node 冷启动要好几秒，BACKLOG P0）。握手还没完成，没什么可优雅收的，
+                    // 先下 kill、不等 `DISCONNECT_GRACE`；下面的 `disconnect` 等到进程树结束才返回。
+                    if let Some(kill) = lock(&kill).take() {
+                        let _ = kill.send(());
+                    }
+                    Err(RegistryError::Cancelled.into())
+                }
+            },
+        };
+        let response = match initialized {
             Ok(response) => response,
             Err(e) => {
                 disconnect(&shared, &shutdown, &kill).await;
