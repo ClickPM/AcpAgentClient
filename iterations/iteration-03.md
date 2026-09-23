@@ -12,6 +12,7 @@ v1.4.2 之后的第一批：BACKLOG P0「附件与剪贴板」两条，所有者
 |---|---|---|---|---|---|---|---|
 | 1 | fix | 剪贴板文件列表没有张数门：`promptImageCountLimit = 20`（一条消息的总数，连同输入框里已有的），剪贴板与 `+` → Image 两条路共用；`readClipboardImages({maxImages})` 判在读文件 / 编码之前、回 `skippedTooMany`，`pasteImageFromClipboard` 落进输入框时再判一次（连按两下 Ctrl+V 并发），`addImageBytes` 满了不收；提示单独一句 | BACKLOG P0「附件与剪贴板」第 2 条；所有者裁定 2026-09-23 取 20 张 | `claude/attachments-clipboard-p0-19efea` → `006bd0f`（快进；合 main 时 BACKLOG 两处登记冲突按「两边都留」解，P0 10 → 7、合计 75 → 72） | 未构建（所有者指定）；相关两份 `flutter test` 全绿，`validate.ps1 -Quick` 见备注 | 未审查（所有者指定） | 已合并 |
 | 2 | tidy | 编辑带图的消息会把图弄丢 → **按产品取舍关闭，不修**：编辑历史消息只改文字、不保留原图（与 Claude Code 一致）；只在 `UserMessage.plainText` 的文档注释里写明裁定 | BACKLOG P0「附件与剪贴板」第 1 条；所有者裁定 2026-09-23 | 同上 | 只改注释与文档 | 未审查（所有者指定） | 已合并 |
+| 3 | fix | 最大化窗口最小化再还原后，画面四边各溢出屏幕一圈边框（顶栏标题与三键、底栏「设置 / 文件 / Agents / 终端」看着偏了 8 逻辑像素）：`windows/runner/acp_window.cpp` 的 `AdjustMaximizedClientRect` 找显示器改用 `MonitorFromRect(&rect, MONITOR_DEFAULTTONEAREST)`（按系统提议的新窗口矩形），不再用 `MonitorFromWindow(DEFAULTTONULL)`——还原那一刻窗口还在 (-32000,-32000)，后者回 NULL、修正被跳过 | 所有者报障 2026-09-23（「用一阵后顶部和底部的按钮位置偏移」） | `claude/top-bottom-button-offset-101c55` → 待合并 | 未构建（所有者指定）；独立 Win32 小程序复现与验证修法，见备注 | 未审查（所有者指定） | 待合并 |
 
 ## 收口
 
@@ -33,3 +34,11 @@ BACKLOG 原文的症状是一次粘贴收下上百张；只按单次粘贴设门
 - 反证：临时去掉 `pasteImageFromClipboard` 里「落进输入框时再判一次」，「连按两下」那项红（收了 30 张），恢复后绿。
 - `validate.ps1 -Quick`：规则 1 / 2 / 3 / 5 / 6、版本门、lib/app 行数门与依赖方向门全过；唯一的红是 `fetch-upstream -Check`——本 worktree 没填 `vendor/upstream`（没做目录联接），与本次改动无关（不动 Rust 与钉版本）。全量 `validate.ps1` 含编译，按所有者「不构建」没跑。
 - `flutter analyze lib test`：0 error / 0 warning；改动文件上唯一一条 info 是 `clipboard_image_test.dart` 原有的 `dart:typed_data` 冗余 import，不是这次引入的，没顺手动。
+
+### 第 3 项 · 复现与验证（2026-09-23，Windows 11，2880×1800 @ 150%）
+
+不构建应用（所有者指定），改用一个独立的 Win32 小程序（不入库）：`WS_OVERLAPPEDWINDOW` 窗口，`WM_NCCALCSIZE` 原样照搬 `acp_window.cpp` 的处理，依次「`SW_MAXIMIZE` → `WM_SYSCOMMAND SC_MINIMIZE` → `SC_RESTORE`（= 点任务栏按钮）」，再走一遍 `SW_MINIMIZE → SW_RESTORE`，每步比较客户区（屏幕坐标）与 `rcWork`。
+
+- 改前：最大化后溢出 `0/0/0/0`；还原那条 `WM_NCCALCSIZE` 到达时 `GetWindowRect = (-32000,-32000,…)`、`MonitorFromWindow(DEFAULTTONULL) = NULL`，修正被跳过，客户区变成 `(-12,-12,2892,1728)`，四边各溢出 12 物理像素（= 8 逻辑像素 × 150%）。与所有者两张截图的差（缩到 2000 宽后约 8～9 px）对得上。
+- 改后（`MonitorFromRect(&rect, MONITOR_DEFAULTTONEAREST)`）：两种还原路径溢出都是 `0/0/0/0`。
+- 触发面：任务栏点图标最小化再点回、Win+D、Alt+Tab 切回最小化的窗口都走这条路，所以表现为「用一阵后就偏」；再有一次非最小化状态下的尺寸计算（如双击顶栏还原再最大化）会自愈。顺带：Win+Shift+方向键把最大化窗口挪到另一块屏幕时，原写法按旧位置找显示器会拿到旧屏的工作区，按提议矩形找也一并正确。
