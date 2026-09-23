@@ -216,8 +216,8 @@ class ComposerState extends ChangeNotifier with GuardedNotifier {
       // 等 fs 的这几十到几百毫秒里用户可能已经改词、清空或把整句删掉：光标处的 token 不再是发起这次
       // 查询的那个就把结果丢掉，不写回也不通知——旧词的菜单不该盖在新词上，更不该在整句删完之后弹出来。
       // **只认正文**：Esc（[closeInlineMenu]）与点输入框外都不动正文，所以「一个字没改就按 Esc / 点走」
-      // 那一下这里判不出来，结果照样写回；那半边要立「已被撤掉」的态，属机制类改动，仍记在
-      // `rounds/BACKLOG.md` 壳与交互里（审查 P2，2026-09-22）。
+      // 那一下这里判不出来，结果照样写回；那半边要立「已被撤掉」的态，属机制类改动，没做（审查 P2，
+      // 2026-09-22；所有者实测未复现，2026-09-23 关闭，见 `rounds/BACKLOG-CLOSED.md`）。
       if (_activeToken(editor.text) != token) return false;
       _clearInlineMenu();
       _mentionFiles = files;
