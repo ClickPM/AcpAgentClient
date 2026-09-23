@@ -1,5 +1,6 @@
 // 画板 51 · Registry 条目状态（同一条目 widget 也是画板 50 列表里的行）：未安装 / 安装中 npx 三步 / 安装中 binary
-// 三步 + 进度条 / 已安装 / 需要认证 / 安装失败（可重试、看日志）/ uvx 暂不支持 / custom 条目 / 缺 Node 时的受管 Node 提示卡。
+// 三步 + 进度条 / 已安装 / 需要认证 / 安装失败（可重试、看日志）/ uvx 暂不支持 / custom 条目 / 缺 Node 时的受管 Node 提示卡；
+// 画板 53 的升级四态（有新版本 / 升级中 / 升级失败 / 已升级 · 待重载）也在这个 widget 里。
 // 数据源 lib/projection/registry.dart（registry.json 条目 + 本地安装 / 认证状态）。安装与认证状态是本地态，不是协议内容；
 // 名字 / 版本 / 描述来自 registry.json，不写死任何 agent（规则 2）。样式只取 tokens（规则 3）。
 
@@ -56,6 +57,7 @@ class _Diamond extends StatelessWidget {
 class RegistryEntryActions {
   const RegistryEntryActions({
     this.onInstall,
+    this.onUpdate,
     this.onCancel,
     this.onRemove,
     this.onLogin,
@@ -65,6 +67,9 @@ class RegistryEntryActions {
   });
 
   final VoidCallback? onInstall;
+
+  /// 画板 53 的 Update（有新版本时）。
+  final VoidCallback? onUpdate;
   final VoidCallback? onCancel;
   final VoidCallback? onRemove;
   final VoidCallback? onLogin;
@@ -120,6 +125,11 @@ class _RegistryEntryBody extends StatelessWidget {
                       const SizedBox(height: t.Spacing.s4),
                       Text(_description(e)!, style: t.TextStyles.secondary.copyWith(height: t.LineHeights.body)),
                     ],
+                    // 画板 53「已升级 · 待重载」：运行中的连接还是旧版。
+                    if (e.reloadPending != null && e.installed && !e.isInstalling && !e.isFailed) ...<Widget>[
+                      const SizedBox(height: t.Spacing.s4),
+                      Text(_reloadNote(e), style: _noteStyle),
+                    ],
                     if (showMeta && !e.isCustom) ...<Widget>[
                       const SizedBox(height: t.Spacing.s4),
                       _metaRow(e),
@@ -132,39 +142,83 @@ class _RegistryEntryBody extends StatelessWidget {
             ],
           ),
         ),
-        if (e.isInstalling && progress != null) InstallSteps(progress, padding: below),
-        if (e.isInstalling && progress != null && progress.kind == 'binary') _InstallProgressBar(progress, padding: below),
+        if (e.isInstalling && progress != null)
+          InstallSteps(progress, padding: e.isUpgrading && progress.kind != 'binary' ? below.copyWith(bottom: t.Spacing.s8) : below),
+        if (e.isInstalling && progress != null && progress.kind == 'binary')
+          _InstallProgressBar(progress, padding: e.isUpgrading ? below.copyWith(bottom: t.Spacing.s8) : below),
+        // 画板 53「升级中」：步骤下面一行说明旧版本还在用。
+        if (e.isUpgrading && progress != null) Padding(padding: below, child: Text(_upgradingNote(e, progress), style: _noteStyle)),
         if (e.isFailed && showLog && (e.failure ?? '').isNotEmpty)
-          Padding(padding: below, child: MonoBlock(text: e.failure, background: t.Semantic.errorSoft, style: CardText.codeError)),
+          Padding(
+            padding: e.isUpgradeFailed ? below.copyWith(bottom: t.Spacing.s8) : below,
+            child: MonoBlock(text: e.failure, background: t.Semantic.errorSoft, style: CardText.codeError),
+          ),
+        // 画板 53「升级失败」：错误块下面一行说明旧版本不受影响（日志收起时也在）。
+        if (e.isUpgradeFailed) Padding(padding: below, child: Text('升级到 v${e.upgradeTarget} 失败，仍在使用 v${e.displayVersion}。', style: _noteStyle)),
         if (e.isCustom && e.custom != null) Padding(padding: below, child: _CustomCommandLines(e.custom!)),
       ],
     );
   }
 
-  /// 名字 · 版本 · 徽章（画板 51 的八种状态各自的徽章组合）。
+  /// 画板 53 的说明行（muted 之下一档的次要字）。
+  TextStyle get _noteStyle => t.TextStyles.secondary.copyWith(color: t.Neutral.placeholder, height: t.LineHeights.body);
+
+  /// npx 握手通过才切换；binary 没有握手，解压完成即切换（DIVERGENCE：画板 53 注写的是同一行「握手通过」）。
+  static String _upgradingNote(RegistryEntryData e, InstallProgress p) =>
+      'v${e.displayVersion} 仍可正常使用；新版本${p.kind == 'binary' ? '解压完成' : '握手通过'}后才切换。';
+
+  static String _reloadNote(RegistryEntryData e) {
+    final running = e.reloadPending!.isEmpty ? '旧版本' : ' v${e.reloadPending} ';
+    return '已升级到 v${e.displayVersion}。正在运行的$running连接不受影响，在会话头 Reload Agent 或重开应用后生效。';
+  }
+
+  /// 名字 · 版本 · 徽章（画板 51 的八种状态、画板 53 的升级四态各自的徽章组合）。
   Widget _titleRow(RegistryEntryData e) {
     final chips = <Widget>[];
     if (e.isCustom) {
       chips.add(ToneChip('custom', tone: ChipTone.neutral));
+    } else if (e.isUpgrading) {
+      // 画板 53「升级中」只有这一个芯片。
+      chips.add(ToneChip('upgrading', tone: ChipTone.accent));
     } else if (e.isInstalling) {
       chips.add(ToneChip('installing', tone: ChipTone.accent));
-    } else if (e.isFailed) {
+    } else if (e.isFailed && !e.isUpgradeFailed) {
       chips.add(ToneChip('failed', tone: ChipTone.error));
     } else if (e.kind == DistributionKind.uvx) {
       chips.add(ToneChip('uvx', tone: ChipTone.warning));
     } else if (!e.installed && e.kind != DistributionKind.none) {
       chips.add(ToneChip(e.kind.wire, tone: ChipTone.neutral));
     }
-    if (e.installed) chips.add(ToneChip('已安装', tone: ChipTone.success));
-    if (e.loggedIn) chips.add(ToneChip('已登录', tone: ChipTone.success));
-    if (e.needsAuth) chips.add(ToneChip('需要认证', tone: ChipTone.warning));
+    if (!e.isUpgrading) {
+      if (e.installed) chips.add(ToneChip('已安装', tone: ChipTone.success));
+      if (e.loggedIn) chips.add(ToneChip('已登录', tone: ChipTone.success));
+      if (e.needsAuth) chips.add(ToneChip('需要认证', tone: ChipTone.warning));
+      // 画板 53：升级失败的 failed 排在已安装 / 已登录之后（首装失败的排最前，画板 51）。
+      if (e.isUpgradeFailed) {
+        chips.add(ToneChip('failed', tone: ChipTone.error));
+      } else if (e.hasUpdate) {
+        chips.add(ToneChip('可升级', tone: ChipTone.accent));
+      }
+    }
+    final version = e.displayVersion;
     return Wrap(
       spacing: t.Spacing.s8,
       runSpacing: t.Spacing.s4,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: <Widget>[
         Text(e.name, style: CardText.strong),
-        if (e.version.isNotEmpty) Text('v${e.version}', style: t.TextStyles.monoMeta.copyWith(color: t.Neutral.muted)),
+        // 有新版本 / 升级中写「旧 → 新」，新版本号用强调色（画板 50 / 53）；升级失败只写装着的那一版。
+        if ((e.hasUpdate || e.isUpgrading) && !e.isUpgradeFailed)
+          Text.rich(
+            TextSpan(
+              text: 'v$version → ',
+              children: <InlineSpan>[TextSpan(text: 'v${e.upgradeTarget}', style: t.TextStyles.monoMeta.copyWith(color: t.Accent.text))],
+            ),
+            style: t.TextStyles.monoMeta.copyWith(color: t.Neutral.muted),
+            softWrap: false,
+          )
+        else if (version.isNotEmpty)
+          Text('v$version', style: t.TextStyles.monoMeta.copyWith(color: t.Neutral.muted)),
         ...chips,
       ],
     );
@@ -209,7 +263,7 @@ class _RegistryEntryBody extends StatelessWidget {
     );
   }
 
-  /// 右侧动作：按状态八选一。
+  /// 右侧动作：按状态八选一（升级中同安装中、升级失败同安装失败；有新版本是 Update + Remove，画板 53）。
   Widget _action(RegistryEntryData e) {
     if (e.isInstalling) {
       return Row(
@@ -230,7 +284,18 @@ class _RegistryEntryBody extends StatelessWidget {
     // 内置 agent（sidecar 与 dsh）不可删：不画 Remove，右侧留空（置灰的按钮看着像坏了）。
     if (e.builtin) return const SizedBox.shrink();
     if (e.isCustom) return RemoveButton(onTap: actions.onRemove);
+    // 需要认证的条目有新版本时右侧仍是「登录」，登录完才出 Update（画板 53 注）。
     if (e.needsAuth) return AcpButton(label: '登录', kind: ButtonKind.primary, icon: AcpIcons.lock, onTap: actions.onLogin);
+    if (e.hasUpdate) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          AcpButton(label: 'Update', kind: ButtonKind.primary, icon: AcpIcons.download, onTap: actions.onUpdate),
+          const SizedBox(width: t.Spacing.s4),
+          RemoveButton(onTap: actions.onRemove),
+        ],
+      );
+    }
     if (e.installed) return RemoveButton(onTap: actions.onRemove);
     if (e.isUnsupported) return const AcpButton(label: '暂不支持', kind: ButtonKind.primary, enabled: false);
     return AcpButton(label: 'Install', kind: ButtonKind.primary, icon: AcpIcons.download, onTap: actions.onInstall);

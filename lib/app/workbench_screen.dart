@@ -544,7 +544,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       ],
       attachments: c.composer.pendingImages,
       onRemoveAttachment: c.composer.removePendingBlock,
-      onPaste: c.composer.pasteImageFromClipboard,
+      onPaste: c.composer.pasteFromClipboard,
       inlineMenu: c.composer.inlineMenu,
       onInlineMenuMove: c.composer.moveInlineMenuSelection,
       onInlineMenuPick: c.composer.pickInlineMenuSelection,
@@ -651,10 +651,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
 
   Future<void> _addFiles() async {
     c.composer.plusAnchor.hide();
-    final files = await openFiles();
-    for (final f in files) {
-      c.composer.addResourceLink(f.path, f.name);
-    }
+    await c.composer.startMention();
   }
 
   Future<void> _addImage() async {
@@ -796,14 +793,17 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         nodeProgress: c.agents.registry.nodeProgress,
         fetchError: c.agents.registry.fetchError,
         fetching: c.agents.registry.fetching,
+        fetchedAt: c.agents.registry.fetchedAt,
         showLogFor: c.agents.showLog,
         onSearchChanged: c.agents.setQuery,
         onFilter: c.agents.setFilter,
         onLearnMore: () => _openExternal(registryLearnMoreUrl),
+        onRefresh: c.agents.checkForUpdates,
         onDownloadNode: c.agents.downloadNode,
         actionsFor: (entry) => RegistryEntryActions(
           onInstall: () => c.agents.install(entry.id),
-          onRetry: () => c.agents.install(entry.id),
+          onUpdate: () => c.agents.upgrade(entry.id),
+          onRetry: () => c.agents.retry(entry.id),
           onCancel: () => c.agents.cancelInstall(entry.id),
           onRemove: () => c.agents.remove(entry.id),
           onLogin: () => c.auth.open(entry.id),

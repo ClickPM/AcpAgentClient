@@ -1,4 +1,4 @@
-// registry 面板的状态层（画板 50 / 51 / 70 的数据源）：`registry_list` 的结果与 `registry/progress` 事件的投影。
+// registry 面板的状态层（画板 50 / 51 / 53 / 70 的数据源）：`registry_list` 的结果与 `registry/progress` 事件的投影。
 // 安装状态、认证状态都是**本地态**（docs/design.md § 5 / § 6），不是协议内容；展示名 / 版本 / 描述来自 registry.json。
 // 下载速率与剩余时间在这里按 `done` 的时间差估算（核心只报字节数，画板 51 的「2.1 MB/s · 约 4s」是前端算的）。纯 Dart。
 
@@ -69,10 +69,14 @@ class InstallProgress {
     this.error,
     this.bytesPerSecond,
     this.etaSeconds,
+    this.upgrade = false,
   });
 
   /// npx / binary / node。
   final String kind;
+
+  /// `registry_update` 的进度（画板 53）：npx 只有 resolve / handshake 两步；失败 / 取消时旧版本仍在。
+  final bool upgrade;
 
   /// resolve / write_settings / handshake / download / verify / extract / node_download / node_extract / done / failed / cancelled。
   final String step;
@@ -95,10 +99,17 @@ class InstallProgress {
   /// npx 型的三步（画板 51）。
   static const List<String> npxSteps = <String>['resolve', 'write_settings', 'handshake'];
 
-  /// binary 型的三步（画板 51）。
+  /// npx 型升级的两步（画板 53）：settings 条目升级前就在，没有 write_settings。
+  static const List<String> npxUpgradeSteps = <String>['resolve', 'handshake'];
+
+  /// binary 型的三步（画板 51；升级同这三步，画板 53 注）。
   static const List<String> binarySteps = <String>['download', 'verify', 'extract'];
 
-  List<String> get steps => kind == 'binary' ? binarySteps : (kind == 'npx' ? npxSteps : const <String>['node_download', 'node_extract']);
+  List<String> get steps => switch (kind) {
+        'binary' => binarySteps,
+        'npx' => upgrade ? npxUpgradeSteps : npxSteps,
+        _ => const <String>['node_download', 'node_extract'],
+      };
 
   /// 某一步的状态：done / active / pending（done 态按步序推断：当前步之前的都算完成）。
   StepState stateOf(String name) {
@@ -136,6 +147,8 @@ class RegistryEntryData {
     this.launch,
     this.progress,
     this.failure,
+    this.updateAvailable,
+    this.reloadPending,
   });
 
   final String id;
@@ -169,9 +182,30 @@ class RegistryEntryData {
   /// 最近一次安装失败的日志（画板 51 的失败态）。
   final String? failure;
 
+  /// registry 当前版本，与安装记录里的版本不等时才有（画板 53「有新版本」；核心判定，只判不等）。
+  final String? updateAvailable;
+
+  /// 升级之后该 agent 仍连着旧版本时，运行中那条的版本号（画板 53「已升级 · 待重载」；认不出时为空串）。
+  final String? reloadPending;
+
   bool get isCustom => kind == DistributionKind.custom;
   bool get isInstalling => progress != null && progress!.isRunning;
   bool get isFailed => failure != null || (progress?.isFailed ?? false);
+
+  /// 升级中（画板 53）：进度带 `upgrade`。
+  bool get isUpgrading => isInstalling && progress!.upgrade;
+
+  /// 升级失败（画板 53）：失败了但还是已安装——首装失败会回滚成未安装，所以已安装 + 失败只可能是升级那条。
+  bool get isUpgradeFailed => installed && !isCustom && isFailed;
+
+  /// 有新版本（画板 50 / 53）。
+  bool get hasUpdate => installed && !isCustom && (updateAvailable ?? '').isNotEmpty;
+
+  /// 名字旁的版本号：已安装的是本机装着的版本（安装记录的 registry 版本），没装的是 registry 当前版本（画板 50 注）。
+  String get displayVersion => installed && (installedVersion ?? '').isNotEmpty ? installedVersion! : version;
+
+  /// 升级的目标版本（「旧 → 新」的新）：registry 当前版本。
+  String get upgradeTarget => (updateAvailable ?? '').isNotEmpty ? updateAvailable! : version;
   bool get isUnsupported => kind == DistributionKind.uvx || kind == DistributionKind.none || !supported;
   bool get needsAuth => installed && authStatus == AuthStatus.needsAuth;
   bool get loggedIn => installed && authStatus == AuthStatus.authenticated;
@@ -196,6 +230,8 @@ class RegistryEntryData {
         launch: launch,
         progress: clearProgress ? null : (progress ?? this.progress),
         failure: clearFailure ? null : (failure ?? this.failure),
+        updateAvailable: updateAvailable,
+        reloadPending: reloadPending,
       );
 
   /// `registry_list` 的一条。
@@ -238,6 +274,8 @@ class RegistryEntryData {
                   : const <String, String>{},
             ),
       failure: installedMap?['lastError'] as String? ?? json['lastError'] as String?,
+      updateAvailable: json['updateAvailable'] as String?,
+      reloadPending: json['reloadPending'] as String?,
     );
   }
 }
@@ -371,6 +409,7 @@ class RegistryState extends ChangeNotifier {
       error: json['error'] as String?,
       bytesPerSecond: rate,
       etaSeconds: eta,
+      upgrade: json['upgrade'] == true,
     );
     if (agentId == null) {
       nodeProgress = progress.isTerminal && !progress.isFailed ? null : progress;
@@ -403,6 +442,8 @@ class RegistryState extends ChangeNotifier {
               'auth': e.authStatus.wire,
               'progress': e.progress?.step,
               'failure': e.failure,
+              'updateAvailable': e.updateAvailable,
+              'reloadPending': e.reloadPending,
             },
         },
         'node': <String, dynamic>{'system': node.system?.version, 'managed': node.managed?.version},

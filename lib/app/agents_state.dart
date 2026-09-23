@@ -1,4 +1,4 @@
-// 已装 agent 列表、registry 面板（画板 50 / 51，R5）与设置面板（画板 70，R5；右栏标签）（R7.5 从 workbench_controller.dart 拆出）。
+// 已装 agent 列表、registry 面板（画板 50 / 51，R5；画板 53 的检查与升级）与设置面板（画板 70，R5；右栏标签）（R7.5 从 workbench_controller.dart 拆出）。
 // 会话不归它管：卸载正在用的 agent、registry 变化后侧栏 logo 重投影、已装列表变化后挑「当前 agent」都经回调
 // 交给会话控制器；核心给的三个路径（画板 70）经 [onPaths] 回到组合根。
 //
@@ -125,9 +125,16 @@ class AgentsState extends ChangeNotifier with GuardedNotifier {
   Future<void> refreshRegistry({bool network = false, bool force = false}) async {
     final b = bridge;
     if (b == null) return;
+    // 联网这一次的在途态由这里先置上（画板 53 标题行「检查中…」）：核心的 `fetching` 要等列表回来才看得到，那时已经拉完了。
+    if (network) {
+      registry.fetching = true;
+      touch();
+    }
+    var listed = false;
     await guard(() async {
       final list = network ? await b.registryRefresh(force: force) : await b.registryList();
       registry.applyList(list);
+      listed = true;
       // 侧栏的 agent logo 是从 registry 查出来**烘进**侧栏项的，所以 registry 一变就要重投影一次：
       // 首次启动时图标是这轮联网刷新才落盘的，不重投影侧栏会一直停在占位菱形上，直到下次刷新本地索引。
       _onRegistryChanged();
@@ -136,6 +143,8 @@ class AgentsState extends ChangeNotifier with GuardedNotifier {
       // 展示名随 registry 来（画板 41 的新建会话弹层）。
       await refreshAgents();
     });
+    // 失败时列表没回来（guard 吞了异常），在途态要自己撤。
+    if (network && !listed) registry.fetching = false;
     touch();
   }
 
@@ -162,13 +171,31 @@ class AgentsState extends ChangeNotifier with GuardedNotifier {
     touch();
   }
 
-  /// Install / 重试（失败态）。
+  /// Install（首装）。
   Future<void> install(String id) async {
     final b = bridge;
     if (b == null) return;
     showLog.remove(id);
     await guard(() => b.registryInstall(id));
     touch();
+  }
+
+  /// Update（画板 53）：升到 registry 当前版本，进度同安装（`upgrade: true`）。
+  Future<void> upgrade(String id) async {
+    final b = bridge;
+    if (b == null) return;
+    showLog.remove(id);
+    await guard(() => b.registryUpdate(id));
+    touch();
+  }
+
+  /// 失败态的「重试」：已安装的条目失败的只能是升级（首装失败会回滚成未安装），重试升级；否则重试首装。
+  Future<void> retry(String id) => (registry.byId(id)?.isUpgradeFailed ?? false) ? upgrade(id) : install(id);
+
+  /// 标题行的「检查更新」（画板 50）：强制联网拉一次；已在检查就不再发。
+  Future<void> checkForUpdates() async {
+    if (registry.fetching) return;
+    await refreshRegistry(network: true, force: true);
   }
 
   Future<void> cancelInstall(String id) async {

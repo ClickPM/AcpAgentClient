@@ -41,6 +41,14 @@
 - 范围 `-Scope since -Base 2a7c2e9`，即 `2a7c2e9..abcf3d1`；产物 `.claude/reviews/20260923-111400-review.out.md`。结论 1 条：high 0 / P2 1 / P3 0。其余六项审查者逐项确认与改前等价（`\b_meta\b` 照拦整词、`markDisposed` 仍在清理前立旗、零时长起点为 0、拖拽 / 按下态仍盖过悬浮、附件预览仍由 `onHoverChanged` 调 `_sync`、路径芯片的裁剪仍跟报给卡片的悬浮值走）。
 - **[P2] 路径芯片与提及芯片把 `onTap` 交给 `Hoverable`（`HitTestBehavior.opaque`）后，点在芯片底色上、没点到字形时的目标变了** → **不采纳**。前提不成立：改前默认 `deferToChild` 的 `GestureDetector` 点在内边距上**同样命中**——`Container` 带 `BoxDecoration`（有没有底色都一样）就会包一层 `DecoratedBox`，`BoxDecoration.hitTest` 在整个圆角矩形内都返回 true，而内边距在 `DecoratedBox` 里面。实测（临时用例，不入库）：`Container(decoration: BoxDecoration(color: Accent.soft 或 null, borderRadius: Radii.chip), padding: Spacing.chip)` 外包默认 `GestureDetector`，点左内边距正中（芯片底色里、文本框外）`taps == 1`，两种底色都一样。真正的差别只剩圆角弧外那几个像素，`opaque` 本来就是项目里其余芯片走 `Hoverable` 的统一口径。没有采纳整改，按流程不复审。
 
+### 合并 main（2026-09-23，`main` = `40b097c`）
+
+- 所有者指定：先把 `main` 合进本分支解冲突，validate 全绿后**不再审查**、直接快进合入 `main`。
+- 冲突 4 处：文档 3 处——`iterations/README.md` 迭代清单（取 main 改过的 03 行 + 本迭代的 04 行）、`rounds/BACKLOG.md` 合计行（两边各减了自己关的条数，git 合出来是 31 / 41，按真实未关条数重算为 **25**，逐小节核对标题条数与实际条数一致）、`rounds/BACKLOG-CLOSED.md` 末尾（两边追加的行都留，main 的 6 行在前、本迭代的 16 行在后）；代码 1 处——`lib/gallery/boards/agent_boards.dart`：main 新加的画板 53（round-board-53）用的是旧的 `_page`，本分支把 `_page` / `_window` 收拢成了 `pageBoard` / `windowBoard`，取 main 那一段并把这两处调用改名。
+- 自动合并的 `rust/fs/src/lib.rs`：main 只改了 `resolve_inside` 文档注释里的一句，本分支的三处测试改动完好。
+- 合并后 main 新进的 Rust 测试里没有新的「环境缺失就跳过」写法，新代码里也没有再用旧 gallery helper 或自带 `bool _hover` 的写法。
+- 合并后全量 `validate.ps1 -CargoTargetDir D:\cargo-target\AcpAgentClient-close-p5`：**VALIDATE OK**，`cargo test` 110 条、`flutter test` 461 条全过。
+
 ### 没改的
 
 - `sidecar/zed-agent-acp/src/translate.rs` 的 `terminal_exit_meta_omits_absent_fields` 里有一段「id 先绑到变量」的绕门写法，第 3 项之后已不需要；sidecar 的问题当前不修（`rounds/BACKLOG-ZED.md`），validate 也不编 sidecar，没动。

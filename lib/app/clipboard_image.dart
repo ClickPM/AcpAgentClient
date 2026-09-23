@@ -1,8 +1,9 @@
-// 输入框的图片粘贴（Ctrl+V）：Flutter 的 `Clipboard` 只给 text/plain，位图与文件列表都取不到，
+// 输入框的粘贴（Ctrl+V）：Flutter 的 `Clipboard` 只给 text/plain，位图与文件列表都取不到，
 // 第三方剪贴板包又在 CLAUDE.md 规则 1 的清单之外，所以 Windows（规则 9 首发）由 runner 直接走 Win32 读一次
 // 剪贴板（`acp/window` 通道的 `readClipboardImages`，windows/runner/acp_clipboard.cpp）：先看文件列表
-// （资源管理器里复制的图片文件），再看位图（截图工具 / 企业微信截图）。位图回来的是 BGRA 像素，PNG 编码在
-// 这里用 dart:ui 自带的编码器做，不落临时文件、不拉子进程。
+// （资源管理器里复制的文件与目录，`CF_HDROP`），再看位图（截图工具 / 企业微信截图）。文件列表在这里分成
+// 「读成图」与「按路径引用」两份；位图回来的是 BGRA 像素，PNG 编码在这里用 dart:ui 自带的编码器做，
+// 不落临时文件、不拉子进程。
 // 非 Windows 暂时返回空（macOS / Linux 暂不做，所有者裁定 2026-09-23；原条目在 rounds/BACKLOG-CLOSED.md）。
 
 import 'dart:io';
@@ -49,72 +50,92 @@ const int clipboardBitmapBytesLimit = 256 * 1024 * 1024;
 /// 每张在内存里要存三份（原字节 + base64 + 芯片解回来的），随后整块进一条 `session/prompt`。
 const int promptImageCountLimit = 20;
 
-/// 读一次剪贴板里的图片，最多收 [maxImages] 张（调用方传「上限减去输入框里已有的」，可以是 0）。
-/// `skippedTooLarge` = 有图但因为太大被跳过了 —— 两道门共用这个旗标：
-/// 编码后的 PNG / 磁盘上的文件超 [clipboardImageSizeLimit]，或位图的像素缓冲超 [clipboardBitmapBytesLimit]。
-/// 两道门的数不一样，所以提示文案不能写死某一个数（调用方 `ComposerState.pasteImageFromClipboard`）。
-/// `skippedTooMany` = 收满 [maxImages] 张之后还有图：张数门判在读文件 / 编码**之前**，多出来的一张都不进内存。
+/// 读一次剪贴板的结果：[images] 加成 `image` 块，[paths]（文件与目录）加成指向它们的 `resource_link`。
+typedef ClipboardContent = ({
+  List<ClipboardImage> images,
+  List<String> paths,
+  bool skippedTooLarge,
+  bool skippedTooMany,
+});
+
+/// 读一次剪贴板。复制的文件与目录**默认按路径引用**（所有者 2026-09-23）；只有「agent 收图（[images]）且是图片扩展名、
+/// 大小在 [clipboardImageSizeLimit] 以内的文件」才读成图——空文件与超限的图片文件也退回路径：它就在磁盘上，
+/// agent 按路径自己读得到，不必因为太大整个丢掉。[images] 为 false 时连位图都不向 runner 要（截图像素不搬过通道）。
+/// 读成图的最多收 [maxImages] 张（调用方传「上限减去输入框里已有的」，可以是 0）。
+/// `skippedTooLarge` = 截图位图因为太大被跳过了，两道门共用这个旗标：编码后的 PNG 超 [clipboardImageSizeLimit]，
+/// 或像素缓冲超 [clipboardBitmapBytesLimit]。两道门的数不一样，所以提示文案不能写死某一个数
+/// （调用方 `ComposerState.pasteFromClipboard`）。
+/// `skippedTooMany` = 收满 [maxImages] 张之后还有该读成图的：张数门判在读文件 / 编码**之前**，多出来的一张都不进内存，
+/// 也不退回路径（多出来的没有加进输入框，所有者裁定的口径）；只跳过这一张，后面的目录与非图片文件照样按路径收。
 /// 没有 runner（flutter_tester、非 Windows）或剪贴板读不到时回空：粘贴文本那一下已经由输入框自己做完了，
-/// 这里只是没捞到图，不该把粘贴这件事搞砸。
-Future<({List<ClipboardImage> images, bool skippedTooLarge, bool skippedTooMany})> readClipboardImages({
-  int maxImages = promptImageCountLimit,
-}) async {
-  const empty = (images: <ClipboardImage>[], skippedTooLarge: false, skippedTooMany: false);
+/// 这里只是没捞到东西，不该把粘贴这件事搞砸。
+Future<ClipboardContent> readClipboard({required bool images, int maxImages = promptImageCountLimit}) async {
+  const ClipboardContent empty =
+      (images: <ClipboardImage>[], paths: <String>[], skippedTooLarge: false, skippedTooMany: false);
   try {
-    final items = await AppWindow.invoke<List<Object?>>('readClipboardImages');
+    final items = await AppWindow.invoke<List<Object?>>('readClipboardImages', <String, Object?>{'bitmap': images});
     if (items == null) return empty;
-    final images = <ClipboardImage>[];
+    final read = <ClipboardImage>[];
+    final paths = <String>[];
     var skipped = false;
     var tooMany = false;
     for (final item in items) {
       if (item is! Map) continue;
       final path = item['path'];
-      final Uint8List bytes;
-      final String mime;
       if (path is String) {
-        final fileMime = imageMimeTypes[_extensionOf(path)];
-        if (fileMime == null) continue;
-        final file = File(path);
-        if (!file.existsSync()) continue;
-        final length = await file.length();
-        if (length == 0) continue;
-        if (images.length >= maxImages) {
-          tooMany = true;
-          break;
-        }
-        if (length > clipboardImageSizeLimit) {
-          skipped = true;
+        final type = await FileSystemEntity.type(path);
+        if (type == FileSystemEntityType.directory) {
+          paths.add(path);
           continue;
         }
-        bytes = await file.readAsBytes();
-        mime = fileMime;
-      } else {
-        final width = item['width'];
-        final height = item['height'];
-        if (width is! int || height is! int) continue;
-        if (images.length >= maxImages) {
-          tooMany = true;
-          break;
+        if (type != FileSystemEntityType.file) continue; // 复制之后被删 / 挪走了，或是管道之类
+        final mime = images ? imageMimeTypes[_extensionOf(path)] : null;
+        if (mime != null) {
+          // 一个文件读不了（被独占打开、拒绝访问）只影响它自己：退回按路径引用，别让外面那层 catch 把前面
+          // 已经分好的整批结果清掉（审查 P2，2026-09-23）。
+          try {
+            final file = File(path);
+            final length = await file.length();
+            if (length > 0 && length <= clipboardImageSizeLimit) {
+              // 张数门在读字节之前；`continue` 而不是 `break`：后面的目录与非图片文件不受张数门管。
+              if (read.length >= maxImages) {
+                tooMany = true;
+                continue;
+              }
+              read.add(ClipboardImage(bytes: await file.readAsBytes(), mimeType: mime, path: path));
+              continue;
+            }
+          } on FileSystemException catch (e) {
+            debugPrint('[clipboard] read image file failed, keeping it as a path: $e');
+          }
         }
-        if (width * height * 4 > clipboardBitmapBytesLimit) {
-          // runner 超过同一个数时只回尺寸、不给像素，所以这里判的是「它已经放弃了」。
-          skipped = true;
-          continue;
-        }
-        final bgra = item['bgra'];
-        if (bgra is! Uint8List) continue; // 形状不对（不该发生）：不是尺寸问题，别报成「太大」
-        final png = await encodePngFromBgra(width, height, bgra);
-        if (png == null) continue;
-        if (png.length > clipboardImageSizeLimit) {
-          skipped = true;
-          continue;
-        }
-        bytes = png;
-        mime = 'image/png';
+        paths.add(path);
+        continue;
       }
-      images.add(ClipboardImage(bytes: bytes, mimeType: mime, path: path is String ? path : null));
+      if (!images) continue; // runner 按参数本不该给位图；万一给了也不收
+      final width = item['width'];
+      final height = item['height'];
+      if (width is! int || height is! int) continue;
+      if (read.length >= maxImages) {
+        tooMany = true;
+        continue;
+      }
+      if (width * height * 4 > clipboardBitmapBytesLimit) {
+        // runner 超过同一个数时只回尺寸、不给像素，所以这里判的是「它已经放弃了」。
+        skipped = true;
+        continue;
+      }
+      final bgra = item['bgra'];
+      if (bgra is! Uint8List) continue; // 形状不对（不该发生）：不是尺寸问题，别报成「太大」
+      final png = await encodePngFromBgra(width, height, bgra);
+      if (png == null) continue;
+      if (png.length > clipboardImageSizeLimit) {
+        skipped = true;
+        continue;
+      }
+      read.add(ClipboardImage(bytes: png, mimeType: 'image/png'));
     }
-    return (images: images, skippedTooLarge: skipped, skippedTooMany: tooMany);
+    return (images: read, paths: paths, skippedTooLarge: skipped, skippedTooMany: tooMany);
   } catch (e) {
     debugPrint('[clipboard] read failed: $e');
     return empty;

@@ -1,8 +1,10 @@
 //! registry 面板 / 认证状态 / 设置页背后的编排（docs/design.md § 5 / § 6，R5）：把 `rust/registry` 的安装步骤、
 //! settings.json 的写入与首次 `initialize` 握手串成画板 51 的三步，进度经 `registry/progress` 推出；Remove、受管 Node、
 //! 从 Zed 导入、registry 型的拉起也在这里。安装任务在核心的 runtime 上后台跑，命令立即返回，取消经 [`CancelToken`]。
+//! 画板 53 的升级（`registry_update`）也在这里：新版本装在旧版旁边，通过了才切换安装记录，旧目录在不被占用时清掉。
 
 use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -35,6 +37,36 @@ impl ProgressSink for ProgressEvents {
     }
 }
 
+/// 升级的进度出口：每条打上 `upgrade: true`（画板 53 据此画两步清单与「升级失败」）。
+struct UpgradeProgress<'a>(&'a dyn ProgressSink);
+
+impl ProgressSink for UpgradeProgress<'_> {
+    fn progress(&self, mut progress: Progress) {
+        progress.upgrade = true;
+        self.0.progress(progress);
+    }
+}
+
+/// 升级握手的事件出口：只拦 `acp/agent_state`。那条临时连接与正在运行的连接是同一个 agentId，它的
+/// `spawned` / `initialized` / `exited` 发出去，前端会把运行中的那条当成刚退出；流量等其余事件照发。
+struct WithoutAgentState(Arc<dyn EventSink>);
+
+impl EventSink for WithoutAgentState {
+    fn emit(&self, channel: EventChannel, payload: String) {
+        if channel != EventChannel::AgentState {
+            self.0.emit(channel, payload);
+        }
+    }
+}
+
+/// 条目在本平台的分发方式（进度事件的 `kind`）。
+fn distribution_kind(entry: &RegistryEntry) -> &'static str {
+    match entry.resolve(current_platform_key()) {
+        Resolved::Binary(_) => "binary",
+        _ => "npx",
+    }
+}
+
 impl Core {
     fn progress_sink(&self) -> ProgressEvents {
         ProgressEvents { sink: self.event_sink() }
@@ -57,10 +89,15 @@ impl Core {
             let resolved = entry.resolve(platform);
             let manifest = InstallManifest::load(dirs, &entry.id).ok().flatten().filter(|m| m.is_intact());
             let installed = manifest.is_some();
+            let installable = !matches!(resolved, Resolved::Unsupported | Resolved::Uvx);
             let package = match &resolved {
                 Resolved::Npx(npx) => Some(npx.package.clone()),
                 _ => None,
             };
+            // 画板 53：安装那一刻的 registry 版本 ≠ 当前版本就可升级。比 `version` 不比 `installedVersion`（npm 有界规格在
+            // min-release-age 下可能装到更低的版本，拿它比会一直提示有更新）；只判不等不比大小；本平台装不了的不出。
+            let update_available = manifest.as_ref().filter(|m| installable && m.version != entry.version).map(|_| entry.version.clone());
+            let reload_pending = manifest.as_ref().and_then(|m| self.reload_pending(m));
             agents.push((
                 installed,
                 json!({
@@ -73,10 +110,12 @@ impl Core {
                     "license": entry.license,
                     "iconSvg": self.registry_index().icon_svg(&entry.id),
                     "distribution": resolved.kind(),
-                    "supported": !matches!(resolved, Resolved::Unsupported | Resolved::Uvx),
+                    "supported": installable,
                     "package": package,
                     "installed": manifest.as_ref().map(InstallManifest::to_json),
                     "installing": installing.contains(&entry.id),
+                    "updateAvailable": update_available,
+                    "reloadPending": reload_pending,
                     "custom": Value::Null,
                 }),
             ));
@@ -133,49 +172,61 @@ impl Core {
     // ---- 安装 / 取消 / 移除
 
     /// `registry_install`：后台起安装任务，立即返回 `{agentId, started}`；进度与结果都走 `registry/progress`。
+    /// 已经装好的条目拒绝（有新版本走 `registry_update`）：首装失败的回滚会删掉整个 `agents/<id>/`，连旧版一起。
     pub fn registry_install(self: &Arc<Self>, agent_id: &str) -> Result<Value> {
         let entry = self
             .registry_index()
             .entry(agent_id)
             .ok_or_else(|| CoreError::InvalidArgument(format!("registry 里没有 `{agent_id}`（先刷新列表）")))?;
-        let token = CancelToken::new();
-        {
-            let mut installs = lock(self.installs());
-            if installs.contains_key(agent_id) {
-                return Err(CoreError::InvalidArgument(format!("`{agent_id}` 正在安装")));
-            }
-            installs.insert(agent_id.to_string(), token.clone());
+        if InstallManifest::load(self.registry_dirs(), agent_id).ok().flatten().is_some_and(|m| m.is_intact()) {
+            return Err(CoreError::InvalidArgument(format!("`{agent_id}` 已经装好了；registry 有新版本时用升级（registry_update）")));
         }
+        let token = self.claim_install_slot(agent_id)?;
         let core = self.clone();
         let id = agent_id.to_string();
         self.runtime().spawn(async move {
-            let kind = match entry.resolve(current_platform_key()) {
-                Resolved::Binary(_) => "binary",
-                _ => "npx",
-            };
             let result = core.run_install(&entry, token.clone()).await;
             lock(core.installs()).remove(&id);
-            let sink = core.progress_sink();
-            match result {
-                Ok(()) => sink.progress(Progress::new(Some(&id), kind, "done")),
-                Err(e) => {
-                    let step = if matches!(e, CoreError::Registry(RegistryError::Cancelled)) { "cancelled" } else { "failed" };
-                    let mut p = Progress::new(Some(&id), kind, step);
-                    p.error = Some(e.to_string());
-                    sink.progress(p);
-                }
-            }
+            core.finish_install(&id, distribution_kind(&entry), false, result);
         });
         Ok(json!({ "agentId": agent_id, "started": true }))
+    }
+
+    /// 占住一个 agent 的安装槽（安装 / 升级 / 启动清扫共用）：已被占 → 「正在安装」。
+    fn claim_install_slot(&self, agent_id: &str) -> Result<Arc<CancelToken>> {
+        let token = CancelToken::new();
+        let mut installs = lock(self.installs());
+        if installs.contains_key(agent_id) {
+            return Err(CoreError::InvalidArgument(format!("`{agent_id}` 正在安装")));
+        }
+        installs.insert(agent_id.to_string(), token.clone());
+        Ok(token)
+    }
+
+    /// 安装 / 升级任务的收尾事件：done / cancelled / failed（带错误文案）。
+    fn finish_install(&self, agent_id: &str, kind: &'static str, upgrade: bool, result: Result<()>) {
+        let mut p = match result {
+            Ok(()) => Progress::new(Some(agent_id), kind, "done"),
+            Err(e) => {
+                let step = if matches!(e, CoreError::Registry(RegistryError::Cancelled)) { "cancelled" } else { "failed" };
+                let mut p = Progress::new(Some(agent_id), kind, step);
+                p.error = Some(e.to_string());
+                p
+            }
+        };
+        p.upgrade = upgrade;
+        self.progress_sink().progress(p);
     }
 
     async fn run_install(self: &Arc<Self>, entry: &RegistryEntry, token: Arc<CancelToken>) -> Result<()> {
         let dirs = self.registry_dirs();
         let sink = self.progress_sink();
+        // 首装没有在用的入口：目标就是 `agents/<id>/<version>/`。
+        let target = registry::install::version_dir(dirs, &entry.id, &entry.version, &[]);
         match entry.resolve(current_platform_key()) {
             Resolved::Npx(npx) => {
                 let node = registry::node::locate(dirs).await?;
-                let mut manifest = registry::install::install_npx(dirs, entry, &npx, &node, token.clone(), &sink).await?;
+                let mut manifest = registry::install::install_npx(entry, &npx, &node, &target, token.clone(), &sink).await?;
                 token.check()?;
                 sink.progress(Progress::new(Some(&entry.id), "npx", "write_settings"));
                 let (settings_env, settings_created) = self.write_registry_settings(&entry.id)?;
@@ -206,16 +257,173 @@ impl Core {
                 }
                 committed
             }
-            Resolved::Binary(target) => {
-                let manifest = registry::install::install_binary(dirs, entry, &target, self.http(), token.clone(), &sink).await?;
+            Resolved::Binary(binary) => {
+                let manifest = registry::install::install_binary(dirs, entry, &binary, &target, self.http(), token.clone(), &sink).await?;
                 token.check()?;
                 self.write_registry_settings(&entry.id)?;
                 manifest.save(dirs)?;
                 Ok(())
             }
-            Resolved::Uvx => Err(RegistryError::Unsupported("registry 条目声明的安装方式是 uvx，本版本暂不支持".into()).into()),
-            Resolved::Unsupported => Err(RegistryError::Unsupported("registry 条目没有本平台可用的分发方式".into()).into()),
+            Resolved::Uvx => Err(uvx_unsupported()),
+            Resolved::Unsupported => Err(platform_unsupported()),
         }
+    }
+
+    // ---- 升级（画板 53）
+
+    /// `registry_update`：后台把已安装条目升到 registry 当前版本，立即返回 `{agentId, started}`；进度同 `registry/progress`
+    /// （每条带 `upgrade: true`）。新版本装在旧版旁边，npx 握手通过 / binary 解压成功才切换安装记录；失败或取消只删新目录，
+    /// 旧的安装记录、settings 条目与 env、认证状态都不动。正在运行的连接不打断（`registry_list` 的 `reloadPending`）。
+    pub fn registry_update(self: &Arc<Self>, agent_id: &str) -> Result<Value> {
+        let entry = self
+            .registry_index()
+            .entry(agent_id)
+            .ok_or_else(|| CoreError::InvalidArgument(format!("registry 里没有 `{agent_id}`（先刷新列表）")))?;
+        let current = InstallManifest::load(self.registry_dirs(), agent_id)?
+            .filter(InstallManifest::is_intact)
+            .ok_or_else(|| CoreError::InvalidArgument(format!("`{agent_id}` 还没安装")))?;
+        if current.version == entry.version {
+            return Err(CoreError::InvalidArgument(format!("`{agent_id}` 已是 registry 当前版本 {}", entry.version)));
+        }
+        let token = self.claim_install_slot(agent_id)?;
+        let core = self.clone();
+        let id = agent_id.to_string();
+        self.runtime().spawn(async move {
+            let result = core.run_upgrade(&entry, &current, token).await;
+            lock(core.installs()).remove(&id);
+            core.finish_install(&id, distribution_kind(&entry), true, result);
+        });
+        Ok(json!({ "agentId": agent_id, "started": true }))
+    }
+
+    async fn run_upgrade(self: &Arc<Self>, entry: &RegistryEntry, current: &InstallManifest, token: Arc<CancelToken>) -> Result<()> {
+        let dirs = self.registry_dirs();
+        let events = self.progress_sink();
+        let sink = UpgradeProgress(&events);
+        // 目标目录避开所有在用的入口：安装记录的，和正在运行的连接的（它可能还是更早的一版）。
+        let mut in_use: Vec<PathBuf> = current.entry_path().into_iter().collect();
+        if let Some(Some(live)) = self.live_entry(&entry.id) {
+            in_use.push(live);
+        }
+        let target = registry::install::version_dir(dirs, &entry.id, &entry.version, &in_use);
+        let staged: Result<InstallManifest> = async {
+            let manifest = match entry.resolve(current_platform_key()) {
+                Resolved::Npx(npx) => {
+                    let node = registry::node::locate(dirs).await?;
+                    let mut manifest = registry::install::install_npx(entry, &npx, &node, &target, token.clone(), &sink).await?;
+                    token.check()?;
+                    sink.progress(Progress::new(Some(&entry.id), "npx", "handshake"));
+                    let launch = LaunchSpec::from_registry(&manifest, Some(&node), &self.registry_settings_env(&entry.id)?)?;
+                    let quiet: Arc<dyn EventSink> = Arc::new(WithoutAgentState(self.event_sink()));
+                    let connection = tokio::select! {
+                        connected = AgentConnection::connect(entry.id.clone(), launch, None, quiet, self.terminal_manager()) => connected?,
+                        _ = token.cancelled() => return Err(RegistryError::Cancelled.into()),
+                    };
+                    manifest.agent_info = connection.initialize.get("agentInfo").cloned();
+                    manifest.installed_version = manifest
+                        .installed_version
+                        .clone()
+                        .or_else(|| manifest.agent_info.as_ref().and_then(|i| i.get("version")).and_then(Value::as_str).map(str::to_string));
+                    connection.disconnect().await;
+                    manifest
+                }
+                Resolved::Binary(binary) => registry::install::install_binary(dirs, entry, &binary, &target, self.http(), token.clone(), &sink).await?,
+                Resolved::Uvx => return Err(uvx_unsupported()),
+                Resolved::Unsupported => return Err(platform_unsupported()),
+            };
+            // 切换之前最后一次认取消：之后就是写安装记录，不再把装好的结果报成 cancelled。
+            token.check()?;
+            Ok(manifest)
+        }
+        .await;
+        let committed = match staged {
+            Ok(manifest) => self.commit_upgrade(current, manifest),
+            Err(e) => Err(e),
+        };
+        match committed {
+            Ok(keep) => {
+                // 旧版本的 node_modules 动辄几百 MB，删目录放到阻塞线程上，别占着 runtime 的工作线程。
+                if let Some(keep) = keep {
+                    let dirs = dirs.clone();
+                    let id = entry.id.clone();
+                    let _ = tokio::task::spawn_blocking(move || registry::install::sweep_stale(&dirs, &id, &keep)).await;
+                }
+                Ok(())
+            }
+            Err(e) => {
+                // 只删本次的新目录（它避开了所有在用的入口）；握手子进程刚被结束时 Windows 上会占着文件，短等重试。
+                remove_dir_retrying(&target).await;
+                Err(e)
+            }
+        }
+    }
+
+    /// 切换：新安装记录继承磁盘上此刻的认证状态，记下运行中那条连接的版本（`reloadPending` 用），写盘即切换。返回清旧目录时要留下的
+    /// 入口：新的、当前安装记录的、运行中连接的（这几个目录都推迟到下次启动清），认不出连接的入口就这次不清（`None`）。
+    fn commit_upgrade(&self, current: &InstallManifest, mut next: InstallManifest) -> Result<Option<Vec<PathBuf>>> {
+        let dirs = self.registry_dirs();
+        let id = current.id.clone();
+        // 连接在这里重新看一次：升级在途时用户可能 Reload 过（那时拉起的还是旧安装记录）。
+        let (previous, keep) = switch_plan(current, &next, self.live_entry(&id));
+        next.previous_version = previous;
+        // settings 里的 registry 条目升级前就在（带用户的 env，不动）；被手动删了就补回，同名 custom 条目则报错不切换。
+        self.write_registry_settings(&id)?;
+        // 认证状态在写盘的那一刻从磁盘取（与 session/new 的回写串行），不用升级开始时读到的 `current`。
+        InstallManifest::switch_to(dirs, next)?;
+        Ok(keep)
+    }
+
+    /// 画板 53「已升级 · 待重载」：该 agent 正连着，而那条连接的拉起入口已不是安装记录里的（升级切走了）→ 运行中那条的版本
+    /// （安装记录的 `previousVersion`；没记下时是空串）。没连着、或认不出连接的入口 → None。
+    fn reload_pending(&self, manifest: &InstallManifest) -> Option<String> {
+        reload_pending_of(manifest, self.live_entry(&manifest.id))
+    }
+
+    /// 该 agent 当前连接的拉起入口：没连着 → `None`；连着 → `Some(入口)`，入口取程序与第一个参数里落在 `agents/<id>/` 之下
+    /// 的那个（npx 是 `node <脚本>` 的脚本，binary 是程序本身）；两个都不在那下面 → `Some(None)`（认不出，不据此删任何东西）。
+    fn live_entry(&self, agent_id: &str) -> Option<Option<PathBuf>> {
+        let launch = lock(self.agents()).get(agent_id).map(|c| c.launch.clone())?;
+        let agent_dir = self.registry_dirs().agent_dir(agent_id);
+        Some(std::iter::once(&launch.program).chain(launch.args.first()).map(PathBuf::from).find(|p| p.starts_with(&agent_dir)))
+    }
+
+    /// settings 里 registry 条目的 `env`（拉起时最后覆盖）；没有条目 → 空。
+    fn registry_settings_env(&self, agent_id: &str) -> Result<BTreeMap<String, String>> {
+        Ok(match self.settings().get(agent_id)? {
+            Some(AgentServer::Registry { env, .. }) => env,
+            _ => BTreeMap::new(),
+        })
+    }
+
+    /// 启动时清一遍各 agent 目录里不再用到的旧版本（升级切换时一律推迟的那些；画板 53）。后台跑，此时还没有任何连接，
+    /// 在用的只有安装记录的入口；清某个 agent 时占住它的安装槽，这期间来的安装 / 升级直接报「正在安装」，不和清扫抢目录。
+    pub fn sweep_stale_installs(self: &Arc<Self>) {
+        let core = self.clone();
+        self.runtime().spawn(async move {
+            let Ok(entries) = std::fs::read_dir(core.registry_dirs().agents_dir()) else { return };
+            let ids: Vec<String> = entries
+                .flatten()
+                .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .collect();
+            for id in ids {
+                if core.claim_install_slot(&id).is_err() {
+                    continue;
+                }
+                let dirs = core.registry_dirs().clone();
+                let agent = id.clone();
+                let _ = tokio::task::spawn_blocking(move || {
+                    if let Ok(Some(manifest)) = InstallManifest::load(&dirs, &agent)
+                        && manifest.is_intact()
+                    {
+                        let in_use: Vec<PathBuf> = manifest.entry_path().into_iter().collect();
+                        registry::install::sweep_stale(&dirs, &agent, &in_use);
+                    }
+                })
+                .await;
+                lock(core.installs()).remove(&id);
+            }
+        });
     }
 
     /// settings.json 写 `{type: "registry"}`（已有 registry 条目时保留它的 env 与 Zed 字段；同名 custom 条目不覆盖）。
@@ -362,5 +570,281 @@ impl Core {
     /// `session/new` 的结果回写认证状态（只对 registry 型的安装记录；custom 型没有记录，静默跳过）。
     pub(crate) fn record_auth_status(&self, agent_id: &str, status: AuthStatus) {
         let _ = InstallManifest::set_auth_status(self.registry_dirs(), agent_id, status);
+    }
+}
+
+/// [`Core::reload_pending`] 的判定本体（`live` 是 [`Core::live_entry`] 的结果）。
+fn reload_pending_of(manifest: &InstallManifest, live: Option<Option<PathBuf>>) -> Option<String> {
+    let running = live??;
+    if manifest.entry_path().as_ref() == Some(&running) {
+        return None;
+    }
+    Some(manifest.previous_version.clone().unwrap_or_default())
+}
+
+/// 升级切换那一刻（`live` 同上）：新安装记录要记的 `previousVersion`，与清旧目录时要留下的入口（`None` = 这次先不清）。
+fn switch_plan(current: &InstallManifest, next: &InstallManifest, live: Option<Option<PathBuf>>) -> (Option<String>, Option<Vec<PathBuf>>) {
+    let previous = match &live {
+        // 运行中那条比当前安装记录还旧（连续升级两次都没重载）或认不出：保留最早记下的那个版本。
+        Some(Some(entry)) if current.entry_path().as_deref() != Some(entry.as_path()) => {
+            current.previous_version.clone().or_else(|| Some(current.version.clone()))
+        }
+        Some(None) => current.previous_version.clone().or_else(|| Some(current.version.clone())),
+        // 连着的就是当前这版，或看起来没连着：记当前这版（没连着时它不会被用到——`reloadPending` 要有一条入口对不上的连接）。
+        _ => Some(current.version.clone()),
+    };
+    // 当前安装记录的入口一律留着，留给下次启动清扫：`agent_connect` 拉起新进程的那段时间里连接表里没有它（先摘掉旧连接、
+    // connect 完才插回），而那个进程是按当前安装记录拉起的——看不见不等于没人在用（审查 high，2026-09-23）。
+    let keep = match live {
+        Some(None) => None,
+        live => Some(next.entry_path().into_iter().chain(current.entry_path()).chain(live.flatten()).collect()),
+    };
+    (previous, keep)
+}
+
+fn uvx_unsupported() -> CoreError {
+    RegistryError::Unsupported("registry 条目声明的安装方式是 uvx，本版本暂不支持".into()).into()
+}
+
+fn platform_unsupported() -> CoreError {
+    RegistryError::Unsupported("registry 条目没有本平台可用的分发方式".into()).into()
+}
+
+/// 删一个目录，Windows 上被刚结束的子进程占着时短等重试（与首装回滚同一套次数与间隔）；重试用尽就留着，下次清扫再删。
+/// 删除放在阻塞线程上：npx 握手失败时目录里已是一整份 `node_modules`（审查第 2 轮 P3）。
+async fn remove_dir_retrying(dir: &Path) {
+    for attempt in 0..ROLLBACK_ATTEMPTS {
+        if attempt > 0 {
+            tokio::time::sleep(ROLLBACK_RETRY).await;
+        }
+        let path = dir.to_path_buf();
+        let removed = tokio::task::spawn_blocking(move || !path.exists() || std::fs::remove_dir_all(&path).is_ok()).await;
+        if removed.unwrap_or(false) {
+            return;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::{Read, Write};
+
+    use super::*;
+    use crate::events::RecordingSink;
+    use registry::manifest::MANIFEST_FILE;
+
+    fn manifest(dir: &Path, version: &str) -> InstallManifest {
+        InstallManifest {
+            id: "x".into(),
+            kind: "binary".into(),
+            version: version.into(),
+            installed_version: Some(version.into()),
+            package: None,
+            package_spec: None,
+            command: dir.join("dist-package").join("agent.cmd").to_string_lossy().into_owned(),
+            args: vec![],
+            env: BTreeMap::new(),
+            dir: dir.to_string_lossy().into_owned(),
+            installed_at: 1,
+            auth_status: AuthStatus::Authenticated,
+            agent_info: None,
+            verify_note: None,
+            previous_version: None,
+        }
+    }
+
+    #[test]
+    fn reload_pending_only_when_a_live_connection_runs_something_else() {
+        let agent = PathBuf::from("D:/data/agents/x");
+        let mut m = manifest(&agent.join("2.0.0"), "2.0.0");
+        m.previous_version = Some("1.0.0".into());
+        let older = Some(Some(agent.join("1.0.0").join("dist-package").join("agent.cmd")));
+        assert_eq!(reload_pending_of(&m, None), None, "没连着");
+        assert_eq!(reload_pending_of(&m, Some(None)), None, "认不出连接的入口");
+        assert_eq!(reload_pending_of(&m, Some(m.entry_path())), None, "连接跑的就是安装记录里的");
+        assert_eq!(reload_pending_of(&m, older.clone()), Some("1.0.0".into()));
+        m.previous_version = None;
+        assert_eq!(reload_pending_of(&m, older), Some(String::new()));
+    }
+
+    #[test]
+    fn switch_plan_records_the_running_version_and_keeps_its_directory() {
+        let agent = PathBuf::from("D:/data/agents/x");
+        let mut current = manifest(&agent.join("2.0.0"), "2.0.0");
+        let next = manifest(&agent.join("3.0.0"), "3.0.0");
+        let next_entry = next.entry_path().expect("entry");
+        let current_entry = current.entry_path().expect("entry");
+        // 看起来没连着：当前安装记录的入口照样留（可能正有一条按它拉起、还没进连接表的连接，审查 high）。
+        assert_eq!(switch_plan(&current, &next, None), (Some("2.0.0".into()), Some(vec![next_entry.clone(), current_entry.clone()])));
+        // 连着的就是当前这版：记它，它的入口留着。
+        assert_eq!(
+            switch_plan(&current, &next, Some(Some(current_entry.clone()))),
+            (Some("2.0.0".into()), Some(vec![next_entry.clone(), current_entry.clone(), current_entry.clone()]))
+        );
+        // 连着的是更早的一版（升级两次都没重载）：保留最早记下的版本，三个入口都留。
+        current.previous_version = Some("1.0.0".into());
+        let older = agent.join("1.0.0").join("dist-package").join("agent.cmd");
+        assert_eq!(
+            switch_plan(&current, &next, Some(Some(older.clone()))),
+            (Some("1.0.0".into()), Some(vec![next_entry, current_entry, older]))
+        );
+        // 认不出连接的入口：这次不清。
+        assert_eq!(switch_plan(&current, &next, Some(None)), (Some("1.0.0".into()), None));
+    }
+
+    /// 本地 HTTP 服务（阻塞线程，代替 CDN）：任何 GET 都回 `body`。端口在建核心之前就定下来，registry 缓存才能写进 URL。
+    fn serve(body: Vec<u8>) -> String {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+        let addr = listener.local_addr().expect("addr");
+        std::thread::spawn(move || {
+            for mut socket in listener.incoming().flatten() {
+                let mut buf = [0u8; 4096];
+                let _ = socket.read(&mut buf);
+                let head = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
+                let _ = socket.write_all(head.as_bytes());
+                let _ = socket.write_all(&body);
+            }
+        });
+        format!("http://{addr}/agent.zip")
+    }
+
+    /// 一个只含 `dist-package/agent.cmd` 的 zip（系统 tar 打）与它的 sha256。
+    fn agent_zip(base: &Path) -> (Vec<u8>, String) {
+        let src = base.join("src");
+        std::fs::create_dir_all(src.join("dist-package")).expect("mkdir");
+        std::fs::write(src.join("dist-package").join("agent.cmd"), b"@echo off\r\n").expect("write");
+        let zip = base.join("agent.zip");
+        let out = std::process::Command::new(registry::archive::tar_program())
+            .arg("-a")
+            .arg("-cf")
+            .arg(&zip)
+            .arg("-C")
+            .arg(&src)
+            .arg("dist-package")
+            .output()
+            .expect("tar");
+        assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+        (std::fs::read(&zip).expect("read"), registry::download::sha256_file(&zip).expect("sha"))
+    }
+
+    /// registry.json 缓存（核心建起来时读它）：一个 binary 条目，本平台的 target 指向 `url`。
+    fn write_registry_cache(data: &Path, version: &str, url: &str, sha: &str) {
+        let platform = current_platform_key().expect("platform");
+        let index = json!({
+            "version": "1",
+            "agents": [{
+                "id": "fake-bin", "name": "Fake", "version": version, "description": "",
+                "distribution": { "binary": { platform: { "archive": url, "cmd": "./dist-package\\agent.cmd", "args": ["acp"], "sha256": sha } } }
+            }]
+        });
+        std::fs::create_dir_all(data.join("registry-cache")).expect("mkdir");
+        std::fs::write(data.join("registry-cache").join("registry.json"), index.to_string()).expect("write");
+    }
+
+    /// 等这个 agent 的收尾进度（done / failed / cancelled）；返回收尾那一步与期间的全部进度。
+    fn wait_finished(events: &RecordingSink) -> (String, Vec<Value>) {
+        let mut seen: Vec<Value> = Vec::new();
+        for _ in 0..600 {
+            for (channel, payload) in events.take() {
+                if channel == EventChannel::RegistryProgress {
+                    seen.push(serde_json::from_str(&payload).expect("json"));
+                }
+            }
+            let last = seen.iter().filter_map(|p| p["step"].as_str()).find(|s| matches!(*s, "done" | "failed" | "cancelled")).map(str::to_string);
+            if let Some(step) = last {
+                return (step, seen);
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        panic!("升级没有收尾：{seen:?}");
+    }
+
+    fn list_entry(core: &Core) -> Value {
+        let list = core.runtime().block_on(core.registry_list()).expect("list");
+        list["agents"].as_array().expect("agents").iter().find(|a| a["id"] == "fake-bin").cloned().expect("entry")
+    }
+
+    fn load(data: &Path) -> InstallManifest {
+        InstallManifest::load(&registry::RegistryDirs::new(data), "fake-bin").expect("load").expect("manifest")
+    }
+
+    /// binary 型升级全链路（验收 1）：可升级判定 → 已安装时拒绝首装 → 升级（进度都带 upgrade）→ 安装记录切到新目录、认证状态
+    /// 与 settings env 继承、旧目录留到下次启动 → 同版本再升被拒；新版本坏了（sha256 不符）时旧版原样可用、新目录不留；
+    /// 启动清扫删掉残留的旧目录、不动在用的那个。
+    #[test]
+    fn binary_upgrade_switches_only_after_success_and_sweeps_the_old_directory() {
+        let base = std::env::temp_dir().join(format!("acp-core-upgrade-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let data = base.join("data");
+        let agent_dir = data.join("agents").join("fake-bin");
+        let (zip, sha) = agent_zip(&base);
+        let url = serve(zip);
+
+        // 先放一份「装好的 1.0.0」（已登录）与带用户 env 的 settings 条目；registry 当前是 2.0.0。
+        let v1 = agent_dir.join("1.0.0");
+        std::fs::create_dir_all(v1.join("dist-package")).expect("mkdir");
+        std::fs::write(v1.join("dist-package").join("agent.cmd"), b"@echo off\r\n").expect("write");
+        let mut old = manifest(&v1, "1.0.0");
+        old.id = "fake-bin".into();
+        std::fs::write(agent_dir.join(MANIFEST_FILE), serde_json::to_string(&old).expect("json")).expect("write");
+        write_registry_cache(&data, "2.0.0", &url, &sha);
+        let events = Arc::new(RecordingSink::default());
+        let core = Arc::new(Core::new(&data, events.clone()).expect("core"));
+        let env = BTreeMap::from([("K".to_string(), "V".to_string())]);
+        core.settings().upsert("fake-bin", AgentServer::Registry { env: env.clone(), extra: BTreeMap::new() }).expect("settings");
+
+        let entry = list_entry(&core);
+        assert_eq!(entry["updateAvailable"], "2.0.0");
+        assert_eq!(entry["reloadPending"], Value::Null);
+        assert!(core.registry_install("fake-bin").is_err(), "已安装时拒绝首装");
+
+        core.registry_update("fake-bin").expect("start");
+        let (step, seen) = wait_finished(&events);
+        assert_eq!(step, "done", "{seen:?}");
+        assert!(seen.iter().all(|p| p["upgrade"] == true), "{seen:?}");
+        let steps: Vec<&str> = seen.iter().filter_map(|p| p["step"].as_str()).collect();
+        assert!(steps.contains(&"download") && steps.contains(&"verify") && steps.contains(&"extract"), "{steps:?}");
+
+        let upgraded = load(&data);
+        assert_eq!(upgraded.version, "2.0.0");
+        assert!(Path::new(&upgraded.command).starts_with(agent_dir.join("2.0.0")), "{}", upgraded.command);
+        assert!(upgraded.is_intact());
+        assert_eq!(upgraded.auth_status, AuthStatus::Authenticated, "认证状态继承");
+        assert_eq!(upgraded.previous_version.as_deref(), Some("1.0.0"));
+        assert!(v1.exists(), "旧目录留给下次启动清（切换那一刻可能正有按它拉起的连接）");
+        assert!(matches!(core.settings().get("fake-bin").expect("get"), Some(AgentServer::Registry { env: e, .. }) if e == env), "settings env 不动");
+        assert_eq!(list_entry(&core)["updateAvailable"], Value::Null);
+        assert!(core.registry_update("fake-bin").is_err(), "已是当前版本");
+        drop(core);
+
+        // registry 发了 3.0.0 但包是坏的（sha256 不符）：升级失败，2.0.0 原样可用，3.0.0 目录不留。
+        write_registry_cache(&data, "3.0.0", &url, &"0".repeat(64));
+        // 顺带放一个残留的旧目录，看启动清扫。
+        let stale = agent_dir.join("0.9.0");
+        std::fs::create_dir_all(&stale).expect("mkdir");
+        let core = Arc::new(Core::new(&data, events.clone()).expect("core"));
+        core.sweep_stale_installs();
+        for _ in 0..200 {
+            if !stale.exists() && lock(core.installs()).is_empty() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        assert!(!stale.exists() && !v1.exists(), "启动清扫删掉不在用的旧目录");
+        assert!(Path::new(&upgraded.command).is_file(), "在用的留着");
+
+        core.registry_update("fake-bin").expect("start");
+        let (step, seen) = wait_finished(&events);
+        assert_eq!(step, "failed", "{seen:?}");
+        assert!(seen.last().is_some_and(|p| p["upgrade"] == true));
+        let after = load(&data);
+        assert_eq!(after.version, "2.0.0", "失败不切换");
+        assert!(after.is_intact());
+        assert!(!agent_dir.join("3.0.0").exists(), "新目录删掉");
+        let names: Vec<String> = std::fs::read_dir(&agent_dir).expect("dir").map(|e| e.expect("e").file_name().to_string_lossy().into_owned()).collect();
+        assert!(!names.iter().any(|n| n.starts_with(".staging")), "{names:?}");
+        assert_eq!(list_entry(&core)["updateAvailable"], "3.0.0", "失败之后仍可升级");
+        drop(core);
+        let _ = std::fs::remove_dir_all(&base);
     }
 }

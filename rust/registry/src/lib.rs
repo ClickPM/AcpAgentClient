@@ -103,7 +103,7 @@ impl From<fs::FsError> for RegistryError {
 
 pub type Result<T> = std::result::Result<T, RegistryError>;
 
-/// `registry/progress` 的一条（docs/design.md § 3）：`agent_id` 为 `None` 是受管 Node。
+/// `registry/progress` 的一条（docs/design.md § 3）：`agent_id` 为 `None` 是受管 Node；`upgrade` 标出升级（画板 53）。
 #[derive(Debug, Clone, PartialEq)]
 pub struct Progress {
     pub agent_id: Option<String>,
@@ -115,6 +115,8 @@ pub struct Progress {
     pub total: Option<u64>,
     pub detail: Option<String>,
     pub error: Option<String>,
+    /// 这条进度属于升级（画板 53）而不是首次安装：npx 升级只有 resolve / handshake 两步，失败时旧版本仍在。
+    pub upgrade: bool,
 }
 
 impl Progress {
@@ -127,6 +129,7 @@ impl Progress {
             total: None,
             detail: None,
             error: None,
+            upgrade: false,
         }
     }
 
@@ -150,6 +153,7 @@ impl Progress {
             "total": self.total,
             "detail": self.detail,
             "error": self.error,
+            "upgrade": self.upgrade,
         })
     }
 }

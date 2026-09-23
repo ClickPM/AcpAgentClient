@@ -94,6 +94,10 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     files: files,
     terminals: terminals,
     cwd: () => workspace.project?.path,
+    // 打开 Agents 标签时检查一次 registry 有没有新版本（画板 53；核心侧 1 小时节流，不 force）。
+    onTabShown: (tab) {
+      if (tab == ShellTab.agents) unawaited(agents.refreshRegistry(network: true));
+    },
     onWorkbenchShown: () {
       // 从流量页回到工作台，当前那条会话就又在眼前了：它的绿点一并撤掉（画板 06 的清除条件）。
       final id = session.sessionId;
@@ -195,7 +199,10 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
         });
       }),
       b.on(CoreEvent.clientRequest).listen((e) => _enqueue(e, (json) => sessions.applyClientRequestEnvelope(json))),
-      b.on(CoreEvent.agentState).listen((e) => _enqueue(e, (json) => sessions.applyAgentState(json))),
+      b.on(CoreEvent.agentState).listen((e) => _enqueue(e, (json) {
+            sessions.applyAgentState(json);
+            _onAgentReconnected(json);
+          })),
       b.on(CoreEvent.terminalOutput).listen((e) => _enqueue(e, _onTerminalOutput)),
       b.on(CoreEvent.traffic).listen((e) {
         final json = e.json;
@@ -228,6 +235,15 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     notifyListeners();
     // registry.json 的联网刷新（1 小时节流）放到后台：断网时 30 秒超时不能挡住启动。
     unawaited(agents.refreshRegistry(network: true));
+  }
+
+  /// 画板 53「已升级 · 待重载」的撤销：那条旧连接重连（Reload Agent）或退出了，重读一次列表（不联网）把提示撤掉。
+  /// 只在确有待重载的条目时读，别的 agent 连接进出不白读。
+  void _onAgentReconnected(JsonMap json) {
+    final state = json['state'];
+    if (state != 'initialized' && state != 'exited') return;
+    final id = json['agentId'];
+    if (id is String && agents.registry.byId(id)?.reloadPending != null) unawaited(agents.refreshRegistry());
   }
 
   /// fixtures 数据源：把线上行喂进同一套投影层与流量面板，本地态给一份可用的假数据。

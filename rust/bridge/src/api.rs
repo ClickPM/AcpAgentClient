@@ -109,6 +109,8 @@ pub fn core_init(data_dir: String) -> Result<String, BridgeError> {
             None => {
                 let created = Arc::new(Core::new(data_dir, sink)?);
                 *guard = Some(created.clone());
+                // 升级时有连接在用而推迟清理的旧版本目录，趁还没有任何连接在后台清掉（画板 53）。
+                created.sweep_stale_installs();
                 created
             }
         };
@@ -291,7 +293,8 @@ pub async fn agents_status() -> Result<String, BridgeError> {
 // ---- registry 与受管 Node（R5；docs/design.md § 3「registry、Node 与设置」，§ 6）
 
 /// registry 列表：`{agents: [{id, name, version, description, repository?, website?, iconSvg?, distribution, supported, package?,
-/// installed: {kind, version, installedVersion?, command, args, env, authStatus, agentInfo?, installedAt} | null, installing, custom: {command, args, env} | null}],
+/// installed: {kind, version, installedVersion?, command, args, env, authStatus, agentInfo?, installedAt, previousVersion?} | null, installing,
+/// updateAvailable?（registry 当前版本，≠ 安装记录的 version 时才有）, reloadPending?（升级后仍在运行的旧连接的版本）, custom: {command, args, env} | null}],
 /// fetching, fetchError?, fetchedAt?, node: {system?, systemError?, managed?, minVersion}, paths: {dataDir, logPath, zedSettingsPath?}}`。
 /// 只读缓存，不联网（联网是 `registry_refresh`）；已安装 / custom 条目排前面。
 pub async fn registry_list() -> Result<String, BridgeError> {
@@ -304,7 +307,7 @@ pub async fn registry_refresh(force: bool) -> Result<String, BridgeError> {
 }
 
 /// 后台安装一个 registry 条目（npx：resolve / write_settings / handshake；binary：download / verify / extract），立即返回
-/// `{agentId, started}`；进度与收尾（done / failed / cancelled）经 `registry/progress` 推出。已在安装中抛 `invalid_argument`。
+/// `{agentId, started}`；进度与收尾（done / failed / cancelled）经 `registry/progress` 推出。已在安装中、或已经装好（有新版本走 `registry_update`）都抛 `invalid_argument`。
 pub async fn registry_install(agent_id: String) -> Result<String, BridgeError> {
     on_core(|core| async move { core.registry_install(&agent_id) }).await
 }
@@ -312,6 +315,13 @@ pub async fn registry_install(agent_id: String) -> Result<String, BridgeError> {
 /// 取消正在跑的安装；返回 `{agentId, cancelled}`（没有在装的 `cancelled: false`）。
 pub async fn registry_cancel_install(agent_id: String) -> Result<String, BridgeError> {
     on_core(|core| async move { core.registry_cancel_install(&agent_id) }).await
+}
+
+/// 后台把已安装的 registry 条目升到 registry 当前版本（画板 53），立即返回 `{agentId, started}`；进度同 `registry/progress`
+/// 且每条带 `upgrade: true`（npx：resolve / handshake；binary：download / verify / extract）。新版本装在旧版旁边，通过了才切换；
+/// 失败 / 取消旧版本原样可用。没装、已是当前版本、正在安装都抛 `invalid_argument`；取消同 `registry_cancel_install`。
+pub async fn registry_update(agent_id: String) -> Result<String, BridgeError> {
+    on_core(|core| async move { core.registry_update(&agent_id) }).await
 }
 
 /// Remove：取消安装、断开连接、删 settings 条目、只删 `agents/<id>/`（规则 7）。返回同 `registry_list` 再加 `removed`。
@@ -496,7 +506,8 @@ pub fn traffic_stream(sink: StreamSink<String>) -> Result<(), BridgeError> {
     Ok(())
 }
 
-/// `registry/progress`：`{agentId?, kind, step, done?, total?, detail?, error?}`（R5；`agentId` 为 null 是受管 Node）。
+/// `registry/progress`：`{agentId?, kind, step, done?, total?, detail?, error?, upgrade}`（R5；`agentId` 为 null 是受管 Node；
+/// `upgrade` 为 true 是 `registry_update` 的进度，画板 53）。
 #[frb(sync)]
 pub fn registry_progress_stream(sink: StreamSink<String>) -> Result<(), BridgeError> {
     sinks().register(EventChannel::RegistryProgress, sink);

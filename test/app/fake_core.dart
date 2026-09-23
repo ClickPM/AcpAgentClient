@@ -196,6 +196,9 @@ class FakeCore implements CoreCommands {
   Future<JsonMap> registryInstall(String agentId) async => <String, dynamic>{'agentId': agentId, 'started': true};
 
   @override
+  Future<JsonMap> registryUpdate(String agentId) async => <String, dynamic>{'agentId': agentId, 'started': true};
+
+  @override
   Future<JsonMap> registryCancelInstall(String agentId) async => <String, dynamic>{'agentId': agentId, 'cancelled': true};
 
   @override

@@ -71,7 +71,7 @@ class Composer extends StatelessWidget {
   final List<ContentBlockWire> attachments;
   final ValueChanged<ContentBlockWire>? onRemoveAttachment;
 
-  /// Ctrl/Cmd+V：剪贴板里是图片时加成附件块。文本粘贴仍归 `EditableText` 自己（见 [_onKeyEvent]）。
+  /// Ctrl/Cmd+V：剪贴板里是复制的文件 / 目录或图片时加成附件块。文本粘贴仍归 `EditableText` 自己（见 [_onKeyEvent]）。
   final VoidCallback? onPaste;
 
   /// 画板 42 的 `@` / `/` 菜单。
@@ -148,7 +148,7 @@ class Composer extends StatelessWidget {
       }
     }
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
-    // Ctrl/Cmd+V：顺带看一眼剪贴板里有没有图（截图 / 图片文件），有就加成附件块。
+    // Ctrl/Cmd+V：顺带看一眼剪贴板里有没有复制的文件 / 目录或图（截图 / 图片文件），有就加成附件块。
     // 一律 `ignored`：这一下是不是文本粘贴要读完剪贴板才知道，而按键回调必须同步返回，
     // 所以文本粘贴照旧交给 `EditableText`，`onPaste` 那边先看剪贴板里是不是文本、是就什么都不做。
     // Shift / Alt 一起按的不算：Ctrl+Shift+V（「粘贴为纯文本」的习惯键）Flutter 自己不认，

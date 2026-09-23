@@ -1,4 +1,5 @@
-// 画板 50 / 51 / 52 / 70 的 gallery 页（R5）：50 与 70 是整窗画板（1440 × 900），51 与 52 是状态合集（BoardPage 版式）。
+// 画板 50 / 51 / 52 / 53 / 70 的 gallery 页（R5；53 是 round-board-53）：50 与 70 是整窗画板（1440 × 900），51 / 52 / 53
+// 是状态合集（BoardPage 版式）。
 // 数据源：协议面（会话流 / authMethods / elicitation）来自 test/fixtures 回放或按 docs/design.md § 3 的 payload 形状构造；
 // registry 条目、安装进度、Node 状态、设置项是本地假数据，接线阶段换成 registry_list / registry/progress / node_status /
 // agent_settings_get 的结果，widget 不动（CLAUDE.md 规则 3）。
@@ -54,14 +55,16 @@ const List<RegistryEntryData> _registry = <RegistryEntryData>[
     installedVersion: '0.76.0',
     authStatus: AuthStatus.authenticated,
   ),
+  // 画板 50 的 Codex 行是可升级态（画板 53）：装着 1.11.0，registry 已是 1.12.0。
   RegistryEntryData(
     id: 'codex-acp',
     name: 'Codex',
-    version: '1.11.0',
+    version: '1.12.0',
     description: "ACP adapter for OpenAI's coding assistant with reasoning, editing, and terminal integration.",
     repository: 'https://github.com/agentclientprotocol/codex-acp',
     installed: true,
     installedVersion: '1.11.0',
+    updateAvailable: '1.12.0',
   ),
   RegistryEntryData(
     id: 'dsh-acp',
@@ -177,6 +180,8 @@ final List<GalleryBoard> agentBoards = <GalleryBoard>[
           installedCount: installed,
           notInstalledCount: _registry.length - installed,
           node: const NodeStatus(system: NodeInfo(version: 'v22.14.0', path: r'C:\Program Files\nodejs\node.exe')),
+          fetchedAt: _now.subtract(const Duration(minutes: 12)),
+          now: _now,
         ),
       ),
       rightPanelWidth: t.Geometry.registryPanelWidth,
@@ -265,6 +270,62 @@ final List<GalleryBoard> agentBoards = <GalleryBoard>[
       ],
       footnote: 'terminal 型登录是把 args / env 追加到已配置的调用上重新拉起同一个 agent；需要客户端声明 auth.terminal 能力。'
           '认证成功后自动重试原来的 session/new。requestScope 卡的说明文字用 elicitation 自带的 message。',
+    );
+  }),
+  pageBoard('53-registry-upgrade', 'Registry 升级态', () {
+    // 装着 0.76.0、已登录，registry 已是 0.78.2（四张卡同一个条目的四个时刻）。
+    const claude = RegistryEntryData(
+      id: 'claude-acp',
+      name: 'Claude Agent',
+      version: '0.78.2',
+      description: "ACP wrapper for Anthropic's Claude. Frontier language models with computer use and advanced tool execution.",
+      installed: true,
+      installedVersion: '0.76.0',
+      authStatus: AuthStatus.authenticated,
+      updateAvailable: '0.78.2',
+    );
+    final upgrading = _progressOf(<JsonMap>[
+      <String, dynamic>{'kind': 'npx', 'step': 'resolve', 'detail': '@agentclientprotocol/claude-agent-acp@0.78.2', 'upgrade': true},
+    ]);
+    return BoardPage(
+      number: '53',
+      title: 'Registry 升级态',
+      source: 'registry.json 的 version · agents/<id>/install.json（本地安装记录）',
+      sections: <BoardSection>[
+        BoardSection(
+          'Agents 面板标题行 · 检查中',
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Container(
+              width: t.Geometry.registryPanelWidth,
+              padding: const EdgeInsets.only(left: t.Spacing.s16, right: t.Spacing.s16, top: t.Spacing.s16, bottom: t.Spacing.s12),
+              decoration: BoxDecoration(color: t.Surface.canvas, border: Border.all(color: t.Borders.subtle, width: t.Borders.width)),
+              child: const RegistryPanelHeader(fetching: true),
+            ),
+          ),
+        ),
+        BoardSection('有新版本', child: _card(const RegistryEntryCard(claude))),
+        BoardSection('升级中 · npx（新版本装在旁边，握手通过才切换）', child: _card(RegistryEntryCard(claude.copyWith(progress: upgrading)))),
+        BoardSection('升级失败（旧版本不受影响）',
+            child: _card(RegistryEntryCard(claude.copyWith(
+              failure: 'npm error code ETIMEDOUT\nnpm error network request to https://registry.npmjs.org/@agentclientprotocol%2fclaude-agent-acp failed',
+            )))),
+        BoardSection('已升级 · 正在运行的连接仍是旧版',
+            child: _card(const RegistryEntryCard(RegistryEntryData(
+              id: 'claude-acp',
+              name: 'Claude Agent',
+              version: '0.78.2',
+              description: "ACP wrapper for Anthropic's Claude. Frontier language models with computer use and advanced tool execution.",
+              installed: true,
+              installedVersion: '0.78.2',
+              authStatus: AuthStatus.authenticated,
+              reloadPending: '0.76.0',
+            )))),
+      ],
+      footnote: '只有 registry 型条目（npx / binary）检查与升级；custom 与内置条目不检查、不出 Update。状态优先级：升级中 > 升级失败 > 需要认证 > '
+          '有新版本 > 已安装——需要认证的条目有新版本时仍显示「旧 → 新」与「可升级」芯片，但右侧动作是「登录」，登录完才出 Update。'
+          'binary 型升级的步骤就是 51「安装中 · binary」那三步（下载 → sha256 校验 → 解压，带进度条），下面的小字换成「解压完成后才切换」（binary 没有握手）。'
+          '升级取消后旧版本原样可用，卡片回到「有新版本」。registry 从没拉成功过时，标题行不显示检查时间，只留刷新按钮。',
     );
   }),
   windowBoard('70-settings', '设置', (_) {

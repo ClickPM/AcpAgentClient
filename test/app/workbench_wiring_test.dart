@@ -4,7 +4,7 @@
 // 另外核对：`session/cancel` 由核心自动回 cancelled，前端不得再回一遍（api.rs 的契约）。
 
 import 'dart:async';
-import 'dart:typed_data';
+import 'dart:io';
 
 import 'package:acp_agent_client/app/app.dart';
 import 'package:acp_agent_client/app/clipboard_image.dart';
@@ -18,6 +18,7 @@ import 'package:acp_agent_client/projection/wire.dart';
 import 'package:acp_agent_client/ui/popovers/inline_menus.dart';
 import 'package:acp_agent_client/ui/popovers/topbar_popovers.dart';
 import 'package:acp_agent_client/ui/shell/shell_common.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -224,6 +225,23 @@ class _StaleFsCore extends FakeCore {
         <String, dynamic>{'path': r'D:\proj\a.dart', 'name': 'a.dart', 'parent': 'proj', 'isDir': false},
       ],
       'directories': <Object?>[],
+    };
+  }
+}
+
+/// `+` → Files & Directories 用：根目录一层一个文件、一个目录（`fs_list_dir` 的线上形状）。
+class _RootListingCore extends FakeCore {
+  final List<String> listed = <String>[];
+
+  @override
+  Future<JsonMap> fsListDir(String root, String path) async {
+    listed.add(path);
+    return <String, dynamic>{
+      'path': path,
+      'entries': <Object?>[
+        <String, dynamic>{'name': 'scripts', 'path': r'D:\proj\scripts', 'parent': 'proj', 'isDir': true},
+        <String, dynamic>{'name': 'README.md', 'path': r'D:\proj\README.md', 'parent': 'proj', 'isDir': false},
+      ],
     };
   }
 }
@@ -727,6 +745,140 @@ void main() {
       expect(core.searches, 1);
       expect(c.inlineMenuOpen, isTrue);
       expect(c.inlineMenu, isA<MentionMenu>());
+      c.dispose();
+    });
+  });
+
+  // 所有者报障 2026-09-23：原生文件对话框点目录只会进到下一级，目录加不进来；改成弹 `@` 菜单（照 Zed）。
+  group('`+` → Files & Directories：插 `@` 弹菜单，目录也能挑', () {
+    test('空输入框：正文成 `@`，菜单列根目录一层；挑目录得到指向目录的 resource_link', () async {
+      final core = _RootListingCore();
+      final c = composerOn(core);
+
+      await c.startMention();
+
+      expect(c.editor.text, '@');
+      expect(c.editor.selection, const TextSelection.collapsed(offset: 1), reason: '光标在 `@` 之后，接着打字就是搜索');
+      expect(core.listed, <String>[r'D:\proj'], reason: '裸 `@` 列的是项目根一层');
+      expect(c.inlineMenu, isA<MentionMenu>());
+
+      // 高亮顺序是「文件在前、目录在后」（与 MentionMenu 的拼接一致）：往下一格就是 scripts/。
+      c.moveInlineMenuSelection(1);
+      c.pickInlineMenuSelection();
+
+      expect(c.editor.text, '@scripts ');
+      expect(c.pendingBlocks, hasLength(1));
+      expect(c.pendingBlocks.single['type'], 'resource_link');
+      expect(c.pendingBlocks.single['name'], 'scripts');
+      expect(c.pendingBlocks.single['uri'], Uri.file(r'D:\proj\scripts', windows: true).toString());
+      expect(c.inlineMenuOpen, isFalse);
+      c.dispose();
+    });
+
+    test('已有正文：`@` 前补一个空格，否则 token 粘在上一个词上认不出来', () async {
+      final c = composerOn(_RootListingCore());
+      c.editor.text = '看看';
+
+      await c.startMention();
+
+      expect(c.editor.text, '看看 @');
+      expect(c.inlineMenuOpen, isTrue);
+      c.dispose();
+    });
+
+    test('正文以空白结尾：不再多补空格', () async {
+      final c = composerOn(_RootListingCore());
+      c.editor.text = '看看\n';
+
+      await c.startMention();
+
+      expect(c.editor.text, '看看\n@');
+      expect(c.inlineMenuOpen, isTrue);
+      c.dispose();
+    });
+  });
+
+  // 所有者 2026-09-23：资源管理器里复制的文件 / 目录 Ctrl+V 进输入框，默认按路径引用（项目外的也加得进来）。
+  group('Ctrl+V 粘贴复制的文件与目录：按路径加成 resource_link', () {
+    const window = MethodChannel('acp/window');
+    late Directory tmp;
+    late String dir;
+    late String png;
+
+    setUp(() {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      tmp = Directory.systemTemp.createTempSync('acp_paste_');
+      dir = (Directory('${tmp.path}${Platform.pathSeparator}outside dir')..createSync()).path;
+      png = (File('${tmp.path}${Platform.pathSeparator}shot.png')..writeAsBytesSync(<int>[1, 2, 3])).path;
+      final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      // 剪贴板里没有文本（资源管理器复制文件时本来就不带 CF_UNICODETEXT）。
+      messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async => null);
+      messenger.setMockMethodCallHandler(window, (call) async => <Object?>[
+            <Object?, Object?>{'path': dir},
+            <Object?, Object?>{'path': png},
+          ]);
+    });
+    tearDown(() {
+      final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(SystemChannels.platform, null);
+      messenger.setMockMethodCallHandler(window, null);
+      tmp.deleteSync(recursive: true);
+    });
+
+    test('agent 不收图：目录与图片文件都成 `@名字` + resource_link，顺序照剪贴板', () async {
+      final c = ComposerState(
+        bridge: FakeCore(),
+        store: () => null,
+        cwd: () => r'D:\proj',
+        canCompose: () => true,
+        canPromptImage: () => false,
+      );
+
+      await c.pasteFromClipboard();
+
+      expect(c.editor.text, '@outside dir @shot.png ');
+      expect(c.pendingBlocks.map((b) => b['type']), <String>['resource_link', 'resource_link']);
+      expect(c.pendingBlocks.map((b) => b['name']), <String>['outside dir', 'shot.png']);
+      expect(c.pendingBlocks.first['uri'], Uri.file(dir, windows: true).toString());
+      expect(c.pendingImages, isEmpty);
+      expect(c.lastError, isNull);
+      c.dispose();
+    });
+
+    test('先点 Files & Directories 开着 `@` 菜单再粘贴：菜单关掉，Enter 不会去挑菜单项（审查 P2）', () async {
+      final c = ComposerState(
+        bridge: _RootListingCore(),
+        store: () => null,
+        cwd: () => r'D:\proj',
+        canCompose: () => true,
+        canPromptImage: () => false,
+      );
+      await c.startMention();
+      expect(c.inlineMenuOpen, isTrue, reason: '前提：菜单开着');
+
+      await c.pasteFromClipboard();
+
+      expect(c.editor.text, '@outside dir @shot.png ', reason: '触发用的裸 `@` 被第一条补全吃掉，不留在正文里发出去');
+      expect(c.inlineMenuOpen, isFalse);
+      expect(c.inlineMenu, isNull);
+      c.pickInlineMenuSelection(); // Enter 走的那条：菜单已关，什么都不该发生
+      expect(c.pendingBlocks.map((b) => b['name']), <String>['outside dir', 'shot.png']);
+      c.dispose();
+    });
+
+    test('正文里已有话再敲 `@` 后粘贴：只吃掉末尾那个裸 `@`，前面的话原样留着', () async {
+      final c = ComposerState(
+        bridge: FakeCore(),
+        store: () => null,
+        cwd: () => r'D:\proj',
+        canCompose: () => true,
+        canPromptImage: () => false,
+      );
+      c.editor.text = '看看 @';
+
+      await c.pasteFromClipboard();
+
+      expect(c.editor.text, '看看 @outside dir @shot.png ');
       c.dispose();
     });
   });

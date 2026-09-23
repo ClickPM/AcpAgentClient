@@ -388,6 +388,15 @@
       "h": 682
     },
     {
+      "file": "53-registry-upgrade.dc.html",
+      "title": "Registry 升级态",
+      "page": "page-4",
+      "x": 4080,
+      "y": 0,
+      "w": 1200,
+      "h": 700
+    },
+    {
       "file": "60-files-panel.dc.html",
       "title": "文件面板",
       "page": "page-4",
