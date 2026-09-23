@@ -1,5 +1,5 @@
 // 外观偏好：字体（画板 70「外观」）的候选表不变量、四轴解析与落盘形状、tokens 的运行时生效、可选字体探测；
-// 主题（画板 07「深色 Token 对位表」）的两套取值、落盘形状与切换。
+// 主题（画板 07「深色 Token 对位表」）的两套取值、落盘形状与三档切换（浅色 / 深色 / 跟随系统）。
 
 import 'dart:async';
 import 'dart:io';
@@ -306,19 +306,91 @@ void main() {
       c.addListener(() => notified++);
 
       expect(c.theme, t.Theming.defaultMode);
-      await c.toggleTheme();
+      expect(c.themeChoice, t.Theming.defaultChoice);
+      await c.cycleTheme();
       expect(notified, 1);
+      expect(c.themeChoice, t.ThemeChoice.dark);
       expect(c.theme, t.AppTheme.dark);
       expect(t.Neutral.canvas, t.Theming.darkColors.canvas);
       expect(CardText.strong.color, t.Theming.darkColors.strong, reason: '派生字阶也要换套');
 
       // 已经是深色了，再设一次深色不重建。
-      await c.setTheme(t.AppTheme.dark);
+      await c.setTheme(t.ThemeChoice.dark);
       expect(notified, 1);
 
-      await c.toggleTheme();
+      // 深色 → 跟随系统：系统是浅色（构造缺省），换回浅色那套。
+      await c.cycleTheme();
       expect(notified, 2);
+      expect(c.themeChoice, t.ThemeChoice.system);
+      expect(c.theme, t.AppTheme.light);
       expect(t.Neutral.canvas, t.Theming.lightColors.canvas);
+
+      // 跟随系统 → 浅色：颜色没变、选择变了，照样要重建 —— 侧栏按钮的图标看的是选择。
+      await c.cycleTheme();
+      expect(notified, 3);
+      expect(c.themeChoice, t.ThemeChoice.light);
+      expect(t.Neutral.canvas, t.Theming.lightColors.canvas);
+    });
+
+    test('跟随系统：按系统当前的深浅落定，系统一切换就跟着换套', () async {
+      final FakeCore core = FakeCore();
+      final AppearanceController c = AppearanceController(
+        bridge: core,
+        registry: FontRegistry(loadDirs: const <Directory>[], probeDirs: const <Directory>[]),
+        platformBrightness: Brightness.dark,
+      );
+      addTearDown(c.dispose);
+      await c.start();
+      int notified = 0;
+      c.addListener(() => notified++);
+
+      await c.setTheme(t.ThemeChoice.system);
+      expect(c.theme, t.AppTheme.dark, reason: '系统眼下是深色');
+      expect(t.Neutral.canvas, t.Theming.darkColors.canvas);
+      expect(core.appearance, <String, dynamic>{'theme': 'system'}, reason: '落盘的是选择，不是换算出来的那套');
+      expect(notified, 1);
+
+      c.setPlatformBrightness(Brightness.light);
+      expect(c.theme, t.AppTheme.light);
+      expect(t.Neutral.canvas, t.Theming.lightColors.canvas);
+      expect(notified, 2);
+      expect(core.appearance, <String, dynamic>{'theme': 'system'}, reason: '系统切换不写盘');
+
+      c.setPlatformBrightness(Brightness.light);
+      expect(notified, 2, reason: '同值不重建');
+    });
+
+    test('手选的档不跟系统走，但系统的深浅要记下来，切到跟随系统时用', () async {
+      final AppearanceController c = AppearanceController(
+        registry: FontRegistry(loadDirs: const <Directory>[], probeDirs: const <Directory>[]),
+      );
+      addTearDown(c.dispose);
+      int notified = 0;
+      c.addListener(() => notified++);
+
+      c.setPlatformBrightness(Brightness.dark);
+      expect(c.theme, t.AppTheme.light, reason: '缺省是手选浅色，不看系统');
+      expect(t.Neutral.canvas, t.Theming.lightColors.canvas);
+      expect(notified, 0);
+
+      await c.setTheme(t.ThemeChoice.system);
+      expect(c.theme, t.AppTheme.dark, reason: '刚才记下的系统深色这时生效');
+      expect(notified, 1);
+    });
+
+    test('盘上存的是跟随系统：启动读回来就按系统当前的深浅落定', () async {
+      final FakeCore core = FakeCore()..appearance = <String, dynamic>{'theme': 'system'};
+      final AppearanceController c = AppearanceController(
+        bridge: core,
+        registry: FontRegistry(loadDirs: const <Directory>[], probeDirs: const <Directory>[]),
+        platformBrightness: Brightness.dark,
+      );
+      addTearDown(c.dispose);
+
+      await c.start();
+      expect(c.themeChoice, t.ThemeChoice.system);
+      expect(c.theme, t.AppTheme.dark);
+      expect(t.Neutral.canvas, t.Theming.darkColors.canvas);
     });
 
     test('读盘还没回来就点切换：不抹掉盘上已存的字体轴（发布前审查 high，2026-09-20）', () async {
@@ -334,7 +406,7 @@ void main() {
       addTearDown(c.dispose);
 
       final Future<void> starting = c.start();
-      final Future<void> toggling = c.toggleTheme();
+      final Future<void> toggling = c.cycleTheme();
       expect(core.appearance, <String, dynamic>{'ui_font_family': 'Inter'}, reason: '读盘没回来之前不该写盘');
 
       gate.complete();
@@ -361,7 +433,7 @@ void main() {
       await c.start();
       expect(c.fonts.resolved(FontAxis.uiLatin), t.Fonts.defaultSans, reason: '这一趟没读到，界面先回缺省');
 
-      await c.toggleTheme();
+      await c.cycleTheme();
 
       expect(c.fonts.resolved(FontAxis.uiLatin), 'Inter', reason: '改动前补读一次，把盘上的捡回来');
       expect(core.appearance, <String, dynamic>{'ui_font_family': 'Inter', 'theme': 'dark'});
@@ -378,15 +450,15 @@ void main() {
       addTearDown(c.dispose);
 
       await c.start();
-      await c.toggleTheme();
+      await c.cycleTheme();
 
       expect(c.theme, t.AppTheme.dark, reason: '界面上这次改动照常生效');
       expect(core.appearance, <String, dynamic>{'ui_font_family': 'Inter'}, reason: '盘上一个字都不许动');
     });
 
-    test('补读回来的主题不能当相对基线：用户按所见 toggle，不是对盘上的值取反（复审 high，2026-09-20）', () async {
+    test('补读回来的主题不能当相对基线：用户按所见切，不是从盘上那一档往下切（复审 high，2026-09-20）', () async {
       // 盘上已是深色，启动 GET 失败 → 界面停在缺省浅色。用户看见浅色去点按钮，意思是「我要深色」。
-      // 若补读后拿盘上的 dark 当基线再取反，就会写成浅色 —— 点了「转深色」反而更浅了。
+      // 若补读后拿盘上的 dark 当基线再往下切，就会写成跟随系统 —— 点了「转深色」却没转成深色。
       final FakeCore core = FakeCore()
         ..appearance = <String, dynamic>{'ui_font_family': 'Inter', 'theme': 'dark'}
         ..appearanceGetFailures = 1;
@@ -399,7 +471,7 @@ void main() {
       await c.start();
       expect(c.theme, t.AppTheme.light, reason: '没读到，界面先回缺省浅色');
 
-      await c.toggleTheme();
+      await c.cycleTheme();
 
       expect(c.theme, t.AppTheme.dark, reason: '用户按所见点的：浅 → 深');
       expect(c.fonts.resolved(FontAxis.uiLatin), 'Inter', reason: '没改到的维度以盘上为准');
@@ -418,7 +490,7 @@ void main() {
 
       await c.start();
       // 界面显示的就是缺省浅色，再设一次浅色什么也没改。
-      await c.setTheme(t.AppTheme.light);
+      await c.setTheme(t.ThemeChoice.light);
 
       expect(c.fonts.resolved(FontAxis.uiLatin), 'Inter', reason: '补读到的要灌进来，不能停在缺省');
       expect(core.appearance, <String, dynamic>{'ui_font_family': 'Inter'});
@@ -430,7 +502,7 @@ void main() {
       );
       addTearDown(c.dispose);
       await c.setAxis(FontAxis.uiLatin, 'Inter');
-      await c.setTheme(t.AppTheme.dark);
+      await c.setTheme(t.ThemeChoice.dark);
       expect(t.TextStyles.body.fontFamily, 'Inter');
       expect(t.Neutral.text, t.Theming.darkColors.text);
     });
@@ -521,17 +593,26 @@ void main() {
 
     test('落盘形状：缺省档不落键，脏值当没设置过', () {
       expect(const AppearancePrefs().toJson(), isNot(contains('theme')));
-      expect(const AppearancePrefs().resolvedTheme, t.Theming.defaultMode);
+      expect(const AppearancePrefs().themeChoice, t.Theming.defaultChoice);
+      expect(const AppearancePrefs().resolveTheme(Brightness.dark), t.Theming.defaultMode, reason: '缺省档不看系统');
+      expect(t.Theming.defaultChoice.resolve(Brightness.light), t.Theming.defaultMode, reason: '两个缺省值要对得上');
 
-      const AppearancePrefs dark = AppearancePrefs(theme: t.AppTheme.dark);
+      const AppearancePrefs dark = AppearancePrefs(theme: t.ThemeChoice.dark);
       expect(dark.toJson()['theme'], 'dark');
-      expect(AppearancePrefs.fromJson(dark.toJson()).theme, t.AppTheme.dark);
+      expect(AppearancePrefs.fromJson(dark.toJson()).theme, t.ThemeChoice.dark);
 
       // 选回缺省档存 null，不写死档名——以后改了缺省值，没动过设置的人会跟着走。
-      expect(dark.withTheme(t.Theming.defaultMode).theme, isNull);
+      expect(dark.withTheme(t.Theming.defaultChoice).theme, isNull);
 
-      expect(AppearancePrefs.fromJson(const <String, Object?>{'theme': '  DARK '}).theme, t.AppTheme.dark);
-      expect(AppearancePrefs.fromJson(const <String, Object?>{'theme': 'system'}).theme, isNull);
+      // 跟随系统存的是选择本身，换算要等拿到系统的深浅。
+      const AppearancePrefs system = AppearancePrefs(theme: t.ThemeChoice.system);
+      expect(system.toJson()['theme'], 'system');
+      expect(AppearancePrefs.fromJson(system.toJson()).theme, t.ThemeChoice.system);
+      expect(system.resolveTheme(Brightness.dark), t.AppTheme.dark);
+      expect(system.resolveTheme(Brightness.light), t.AppTheme.light);
+
+      expect(AppearancePrefs.fromJson(const <String, Object?>{'theme': '  DARK '}).theme, t.ThemeChoice.dark);
+      expect(AppearancePrefs.fromJson(const <String, Object?>{'theme': 'auto'}).theme, isNull);
       expect(AppearancePrefs.fromJson(const <String, Object?>{'theme': 7}).theme, isNull);
       expect(AppearancePrefs.fromJson(const <String, Object?>{}).theme, isNull);
 

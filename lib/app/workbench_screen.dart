@@ -268,9 +268,10 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         unreadIds: c.session.unreadSessionIds,
         // 侧栏标题条与顶栏是同一行：那一段也要能拖窗口、双击最大化。
         dragArea: _dragArea(),
-        // 画板 07：标题条右端的浅色 / 深色切换。没有外观控制器（gallery / 单测）就不画这个按钮。
+        // 画板 07：标题条右端的浅色 / 深色 / 跟随系统三档切换。没有外观控制器（gallery / 单测）就不画这个按钮。
+        themeChoice: widget.appearance?.themeChoice ?? t.Theming.defaultChoice,
         dark: widget.appearance?.theme == t.AppTheme.dark,
-        onToggleTheme: widget.appearance?.toggleTheme,
+        onCycleTheme: widget.appearance?.cycleTheme,
       );
 
   void _askDelete(String id) {

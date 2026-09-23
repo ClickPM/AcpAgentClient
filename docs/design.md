@@ -189,7 +189,7 @@ Windows：`%APPDATA%/AcpAgentClient/{settings.json, sessions.json, projects.json
 
 `ui-state.json` 是窗口的机器态（两栏宽度、文件面板树列的宽度与收起态），同样走临时文件 + rename。它与 `settings.json` 分开：后者是用户手写的配置（`agent_servers` 与 Zed 同形），不该被拖窗口改写。字段一律可缺省，缺省宽度与夹取范围只在前端 token 里（`lib/theme/tokens.dart`），核心不复制一份；读不动或不是合法 JSON 时按缺省重建，不挡启动。
 
-`settings.json` 除 `agent_servers` 外还有 **`appearance`**（R7.6 字体切换 + 画板 07 深色模式）：`theme`（`"light"` / `"dark"`；放在这一段里而不是顶层 `theme`，那个键是 Zed 的主题名，从 Zed 抄过设置的用户文件里可能已有，本客户端不解释也不改它）与四个字体轴各一个可选的 family 名 —— `ui_font_family` / `ui_cjk_font_family` / `buffer_font_family` / `buffer_cjk_font_family`。键名与 Zed 同形取 `ui_font_family` / `buffer_font_family`（Zed `crates/settings_content/src/theme.rs`）；两个 `*_cjk_font_family` 是本客户端自己的，Zed 没有中西文分轴。字段一律可缺省，默认字体名只在前端 token 里写一份（口径同 `ui-state.json`），四个轴全空时整个 `appearance` 键不落盘。读不出来不报错、回默认，字体设置不该挡住启动。
+`settings.json` 除 `agent_servers` 外还有 **`appearance`**（R7.6 字体切换 + 画板 07 深色模式）：`theme`（`"light"` / `"dark"` / `"system"`，最后一档跟随操作系统的深浅、由前端换算成前两套之一；放在这一段里而不是顶层 `theme`，那个键是 Zed 的主题名，从 Zed 抄过设置的用户文件里可能已有，本客户端不解释也不改它）与四个字体轴各一个可选的 family 名 —— `ui_font_family` / `ui_cjk_font_family` / `buffer_font_family` / `buffer_cjk_font_family`。键名与 Zed 同形取 `ui_font_family` / `buffer_font_family`（Zed `crates/settings_content/src/theme.rs`）；两个 `*_cjk_font_family` 是本客户端自己的，Zed 没有中西文分轴。字段一律可缺省，默认字体名只在前端 token 里写一份（口径同 `ui-state.json`），四个轴全空时整个 `appearance` 键不落盘。读不出来不报错、回默认，字体设置不该挡住启动。
 
 `settings.json` 还有 **`transcript`**（画板 08 / 画板 70「转录」分组，2026-09-22）：`collapse_finished_turns`（回合结束后把处理过程折叠成一行摘要；没存过 = 前端默认开，默认值只在 `lib/app/transcript_folds.dart`），全空时不落这个键。口径与 `appearance` 相同，都经 `transcript_prefs_get/set` 整段替换（§ 3）。
 

@@ -18,7 +18,7 @@ Claude Agent、Codex、Cursor、pi、DeepSeek Harness 共用同一个界面 —�
 - **会话** —— 侧栏按「用户最后发消息时间」倒序、只列当前项目的会话；运行中有扫掠指示、跑完有未读点；会话时间线弹层按轮跳转；用户气泡上可 Restore / Regenerate。
 - **右栏四个标签** —— 文件浏览器（源码 / 预览）、终端、Agents、设置。
 - **Agents** —— 拉官方 registry，`npx` 与 `binary` 两种分发（binary 校验 sha256），缺 Node 时下载受管 Node；Agent Auth（agent 自己开浏览器）与 Terminal Auth（内置终端跑登录命令）两种认证都实现；可从 Zed 的 `settings.json` 导入 agent 配置。
-- **外观** —— 浅色 / 深色主题；界面与代码字体各分中西文，四个轴独立切换。
+- **外观** —— 浅色 / 深色 / 跟随系统三档主题；界面与代码字体各分中西文，四个轴独立切换。
 - **调试** —— ACP 流量面板，逐条看脱敏后的原始 JSON-RPC 行，同源落 `logs/acp-<日期>.log`。
 
 ![文件浏览器面板](docs/images/files-panel.png)

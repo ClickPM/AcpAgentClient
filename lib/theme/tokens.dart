@@ -10,6 +10,29 @@ import 'package:flutter_svg/flutter_svg.dart' show SvgTheme;
 /// 动效时长与浅色完全相同，所以只有颜色这一层分两套，其余 token 一份。
 enum AppTheme { light, dark }
 
+/// 主题的三档**选择**（侧栏标题条那个按钮按 light → dark → system 循环切换）。[AppTheme] 只管用哪套颜色；
+/// 这一层是「这套颜色从哪来」：[light] / [dark] 写死，[system] 跟着操作系统当前的深浅走。
+/// 落盘与监听系统切换在 `lib/app/appearance_prefs.dart`，tokens 这一层只做换算。
+enum ThemeChoice {
+  light,
+  dark,
+  system;
+
+  /// 这一档落到哪套颜色。`platform` 是操作系统当前的深浅，只有 [system] 看它。
+  AppTheme resolve(Brightness platform) => switch (this) {
+    ThemeChoice.light => AppTheme.light,
+    ThemeChoice.dark => AppTheme.dark,
+    ThemeChoice.system => platform == Brightness.dark ? AppTheme.dark : AppTheme.light,
+  };
+
+  /// 按钮点一下切到的下一档。
+  ThemeChoice get next => switch (this) {
+    ThemeChoice.light => ThemeChoice.dark,
+    ThemeChoice.dark => ThemeChoice.system,
+    ThemeChoice.system => ThemeChoice.light,
+  };
+}
+
 /// 一套完整的颜色取值。两个实例：[Theming.lightColors]（画板 00）与 [Theming.darkColors]（画板 07）。
 ///
 /// 画板 07 的规矩是「一个浅色 token 名对应且只对应一个深色值，不新增、不合并、不拆分」，
@@ -166,8 +189,12 @@ abstract final class Theming {
     overlayActive: Color.fromRGBO(255, 255, 255, 0.09),
   );
 
-  /// 缺省主题。**唯一一份缺省值**——Rust 侧 `Appearance.theme` 是 `Option`，没设过就是 null，
-  /// 由这里兜底（同 [Fonts.defaultSans] 与 `ui_state` 的口径）。浅色：没存过设置的人看到的还是原来那套。
+  /// 缺省的主题选择。**唯一一份缺省值**——Rust 侧 `Appearance.theme` 是 `Option`，没设过就是 null，
+  /// 由这里兜底（同 [Fonts.defaultSans] 与 `ui_state` 的口径）。浅色：没存过设置的人看到的还是原来那套；
+  /// 「跟随系统」要自己点出来，不当缺省，免得没动过设置的人升级后一打开就换了样。
+  static const ThemeChoice defaultChoice = ThemeChoice.light;
+
+  /// 启动首帧、读盘回来之前用的那套颜色，= [defaultChoice] 落到的那套（它不看系统，所以这里能写成常量）。
   static const AppTheme defaultMode = AppTheme.light;
 
   static AppTheme _mode = defaultMode;

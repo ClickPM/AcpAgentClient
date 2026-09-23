@@ -659,6 +659,33 @@ void main() {
     expect(find.text('New Zed Agent Session'), findsWidgets, reason: '会话头与空态标题都是它');
   });
 
+  // 「跟随系统」这一档靠组合根把系统的深浅喂给外观控制器：开局给一次，之后每次系统切换转一次。
+  // 控制器自己的换算在 appearance_prefs_test 里；这里守的是那两处接线没漏。
+  testWidgets('主题选了跟随系统：开局按系统的深浅落定，系统一切换整个应用跟着换套', (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+    addTearDown(t.Theming.reset);
+    await tester.runAsync(loadGalleryFonts);
+
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+    await tester.pumpWidget(
+      AcpApp(source: DataSource.bridge, bridge: FakeCore()..appearance = <String, dynamic>{'theme': 'system'}),
+    );
+    // 读盘前要先扫一遍字体目录（真 IO），在假时钟里等不到，放到真事件循环里轮几次。
+    for (var i = 0; i < 50 && t.Theming.mode != t.AppTheme.dark; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+      await tester.pump();
+    }
+    expect(t.Theming.mode, t.AppTheme.dark, reason: '开局那一次：系统是深色');
+
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+    await tester.pump();
+    expect(t.Theming.mode, t.AppTheme.light, reason: '系统切到浅色，didChangePlatformBrightness 要转给外观控制器');
+    expect(t.Neutral.canvas, t.Theming.lightColors.canvas);
+  });
+
   // ---------------------------------------------------------------- 输入框（ComposerState）的两条回归
 
   ComposerState composerOn(CoreCommands bridge) => ComposerState(
