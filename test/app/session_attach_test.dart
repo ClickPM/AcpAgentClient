@@ -71,9 +71,13 @@ class _AttachCore extends FakeCore {
     return <String, dynamic>{'agentId': agentId, 'initialize': initialize};
   }
 
+  /// 堵住 `agent_disconnect`（旧连接的宽限那几秒）。
+  Completer<void>? disconnectGate;
+
   @override
   Future<JsonMap> agentDisconnect(String agentId) async {
     calls.add('disconnect');
+    await disconnectGate?.future;
     return <String, dynamic>{};
   }
 
@@ -495,6 +499,41 @@ void main() {
       await selecting;
       expect(core.calls, <String>['connect', 'load:$_a']);
       expect(c.session.sessionId, _a);
+      c.dispose();
+    });
+
+    test('重载断开途中再点当前会话：点击先发起连接并先占住载入，重载等那一次的结果，不当成失败新开一条', () async {
+      // cursor 审查 high（1.4.4 第 2 轮）：`agent_disconnect` 要等旧连接的宽限，这期间侧栏仍可点。agent 已 exited、
+      // 会话判挂空，点击走 ensureLoaded → 先发起 agent_connect；重载随后合并进这一次连接，但连接回来时点击那条
+      // 先恢复、先把 session/load 记进在途表。重载的 loadSession 若把「已在载」当成 false，就会 createSession
+      // 把这条顶掉（同 id 时还会被在途的重放把旧转录铺回来）。
+      final (c, core) = await _controller();
+      _live(c, _a, <String>['A 的历史']);
+      c.session.sessionId = _a;
+      core.disconnectGate = Completer<void>();
+      core.connectGate = Completer<void>();
+      core.onLoad = (id) async {
+        _replay(c, id, 'h1', '重放的历史');
+        return <String, dynamic>{};
+      };
+
+      final reloading = c.session.reloadAgent();
+      await Future<void>.delayed(Duration.zero); // 停在 agent_disconnect 里
+      c.sessions.applyAgentState(<String, dynamic>{'agentId': _agent, 'state': 'exited', 'code': 0});
+      final clicking = c.session.selectSession(_a);
+      await Future<void>.delayed(Duration.zero); // 点击发起了 agent_connect，堵在 connectGate
+      expect(core.calls, <String>['disconnect', 'connect']);
+      core.disconnectGate!.complete();
+      await Future<void>.delayed(Duration.zero); // 重载走到 _connectOnce，合并进点击那次
+      core.connectGate!.complete();
+      await reloading;
+      await clicking;
+
+      expect(core.calls, <String>['disconnect', 'connect', 'load:$_a'], reason: '只连一次、只载一次、不新开一条');
+      expect(c.session.sessionId, _a);
+      expect(c.session.attachOf(_a), SessionAttach.attached);
+      expect(c.session.waitingForAgent, isFalse);
+      expect(_texts(c.sessions.maybe(_a)!), <String>['重放的历史']);
       c.dispose();
     });
 

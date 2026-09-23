@@ -76,3 +76,13 @@
 | high | 关窗 8 秒超时盖不住收尾的最坏一段：`agent_connect` 卡在 `previous.disconnect()` 的双宽限（3 s + 3 s）里，随后新拉起的握手被 `closing` 中止又走一遍 `disconnect` 的双宽限，合计 12 秒；Dart 侧 `coreShutdown().timeout(8 s)` 到点放行退出，还在 taskkill 的收尾被一起杀掉，进程树收不完——这是主会话那条「不整改」P3 的反例 | 属实：`disconnect()` 是「等 3 秒 → kill → 再等 3 秒」，握手中止那条路 kill 已先发但仍要走完 `disconnect()` | **采纳**：超时改 15 秒并收成 `WorkbenchController.shutdownTimeout`（`lib/app/workbench_controller.dart`）；`workbench_wiring_test` 补一条「12 秒内不放行、超时之后放行」并断言常量 ≥ 12 秒 |
 
 两条都采纳整改 → 按流程再发第 2 轮全量。
+
+### 第 2 轮（`-Scope since -Base v1.4.3`，全量，基于 `625013b`）
+
+`.claude/reviews/20260923-162620-review.out.md`：**1 条（high 1 / P2 0 / P3 0）**；第 1 轮两条未再报。
+
+| 级别 | finding | 核对 | 处理 |
+|---|---|---|---|
+| high | 重载断开途中（`agent_disconnect` 等旧连接的宽限）再点当前会话：agent 已 `exited`、会话判挂空，点击走 `ensureLoaded` 先发起 `agent_connect`，重载随后合并进这一次；连接回来时点击那条先恢复、先把 `session/load` 记进 `_loadsInFlight`，重载的 `loadSession` 看到「已在载」立刻回 `false`，被当成载入失败去 `createSession`——用户被切到新会话，同 id 时还会被在途的重放把旧转录铺回去 | 属实：用例复现（不修时 `calls` 多出 `new`）。`_connectOnce` 的发起方等的是 `whenComplete` 派生的 Future、合并方等的是原始 Future，监听按注册顺序回调，发起方（点击）先恢复 | **采纳**：`loadSession` 已在载时返回 `_loadsInFlight` 里那一个 Future 而不是 `false`（`lib/app/session_attach.dart`）；`_AttachCore` 加 `disconnectGate`，`session_attach_test` 补一条「重载断开途中再点当前会话」 |
+
+采纳整改 → 第 3 轮起只审整改 diff（`625013b..HEAD`）。

@@ -290,8 +290,12 @@ mixin SessionAttachment on ChangeNotifier, GuardedNotifier {
   /// 早一步报成功，发送会先落进转录、再被随后才跑的清空抹掉（cursor 审查 high，iteration-09）。
   Future<bool> loadSession(String agent, String id, String cwd) {
     final b = bridge;
-    // 同一条会话不并发 load：连点两下（或重载 agent 撞上侧栏点击）会重放两遍。
-    if (b == null || _loadsInFlight.containsKey(id)) return Future<bool>.value(false);
+    if (b == null) return Future<bool>.value(false);
+    // 同一条会话不并发 load：连点两下（或重载 agent 撞上侧栏点击）会重放两遍。已在载就等那一次的结果，
+    // 不当成失败——重载拿到 false 会新开一条把它顶掉，而在途的重放随后还会把旧转录铺回去
+    // （重载断开途中再点当前会话：点击先发起 agent_connect、先占住载入；cursor 审查 high，1.4.4 第 2 轮）。
+    final Future<bool>? inFlight = _loadsInFlight[id];
+    if (inFlight != null) return inFlight;
     final load = _load(b, agent, id, cwd);
     _loadsInFlight[id] = load;
     return load.whenComplete(() {
