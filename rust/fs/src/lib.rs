@@ -79,7 +79,7 @@ pub fn ensure_inside(cwd: &Path, path: &Path) -> Result<()> {
 /// （逐级 `symlink_metadata` 走完之后才建出来的那条，词法检查看不见，canonicalize 看得见）。
 /// **没有收干净的**：canonicalize 与 open 之间把解出来的某一级目录换成链接，照样跟得出去——真要堵死得逐级
 /// 用目录句柄打开（`openat` / `FILE_FLAG_OPEN_REPARSE_POINT` 逐级校验），std 没有这套 API，
-/// 手写要 `unsafe`（规则 6），记 BACKLOG。威胁模型也要说清楚：agent 是本机子进程、跟用户同权限，
+/// 手写要 `unsafe`（规则 6），所有者裁定 2026-09-23 不再追（原条目在 rounds/BACKLOG-CLOSED.md）。威胁模型也要说清楚：agent 是本机子进程、跟用户同权限，
 /// 绕开这两个回调直接读写本来就没人拦，这道边界防的是「实现得糙的 agent」，不是有敌意的进程。
 /// 还不存在的路径（`fs/write_text_file` 要新建的那种）没有可解的东西，原样返回，仍由 [`ensure_inside`]
 /// 的逐级检查兜住。cwd 自己解不开（被删 / 无权限）时同样退回词法结论，不把正常的读写挡掉。
