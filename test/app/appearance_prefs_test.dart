@@ -487,6 +487,14 @@ void main() {
     test('代码高亮与终端 ANSI 换套（画板 07 § 2.8 / § 2.9）', () {
       expect(codeHighlightTheme['keyword']!.color, t.Theming.lightColors.accentText);
       expect(terminalTokenTheme.background, t.Theming.lightColors.panel);
+      // 白 / 亮白是前景色：PSReadLine 的参数是 `ESC[37m`、数字是 `ESC[97m`，取成底色就是打的字看不见
+      // （所有者报障 2026-09-23，DIVERGENCE 第 31 条）。两个底（面板 canvas、终端卡 panel）都不能撞。
+      expect(terminalTokenTheme.white, t.Theming.lightColors.text);
+      expect(terminalTokenTheme.brightWhite, t.Theming.lightColors.strong);
+      for (final Color c in <Color>[terminalTokenTheme.white, terminalTokenTheme.brightWhite]) {
+        expect(c, isNot(t.Theming.lightColors.canvas));
+        expect(c, isNot(t.Theming.lightColors.panel));
+      }
 
       t.Theming.apply(t.AppTheme.dark);
 
@@ -494,9 +502,14 @@ void main() {
       expect(codeHighlightTheme['string']!.color, t.Theming.darkColors.success);
       expect(codeHighlightTheme['comment']!.color, t.Theming.darkColors.placeholder);
       expect(JsonHighlight.theme['attr']!.color, t.Theming.darkColors.accentText);
-      // 黑 / 白两位是「反差最大的墨 / 等于背景」，不是照搬浅色值。
+      // 黑 = 反差最大的墨，白 / 亮白 = 正文 / 强调前景，都跟着换套、不是照搬浅色值。
       expect(terminalTokenTheme.black, t.Theming.darkColors.strong);
-      expect(terminalTokenTheme.white, t.Theming.darkColors.canvas);
+      expect(terminalTokenTheme.white, t.Theming.darkColors.text);
+      expect(terminalTokenTheme.brightWhite, t.Theming.darkColors.strong);
+      for (final Color c in <Color>[terminalTokenTheme.white, terminalTokenTheme.brightWhite]) {
+        expect(c, isNot(t.Theming.darkColors.canvas));
+        expect(c, isNot(t.Theming.darkColors.panel));
+      }
       expect(terminalTokenTheme.brightBlack, t.Theming.darkColors.muted);
       expect(terminalTokenTheme.background, t.Theming.darkColors.panel);
       expect(terminalTokenTheme.cursor, t.Theming.darkColors.accentBase);

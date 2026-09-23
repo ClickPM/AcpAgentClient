@@ -17,8 +17,9 @@ import 'icons.dart';
 import 'tool_call_card.dart';
 
 /// xterm 主题：全部取 tokens；ANSI 红 / 绿 / 黄 / 青按语义色映射，不引入表外色相。
-/// 黑 / 白两位是「反差最大的墨 / 等于背景」的语义（浅色 n.strong / n.canvas，深色 d.strong / d.canvas），
-/// 不是把浅色值照搬（画板 07 § 2.9）。
+/// 黑 = 反差最大的墨（n.strong）。白 / 亮白是**前景色**「正文 / 强调」（n.text / n.strong），不是画板 07 § 2.9 的
+/// 「等于背景」：shell 拿 37 / 97 当普通字色用（PSReadLine 的参数与数字就是 `ESC[37m` / `ESC[97m`），取 canvas
+/// 就是打出来的字看不见（design/DIVERGENCE.md 第 31 条）。
 ///
 /// getter 而不是常量：整张表把颜色烘在里面，换主题要整张重算（理由同 [CardText]）。
 xt.TerminalTheme get terminalTokenTheme => xt.TerminalTheme(
@@ -27,7 +28,7 @@ xt.TerminalTheme get terminalTokenTheme => xt.TerminalTheme(
   foreground: t.Neutral.text,
   background: t.Neutral.panel,
   black: t.Neutral.strong,
-  white: t.Neutral.canvas,
+  white: t.Neutral.text,
   red: t.Semantic.error,
   green: t.Semantic.success,
   yellow: t.Semantic.warning,
@@ -41,7 +42,7 @@ xt.TerminalTheme get terminalTokenTheme => xt.TerminalTheme(
   brightBlue: t.Accent.base,
   brightMagenta: t.Accent.active,
   brightCyan: t.Accent.text,
-  brightWhite: t.Neutral.canvas,
+  brightWhite: t.Neutral.strong,
   searchHitBackground: t.Semantic.warningSoft,
   searchHitBackgroundCurrent: t.Semantic.warning,
   searchHitForeground: t.Neutral.strong,

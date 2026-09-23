@@ -15,6 +15,7 @@ v1.4.2 之后的第一批：BACKLOG P0「附件与剪贴板」两条，所有者
 | 3 | fix | 最大化窗口最小化再还原后，画面四边各溢出屏幕一圈边框（顶栏标题与三键、底栏「设置 / 文件 / Agents / 终端」看着偏了 8 逻辑像素）：`windows/runner/acp_window.cpp` 的 `AdjustMaximizedClientRect` 找显示器改用 `MonitorFromRect(&rect, MONITOR_DEFAULTTONEAREST)`（按系统提议的新窗口矩形），不再用 `MonitorFromWindow(DEFAULTTONULL)`——还原那一刻窗口还在 (-32000,-32000)，后者回 NULL、修正被跳过 | 所有者报障 2026-09-23（「用一阵后顶部和底部的按钮位置偏移」） | `claude/top-bottom-button-offset-101c55` → `e3c0e25`（快进） | 未构建（所有者指定）；独立 Win32 小程序复现与验证修法，见备注 | 未审查（所有者指定） | 已合并 |
 | 4 | fix | `+` → Files & Directories 选不了目录：原生文件对话框（`openFiles`）只有「选文件」模式，点目录只会进到下一级。改成照 Zed 往输入框插 `@`、弹画板 42 的 `@` 菜单（根目录一层的文件与目录，接着打字就是搜索），`ComposerState.startMention` | 所有者报障 2026-09-23（改法按推荐项裁定） | `claude/directory-selector-check-fab211`（基线 `8b56dbc`）→ `4b4a3b0`（合入 `main` 2a7c2e9 的合并提交，与第 1 项的张数门合并，见备注；快进） | validate 全绿（整改后 432 项；合 `main` 后 441 项）；headless 构建 + 真剪贴板探针，见「备注 · 第 4 / 5 项」 | 3 轮 / cursor CLI `grok-4.7-high-fast`（`-Scope worktree`）：2 → 2 → 1，high 0；P2 5 条采纳 3、不采纳 2 → **0 high 收口**；合 `main` 后全量复审（`main...HEAD`）1 轮 **0 条** | 已合并 |
 | 5 | ux | Ctrl+V 粘贴资源管理器里复制的文件与目录：**默认按路径**加成 `resource_link`（`@名字`），agent 收图时图片文件照旧成芯片，空的与超限的图片文件退回路径；不收图时通道带 `{"bitmap": false}`，runner 不取位图。读取仍是 runner 的 Win32 `CF_HDROP`（`acp_clipboard.cpp`，不拉 powershell） | 所有者 2026-09-23 当场要求 | 同上 | 同上 | 同上 | 已合并 |
+| 6 | fix | 终端面板里空格之后打的字看不见：终端主题的 ANSI 白 / 亮白取了 `n.canvas`（= 底色），而 PSReadLine 给参数 / 成员 / 类型上色用 `ESC[37m`、数字用 `ESC[97m`。`terminalTokenTheme` 改成白 = `n.text`、亮白 = `n.strong`（终端卡、terminal auth 共用这张表，一并修好），画板 07 § 2.9 的取值记 `design/DIVERGENCE.md` 第 31 条 | 所有者报障 2026-09-23（截图：`cc` 之后的参数不显示） | 直改 `main` | validate 全绿；未构建、未手测 | 1 轮 / cursor CLI `grok-4.7-high-fast`（`-Scope worktree`）：**0 条** | 已合并 |
 
 ## 收口
 
@@ -22,7 +23,7 @@ v1.4.2 之后的第一批：BACKLOG P0「附件与剪贴板」两条，所有者
 - 第 4 / 5 项：headless 版已构建、剪贴板探针实测过（见备注「第 4 / 5 项」的验证段），产品 GUI 的手测项也列在那里。
 - 发版：—
 - 移出项去向：—
-- 设计稿补注记：两项都不改画板、无偏离可记——张数门的提示走既有的 `lastError`（与大小门同一处，那处本身在界面上还没有出口，见上）；编辑重发只带文字是画板 11 本来的样子（编辑框里只有文字）。
+- 设计稿补注记：两项都不改画板、无偏离可记——张数门的提示走既有的 `lastError`（与大小门同一处，那处本身在界面上还没有出口，见上）；编辑重发只带文字是画板 11 本来的样子（编辑框里只有文字）。第 6 项改的是画板 07 § 2.9 的终端白色取值，记 `design/DIVERGENCE.md` 第 31 条（手测项见「备注 · 第 6 项」）。
 
 ## 备注
 
@@ -74,3 +75,11 @@ BACKLOG 原文的症状是一次粘贴收下上百张；只按单次粘贴设门
 
 **合 `main`（2026-09-23，所有者指示）**：与第 1 项（张数门）改的是同一段——第 1 项的 `readClipboardImages({maxImages})` / `pasteImageFromClipboard` 对上本项的 `readClipboard({images})` / `pasteFromClipboard`。合并口径：`readClipboard({required images, maxImages})`；张数门**只管会读成图的那些**，判在读字节之前；收满之后多出来的图跳过、记 `skippedTooMany`、**不退回路径**（第 1 项裁定的「多出来的没有加进输入框」）；第 1 项原来的 `break` 改成 `continue`——文件列表里图与目录、非图片文件混在一起时，`break` 会把后面的路径一起丢掉。路径不受张数门管（不进内存、不占图片额度）。`pasteFromClipboard` 沿用第 1 项的并发复核与「张数提示优先于太大」，另加路径那一圈。第 1 项的测试改用新 API 全部保留，另加一条「收满之后后面的目录与非图片照样按路径收」。`design/DIVERGENCE.md` 两边都用了 28 号：`main` 的（终端搜索）先进来，本项顺延成 29。
 合并结果重跑：`validate.ps1` 全绿（16 道门，`flutter test` 441 项）；headless 版重编（108 s，runner 两边的 C++ 改动都在、无警告）后剪贴板探针三组结果与合并前一致（另多一个 `skippedTooMany: false`）；cursor 全量复审 `main...HEAD` **0 条**（`.claude/reviews/20260923-105129-review.out.md`）。
+
+### 第 6 项 · 终端 ANSI 白（2026-09-23，直改 `main`）
+
+**根因实测**：本机 pwsh 7.6.6（PSReadLine 2.4.5）与 Windows PowerShell 5.1 的 `Get-PSReadLineOption` 都是 `DefaultTokenColor = ESC[37m`、`MemberColor` / `TypeColor = ESC[37m`、`NumberColor = ESC[97m`、`InlinePredictionColor = ESC[97;2;3m`；命令 `cc` 是 `CommandColor = ESC[93m`（亮黄 → warning，截图里看得见的那一截）。xterm 4.0.0 的 `palette_builder.dart` 把调色板 7 **和 15** 都取 `theme.white`（15 不取 `brightWhite` 是库自己的问题），所以真正起作用的只有 `white` 一位：原来它是 `n.canvas`，终端面板的底也是 canvas，字与底同色。
+**改法**：白 = `n.text`（与前景同色，对应 Windows 控制台「Gray 是默认前景」）、亮白 = `n.strong`；黑维持 `n.strong`。三处 `TerminalView`（终端面板、终端卡、terminal auth）共用 `terminalTokenTheme`，一起生效。代价与取舍记 `design/DIVERGENCE.md` 第 31 条。
+**验证**：`validate.ps1` 全量 **VALIDATE OK**（`flutter test` 461 项，`flutter analyze` 16 条 info 与基线同数）；`appearance_prefs_test.dart` 深浅两套各锁 `white` / `brightWhite` 的取值，并断言两者都不等于 canvas 与 panel。未构建 release、未在 GUI 里手测。
+**审查**：1 轮 cursor CLI `grok-4.7-high-fast`（`-Scope worktree`），**0 条**（`.claude/reviews/20260923-115436-review.out.md`）。
+**手测项**：终端面板里敲 `git log --oneline -3`、`Get-ChildItem -Path .` 之类带参数的命令，空格后的参数、数字都看得见；深色主题下同样；agent 工具卡里的终端输出照常。
