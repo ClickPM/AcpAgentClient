@@ -651,7 +651,7 @@ void main() {
         canPromptImage: () => true,
       );
 
-  group('从文件选择器加图的大小门（BACKLOG P0，门在 ComposerState、判在 base64 之前）', () {
+  group('从文件选择器加图的大小门与张数门（BACKLOG P0，门在 ComposerState、判在 base64 之前）', () {
     test('超上限：不进 pendingBlocks，记 lastError', () {
       final c = composerOn(FakeCore());
 
@@ -672,6 +672,21 @@ void main() {
       expect(c.pendingBlocks.single['mimeType'], 'image/png');
       expect((c.pendingBlocks.single['data'] as String).isNotEmpty, isTrue, reason: '放行的这张才编码');
       expect(c.lastError, isNull);
+      c.dispose();
+    });
+
+    test('张数门（一条消息最多 promptImageCountLimit 张，与剪贴板共用）：满了再挑一张不收，记张数提示', () {
+      final c = composerOn(FakeCore());
+      for (var i = 0; i < promptImageCountLimit; i++) {
+        c.addImageBytes(Uint8List(1), 'image/png');
+      }
+      expect(c.pendingImages, hasLength(promptImageCountLimit), reason: '边界这一张要放行');
+      expect(c.lastError, isNull);
+
+      c.addImageBytes(Uint8List(1), 'image/png', path: r'D:\proj\one-more.png');
+
+      expect(c.pendingImages, hasLength(promptImageCountLimit));
+      expect(c.lastError, '一条消息最多带 $promptImageCountLimit 张图，多出来的没有加进输入框');
       c.dispose();
     });
   });

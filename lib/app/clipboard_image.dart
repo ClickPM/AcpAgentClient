@@ -44,18 +44,28 @@ const int clipboardImageSizeLimit = 20 * 1024 * 1024;
 /// 不给像素，这里按同一个数判成「太大」，不先编码再量。256 MB = 8192×8192 的 32 位位图，8K 整屏（133 MB）也在内。
 const int clipboardBitmapBytesLimit = 256 * 1024 * 1024;
 
-/// 读一次剪贴板里的图片。`skippedTooLarge` = 有图但因为太大被跳过了 —— 两道门共用这个旗标：
+/// 一条消息最多带几张图（所有者裁定 2026-09-23：20 张），剪贴板与 `+` → Image 两条路共用，按输入框里已有的算总数。
+/// 剪贴板的文件列表是资源管理器里选中的全部文件：图片文件夹里 Ctrl+A / Ctrl+C 再 Ctrl+V 一次就是上百张，
+/// 每张在内存里要存三份（原字节 + base64 + 芯片解回来的），随后整块进一条 `session/prompt`。
+const int promptImageCountLimit = 20;
+
+/// 读一次剪贴板里的图片，最多收 [maxImages] 张（调用方传「上限减去输入框里已有的」，可以是 0）。
+/// `skippedTooLarge` = 有图但因为太大被跳过了 —— 两道门共用这个旗标：
 /// 编码后的 PNG / 磁盘上的文件超 [clipboardImageSizeLimit]，或位图的像素缓冲超 [clipboardBitmapBytesLimit]。
 /// 两道门的数不一样，所以提示文案不能写死某一个数（调用方 `ComposerState.pasteImageFromClipboard`）。
+/// `skippedTooMany` = 收满 [maxImages] 张之后还有图：张数门判在读文件 / 编码**之前**，多出来的一张都不进内存。
 /// 没有 runner（flutter_tester、非 Windows）或剪贴板读不到时回空：粘贴文本那一下已经由输入框自己做完了，
 /// 这里只是没捞到图，不该把粘贴这件事搞砸。
-Future<({List<ClipboardImage> images, bool skippedTooLarge})> readClipboardImages() async {
-  const empty = (images: <ClipboardImage>[], skippedTooLarge: false);
+Future<({List<ClipboardImage> images, bool skippedTooLarge, bool skippedTooMany})> readClipboardImages({
+  int maxImages = promptImageCountLimit,
+}) async {
+  const empty = (images: <ClipboardImage>[], skippedTooLarge: false, skippedTooMany: false);
   try {
     final items = await AppWindow.invoke<List<Object?>>('readClipboardImages');
     if (items == null) return empty;
     final images = <ClipboardImage>[];
     var skipped = false;
+    var tooMany = false;
     for (final item in items) {
       if (item is! Map) continue;
       final path = item['path'];
@@ -68,6 +78,10 @@ Future<({List<ClipboardImage> images, bool skippedTooLarge})> readClipboardImage
         if (!file.existsSync()) continue;
         final length = await file.length();
         if (length == 0) continue;
+        if (images.length >= maxImages) {
+          tooMany = true;
+          break;
+        }
         if (length > clipboardImageSizeLimit) {
           skipped = true;
           continue;
@@ -78,6 +92,10 @@ Future<({List<ClipboardImage> images, bool skippedTooLarge})> readClipboardImage
         final width = item['width'];
         final height = item['height'];
         if (width is! int || height is! int) continue;
+        if (images.length >= maxImages) {
+          tooMany = true;
+          break;
+        }
         if (width * height * 4 > clipboardBitmapBytesLimit) {
           // runner 超过同一个数时只回尺寸、不给像素，所以这里判的是「它已经放弃了」。
           skipped = true;
@@ -96,7 +114,7 @@ Future<({List<ClipboardImage> images, bool skippedTooLarge})> readClipboardImage
       }
       images.add(ClipboardImage(bytes: bytes, mimeType: mime, path: path is String ? path : null));
     }
-    return (images: images, skippedTooLarge: skipped);
+    return (images: images, skippedTooLarge: skipped, skippedTooMany: tooMany);
   } catch (e) {
     debugPrint('[clipboard] read failed: $e');
     return empty;

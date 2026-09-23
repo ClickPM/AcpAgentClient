@@ -1066,6 +1066,7 @@ Future<void> runClipboardProbe({required String reportPath}) async {
     }
     report['images'] = images;
     report['skippedTooLarge'] = result.skippedTooLarge;
+    report['skippedTooMany'] = result.skippedTooMany;
     report['ok'] = true;
     exitCode = 0;
   } catch (e, st) {
