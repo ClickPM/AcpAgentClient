@@ -86,7 +86,9 @@ powershell -File scripts/package.ps1           # 打包 zip 与安装器 → dis
 
 ## 状态
 
-当前 **v1.4.3**，Windows x64。逐版本的改动见 [Releases](https://github.com/ClickPM/AcpAgentClient/releases)；开发轮次与进度表在 [`ROUNDS.md`](ROUNDS.md)。2026-09-22 起 R0–R8 主体完成、进入敏捷迭代阶段：日常的缺陷修复、交互优化与单画板功能按 [`iterations/`](iterations/README.md) 的迭代流程走（一迭代一文件、一项一行、一轮审查），轮次流程保留给核心大迭代。
+当前 **v1.4.4**，Windows x64。逐版本的改动见 [Releases](https://github.com/ClickPM/AcpAgentClient/releases)；开发轮次与进度表在 [`ROUNDS.md`](ROUNDS.md)。2026-09-22 起 R0–R8 主体完成、进入敏捷迭代阶段：日常的缺陷修复、交互优化与单画板功能按 [`iterations/`](iterations/README.md) 的迭代流程走（一迭代一文件、一项一行、一轮审查），轮次流程保留给核心大迭代。
+
+v1.4.4 带来 BACKLOG P0「会话身份与生命周期」四条（载会话中途失败不再留半份转录；发消息按会话相对当前连接的状态分流，不再静默顶掉选中的会话；重载或崩溃之后同一 agent 名下的其它会话自动挂回再发；认证期间换了项目，认证完成后建出来的会话不再挂到旧目录）、画板 09「等你处理」（后台 / 换走的会话挂着权限或表单请求时，侧栏条目出「待授权 / 待输入」、项目切换器出等你数徽标）、壳级 toast（各处原先只进日志的失败摆到前台；点开旧会话时的「会话正在加载中」）、主题跟随系统（侧栏按钮三档循环）、终端里看得见正在组的字，以及退出时连还在握手的 agent 一起回收。发版前由主会话把 `v1.4.3..main` 的代码改动整体复审一遍、cursor 四轮复审到 0 条收口（[`rounds/round-1.4.4`](rounds/round-1.4.4/round-1.4.4.md)）。
 
 v1.4.3 带来画板 53 的 registry 检查与升级（Agents 面板标题行「检查更新」；已安装条目有新版本时一键 Update，新版本装在旧版旁边、通过了才切换，失败或取消旧版本原样可用，运行中的连接提示「已升级 · 待重载」）、输入框加路径的两条新路（`+` → Files & Directories 改走 `@` 菜单、目录也能选；Ctrl+V 粘贴资源管理器里复制的文件与目录按路径引用）、两条所有者报障（最大化窗口最小化再还原后画面溢出屏幕；终端面板空格后打的字看不见），以及 BACKLOG P5 整档收尾。发版前由主会话把 `v1.4.2..main` 的代码改动整体复审一遍、cursor 两轮全量复审 0 条收口（[`rounds/round-1.4.3`](rounds/round-1.4.3/round-1.4.3.md)）。
 

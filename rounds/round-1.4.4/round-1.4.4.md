@@ -2,7 +2,7 @@
 
 <!-- 与 round-1.4.1 / 1.4.3 同类：发版前的单批次复审轮，登记在 ROUNDS.md § 7 进度表。 -->
 
-> 状态：**进行中**（2026-09-23：主会话自主审查一遍（3 条 P3，采纳 1）→ 整改 → 版本号改 1.4.4 → validate → cursor 复审）
+> 状态：**已完成**（2026-09-23：主会话自主审查一遍（3 条 P3，采纳 1）→ 整改 → 版本号改 1.4.4 → cursor 四轮：2 high → 1 high → 1 P2（不采纳）→ **0 条**收口；快进合入 `main` 后发布 v1.4.4）
 
 ## 目标
 
@@ -42,7 +42,7 @@
 |---|---|---|---|
 | C | P3 | `AppearanceController` 挂在 `AcpApp` 上、不在组合根那份 `reportError` 接线里，而且它落盘失败（`appearanceSet` 抛错、或一直读不到设置而不落盘）只 `debugPrint`、从没写过 `lastError`：界面已经变了、下次启动却回到旧值，用户不知道——正是 toast 要补的「失败没有出口」那一类 | **采纳**：两条「没存下来」的路写 `lastError`（`lib/app/appearance_prefs.dart`），`AcpApp.initState` 把 `_appearance.reportError` 接到 `_controller.toasts.error`（`lib/app/app.dart`）；`FakeCore` 加 `appearanceSetError` 钩子，`appearance_prefs_test` 补 1 条 + 扩 1 条断言，`workbench_wiring_test` 补 1 条（真 `AcpApp` 点主题按钮，toast 出现、界面照常变深色） |
 | E | P3 | `Sessions.forget()` 不清 `_discarding`：载入失败时的「开始丢弃」与「停止丢弃」成对排在同一条 batcher 队列里、必然一起跑完，只在「删会话恰好插在两者之间」时才多丢几条 | **不整改**：窗口只存在于同一次 flush 之内，删会话本身也会把这条从表里拿掉 |
-| F | P3 | `core_shutdown` 开始时若某条 `agent_connect` 正卡在 `previous.disconnect()` 的 3 秒宽限里，它随后仍会拉起新进程、握手时才被 `closing` 中止再杀掉；Dart 侧收尾等 8 秒 | **不整改**：进程树照样被收（`disconnect` 等到退出才返回），只是白拉一次；要提前拦截得把令牌检查塞进 `AgentConnection::connect` 的 spawn 之前，属机制类改动 |
+| F | P3 | `core_shutdown` 开始时若某条 `agent_connect` 正卡在 `previous.disconnect()` 的 3 秒宽限里，它随后仍会拉起新进程、握手时才被 `closing` 中止再杀掉；Dart 侧收尾等 8 秒 | **不整改**：进程树照样被收（`disconnect` 等到退出才返回），只是白拉一次；要提前拦截得把令牌检查塞进 `AgentConnection::connect` 的 spawn 之前，属机制类改动。**cursor 第 1 轮给出反例**：这一段最坏 12 秒，而 Dart 侧关窗只等 8 秒——超时改 15 秒，见下 |
 
 其余核对过、判定无缺陷的要点（留作复审参考）：
 - `CancelToken::cancelled` 先建 `Notified` 再看标志：与 tokio 文档一致（`Notified` 建出来就能收到 `notify_waiters`，不必先 poll）；`connect_gate` 读锁只在 `agent_connect` 里持有、写锁只在 `core_shutdown` 里取，没有递归取锁的路径；`closing.check()` 在拿到读锁之后，顺序正确。
@@ -60,7 +60,7 @@
 ## 验证
 
 - 工作树：`D:\variFlight_work\AcpAgentClient-release`，分支 `claude/review-1.4.4`（从 `main@571b828` 开出）；`vendor/upstream` 是指向主副本的目录联接。
-- `powershell -File scripts/validate.ps1`（整改 + 版本号之后）：待跑。
+- `powershell -File scripts/validate.ps1`：三次全跑全绿（`6366d9e` 整改 + 版本号后 525 项；`625013b` 第 1 轮整改后 526 项；`d33189d` 第 2 轮整改后 527 项），16 道门全过，`cargo build / test / clippy -D warnings` 全绿；`8d1a219` 只改注释与任务卡，未重跑。
 
 ## cursor 复审
 
@@ -96,3 +96,7 @@
 | P2 | 新用例复现的是「点击先发起连接」，审查认为这种顺序下重载反而先恢复、先进 `loadSession`，`inFlight` 分支走不到，去掉整改用例仍通过 | **前提不成立，两处实测**：① 整改前（`git stash` 掉 `session_attach.dart`）跑这条用例**失败**，`calls` 是 `['disconnect', 'connect', 'load:sess_a', 'new']`——重载正是拿到了 `false` 才 `createSession`；② 独立脚本（scratchpad `listener_order.dart`）：原始 Future 完成时按注册顺序回调，`whenComplete` 派生的等待者（发起方，创建时注册）先恢复，后 `await` 原始 Future 的合并方后恢复。审查说的顺序正好反了；它给的「重载先占住连接、点击再合并」那种顺序下重载先进 `loadSession`、点击走 `ensureLoaded` 的 `started` 分支，本来就没有缺陷 | **不采纳**：用例已经锁住行为，只在用例里补一行注释记下核实结果（注释改动，未重跑 validate）；下一轮 `-Note` 点名 |
 
 无采纳整改；按所有者「findings 为 0 才收」的要求，带上核对结论再发第 4 轮（同范围）。
+
+### 第 4 轮（`-Scope since -Base 625013b`，同第 3 轮范围，基于 `8d1a219`）
+
+`.claude/reviews/20260923-170057-review.out.md`：**findings: 0**。审查自己复核了顺序（发起方等 `whenComplete` 派生 Future、先恢复，并在让出事件循环前同步跑到 `_loadsInFlight[id] = load`），第 3 轮那条 P2 无反例、未再报。**审查收口**。
