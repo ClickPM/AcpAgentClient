@@ -20,10 +20,10 @@
 | **P1 看得见的粗糙** | 22 | 用户看得见的不一致、缺等待态、行为不符直觉。能用，膈应；攒批做。 |
 | **P2 功能缺口** | 11 | 该有没有的能力。**全部需所有者裁定才能进轮次**，多数还要先改设计稿。 |
 | P3 设计稿欠账 | — | **已整体释放**到 `design/DIVERGENCE.md`，见下面的占位小节 |
-| **P4 平台与分发** | 5 | 构建链、sidecar 打包。跟 R8 走。macOS / Linux 暂不做（所有者裁定 2026-09-23：目前没有 mac 设备），原「跨平台」2 条已关闭。 |
+| **P4 平台与分发** | 3 | 构建链、sidecar 打包。跟 R8 走。macOS / Linux 暂不做（所有者裁定 2026-09-23：目前没有 mac 设备），原「跨平台」2 条已关闭。 |
 | **P5 内部工程与验收** | 16 | 用户无感：测试、行数门、文档措辞、验收自动化。有空就做。 |
 | X 卡在上游 / 协议 | — | **已撤档**：不是本项目的问题不进本表（所有者裁定 2026-09-23），见下面的占位小节 |
-| | **61** | |
+| | **59** | |
 
 **新增条目**：挑一档追在该档末尾，照同样的三行格式写。不新开档位；一条只进一档。
 **只收本项目自己的问题**：问题出在上游（agent、zed、xterm 等依赖）或协议本身的，不进本表（所有者裁定 2026-09-23，X 档因此撤掉）；其中实现因此与画板对不上的，照规则 3 记 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)。
@@ -225,17 +225,9 @@
 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)，按「实现已超越画板 / 画板画错 / 实现有意少做」
 分三节记着，那几处以实现为准、PNG 不再是它们的验收基准。档位留空占位，不重排编号。
 
-## P4 · 平台与分发（5）
+## P4 · 平台与分发（3）
 
-### 构建链（3）
-
-- [ ] **中文路径构建失败时的兜底形态还没评估**
-  - **产品**：工作副本路径含中文 / 空格时构建可能失败，兜底方案（独立 acp-host.exe）没定；现在靠 `build.ps1` 的目录联接兜住。
-  - **技术**：立项 若 R0 在中文用户名路径下 `flutter build windows` 因 cargokit 路径失败，`CARGO_TARGET_DIR` 指 ASCII 路径仍不够时评估形态 B（独立 `acp-host.exe`），见 `docs/research.md` § 9.3 (2026-09-12)
-
-- [ ] **Flutter 构建用的 Rust 版本会漂移**
-  - **产品**：本机 stable 升级后 Flutter 构建悄悄换了编译器版本；`rust-toolchain.toml` 钉的只管 `validate.ps1` 里的 cargo。
-  - **技术**：R0 cargokit 只认 `rustup run stable`（它的 `toolchain` 选项只有 stable / beta / nightly），`rust-toolchain.toml` 钉的 1.98.1 只约束 `validate.ps1` 里的 cargo；本机 stable 升级后 Flutter 构建会用新版。要么给 cargokit 打补丁读 rust-toolchain.toml，要么接受漂移并在 validate 里比对两者版本 (2026-09-15)
+### 构建链（1）
 
 - [ ] **sidecar 缺 languages crate，Zed agent 的语法工具退化**
   - **产品**：Zed agent 的 `read_file` outline 模式与跳转类工具退化成纯文本；编辑、终端、grep、权限不受影响。装上 VS 的「Spectre 缓解库」组件即可恢复。
