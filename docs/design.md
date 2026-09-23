@@ -137,7 +137,7 @@ Flutter 宿主进程（Dart）
 
 ## 8. zed-agent-acp sidecar
 
-> 版本、sidecar 化细节、客户端集成、上游限制与相关待办汇总在 [`zed-agent.md`](zed-agent.md)（2026-09-23）；本节只留决策。
+> 版本、sidecar 化细节、客户端集成、上游限制汇总在 [`zed-agent.md`](zed-agent.md)，待办在 [`rounds/BACKLOG-ZED.md`](../rounds/BACKLOG-ZED.md)（2026-09-23，当前不修）；本节只留决策。
 
 - 独立 cargo workspace（`sidecar/zed-agent-acp/`），path 依赖指向 `vendor/upstream/zed/crates/*`；GPL-3.0-or-later。
 - 引导：复制 `eval_cli/src/headless.rs`；`session/new` 时 `Project::local` + `create_worktree(cwd)` + `NativeAgent::new`。

@@ -18,16 +18,16 @@
 |---|---|---|
 | **P0 真缺陷** | 7 | 会丢内容、作用到错对象、吃光资源、静默失败。撞上就是事故，排进最近的轮次。 |
 | **P1 看得见的粗糙** | 22 | 用户看得见的不一致、缺等待态、行为不符直觉。能用，膈应；攒批做。 |
-| **P2 功能缺口** | 11 | 该有没有的能力。**全部需所有者裁定才能进轮次**，多数还要先改设计稿。 |
+| **P2 功能缺口** | 9 | 该有没有的能力。**全部需所有者裁定才能进轮次**，多数还要先改设计稿。 |
 | P3 设计稿欠账 | — | **已整体释放**到 `design/DIVERGENCE.md`，见下面的占位小节 |
-| **P4 平台与分发** | 3 | 构建链、sidecar 打包。跟 R8 走。macOS / Linux 暂不做（所有者裁定 2026-09-23：目前没有 mac 设备），原「跨平台」2 条已关闭。 |
+| P4 平台与分发 | — | **已清空**（2026-09-23）：跨平台暂不做、构建链两条关闭、sidecar 两条移到 `BACKLOG-ZED.md`，见下面的占位小节；以后平台与分发的新问题照常记这一档 |
 | **P5 内部工程与验收** | 16 | 用户无感：测试、行数门、文档措辞、验收自动化。有空就做。 |
 | X 卡在上游 / 协议 | — | **已撤档**：不是本项目的问题不进本表（所有者裁定 2026-09-23），见下面的占位小节 |
-| | **59** | |
+| | **54** | |
 
 **新增条目**：挑一档追在该档末尾，照同样的三行格式写。不新开档位；一条只进一档。
 **只收本项目自己的问题**：问题出在上游（agent、zed、xterm 等依赖）或协议本身的，不进本表（所有者裁定 2026-09-23，X 档因此撤掉）；其中实现因此与画板对不上的，照规则 3 记 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)。
-**Zed agent 相关的条目**另在 [`docs/zed-agent.md`](../docs/zed-agent.md) § 5 做索引（2026-09-23 统筹）：增删、关闭这类条目时那边跟着改一行。
+**内置 Zed agent（sidecar）的问题不进本表**：记 [`BACKLOG-ZED.md`](BACKLOG-ZED.md)（所有者裁定 2026-09-23：原先本表的 4 条连同统筹时新盘点出的 5 条都移到那里，**当前不修**）；背景与上游限制见 [`docs/zed-agent.md`](../docs/zed-agent.md)。
 **关闭条目**：把**技术行连同结论压成一行** `- [x]` 剪到 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md) 末尾（那份是平铺存档，不分档），本文删掉这三行。
 
 ## P0 · 真缺陷（7）
@@ -166,7 +166,7 @@
   - **产品**：把解析过程中的某一级**目录**换成链接，还是能跟出工作区。末段链接与词法漏判已经挡住了。
   - **技术**：`fs/read_text_file` / `write_text_file` / `read_file` 的 symlink TOCTOU **只收窄了、没堵死**（cursor 2026-09-22 finding；2026-09-22 已改成经 `resolve_inside` 用解析后的真实路径去开，末段链接与词法漏判都挡住了）：canonicalize 与 open 之间把解出来的某一级**目录**换成链接，照样跟得出去。要堵死得逐级用目录句柄打开（`openat` / Windows 的 `FILE_FLAG_OPEN_REPARSE_POINT` 逐级校验），std 没有这套 API、手写要 `unsafe`（规则 6），第三方库（cap-std 之类）不在规则 1 白名单里。威胁模型也要一起看：agent 是本机子进程、跟用户同权限，绕开这两个回调直接读写本来就没人拦，这道边界防的是实现得糙的 agent、不是有敌意的进程。真要做先裁定「引 cap-std」还是「就这样」 (2026-09-22)
 
-## P2 · 功能缺口（11）
+## P2 · 功能缺口（9）
 
 ### 外观（3）
 
@@ -188,7 +188,7 @@
   - **产品**：**随包分发给别人之前的硬前置**：MiSans 与 HarmonyOS Sans 的协议都要求在软件里显著注明使用了该字体。只在本机自用时不涉及。
   - **技术**：**「关于 / 致谢」界面**。MiSans 与 HarmonyOS Sans 的协议都要求在软件里显著注明使用了该字体，随包分发给别人之前必须有这个去处；只在本机自用时不涉及。设计稿里没有这块，要先改设计稿 (2026-09-20)
 
-### agent 接入（4）
+### agent 接入（3）
 
 - [ ] **registry 的 uvx 分发类型没做**
   - **产品**：registry 里 uvx 分发的 agent 装不了（Zed 也没做）。
@@ -202,15 +202,7 @@
   - **产品**：codex 只能靠环境变量给密钥，界面上给不了。
   - **技术**：R5 codex-acp 的 `api-key` 方法带 `_meta["api-key"]`（客户端可在 `authenticate` 的 `_meta` 里直接递密钥）与 `gateway` 方法（需客户端声明 `auth._meta.gateway`）：两者都要新增 `_meta` 键（规则 2 / `docs/design.md` § 4），本轮只走环境变量 `OPENAI_API_KEY` / `CODEX_API_KEY`（agent 自己从 env 读）；要做先裁定 (2026-09-16)
 
-- [ ] **Zed agent 的斜杠命令发出去只是普通消息**
-  - **产品**：`/` 菜单里看得到 `compact`，点了没有压缩效果；MCP prompt 与 skill 调用同理。
-  - **技术**：R7 sidecar 不走 `NativeAgentConnection::prompt` 而是直接消费 `Thread::send` 的事件流（理由见 `sidecar/zed-agent-acp/src/session.rs` 文件头），于是 Zed 的斜杠命令分流（`/compact`、MCP prompt、skill 调用）没有接上：`available_commands_update` 照常投影（前端 `/` 菜单能看到 `compact`），但发出去只是一条普通消息。要接上得把那段分流逻辑复制出来（`agent.rs` 的 `Command::parse` 一大段），或等上游把 `handle_thread_events` 公开 (2026-09-17)
-
-### 投影与输入（3）
-
-- [ ] **Zed agent 的子代理不投影**
-  - **产品**：Zed agent 开的子代理在界面上完全看不见，只进日志。
-  - **技术**：R7 Zed 的子代理（`ThreadEvent::SubagentSpawned`）是**另一条会话**，事件不经过本轮的流；画板 24 的子代理卡只认 `docs/design.md` § 4 清单里的 `_meta` 键，而清单里没有 Zed 的键，所以 sidecar 只记日志、不投影。要做得先给 § 4 加键并进所有者裁定 (2026-09-17)
+### 投影与输入（2）
 
 - [ ] **输入框里的 @ / 命令不显示成芯片**
   - **产品**：输入时是纯文本，只有发出去之后的用户气泡里才有彩色芯片。
@@ -226,23 +218,11 @@
 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)，按「实现已超越画板 / 画板画错 / 实现有意少做」
 分三节记着，那几处以实现为准、PNG 不再是它们的验收基准。档位留空占位，不重排编号。
 
-## P4 · 平台与分发（3）
+## P4 · 平台与分发 —— 已清空
 
-### 构建链（1）
-
-- [ ] **sidecar 缺 languages crate，Zed agent 的语法工具退化**
-  - **产品**：Zed agent 的 `read_file` outline 模式与跳转类工具退化成纯文本；编辑、终端、grep、权限不受影响。装上 VS 的「Spectre 缓解库」组件即可恢复。
-  - **技术**：R7 sidecar 没带 `languages` crate（它唯一地依赖 `pet`，`pet` 打开 `msvc_spectre_libs` 的 `error` 特性，本机 VS 2022 BuildTools 没装「Spectre 缓解库」组件，build.rs 直接 panic）。代价：sidecar 里 `LanguageRegistry` 为空，Zed agent 靠语法树的工具（`read_file` 的 outline 模式、跳转类工具）退化成纯文本；编辑、终端、grep、权限不受影响。装上那个 VS 组件后取消 `sidecar/zed-agent-acp/Cargo.toml` 里那一行注释即可恢复 (2026-09-17) → **所有者 2026-09-23：放进 `docs/zed-agent.md` 统筹，暂不关闭**（修法与代价见那份 § 5.1 第 3 条）
-
-### sidecar 打包（2）
-
-- [ ] **sidecar 的数据目录落在 0-dev 下**
-  - **产品**：只影响目录名，数据已经隔离。
-  - **技术**：R7 sidecar 的 release channel 解析成 `dev`（`ZED_RELEASE_CHANNEL` 没设，`release_channel` 的编译期缺省），所以它的 `db/` 落在 `0-dev` 下。数据已经隔离，这项只影响目录名；要对齐得在 sidecar 的 build.rs 里显式设一个 channel (2026-09-17)
-
-- [ ] **sidecar 体积是打包时的大头**
-  - **产品**：装包体积主要由 sidecar 决定（zed 那套 wasmtime / tree-sitter / alacritty 依赖）；R8 要给出含 / 不含两个数字。
-  - **技术**：R7 debug 构建的 sidecar 是 276 MB（release 见任务卡）。R8 打包要给出含 / 不含 sidecar 两个体积数字时，注意 zed 那套依赖（wasmtime、tree-sitter、alacritty）是大头 (2026-09-17)
+所有者裁定 2026-09-23，这一档的 7 条都已移出，档位留空占位，不重排编号：「跨平台」2 条关闭（目前没有 mac 设备，
+macOS / Linux 暂不做）；「构建链」里中文路径兜底与 Rust 版本漂移 2 条关闭；sidecar 体积 1 条关闭（R8 已给出两个数字）；
+sidecar 的另 2 条（languages crate、`0-dev` 目录名）移到 [`BACKLOG-ZED.md`](BACKLOG-ZED.md)。以后平台与分发的新问题照常追在这里。
 
 ## P5 · 内部工程与验收（16）
 

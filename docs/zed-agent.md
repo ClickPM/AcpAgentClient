@@ -2,7 +2,7 @@
 
 > 内置 Zed agent（`zed-agent-acp` sidecar）的开发入口：版本、sidecar 化方案、与本客户端的集成、已知上游限制、相关待办，集中在这一份。
 > 本文是**汇总与导航**，不是新的决策源：架构决策仍以 [`design.md`](design.md) § 8 为准，研究依据在 [`research.md`](research.md) § 1 / § 2 / § 6，
-> R7 的实测与审查记录在 [`rounds/round-07/round-07.md`](../rounds/round-07/round-07.md)，待办仍只记在 [`rounds/BACKLOG.md`](../rounds/BACKLOG.md)（本文 § 5 只做索引）。
+> R7 的实测与审查记录在 [`rounds/round-07/round-07.md`](../rounds/round-07/round-07.md)，待办记在 Zed agent 专属的 [`rounds/BACKLOG-ZED.md`](../rounds/BACKLOG-ZED.md)（所有者裁定 2026-09-23 从 `BACKLOG.md` 移出，当前不修；本文 § 5 只是指针）。
 > 几处事实与那几份对不上时，以它们为准，并回头改本文。建立于 2026-09-23。
 
 ## 1. 当前使用的 Zed agent 版本
@@ -111,7 +111,7 @@ sidecar 的两个路径开关（都必须在任何人读 `paths::*` 之前处理
 - `--zed-settings <file>`：**只读**沿用本机 Zed 的 `settings.json`（模型、密钥、MCP server、`tool_permissions` 等），读不到按默认值继续；
 - `--user-data-dir <dir>`：把 `threads.db` / `db/` / `prompts/` / logs 整体挪走。
 
-主程序默认两个都传（§ 3.2），于是 sidecar 的会话库在 `%APPDATA%\AcpAgentClient\zed-agent\`，与本机 Zed 隔开。依据是 R7 实测：与**运行中的** Zed 共用 `threads.db` 时，Zed 那边保存线程会报 `Sqlite call failed with code 5 … database is locked`，代价落在用户的编辑器上（规则 7）。隔离的代价：两边会话列表不互通。要改回「全共用」只需在 `rust/acp-core/src/builtin.rs` 里去掉 `--user-data-dir`。这条裁定仍标着「待所有者确认」（§ 5.3）。
+主程序默认两个都传（§ 3.2），于是 sidecar 的会话库在 `%APPDATA%\AcpAgentClient\zed-agent\`，与本机 Zed 隔开。依据是 R7 实测：与**运行中的** Zed 共用 `threads.db` 时，Zed 那边保存线程会报 `Sqlite call failed with code 5 … database is locked`，代价落在用户的编辑器上（规则 7）。隔离的代价：两边会话列表不互通。要改回「全共用」只需在 `rust/acp-core/src/builtin.rs` 里去掉 `--user-data-dir`。这条裁定仍标着「待所有者确认」（[`BACKLOG-ZED.md`](../rounds/BACKLOG-ZED.md)「待所有者确认的裁定」）。
 
 ### 2.7 构建（`scripts/build-sidecar.ps1`）
 
@@ -127,7 +127,7 @@ powershell -File scripts/build-sidecar.ps1 -Selftest    # 构建后跑一次 --s
 - **R7 实测数字**：依赖闭包 debug 约 730 / release 约 910 个 crate；冷编译 debug / release 各约 50 分钟（release 依赖 ~35 min + 本 crate 连链接 16.5 min，`lto = "thin"` + `codegen-units = 1`）；依赖齐了之后改自己代码 40 s（debug）；target 目录约 56 GB；产物 debug 276 MB / **release 176.7 MB**。
 - **冷编译踩过的四个坑**（都已固化在脚本或 manifest 里）：
   1. `wasmtime` 的 build.rs 找不到 `cmake` → 脚本按已知位置找；
-  2. `languages` crate 唯一地依赖 `pet`，`pet` 打开 `msvc_spectre_libs` 的 `error` 特性，本机 VS 没装「Spectre 缓解库」组件 → build.rs panic → **去掉了 `languages` 依赖**（§ 4.1 第 2 条、§ 5.1）；
+  2. `languages` crate 唯一地依赖 `pet`，`pet` 打开 `msvc_spectre_libs` 的 `error` 特性，本机 VS 没装「Spectre 缓解库」组件 → build.rs panic → **去掉了 `languages` 依赖**（§ 4.1 第 2 条，[`BACKLOG-ZED.md`](../rounds/BACKLOG-ZED.md)「构建与打包」）；
   3. cargo 新解析出来的锁把 `merman` 0.8.0-alpha.5 与 `merman-render` 0.8.0-alpha.6 配在一起、编不过 → 以 zed 的 `Cargo.lock` 为种子；
   4. debug 构建下 `util::fs_embed!` 不内嵌资源、运行时从「可执行文件向上第一个带 `.git` 的祖先」读 `assets/`，而产物在仓库之外 → `settings/default.json` panic → `util` 打开 `debug-embed`。
 - `scripts/validate.ps1` **不**编译也不测试 sidecar，只对 `sidecar/` 扫 `unsafe`、`_meta` 键、派生文件头，并跑版本门（§ 1）。sidecar 自己的单测（`translate` 的终端增量差分、权限选项摊平与去重、`_meta` 形状）`build-sidecar.ps1` 没有开关，要在 `sidecar/zed-agent-acp/` 里带同一个 `CARGO_TARGET_DIR` 手动 `cargo test`。
@@ -199,12 +199,12 @@ sidecar 由主程序按 stdio 拉起。stdin 关闭（主程序退出或 `agent_
 | # | 限制 | 用户看到的 | 根因（上游） | 出路 |
 |---|---|---|---|---|
 | 1 | **上下文压缩投影不出去** | Zed agent 压缩上下文时界面上没有压缩卡（画板 33） | zed 钉版本写死 `agent-client-protocol =2.0.0`，它的 `unstable` 伞里没有 `unstable_session_compaction`（2.1.0 才有），编不出 `compaction_update`；单独改特性集撞规则 10。同理也没有 `unstable_plan_operations`，但 `ThreadEvent` 本来就没有计划类事件，实际缺的只是压缩 | 等 zed 升 acp ≥ 2.1.0 后随换钉版本复议（§ 1.1）。原 BACKLOG X 档，2026-09-23 关闭 |
-| 2 | **`languages` crate 带不进来** | 读超过 16 KB 的文件又没给行号时，`read_file` 只回**前 1 KB 原文**，而不是带行号的文件大纲（`vendor/upstream/zed/crates/agent/src/outline.rs`，`AUTO_OUTLINE_SIZE = 16384`）；跳转类工具退化成纯文本。编辑、终端、grep、权限不受影响 | `languages` 唯一地依赖 `pet`，`pet` 打开 `msvc_spectre_libs` 的 `error` 特性，构建机没装 VS「Spectre 缓解库」组件时 build.rs 直接 panic | 构建环境问题，可在我们这侧解：见 § 5.1 第 3 条 |
-| 3 | **斜杠命令不分流** | `/` 菜单里看得到 `compact`，点了只是发一条普通消息；MCP prompt 与 skill 同理 | Zed 的斜杠命令分流在 `NativeAgentConnection::prompt` 里，而把事件翻给 Zed UI 的 `handle_thread_events` 是 crate 私有的，sidecar 只能绕开 `prompt` 直接消费 `Thread::send`（§ 2.5） | 复制 `agent.rs` 的 `Command::parse` 那一段，或等上游公开 `handle_thread_events`。**在 BACKLOG**（§ 5.1 第 1 条） |
-| 4 | **子代理看不见** | Zed agent 开的子代理在界面上完全没有，只进日志 | Zed 的子代理是**另一条会话**，事件不经过本轮的流；画板 24 的子代理卡只认 `design.md` § 4 清单里的 `_meta` 键，清单里没有 Zed 的 | 给 § 4 加键并进所有者裁定。**在 BACKLOG**（§ 5.1 第 2 条） |
+| 2 | **`languages` crate 带不进来** | 读超过 16 KB 的文件又没给行号时，`read_file` 只回**前 1 KB 原文**，而不是带行号的文件大纲（`vendor/upstream/zed/crates/agent/src/outline.rs`，`AUTO_OUTLINE_SIZE = 16384`）；跳转类工具退化成纯文本。编辑、终端、grep、权限不受影响 | `languages` 唯一地依赖 `pet`，`pet` 打开 `msvc_spectre_libs` 的 `error` 特性，构建机没装 VS「Spectre 缓解库」组件时 build.rs 直接 panic | 构建环境问题，可在我们这侧解，修法见 [`BACKLOG-ZED.md`](../rounds/BACKLOG-ZED.md)「构建与打包」第 1 条（当前不修） |
+| 3 | **斜杠命令不分流** | `/` 菜单里看得到 `compact`，点了只是发一条普通消息；MCP prompt 与 skill 同理 | Zed 的斜杠命令分流在 `NativeAgentConnection::prompt` 里，而把事件翻给 Zed UI 的 `handle_thread_events` 是 crate 私有的，sidecar 只能绕开 `prompt` 直接消费 `Thread::send`（§ 2.5） | 复制 `agent.rs` 的 `Command::parse` 那一段，或等上游公开 `handle_thread_events`。记在 [`BACKLOG-ZED.md`](../rounds/BACKLOG-ZED.md)「功能缺口」（当前不修） |
+| 4 | **子代理看不见** | Zed agent 开的子代理在界面上完全没有，只进日志 | Zed 的子代理是**另一条会话**，事件不经过本轮的流；画板 24 的子代理卡只认 `design.md` § 4 清单里的 `_meta` 键，清单里没有 Zed 的 | 给 § 4 加键并进所有者裁定。记在 [`BACKLOG-ZED.md`](../rounds/BACKLOG-ZED.md)「功能缺口」（当前不修） |
 | 5 | **权限没有「只对这条命令永久允许」** | 权限卡上只出现较宽的那一档「永久允许」 | Zed 的 pattern 型下拉让多个 choice 共用一个 `optionId`、靠 Zed UI 的勾选框区分范围；ACP v1 的 `session/request_permission` 只有一维选项表，线上只有 `optionId` 能回指 | sidecar 按 `optionId` 去重、只留第一次出现的那个 —— 否则用户点窄范围、实际生效的是宽范围。要完整投影得协议支持带范围的选项 |
 | 6 | **不能发音频** | 给 Zed agent 的消息里不会带音频块 | Zed 把音频内容块降级成 `[audio]` 占位文本 | `initialize` 不声明 `audio`，免得前端以为能发 |
-| 7 | **与本机 Zed 的会话列表不互通** | Zed 里建的线程在本客户端看不到，反之亦然 | 两个进程同时写同一个 `threads.db` 会让**运行中的 Zed** 保存线程失败（`database is locked`），上游没有跨进程共享的机制 | 已按「配置共用、数据隔离」落地（§ 2.6），裁定待所有者确认（§ 5.3） |
+| 7 | **与本机 Zed 的会话列表不互通** | Zed 里建的线程在本客户端看不到，反之亦然 | 两个进程同时写同一个 `threads.db` 会让**运行中的 Zed** 保存线程失败（`database is locked`），上游没有跨进程共享的机制 | 已按「配置共用、数据隔离」落地（§ 2.6），裁定待所有者确认（[`BACKLOG-ZED.md`](../rounds/BACKLOG-ZED.md)） |
 | 8 | **读会话库失败时报不出真错误** | 偶发时会话列表会短暂像是空的（R7 实测 6 次里见过 1 次） | `ThreadStore::spawn_reload` 连库或读表失败时静默 `return`（`let Ok(..) else { return }`），「读失败」和「真没有会话」外面长得一样 | sidecar 每次强制重扫、空表再扫一次，已滤掉偶发失败；真错误仍拿不到，要等上游把错误露出来。原 BACKLOG X 档，2026-09-23 关闭 |
 | 9 | **终端输出偶尔重复一段** | 交互式程序用 `\r` 回改同一行或清屏时，终端卡里可能重复出现一段输出 | `acp_thread::Terminal` 只给**全量快照**、没有增量事件；超过 `output_byte_limit` 时 Zed 从**尾部**截断、保留开头（与核心按规范截头的做法相反） | sidecar 每 100 ms 取一次快照差成增量；前缀不成立时找最长重叠，完全对不上就整份补发（前端缓冲是纯追加的，宁可重复不能丢） |
 
@@ -220,7 +220,7 @@ sidecar 由主程序按 stdio 拉起。stdin 关闭（主程序退出或 `agent_
 6. **`NativeAgent` 惰性初始化有并发窗口** → `warm_up()` 在 dispatcher 收第一条消息之前跑完。
 7. **provider 的 `authenticate` 要和读 settings 分成两次 `cx.update`**，中间让 gpui 冲掉 `SettingsStore` 的全局观察者，否则 provider 注册不全、`available_models` 为空（照 eval CLI）。
 8. **数据目录没有覆盖用的环境变量**，只有公开 API `paths::set_custom_data_dir`，而且必须在任何人读 `paths::*` 之前调，之后再调会 panic → `main.rs` 最先处理 `--user-data-dir`。
-9. **release channel 缺省是 `dev`**（`ZED_RELEASE_CHANNEL` 没设时的编译期缺省），sidecar 的 `db/` 因此落在 `0-dev` 下 → 只影响目录名，**在 BACKLOG**（§ 5.1 第 4 条）。
+9. **release channel 缺省是 `dev`**（`ZED_RELEASE_CHANNEL` 没设时的编译期缺省），sidecar 的 `db/` 因此落在 `0-dev` 下 → 只影响目录名，记在 [`BACKLOG-ZED.md`](../rounds/BACKLOG-ZED.md)「构建与打包」（当前不修）。
 10. **zed 写死 `agent-client-protocol =2.0.0`** → sidecar 用 crates.io 的 2.0.0，不能与 `rust/` 的 git rev 2.1.0 共用一份 crate（git 源与 crates.io 源同版本也是两份，`acp::` 类型对不上）。
 11. **构建侧的四个坑**（§ 2.7）：`wasmtime` 要 cmake；`.cargo/config.toml` 的 `windows_slim_errors` 只在工作目录位于 sidecar 内时生效；cargo 自己解出的锁编不过（以 zed 的 `Cargo.lock` 为种子）；debug 构建的 `fs_embed!` 不内嵌资源（开 `debug-embed`）。
 12. **Zed 会对新目录要一次信任确认** → `Project::local` 传 `init_worktree_trust: false`，目录已由客户端替用户选定（画板 41 的项目切换）。
@@ -236,38 +236,11 @@ sidecar 由主程序按 stdio 拉起。stdin 关闭（主程序退出或 `agent_
 
 ## 5. 与 Zed agent 相关的 backlog
 
-[`rounds/BACKLOG.md`](../rounds/BACKLOG.md) 仍是轮次与迭代共用的唯一台账（`iterations/README.md` § 1），本节只做索引：条目的增删与关闭照旧在那里做，这里跟着改一行。统筹于 2026-09-23。
+**所有者裁定 2026-09-23：Zed agent 的问题从 `rounds/BACKLOG.md` 整体移到专属台账 [`rounds/BACKLOG-ZED.md`](../rounds/BACKLOG-ZED.md)，当前不修**（不排轮次、不进迭代候选，重启时由所有者从那里点名）。那份现有 9 条：
 
-### 5.1 未关闭（5 条）
+- **功能缺口 2 条**：斜杠命令发出去只是普通消息（§ 4.1 第 3 条）、子代理不投影（§ 4.1 第 4 条）；
+- **构建与打包 2 条**：缺 `languages` crate（§ 4.1 第 2 条，附修法与代价）、数据目录落在 `0-dev` 下（§ 4.2 第 9 条）；
+- **工程与文档 4 条**：统筹时新盘点出来的（自检路径上的两条 ERROR、sidecar 单测没有脚本会跑、源码里两处过时注释、`acp-projection.md` § 9.1 缺 Zed 列）；
+- **待所有者确认 1 条**：「配置共用、数据隔离」（§ 2.6）。
 
-| # | 条目（BACKLOG 原标题） | 档位 | 一句话 | 备注 |
-|---|---|---|---|---|
-| 1 | Zed agent 的斜杠命令发出去只是普通消息 | P2 · agent 接入 | `/compact`、MCP prompt、skill 点了都只是普通消息 | § 4.1 第 3 条；要么复制 `Command::parse` 那段分流，要么等上游 |
-| 2 | Zed agent 的子代理不投影 | P2 · 投影与输入 | 子代理只进日志 | § 4.1 第 4 条；要先给 `design.md` § 4 加入站键并进所有者裁定 |
-| 3 | sidecar 缺 languages crate，Zed agent 的语法工具退化 | P4 · 构建链 | 大文件读不到大纲、跳转类工具退化 | § 4.1 第 2 条。**所有者 2026-09-23 指示放进本文统筹，暂不关闭。** 修法：构建机的 VS Installer 给 BuildTools 勾「MSVC v143 - VS 2022 C++ x64/x86 Spectre 缓解库（最新）」→ 取消 `sidecar/zed-agent-acp/Cargo.toml` 里 `languages` 那一行的注释 → `src/headless.rs` 补回 `languages::init`（并改文件头「四处改动」的第 4 条）→ 重编 sidecar（新 crate 要编、176 MB 全量重链至少十几分钟；产物会变大，大多少未测）→ `-Selftest` + 应用内实跑一次大文件读取。按迭代流程记一项 `fix`，走一轮审查 |
-| 4 | sidecar 的数据目录落在 0-dev 下 | P4 · sidecar 打包 | 只影响目录名，数据已隔离 | § 4.2 第 9 条；在 sidecar 的 `build.rs` 里显式设一个 channel。`iterations/iteration-01.md` 候选第 11 项（未排期）。注意：动 `build.rs` 同样触发重链 |
-| 5 | sidecar 体积是打包时的大头 | P4 · sidecar 打包 | R8 要给出含 / 不含 sidecar 两个体积 | **疑似已过时**：R8 已给出（完整 zip 110.3 MB / 精简 zip 46.7 MB、安装器 79.0 MB；sidecar 本体 176.6 MB，压缩后约 63.6 MB，见 `rounds/round-08/round-08.md`），待所有者确认后关闭 |
-
-### 5.2 已关闭（存档在 [`BACKLOG-CLOSED.md`](../rounds/BACKLOG-CLOSED.md)）
-
-- **sidecar 与运行中的 Zed 争用 `threads.db`** → R7 实测后按「配置共用、数据隔离」落地（2026-09-17），裁定仍待所有者确认（§ 5.3）。
-- **新建会话弹层里的 agent 名与图标** → R7 起取条目里的 `name`，内置条目带自己的 `iconSvg`（Zed Agent 的名字与标记由此而来）。
-- **Zed agent 的上下文压缩投影不出去** → 2026-09-23 按「上游 / 协议的问题不进 BACKLOG」关闭，现记在 § 4.1 第 1 条。
-- **读 threads.db 失败和真的没有会话长得一样** → 同上，现记在 § 4.1 第 8 条。
-- **macOS 构建还没把 cargokit 挂进 Xcode** → 2026-09-23 关闭（目前没有 mac 设备）；macOS / Linux 的 sidecar install 规则随 `ROUNDS.md` R8 挪出的「后续一轮」一起搁置（`windows/` 之外目前没有 runner 目录）。
-
-### 5.3 仍待所有者确认的裁定
-
-1. **数据隔离**（「配置共用、数据隔离」）：`design.md` § 8 与 § 12、`ROUNDS.md` R7「裁定（开工前）」三处都标着「待所有者确认」。确认后把这三处改成定稿措辞。
-2. **终端 provider 通道**（`_meta.terminal_info / terminal_output / terminal_exit`）：`design.md` § 4 与 `lib/projection/tool_calls.dart`、`session_store.dart` 的注释标着「所有者裁定待确认」（R4 按推荐项开工）。sidecar 的终端输出完全依赖这条通道。
-
-### 5.4 统筹时发现、还没进台账的
-
-以下几条是这次盘点才发现的，**尚未**记进 BACKLOG，是否记、记哪一档待所有者定：
-
-1. **sidecar 自检路径上的两条 ERROR**（`rounds/round-08/round-08.md`「审查整改后重跑一遍」段；R8 写了「记 BACKLOG」但没记）：`prompt_store … environment already open in this program`（同一进程里 lmdb 环境开了两次），与 `settings_store Failed to write settings to file …\config\settings.json: 系统找不到指定的路径`（隔离数据目录下的 `config/` 没建就写）。不影响退出码；在真正的 ACP 会话路径上是否也出现没有核实过；是出在我们的引导顺序还是上游 eval CLI 本身也会报，也还没分清（前者进 BACKLOG，后者照规则记本文 § 4）。
-2. **sidecar 单测没有任何脚本会跑**：`validate.ps1` 不碰 sidecar，`build-sidecar.ps1` 也没有测试开关，`translate.rs` 里那几条单测只在有人手动 `cargo test` 时才跑。
-3. **`ROUNDS.md` R7 交付物写了「config options（→ `model_selector` 与权限预设）」**，实际只做了模型选择，没有权限预设（权限走每次的 `session/request_permission`，默认策略来自 Zed settings 的 `tool_permissions`）。R7 任务卡的交付物表里没有这一项，属于计划与实现的落差，未见裁定记录。
-4. **sidecar 源码里两处过时注释**：`src/session.rs` 的 `close_session` 注释引用的 `lib/app/workbench_controller.dart` 的 `closeSession`，R7.5 之后在 `lib/app/session_controller.dart`；`src/headless.rs` 文件头说「改动只有三处」，下面列的是四处。改 `.rs` 里的注释也会让这个 crate 重编 + 176 MB 重链（只有 `Cargo.toml` 的注释不触发，§ 1），只为注释不值，等下次因别的原因改到这两个文件时顺手改。
-
-另：`docs/acp-projection.md` § 9.1 的 agent 发射表没有 Zed agent 那一列（表是 R6 按五个外部 agent 建的）；`docs/research.md` § 2 里「sidecar 发不出 `plan_update` 与 `compaction_update`（记 BACKLOG）」一句，实际只记过压缩那条、且已按上游问题关闭，现以本文 § 4.1 第 1 条为准。
+上游问题照旧不进台账，留在本文 § 4。相关的已关闭条目（`threads.db` 争用、agent 名与图标、压缩投影、`threads.db` 读失败、macOS cargokit、sidecar 体积）在那份末尾有索引，存档本身在 `rounds/BACKLOG-CLOSED.md`。

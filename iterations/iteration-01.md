@@ -29,7 +29,7 @@
 8. R5 npx 安装在提交点之前失败留半个 `agents/<id>/`——收尾里对未提交失败也调 `install::remove`。
 9. R7.5 `GuardedNotifier` 未收编 `FilesState` / `LocalTerminals` / `AppearanceController`——统一混入。
 10. R0 cargokit 只认 `rustup run stable`、与 `rust-toolchain.toml` 可能漂移——取「接受漂移、validate 里比对两者版本」那一支。
-11. R7 sidecar 的 release channel 落成 `dev`——`build.rs` 显式设 channel（只影响 `db/` 目录名）。
+11. ~~R7 sidecar 的 release channel 落成 `dev`——`build.rs` 显式设 channel（只影响 `db/` 目录名）。~~ **撤出候选**（所有者裁定 2026-09-23：Zed agent 的问题移到 `rounds/BACKLOG-ZED.md`，当前不修）。
 12. 认证用的可见终端在认证收尾处没有释放（1.4.1 复审 P3 的另一半；`Sessions.forget` 已收掉本会话名下那几个）——在 `lib/app/auth_state.dart` 的收尾里 `terminals.remove` 掉它。
 13. **（已由 iteration-02 第 5 项 修掉，已合并 `main`）** 载回来的会话在下一轮后丢标题。**已按合并后的代码核实仍未修**：`SessionIndex.upsert` 写的是 `s.title ?? titleFallback`，而 `titleFallback` 是会话头的占位串 `New <agent> Session`，载回来的会话 `store.title` 为 null 时就把索引里原来有意义的标题盖掉。最小修复是再退一层到索引里已有的那一行的标题。
 14. **（已由 iteration-02 第 5 项 修掉，已合并 `main`）** 收轮那次 `saveIndex()` 写的是**当前选中**会话而非刚跑完那一轮的。**已核实仍未修**：`saveIndex()` 取的是 `store`，`turn_controller` 收轮时无参调用它；后台会话跑完时刷的是前台那条的计数。最小修复是给 `saveIndex` 收一个 `SessionStore` 参数。

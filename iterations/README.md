@@ -31,7 +31,7 @@
   | `board` | 单张画板的功能 | 设计稿**先入库**（`.dc.html` + PNG + `design/README.md`）再开工，规则 3 |
 
 - **文件**：一个迭代一个文件 `iterations/iteration-NN.md`（从 [`TEMPLATE.md`](TEMPLATE.md) 建），工作项一行一条。**不建子目录**：实测细节、踩坑、偏离写进同文件的「备注」段，长了也写在那里；探针脚本、基线数据这类真需要入库的文件放各自的标准位置（`scripts/`、`test/`），迭代文件只记路径。
-- **BACKLOG 不搬家**：`rounds/BACKLOG.md` 仍是两条流程共用的唯一入口（仓库里 70 余处引用，路径不动）。条目被迭代处理时，把它的**技术行连同结论压成一行** `- [x]` 剪到 [`rounds/BACKLOG-CLOSED.md`](../rounds/BACKLOG-CLOSED.md) 末尾并写 `→ iteration-NN`；`BACKLOG.md` 只留本项目自己的未关闭条目（按 P0–P5 分档，每条三行；上游 / 协议的问题不进，X 档 2026-09-23 撤掉）。
+- **BACKLOG 不搬家**：`rounds/BACKLOG.md` 仍是两条流程共用的唯一入口（仓库里 70 余处引用，路径不动）。条目被迭代处理时，把它的**技术行连同结论压成一行** `- [x]` 剪到 [`rounds/BACKLOG-CLOSED.md`](../rounds/BACKLOG-CLOSED.md) 末尾并写 `→ iteration-NN`；`BACKLOG.md` 只留本项目自己的未关闭条目（按 P0–P5 分档，每条三行；上游 / 协议的问题不进，X 档 2026-09-23 撤掉）。**例外**：内置 Zed agent（sidecar）的问题记 [`rounds/BACKLOG-ZED.md`](../rounds/BACKLOG-ZED.md)，所有者裁定 2026-09-23 **当前不修**，不从那里挑迭代候选。
 
 ## 2. 每个工作项的流程
 
