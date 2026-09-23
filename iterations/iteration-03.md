@@ -12,11 +12,11 @@ v1.4.2 之后的第一批：BACKLOG P0「附件与剪贴板」两条，所有者
 |---|---|---|---|---|---|---|---|
 | 1 | fix | 剪贴板文件列表没有张数门：`promptImageCountLimit = 20`（一条消息的总数，连同输入框里已有的），剪贴板与 `+` → Image 两条路共用；`readClipboardImages({maxImages})` 判在读文件 / 编码之前、回 `skippedTooMany`，`pasteImageFromClipboard` 落进输入框时再判一次（连按两下 Ctrl+V 并发），`addImageBytes` 满了不收；提示单独一句 | BACKLOG P0「附件与剪贴板」第 2 条；所有者裁定 2026-09-23 取 20 张 | `claude/attachments-clipboard-p0-19efea` → `006bd0f`（快进；合 main 时 BACKLOG 两处登记冲突按「两边都留」解，P0 10 → 7、合计 75 → 72） | 未构建（所有者指定）；相关两份 `flutter test` 全绿，`validate.ps1 -Quick` 见备注 | 未审查（所有者指定） | 已合并 |
 | 2 | tidy | 编辑带图的消息会把图弄丢 → **按产品取舍关闭，不修**：编辑历史消息只改文字、不保留原图（与 Claude Code 一致）；只在 `UserMessage.plainText` 的文档注释里写明裁定 | BACKLOG P0「附件与剪贴板」第 1 条；所有者裁定 2026-09-23 | 同上 | 只改注释与文档 | 未审查（所有者指定） | 已合并 |
-| 3 | fix | 最大化窗口最小化再还原后，画面四边各溢出屏幕一圈边框（顶栏标题与三键、底栏「设置 / 文件 / Agents / 终端」看着偏了 8 逻辑像素）：`windows/runner/acp_window.cpp` 的 `AdjustMaximizedClientRect` 找显示器改用 `MonitorFromRect(&rect, MONITOR_DEFAULTTONEAREST)`（按系统提议的新窗口矩形），不再用 `MonitorFromWindow(DEFAULTTONULL)`——还原那一刻窗口还在 (-32000,-32000)，后者回 NULL、修正被跳过 | 所有者报障 2026-09-23（「用一阵后顶部和底部的按钮位置偏移」） | `claude/top-bottom-button-offset-101c55` → 待合并 | 未构建（所有者指定）；独立 Win32 小程序复现与验证修法，见备注 | 未审查（所有者指定） | 待合并 |
+| 3 | fix | 最大化窗口最小化再还原后，画面四边各溢出屏幕一圈边框（顶栏标题与三键、底栏「设置 / 文件 / Agents / 终端」看着偏了 8 逻辑像素）：`windows/runner/acp_window.cpp` 的 `AdjustMaximizedClientRect` 找显示器改用 `MonitorFromRect(&rect, MONITOR_DEFAULTTONEAREST)`（按系统提议的新窗口矩形），不再用 `MonitorFromWindow(DEFAULTTONULL)`——还原那一刻窗口还在 (-32000,-32000)，后者回 NULL、修正被跳过 | 所有者报障 2026-09-23（「用一阵后顶部和底部的按钮位置偏移」） | `claude/top-bottom-button-offset-101c55` → `e3c0e25`（快进） | 未构建（所有者指定）；独立 Win32 小程序复现与验证修法，见备注 | 未审查（所有者指定） | 已合并 |
 
 ## 收口
 
-- 构建 / 手测：未构建（所有者指定）。第 1 项的手测项：资源管理器里选 25 张图 Ctrl+C，输入框 Ctrl+V → 芯片条只出 20 张；再 Ctrl+V 一次 → 一张不加；删掉一张芯片后 `+` → Image 挑一张 → 收下，再挑一张 → 不收。**提示文案用户暂时看不到**：它记在 `composer.lastError`，而 `lastError` 在产品 UI 上还没有出口（BACKLOG P0「资源与静默失败」的「失败没有出口，用户看到的是『点了没反应』」，那条本来就点名了附件超限；「图片太大」那句也一样），手测只能看芯片数。
+- 构建 / 手测：未构建（所有者指定）。第 1 项的手测项：资源管理器里选 25 张图 Ctrl+C，输入框 Ctrl+V → 芯片条只出 20 张；再 Ctrl+V 一次 → 一张不加；删掉一张芯片后 `+` → Image 挑一张 → 收下，再挑一张 → 不收。**提示文案用户暂时看不到**：它记在 `composer.lastError`，而 `lastError` 在产品 UI 上还没有出口（BACKLOG P0「资源与静默失败」的「失败没有出口，用户看到的是『点了没反应』」，那条本来就点名了附件超限；「图片太大」那句也一样），手测只能看芯片数。第 3 项的手测项：最大化 → 点任务栏图标最小化 → 再点回来（Win+D 两次同理）→ 顶栏标题垂直居中、右上三键与左上品牌不贴屏幕边，底栏「设置 / 文件 / Agents / 终端」下沿完整。
 - 发版：—
 - 移出项去向：—
 - 设计稿补注记：两项都不改画板、无偏离可记——张数门的提示走既有的 `lastError`（与大小门同一处，那处本身在界面上还没有出口，见上）；编辑重发只带文字是画板 11 本来的样子（编辑框里只有文字）。
