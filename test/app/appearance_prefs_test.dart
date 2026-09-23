@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:acp_agent_client/app/appearance_prefs.dart';
+import 'package:acp_agent_client/app/core_bridge.dart';
 import 'package:acp_agent_client/theme/tokens.dart' as t;
 import 'package:acp_agent_client/ui/transcript/card_chrome.dart';
 import 'package:acp_agent_client/ui/transcript/code_block.dart';
@@ -483,6 +484,29 @@ void main() {
 
       expect(c.theme, t.AppTheme.dark, reason: '界面上这次改动照常生效');
       expect(core.appearance, <String, dynamic>{'ui_font_family': 'Inter'}, reason: '盘上一个字都不许动');
+      expect(c.lastError, contains('只在本次运行生效'), reason: '没存下来要说一声（壳级 toast 的出口）');
+    });
+
+    test('存设置失败：界面上的改动照常生效，原因写进 lastError（壳级 toast 的出口，1.4.4 复审 P3）', () async {
+      final FakeCore core = FakeCore()
+        ..appearance = <String, dynamic>{'ui_font_family': 'Inter'}
+        ..appearanceSetError = const CoreCommandError('io', 'disk full');
+      final AppearanceController c = AppearanceController(
+        bridge: core,
+        registry: FontRegistry(loadDirs: const <Directory>[], probeDirs: const <Directory>[]),
+      );
+      addTearDown(c.dispose);
+      final List<String> reported = <String>[];
+      c.reportError = reported.add;
+
+      await c.start();
+      expect(c.lastError, isNull, reason: '读盘正常，还没有可报的');
+      await c.cycleTheme();
+
+      expect(c.theme, t.AppTheme.dark, reason: '不回滚：界面已经变了');
+      expect(c.lastError, allOf(contains('没能存下来'), contains('io: disk full')));
+      expect(reported, <String>[c.lastError!]);
+      expect(core.appearance, <String, dynamic>{'ui_font_family': 'Inter'}, reason: '盘上没写进去');
     });
 
     test('补读回来的主题不能当相对基线：用户按所见切，不是从盘上那一档往下切（复审 high，2026-09-20）', () async {

@@ -41,8 +41,14 @@ class FakeCore implements CoreCommands {
     return appearance;
   }
 
+  /// 让存外观抛这个错（复现落盘失败）。
+  Object? appearanceSetError;
+
   @override
-  Future<JsonMap> appearanceSet(JsonMap patch) async => appearance = <String, dynamic>{...patch};
+  Future<JsonMap> appearanceSet(JsonMap patch) async {
+    if (appearanceSetError != null) throw appearanceSetError!;
+    return appearance = <String, dynamic>{...patch};
+  }
 
   /// 转录偏好（画板 70「转录」小节）：整段替换，与外观同口径。
   JsonMap transcriptPrefs = <String, dynamic>{};

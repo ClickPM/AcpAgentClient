@@ -614,8 +614,11 @@ class AppearanceController extends ChangeNotifier with GuardedNotifier {
     if (!hydratedLate && next == _prefs) return;
     _applyLocally(next, notify: true);
     if (bridge == null) return;
+    // 下面两条「没存下来」的路都写 [lastError]：组合根把它接到壳级 toast（`lib/app/app.dart`），不然只有日志里有——
+    // 界面已经变了、下次启动却回到旧值，用户得知道（1.4.4 复审 P3）。
     if (!_readSettingsOk) {
       // 从没读到过盘上的设置，就不知道会覆盖掉什么。界面上这次改动照常生效，只是不落盘。
+      lastError = '读不到设置文件，这次外观改动只在本次运行生效';
       debugPrint('appearance: 一直读不到设置，这次只改内存不落盘（怕整段覆盖抹掉已有设置）');
       return;
     }
@@ -623,6 +626,7 @@ class AppearanceController extends ChangeNotifier with GuardedNotifier {
       // `appearance` 段整段替换，所以每次都把全量给过去。
       await bridge.appearanceSet(next.toJson());
     } on Object catch (e) {
+      lastError = '外观设置没能存下来，下次启动会回到旧值：${describeError(e)}';
       debugPrint('appearance: 存设置失败: $e');
     }
   }

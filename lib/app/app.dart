@@ -61,6 +61,8 @@ class _AcpAppState extends State<AcpApp> with WidgetsBindingObserver {
     super.initState();
     _lifecycle;
     WidgetsBinding.instance.addObserver(this);
+    // 外观控制器不在组合根那份 `reportError` 接线里（它挂在这一层），落盘失败的那一句也要有壳级 toast 出口。
+    _appearance.reportError = _controller.toasts.error;
     // 不 await：字体扫描是磁盘 IO，不该拖慢首帧。扫完若与默认不同会自己触发一次重建。
     _appearance.start();
     _controller.start();

@@ -19,6 +19,7 @@ import 'package:acp_agent_client/projection/wire.dart';
 import 'package:acp_agent_client/ui/popovers/inline_menus.dart';
 import 'package:acp_agent_client/ui/popovers/topbar_popovers.dart';
 import 'package:acp_agent_client/ui/shell/shell_common.dart';
+import 'package:acp_agent_client/ui/transcript/icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -701,6 +702,30 @@ void main() {
     await tester.pump();
     expect(t.Theming.mode, t.AppTheme.light, reason: '系统切到浅色，didChangePlatformBrightness 要转给外观控制器');
     expect(t.Neutral.canvas, t.Theming.lightColors.canvas);
+  });
+
+  // 外观控制器挂在 AcpApp 上、不在组合根那份 `reportError` 接线里：它落盘失败的那一句也要落成壳级 toast（1.4.4 复审 P3）。
+  testWidgets('外观落盘失败：那一句摆到前台的 toast 上，界面上的改动照常生效', (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    addTearDown(t.Theming.reset);
+    await tester.runAsync(loadGalleryFonts);
+
+    final core = FakeCore()..appearanceSetError = const CoreCommandError('io', 'disk full');
+    await tester.pumpWidget(AcpApp(source: DataSource.bridge, bridge: core));
+    await tester.pump();
+    // 侧栏标题条右端的主题按钮（浅色档出太阳）。改动会等读盘落定，而读盘前要先扫一遍字体目录（真 IO），
+    // 在假时钟里等不到，放到真事件循环里轮几次。
+    await tester.tap(find.byWidgetPredicate((w) => w is AcpIcon && w.body == AcpIcons.sun).first);
+    final Finder toast = find.textContaining('外观设置没能存下来');
+    for (var i = 0; i < 50 && toast.evaluate().isEmpty; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+      await tester.pump();
+    }
+    expect(toast, findsOneWidget);
+    expect(find.textContaining('io: disk full'), findsOneWidget);
+    expect(t.Theming.mode, t.AppTheme.dark, reason: '不回滚：界面已经变了');
   });
 
   // BACKLOG P0「退出时 agent 的子进程没回收」：收尾要几秒，这期间窗口不动，用户会再点一次 ✕。

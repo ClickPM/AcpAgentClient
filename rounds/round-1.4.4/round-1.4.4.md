@@ -1,0 +1,67 @@
+# Round 1.4.4 — v1.4.3 之后合入 main 的代码改动的复审与整改
+
+<!-- 与 round-1.4.1 / 1.4.3 同类：发版前的单批次复审轮，登记在 ROUNDS.md § 7 进度表。 -->
+
+> 状态：**进行中**（2026-09-23：主会话自主审查一遍（3 条 P3，采纳 1）→ 整改 → 版本号改 1.4.4 → validate → cursor 复审）
+
+## 目标
+
+把 `v1.4.3..main`（`dea12b8..571b828`，35 个提交）里的**代码改动**独立审一遍、发现的缺陷修掉，再交 cursor 复审到 0 条，然后发 v1.4.4。
+所有者指示（2026-09-23）：审查由**主会话**做（不委派子代理）；**文档改动不审、不改**（`*.md`、`design/`、`rounds/` 与 `iterations/` 里的登记）。
+审查中途所有者报「发现严重 bug、另一会话在查」，审完先不动代码；随后排查结论「不是 bug」，照常继续。
+
+| 批 | 提交 | 内容 | 此前审查 |
+|---|---|---|---|
+| A | `92edf2b` | iteration-05：终端里看得见正在组的字（xterm 的 `composingText` + layout 阶段保鲜层） | cursor 1 轮，0 条 |
+| B | `2cf3fab`、`d18148d` | iteration-06：主题跟随系统（`ThemeChoice` 三档、`didChangePlatformBrightness`、Rust `THEMES` 加 `system`） | cursor 2 轮，0 条 |
+| C | `c5c7d8f` | iteration-06：通用 toast（`GuardedNotifier.lastError` → `reportError` → `Toasts`；「会话正在加载中」） | cursor 2 轮，0 条 |
+| D | `586fd86` | iteration-07：画板 09「等你处理」（`SessionActivity`、侧栏标记、徽标组） | cursor 3 轮，0 条 |
+| E | `9c64804`、`d9ce250`、`4fe8b13`、`2d8aa30` | iteration-09：会话身份与生命周期四条（`session_attach.dart` 四态 / 挂回 / 载入失败整段作废；一轮对话按四态分流） | cursor 3 轮 + 合并前复审 1 轮，0 条 |
+| F | `7e63013` | iteration-03 第 7 项：退出时回收 agent 子进程（`core_shutdown` 的 `closing` 令牌 + `connect_gate`、握手中止；关窗二次请求等同一次收尾；无头模式收尾） | cursor 1 轮，0 条 |
+| G | `34e66be`、`b0a445f`、`80bef55` | 关闭 BACKLOG 条目时改的注释（`composer_state` / `session_store` / `markdown_body`） | —（只动注释） |
+| H | `8e4e1c5`、`cad52e7`、`9768205`、`ca1836b`、`98f2b81`、`c996f66`、`556cdba` | 合入 main 的合并提交（一处代码冲突：`session_controller` 的 `loadingSession` 移进挂载 mixin） | 各迭代合并后 validate |
+
+其余提交只动文档（BACKLOG 关闭、回填、DIVERGENCE），不在范围内。
+
+## 验收
+
+| # | 检查 | 命令 / 期望 |
+|---|---|---|
+| 1 | 主会话审查覆盖全部代码改动 | `git diff v1.4.3..main -- . ':(exclude)*.md' ':(exclude)design/**'`：45 个文件逐个读过 |
+| 2 | 每条 finding 有处理结论 | 采纳整改 / 不采纳写明理由，见下表 |
+| 3 | 全量校验 | `powershell -File scripts/validate.ps1` 全绿 |
+| 4 | cursor 复审归零 | `.claude/cursor-review.ps1`（前两轮 `-Scope since -Base v1.4.3` 全量，第 3 轮起只审整改 diff），直到 `findings: 0` |
+
+## 代码审查
+
+### 第 1 遍：主会话自主审查（2026-09-23）
+
+结论：**没有 high / P2**；3 条 P3，采纳 1 条（最小改动），2 条不整改（理由见表）。
+
+| 批 | 级别 | finding | 处理 |
+|---|---|---|---|
+| C | P3 | `AppearanceController` 挂在 `AcpApp` 上、不在组合根那份 `reportError` 接线里，而且它落盘失败（`appearanceSet` 抛错、或一直读不到设置而不落盘）只 `debugPrint`、从没写过 `lastError`：界面已经变了、下次启动却回到旧值，用户不知道——正是 toast 要补的「失败没有出口」那一类 | **采纳**：两条「没存下来」的路写 `lastError`（`lib/app/appearance_prefs.dart`），`AcpApp.initState` 把 `_appearance.reportError` 接到 `_controller.toasts.error`（`lib/app/app.dart`）；`FakeCore` 加 `appearanceSetError` 钩子，`appearance_prefs_test` 补 1 条 + 扩 1 条断言，`workbench_wiring_test` 补 1 条（真 `AcpApp` 点主题按钮，toast 出现、界面照常变深色） |
+| E | P3 | `Sessions.forget()` 不清 `_discarding`：载入失败时的「开始丢弃」与「停止丢弃」成对排在同一条 batcher 队列里、必然一起跑完，只在「删会话恰好插在两者之间」时才多丢几条 | **不整改**：窗口只存在于同一次 flush 之内，删会话本身也会把这条从表里拿掉 |
+| F | P3 | `core_shutdown` 开始时若某条 `agent_connect` 正卡在 `previous.disconnect()` 的 3 秒宽限里，它随后仍会拉起新进程、握手时才被 `closing` 中止再杀掉；Dart 侧收尾等 8 秒 | **不整改**：进程树照样被收（`disconnect` 等到退出才返回），只是白拉一次；要提前拦截得把令牌检查塞进 `AgentConnection::connect` 的 spawn 之前，属机制类改动 |
+
+其余核对过、判定无缺陷的要点（留作复审参考）：
+- `CancelToken::cancelled` 先建 `Notified` 再看标志：与 tokio 文档一致（`Notified` 建出来就能收到 `notify_waiters`，不必先 poll）；`connect_gate` 读锁只在 `agent_connect` 里持有、写锁只在 `core_shutdown` 里取，没有递归取锁的路径；`closing.check()` 在拿到读锁之后，顺序正确。
+- `_load` 的清空 / 重放 / 收尾三段严格排在同一条 batcher 队列里，`failed` 在 `finally { release() }` 之前置位，闭包跑到时成败已知；`settled` 只在收尾闭包真跑完才完成，`reloadAgent` / `reattach` 拿到的都是「转录真的换过来」之后的结果。
+- `_connectOnce` / `_loadsInFlight` / `_attaching` 三处在途合并：Future 的错误都有 `await` 的一方接（`whenComplete` 链不吞错），不会出现 unhandled error。
+- `TurnController.send()` 四态分流：`unattachable` + `session/new` 失败时按「挂没挂上」判、不发给旧 sessionId；`reattach` 期间切走会话时消息不改投；`_failDetached` 只在 detached 时把这一轮收进转录。
+- xterm 4.0.0 的 `RenderTerminal.composingText` setter 只 `markNeedsPaint`，在 `_RenderComposingKeeper.performLayout` 里写它安全；`markNeedsLayout` 每次重建只让代理盒重跑一次空 layout（子树约束没变不重排）。
+- 无头模式 `_shutdown()`：`runR3` 正常路径只调 `shutdown()` 不 `dispose()`，事后那一下不会二次 dispose；`AcpApp` 的 `_shutdown ??=` 让两次关窗请求等同一个 Future。
+- `WorkbenchController` 构造里给十个对象接 `reportError`；`TranscriptFolds` / `SessionIndex` 从不写 `lastError`，不接无妨；`Toasts.dispose` 之后 `error()` 直接返回，测试锁住。
+
+## 版本号
+
+发 v1.4.4（所有者 2026-09-23）：`pubspec.yaml` `1.4.4+1`、`rust/Cargo.toml` `[workspace.package]` `1.4.4`、`rust/Cargo.lock` 七个本地 crate；sidecar 不跟（规则 11，仍是 zed 钉版本 1.21.0）。
+
+## 验证
+
+- 工作树：`D:\variFlight_work\AcpAgentClient-release`，分支 `claude/review-1.4.4`（从 `main@571b828` 开出）；`vendor/upstream` 是指向主副本的目录联接。
+- `powershell -File scripts/validate.ps1`（整改 + 版本号之后）：待跑。
+
+## cursor 复审
+
+执行器：cursor CLI `grok-4.7-high-fast`。待发。

@@ -1,7 +1,7 @@
 name: acp_agent_client
 description: "AcpAgent Client: Flutter desktop shell over a Rust ACP core (flutter_rust_bridge v2)."
 publish_to: "none"
-version: 1.4.3+1
+version: 1.4.4+1
 
 # Flutter stable 3.47.4 / Dart 3.13.3（R0 钉，CLAUDE.md「本地开发」）。
 environment:
