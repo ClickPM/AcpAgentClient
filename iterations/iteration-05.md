@@ -11,7 +11,7 @@ BACKLOG P1「等待与反馈」第 1 条。原条目的结论是「要在光标�
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | ux | 终端组字期间在光标处画出正在组的字：`TerminalIme` 把整串写进 xterm 的 `RenderTerminal.composingText`（终端字体 + 下划线），上屏 / 取消 / 失焦 / 连接被关时清掉；前面垫一格，实心块光标不盖首字母；`_ComposingKeeper` 在同一帧 layout 阶段写回（TerminalView 随 shell 输出重建会把它清回 null）。用例 `test/ui/terminal_panel_test.dart` 1 条 | BACKLOG P1「等待与反馈」第 1 条；所有者裁定 2026-09-23 | `claude/floating-layer-stacking-5efef0` | | | 进行中 |
+| 1 | ux | 终端组字期间在光标处画出正在组的字：`TerminalIme` 把整串写进 xterm 的 `RenderTerminal.composingText`（终端字体 + 下划线），上屏 / 取消 / 失焦 / 连接被关时清掉；前面垫一格，实心块光标不盖首字母；`_ComposingKeeper` 在同一帧 layout 阶段写回（TerminalView 随 shell 输出重建会把它清回 null）。用例 `test/ui/terminal_panel_test.dart` 1 条 | BACKLOG P1「等待与反馈」第 1 条；所有者裁定 2026-09-23 | `claude/floating-layer-stacking-5efef0`（`92edf2b`） | validate 全绿 | 1 轮（cursor），0 条 | 待合并 |
 
 ## 收口
 
@@ -36,3 +36,8 @@ BACKLOG P1「等待与反馈」第 1 条。原条目的结论是「要在光标�
 
 - `flutter test test/ui/terminal_panel_test.dart`：8 条全过（新增 1 条）。
 - 反证（临时改实现、跑完换回）：去掉前导空格 → 段落宽度断言红（`Expected: 37.5 (±0.5)`，`Actual: 25.0`，即只有两格）；把 `_ComposingKeeper` 换成 post-frame 写回 → `renderTerminal.debugNeedsPaint` 断言红（`Expected: false`，`Actual: true`，即还要再补一帧）。
+- `powershell -File scripts/validate.ps1`（没动 `rust/`，用默认 target）：**VALIDATE OK**。`flutter test` 463 条全过；`flutter analyze` 16 条 info 与基线相同，改动的两个文件没有新增。
+
+### 审查（1 轮，cursor CLI + `grok-4.7-high-fast`）
+
+- `cursor-review.ps1 -Scope since -Base 34e66be -Wait`，产物 `.claude/reviews/20260923-134518-review.out.md`：**findings: 0**。审查对照了 pub 缓存里 xterm 4.0.0 的 `composingText` / `_paintComposingText` 与 `updateRenderObject` 的清回路径。
