@@ -496,7 +496,7 @@ impl Core {
             let _ = self.terminals.release(id);
         }
         lock(&self.watchers).clear();
-        // 已连上的先开始断开，与下面等在途握手并行：两段各自的宽限期不叠加，Dart 那头只等 8 秒。
+        // 已连上的先开始断开，与下面等在途握手并行：两段各自的宽限期不叠加，Dart 那头等 15 秒（WorkbenchController.shutdownTimeout，要盖住两段双宽限合计 12 秒）。
         let mut tasks = self.disconnect_all();
         // 在途的 `agent_connect` 落定：被中止的已结束进程树；赢了赛跑的已插进连接表，再清一遍。
         drop(self.connect_gate.write().await);

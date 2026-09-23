@@ -355,11 +355,17 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   // ---------------------------------------------------------------- 退出收尾
 
   /// 应用退出前：释放全部终端、断开全部 agent（核心侧 `core_shutdown`）。超时也放行，别把窗口卡住。
+  ///
+  /// 超时要盖住核心收尾的最坏一段（cursor 审查 high，1.4.4）：关窗那一刻若某条 `agent_connect` 正卡在旧连接的
+  /// 断开里（`DISCONNECT_GRACE` 3 秒 + kill 后再等 3 秒），它随后拉起的握手被 `closing` 中止又是同样的两段——合计
+  /// 12 秒，`core_shutdown` 要等这整段才返回。宿主进程若先退出，还在 taskkill 的收尾被一起杀掉，进程树收不完。
+  static const Duration shutdownTimeout = Duration(seconds: 15);
+
   Future<void> shutdown() async {
     final b = bridge;
     if (b == null) return;
     try {
-      await b.coreShutdown().timeout(const Duration(seconds: 8));
+      await b.coreShutdown().timeout(shutdownTimeout);
     } catch (e) {
       debugPrint('[workbench] shutdown: $e');
     }

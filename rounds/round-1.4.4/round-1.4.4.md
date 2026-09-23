@@ -64,4 +64,15 @@
 
 ## cursor 复审
 
-执行器：cursor CLI `grok-4.7-high-fast`。待发。
+执行器：cursor CLI `grok-4.7-high-fast`（未回落）。
+
+### 第 1 轮（`-Scope since -Base v1.4.3`，全量，基于 `6366d9e`）
+
+`.claude/reviews/20260923-160252-review.out.md`：**2 条（high 2 / P2 0 / P3 0）**；任务卡里已定不整改的两条 P3，第 1 条未再报，第 2 条给出了反例（见下表第 2 行）。
+
+| 级别 | finding | 核对 | 处理 |
+|---|---|---|---|
+| high | `session/new` 回了内存里已有的 sessionId 时（fake-agent 不带 `--sessions`；关掉后再新建也是这条路），`_adoptSession` 只 `applyNewSession` + 摘挂空 / 关闭标记，旧转录留在这条「新会话」上；随后 `send` 判 attached，把新 prompt 接在一段 agent 侧没有的历史后面 | 属实：`sessions.session(sid)` 对已有 id 是取回同一个 store，没有清空 | **采纳**：`_adoptSession` 里 id 已有 store 就先 `resetForReplay()` 再 `applyNewSession`（`lib/app/session_controller.dart`）；`session_attach_test` 两条「同一个 id」用例各补一句转录断言 |
+| high | 关窗 8 秒超时盖不住收尾的最坏一段：`agent_connect` 卡在 `previous.disconnect()` 的双宽限（3 s + 3 s）里，随后新拉起的握手被 `closing` 中止又走一遍 `disconnect` 的双宽限，合计 12 秒；Dart 侧 `coreShutdown().timeout(8 s)` 到点放行退出，还在 taskkill 的收尾被一起杀掉，进程树收不完——这是主会话那条「不整改」P3 的反例 | 属实：`disconnect()` 是「等 3 秒 → kill → 再等 3 秒」，握手中止那条路 kill 已先发但仍要走完 `disconnect()` | **采纳**：超时改 15 秒并收成 `WorkbenchController.shutdownTimeout`（`lib/app/workbench_controller.dart`）；`workbench_wiring_test` 补一条「12 秒内不放行、超时之后放行」并断言常量 ≥ 12 秒 |
+
+两条都采纳整改 → 按流程再发第 2 轮全量。

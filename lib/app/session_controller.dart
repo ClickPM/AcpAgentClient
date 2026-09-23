@@ -496,7 +496,12 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
     if (sid is! String) throw StateError('session/new 没有返回 sessionId');
     _sessionAgent[sid] = agent;
     attachedNew(sid);
-    final s = sessions.session(sid, agentId: agent)
+    final SessionStore? existing = sessions.maybe(sid);
+    final s = sessions.session(sid, agentId: agent);
+    // id 与内存里某条撞了（fake-agent 不带 `--sessions` 时总回同一个 id；关掉后再新建也是这条路）：agent 侧这是一条
+    // 空会话，旧转录不能留在它上面——留着的话下一条 prompt 会接在一段 agent 侧没有的历史后面（cursor 审查 high，1.4.4）。
+    if (existing != null) s.resetForReplay();
+    s
       ..cwd = cwd
       ..applyNewSession(result);
     if (workspace.inCurrentWorkspace(cwd)) {

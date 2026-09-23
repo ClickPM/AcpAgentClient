@@ -407,6 +407,7 @@ void main() {
 
       expect(core.calls, <String>['connect', 'new', 'prompt:$_a']);
       expect(c.composer.editor.text, isEmpty);
+      expect(_texts(c.sessions.maybe(_a)!), <String>['你好'], reason: 'agent 侧是一条空会话：旧转录不能留在新会话上（cursor 审查 high）');
       c.dispose();
     });
 
@@ -511,6 +512,7 @@ void main() {
       await c.turn.send();
 
       expect(core.calls.last, 'prompt:$_a');
+      expect(_texts(c.sessions.maybe(_a)!), <String>['新会话里的第一句'], reason: '关掉前那份转录不接到新会话后面');
       c.dispose();
     });
 

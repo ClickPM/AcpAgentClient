@@ -756,6 +756,26 @@ void main() {
     expect(core.shutdowns, 1);
   });
 
+  // 收尾的最坏一段：`agent_connect` 卡在旧连接的双宽限（3 s + 3 s）里，随后新拉起的握手被中止又是一段双宽限，合计 12 秒。
+  // 关窗的超时得盖住它，否则宿主进程先退出、还在 taskkill 的收尾被一起杀掉，进程树收不完（cursor 审查 high，1.4.4）。
+  testWidgets('关窗超时不短于核心收尾的最坏一段（两段双宽限 = 12 秒），超时之后仍放行', (tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.runAsync(loadGalleryFonts);
+    final core = _GatedShutdownCore(); // 永不 release：核心卡死
+    await tester.pumpWidget(AcpApp(source: DataSource.bridge, bridge: core));
+    await tester.pump();
+
+    expect(WorkbenchController.shutdownTimeout, greaterThanOrEqualTo(const Duration(seconds: 12)));
+    AppExitResponse? response;
+    unawaited(tester.binding.handleRequestAppExit().then((r) => response = r));
+    await tester.pump(const Duration(seconds: 12));
+    expect(response, isNull, reason: '12 秒内不能放行');
+    await tester.pump(WorkbenchController.shutdownTimeout - const Duration(seconds: 12) + const Duration(seconds: 1));
+    expect(response, AppExitResponse.exit, reason: '超时之后放行，别把窗口永远卡住');
+  });
+
   // ---------------------------------------------------------------- 输入框（ComposerState）的两条回归
 
   ComposerState composerOn(CoreCommands bridge) => ComposerState(
