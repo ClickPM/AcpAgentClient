@@ -340,16 +340,27 @@ impl Core {
             Ok(manifest) => self.commit_upgrade(current, manifest),
             Err(e) => Err(e),
         };
-        if committed.is_err() {
-            // 只删本次的新目录（它避开了所有在用的入口）；握手子进程刚被结束时 Windows 上会占着文件，短等重试。
-            remove_dir_retrying(&target).await;
+        match committed {
+            Ok(keep) => {
+                // 旧版本的 node_modules 动辄几百 MB，删目录放到阻塞线程上，别占着 runtime 的工作线程。
+                if let Some(keep) = keep {
+                    let dirs = dirs.clone();
+                    let id = entry.id.clone();
+                    let _ = tokio::task::spawn_blocking(move || registry::install::sweep_stale(&dirs, &id, &keep)).await;
+                }
+                Ok(())
+            }
+            Err(e) => {
+                // 只删本次的新目录（它避开了所有在用的入口）；握手子进程刚被结束时 Windows 上会占着文件，短等重试。
+                remove_dir_retrying(&target).await;
+                Err(e)
+            }
         }
-        committed
     }
 
-    /// 切换：新安装记录继承认证状态，记下运行中那条连接的版本（`reloadPending` 用），写盘即切换；然后清旧目录——
-    /// 没有连接就只留新入口，有连接就连它的入口一起留（推迟到它断开后的下次启动），认不出连接的入口就先不清。
-    fn commit_upgrade(&self, current: &InstallManifest, mut next: InstallManifest) -> Result<()> {
+    /// 切换：新安装记录继承认证状态，记下运行中那条连接的版本（`reloadPending` 用），写盘即切换。返回清旧目录时要留下的
+    /// 入口——没有连接就只留新入口，有连接就连它的入口一起留（推迟到它断开后的下次启动），认不出连接的入口就先不清（`None`）。
+    fn commit_upgrade(&self, current: &InstallManifest, mut next: InstallManifest) -> Result<Option<Vec<PathBuf>>> {
         let dirs = self.registry_dirs();
         let id = current.id.clone();
         next.auth_status = current.auth_status;
@@ -359,10 +370,7 @@ impl Core {
         // settings 里的 registry 条目升级前就在（带用户的 env，不动）；被手动删了就补回，同名 custom 条目则报错不切换。
         self.write_registry_settings(&id)?;
         next.save(dirs)?;
-        if let Some(keep) = keep {
-            registry::install::sweep_stale(dirs, &id, &keep);
-        }
-        Ok(())
+        Ok(keep)
     }
 
     /// 画板 53「已升级 · 待重载」：该 agent 正连着，而那条连接的拉起入口已不是安装记录里的（升级切走了）→ 运行中那条的版本

@@ -78,3 +78,39 @@ registry 型（npx / binary）agent 装好之后能看出「registry 有新版�
 
 ## 本轮实测
 
+### 验收 1–6
+
+| # | 结果 |
+|---|---|
+| 1 | PASS：`registry` crate 20 项（新增 `version_dir_sidesteps_directories_in_use`、`sweep_stale_keeps_what_is_in_use`，`binary_install_round_trip_and_sha_mismatch` 加了「撞名换名 → 装成功后清旧目录」一段）；`acp-core` 新增 3 项（`reload_pending_only_when_a_live_connection_runs_something_else`、`switch_plan_records_the_running_version_and_keeps_its_directory`、`binary_upgrade_switches_only_after_success_and_sweeps_the_old_directory`——本地 HTTP 服务 + 系统 tar 走完 binary 升级：可升级判定、已安装拒绝首装、进度都带 `upgrade`、切换后认证状态与 settings env 继承、旧目录清掉、同版本再升被拒、坏包（sha256 不符）时旧版原样可用且新目录不留、启动清扫删残留目录不动在用的） |
+| 2 | PASS：`test/projection/registry_upgrade_test.dart` 3 项 |
+| 3 | PASS：`test/ui/registry_upgrade_test.dart` 7 项（五态 + binary 升级说明行 + 标题行三态） |
+| 4 | PASS：`test/app/registry_upgrade_wiring_test.dart` 4 项 |
+| 5 | PASS：`flutter test test/gallery_test.dart --plain-name 53-registry-upgrade` / `50-registry` 出图，与 PNG 逐段对照一致（gallery 的 53 页沿用 51 的 800 宽单列版式，画板是 1200 宽两列；50 的 Codex 行、标题行「检查于 12 分钟前」+ 刷新按钮与画板一致） |
+| 6 | PASS：`scripts/validate.ps1` 16 项全绿（`cargo test` / `clippy -D warnings`、`flutter analyze` 无新增、`flutter test` 437 项） |
+
+### 验收 7 · Windows 真跑（规则 9）
+
+构建：`CARGO_TARGET_DIR=D:/cargo-target/AcpAgentClient-upgrade flutter build windows --release -t lib/main_headless.dart`（为什么不用共用 target 目录见下面「踩的坑」）。
+启动器 `rounds/round-board-53/r53-run.ps1`：每组一个干净的 `APPDATA`（`D:\cargo-target\AcpAgentClient-upgrade\r53-data\{a,b}`），报告 `r53-data\<步>-report.json`。
+
+| 步 | 做法 | 结果 |
+|---|---|---|
+| a1 首装 pi-acp | `ACP_R5_REFRESH=1 ACP_R5_INSTALL=pi-acp` | 15.6 s；装到 `agents\pi-acp\0.0.33\`（新布局），目录里只有 `0.0.33` 与 `install.json` |
+| a2 撞名升级 | `install.json` 的 `version` 改成 `0.0.1` → `ACP_R5_UPGRADE=pi-acp` | 列表 `updateAvailable: 0.0.33`；进度 `upgrade/npx:resolve → upgrade/npx:handshake → upgrade/done`，2.3 s；目标名 `0.0.33` 撞上在用的目录 → 装到 `0.0.33-1790129191013`；切换后旧 `0.0.33` 清掉；`updateAvailable` 归 null |
+| a3 旧布局升级 | 手工把 `node_modules` / `package.json` / `package-lock.json` 挪回 `agents\pi-acp\` 根上、`install.json` 改成旧布局 → `ACP_R5_UPGRADE=pi-acp` | 2.3 s 升到 `agents\pi-acp\0.0.33\`；**npm 没有装回上一级**（核心从新目录的 `node_modules` 读入口，装回去就会失败）；根上三样旧布局文件切换后全部清掉，剩 `0.0.33` 与 `install.json` |
+| b1 首装 codex-acp | `ACP_R5_REFRESH=1 ACP_R5_INSTALL=codex-acp` | 133 s（npm 拉平台二进制）；`agents\codex-acp\1.13.0\` |
+| b2 连着会话升级 → Reload | `version` 改 `0.0.1` → `ACP_R5_AGENT=codex-acp ACP_R5_CWD=<worktree> ACP_R5_UPGRADE=codex-acp ACP_R5_RELOAD=1` | 新会话建好（连接活着）→ 升级 8.9 s，装到 `1.13.0-1790129367858`；**旧目录 `1.13.0` 保留**（运行中的连接在用），`install.json` 记 `previousVersion: 0.0.1`，列表 `reloadPending: "0.0.1"`；Reload Agent 之后 `reloadPending` 归 null、新连接的拉起入口在新目录。这一跑 Reload 里的 `session/load` 回了 `-32603`，退回新建会话——见 b4 |
+| b3 重启清扫 | 什么都不做，只起一次（`ACP_R5_REFRESH=1` 让进程多活几秒） | 启动清扫删掉 `1.13.0`，剩 `1.13.0-1790129367858` 与 `install.json` |
+| b4 带一轮再升级 | `version` 改 `0.0.1` → 同 b2 再加 `ACP_R5_PROMPT="Reply with exactly: ok"` | 一轮 `end_turn`；升级装到空出来的 `1.13.0`，在用的 `…-1790129367858` 保留，`reloadPending: "0.0.1"`；Reload 后 `session/load` 在新版本上**载回原会话**（会话 id 不变、无错误），`reloadPending` 归 null。**b2 的 `-32603` 与升级无关**：codex-acp 没跑过一轮的会话不落盘，`session/load` 载不回来（不升级、直接 Reload 同样如此） |
+
+### 偏离
+
+- binary 升级的说明行写「新版本解压完成后才切换」而不是画板注记的「握手通过」——binary 的安装与升级都不做首次握手，照写就是在说一件没发生的事。已记 `design/DIVERGENCE.md` 第 28 条。
+- gallery 的 53 页是 800 宽单列（沿用 51 的 `BoardPage` 版式），画板是 1200 宽两列；只影响对照页排版。
+
+### 踩的坑
+
+- **共用 `CARGO_TARGET_DIR` 会串代码**：第一次无头构建报 `no method named registry_update found for Arc<Core>`——cargo 给 path 依赖算产物哈希用的是**相对 workspace 根的路径**，所有副本的 `acp-core` 落在同一个产物文件名上，新鲜与否只比「产物 mtime vs 本副本源文件 mtime」；别的副本 09:46 在 `cargokit` 目录编过一次 release，比我 09:44 最后改的源文件新，于是被当成新鲜直接用了。反过来，我第一次 `validate.ps1` 在共用 debug 目录编出的 `acp-core` 也会被其他副本当新鲜用，所以收尾时 `CARGO_TARGET_DIR=D:/cargo-target/AcpAgentClient cargo clean -p acp-core -p registry -p acp_bridge -p acp-smoke`（dev profile，4358 个文件 / 17.9 GiB，含历代变体与 incremental；清之前确认没有 cargo / rustc 在跑）。之后本分支的构建与 validate 一律 `-CargoTargetDir D:\cargo-target\AcpAgentClient-upgrade`。
+- 升级后清旧目录原本在 tokio 工作线程上同步删（node_modules 动辄几百 MB），改成 `spawn_blocking`（与本段实测同一个提交；真跑用的是改后的构建）。
+
