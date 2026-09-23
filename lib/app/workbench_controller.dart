@@ -133,6 +133,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     bridge: bridge,
     sessions: sessions,
     cwd: () => workspace.project?.path,
+    connect: (agent, cwd) => session.connectAgent(agent, cwd),
     registryName: (id) => agents.registry.byId(id)?.name,
     currentAgentId: () => session.agentId ?? session.connection?.agentId,
     openAgentsTab: () => shell.openTab(ShellTab.agents),
@@ -190,14 +191,10 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     final b = bridge;
     if (b == null) return;
     _subs.addAll(<StreamSubscription<CoreEventRecord>>[
-      b.on(CoreEvent.sessionUpdate).listen((e) {
-        final sid = e.json?['sessionId'];
-        if (sid is String) session.noteUpdateArrival(sid);
-        _enqueue(e, (json) {
-          sessions.applySessionUpdateEnvelope(json);
-          shell.followLocations(json, sessionId: session.sessionId);
-        });
-      }),
+      b.on(CoreEvent.sessionUpdate).listen((e) => _enqueue(e, (json) {
+            sessions.applySessionUpdateEnvelope(json);
+            shell.followLocations(json, sessionId: session.sessionId);
+          })),
       b.on(CoreEvent.clientRequest).listen((e) => _enqueue(e, (json) => sessions.applyClientRequestEnvelope(json))),
       b.on(CoreEvent.agentState).listen((e) => _enqueue(e, (json) {
             sessions.applyAgentState(json);

@@ -130,7 +130,7 @@ void main() {
     expect(store.entries, hasLength(40), reason: '整段历史都在');
     expect(store.currentModeId, 'ask', reason: 'LoadSessionResponse 的 modes 落进来了');
     expect(c.session.sessionId, _session);
-    // 40 条更新 + 一次重置合并成一次投影层通知（另外几次是 selectSession / _ensureLoaded 自己的 _touch）。
+    // 40 条更新 + 一次重置合并成一次投影层通知（另外几次是 selectSession / ensureLoaded 自己的 touch）。
     expect(notifications, lessThan(5), reason: '重放不得逐条刷新，实得 $notifications');
   });
 

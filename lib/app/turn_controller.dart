@@ -14,6 +14,7 @@ import '../projection/wire.dart';
 import 'composer_state.dart';
 import 'core_bridge.dart';
 import 'guarded.dart';
+import 'session_attach.dart';
 import 'session_controller.dart';
 
 class TurnController extends ChangeNotifier with GuardedNotifier {
@@ -38,7 +39,7 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     return true;
   }
 
-  /// 「选了 agent 但还没有会话」时，第一条消息现开一条：在途期间挡住重复点发送。
+  /// 当前会话还没挂在连接上时（现开一条 / 挂回来），在途期间挡住重复点发送。
   bool _startingSession = false;
 
   Future<void> send() async {
@@ -46,27 +47,38 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     final id = session.agentId;
     if (b == null || id == null) return;
     if (composer.editor.text.trim().isEmpty && composer.pendingBlocks.isEmpty) return; // 空输入不开会话
-    // 启动后的画板 01 状态 1：agent 已选、会话还没开（进程也没拉）。第一条消息把它开出来，
-    // 失败（认证 / 缺 Node）时 `newSession` 已经把错误与认证页安排好，输入框里的文本原样留着。
-    // 守卫看 `store`（= 没有可用转录）。已知问题：选中的会话只是**载不回**转录时 `store` 也是 null，
-    // 于是这里会开一条新会话把选中的那条静默顶掉（审查 finding P2）。两轮针对性整改都在别处引入了
-    // 新缺陷（改 `sessionId` 判据 → 不支持 loadSession 的 agent 按发送零响应；加能力判据 →
-    // 覆盖掉 `newSession` 安排好的认证 / 缺 Node 报错，且能力未知时仍会顶掉），
-    // 所有者裁定 2026-09-18：回退到出厂行为，记 `rounds/BACKLOG.md` 等单独一轮做。
-    if (session.store == null) {
-      if (_startingSession) return;
+    if (_blockedByClose()) return;
+    // 按当前会话相对它 agent 当前那条连接的状态分流（iteration-07，BACKLOG P0「会话身份与生命周期」）。
+    // 以前只看有没有转录（`store`）：载不回转录的会话被另开一条静默顶掉，换过进程的会话直接发、撞 `-32602`。
+    final target = session.sessionId;
+    var state = session.attachOf(target);
+    if (state != SessionAttach.attached) {
+      if (_startingSession || session.waitingForAgent) return;
       _startingSession = true;
       try {
-        await session.newSession(session.agentRefOf(id));
+        // 没挂上但可能挂回来：先挂回（连上 → load / resume）。连上之后才知道挂不回的，落到下面按 R3 新开。
+        if (state == SessionAttach.detached) {
+          state = await session.reattach();
+          // 挂回期间点了侧栏另一条（等待期里侧栏仍可点）：这条消息不改投别的会话，输入框原样留着。
+          if (session.sessionId != target) return;
+        }
+        // 画板 01 状态 1（还没有会话）或挂不回：第一条消息现开一条（R3 既定语义；挂不回的输入框占位文案已经先说了）。
+        // 失败（认证 / 缺 Node / 没选项目）时 `newSession` 已经把错误与认证页安排好，输入框里的文本原样留着。
+        if (state == SessionAttach.none || state == SessionAttach.unattachable) {
+          await session.newSession(session.agentRefOf(id));
+        }
       } finally {
         _startingSession = false;
+      }
+      if (state == SessionAttach.detached) {
+        _failDetached();
+        return;
       }
     }
     // 静默 return 是有意的：走到这里说明 `newSession` 失败了，而它的每条失败路径都已经把
     // 真实原因写进会话控制器的 `lastError`（认证 / 缺 Node / 没选项目目录）并安排好认证页，这里再写一句会盖掉它。
     final s = session.store;
     if (s == null) return;
-    if (_blockedByClose()) return;
     // 快照要取在开会话之后：拉起进程 + `initialize` + `session/new` 要几百毫秒到数秒，
     // 这期间新打的字与新加的附件也得发出去，否则下面的 clear 会把它们静默抹掉（审查 finding P2，2026-09-18）。
     final blocks = _promptBlocks(composer.editor.text);
@@ -77,6 +89,31 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     s.startTurn(<ContentBlockWire>[for (final b in blocks) ContentBlockWire(b)]);
     unawaited(session.stampPromptSent());
     await _runTurn(b, id, s, blocks);
+  }
+
+  /// 挂回失败的这一轮：不开新会话顶掉选中的那条，用户的消息与原因收在转录里（画板 31 的结束行，
+  /// 与 `session/prompt` 回错误那条路同一个出口，所有者裁定 2026-09-23），输入框清空。
+  void _failDetached() {
+    final blocks = _promptBlocks(composer.editor.text);
+    final s = session.detachedStore();
+    if (blocks.isEmpty || s == null) return;
+    composer.clearForSend();
+    session.clearUnread(s.sessionId);
+    s.startTurn(<ContentBlockWire>[for (final b in blocks) ContentBlockWire(b)]);
+    s.endTurn(error: session.lastError ?? '这条会话没能重新挂到 agent 上');
+    touch();
+  }
+
+  /// 往当前会话发命令之前（Restore / Regenerate / 三个下拉）：没挂在活着的连接上就先挂回（iteration-07），
+  /// 不然重载 / 崩溃之后发出去只会撞 `-32602 unknown session`。挂不回返回 false，原因记到本对象的 [lastError]。
+  Future<bool> _ensureAttached() async {
+    final state = session.attachOf(session.sessionId);
+    if (state == SessionAttach.attached) return true;
+    if (session.waitingForAgent) return false;
+    if (state == SessionAttach.detached && await session.reattach() == SessionAttach.attached) return true;
+    lastError = session.lastError ?? '这条会话在当前连接上无法继续，新建一个会话再发';
+    touch();
+    return false;
   }
 
   /// 在途的那一轮（`session/prompt` 还没返回）。Restore / Regenerate 要先等它结束，
@@ -178,6 +215,8 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     // 关掉的会话不能 Restore / Regenerate：`restoreTo` 会先把本地转录截断，随后的 `session/prompt`
     // 必然失败，本地就少了一截而 agent 侧还是关闭前那份（审查第 2 轮 P2）。
     if (_blockedByClose()) return;
+    // 挂不回就什么都不动（截断在前的话本地白白少一截）；挂回时整段重放过的，点的那条气泡已经不在转录里了。
+    if (!await _ensureAttached() || !s.entries.contains(message)) return;
     // 先把在途的那一轮收干净（发 cancel 并等 session/prompt 真正返回），再截断重发。
     if (s.isRunning) {
       await cancel();
@@ -226,7 +265,7 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     final b = bridge;
     final id = session.agentId;
     if (s == null || b == null || id == null) return;
-    if (_blockedByClose()) return;
+    if (_blockedByClose() || !await _ensureAttached()) return;
     await guard(() async {
       final result = await b.sessionSetConfigOption(id, s.sessionId, configId, value);
       s.applyConfigOptionsResponse(result);
@@ -248,7 +287,7 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     final b = bridge;
     final id = session.agentId;
     if (s == null || b == null || id == null) return;
-    if (_blockedByClose()) return;
+    if (_blockedByClose() || !await _ensureAttached()) return;
     await guard(() async {
       await b.sessionSetMode(id, s.sessionId, modeId);
       s.applyModeSelected(modeId);

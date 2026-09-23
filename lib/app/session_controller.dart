@@ -2,6 +2,7 @@
 // 会话头标题、输入框可用性、画板 34 的状态条）、agent 能力（R6）、侧栏列表与搜索（画板 04）、画板 06 的活动指示、
 // 新建 / 重载 / 点选 / `session/load` / resume / close / delete / `session/list` 校对（R6）、改名与删除确认（画板 41）、
 // 本地索引的写回。协议状态仍在 `lib/projection/`（规则 2），这里只是「唯一知道桥的人」里管会话的那一段。
+// 会话挂在哪条 agent 连接上（四态、挂回、`session/load`、关闭态）在混入的 `session_attach.dart`（iteration-07 拆出）。
 //
 // 依赖方向（任务卡附录 B）：读本地索引走 [index]、已装 agent 与 registry 走 [agents]、当前项目走 [workspace]；
 // 反向的四件事（切回工作台页、判断是否在工作台页、右栏切到 Agents 标签、进认证页）由组合根经回调接线。
@@ -23,10 +24,11 @@ import '../ui/shell/sidebar.dart';
 import 'agents_state.dart';
 import 'core_bridge.dart';
 import 'guarded.dart';
+import 'session_attach.dart';
 import 'session_index.dart';
 import 'workspace_state.dart';
 
-class SessionController extends ChangeNotifier with GuardedNotifier {
+class SessionController extends ChangeNotifier with GuardedNotifier, SessionAttachment {
   SessionController({
     required this.bridge,
     required this.sessions,
@@ -40,15 +42,19 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
     required this._openAuth,
   });
 
+  @override
   final CoreCommands? bridge;
 
   // ---- 投影层（组合根持有）
+  @override
   final Sessions sessions;
+  @override
   final UpdateBatcher batcher;
 
   // ---- 同级对象（组合根持有）
   final SessionIndex index;
   final AgentsState agents;
+  @override
   final WorkspaceState workspace;
 
   /// 主区切回工作台页（只换页不通知；本对象随后的 `touch` 会带上）。
@@ -66,10 +72,12 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
   // ---- 本地态（协议之外）
   List<SidebarSession> sidebarSessions = const <SidebarSession>[];
   String? agentId;
+  @override
   String? sessionId;
 
   /// 中栏内容整块换过几次（画板 05 A 组的入场触发器）。切会话、新建会话、重载完成各 +1。
   /// 不能只看 `sessionId`：重载 agent 若 `session/load` 回的是同一条，id 没变但内容确实整块换了。
+  @override
   int sessionEpoch = 0;
 
   /// 正在等 agent 把会话换过来（画板 05 B 组的等待期）：转录区降到 `opacity.pending` 且不可交互，
@@ -77,9 +85,16 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
   /// → `session/load`）与新建会话（[newSession]：拉进程 → `initialize` → `session/new`，含 `send()`
   /// 现开一条那条路）。画板 05 B 组只画了 reload 图标那个触发，但两者都是「时长不可预知的整块替换」，
   /// 等待期的规格一字不差地套用；新建会话那条是所有者手测报回来的（2026-09-18：选完 agent
-  /// 到会话出来这几秒界面一动不动，像卡住了）。
+  /// 到会话出来这几秒界面一动不动，像卡住了）。发送前把会话挂回来（`reattach`，iteration-07）也用这一套。
+  @override
   bool waitingForAgent = false;
   final Map<String, String> _sessionAgent = <String, String>{}; // sessionId → agentId
+
+  @override
+  String? registeredOwner(String sessionId) => _sessionAgent[sessionId];
+
+  @override
+  void registerOwner(String sessionId, String agent) => _sessionAgent[sessionId] = agent;
 
   // ---- UI 态
   String search = '';
@@ -156,8 +171,11 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
 
   String get composerPlaceholder {
     if (!hasAgent) return '安装并选择一个 agent 后即可输入';
+    // 挂不回的会话（iteration-07）：发送只能照 R3 新开一条，先说清楚，别让它静默顶掉选中的这条。
+    final unattachable = hasSession && !sessionClosed && attachOf(sessionId) == SessionAttach.unattachable;
     // 会话是发第一条消息时才开的，cwd 从当前项目来：没项目就先说清楚，别让发送静默失败。
-    if (!hasSession && workspace.project == null) return '先选一个项目目录，新会话的 cwd 从它来';
+    if ((!hasSession || unattachable) && workspace.project == null) return '先选一个项目目录，新会话的 cwd 从它来';
+    if (unattachable) return '这条会话在当前连接上无法继续，发送会新开一条';
     return 'Message to $agentDisplayName , @ to include context , / for commands';
   }
 
@@ -313,9 +331,9 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
     // 正在改名的那条（侧栏行或会话头）若不属于这个 workspace，它的输入框随行一起没了，`renamingSessionId`
     // 不能悬着：切回来时那行会直接以改名态出现、带着上次没提交的文本（合并复审 2026-09-18）。
     final renaming = renamingSessionId;
-    if (renaming != null && !workspace.inCurrentWorkspace(_cwdOf(renaming))) cancelRename();
+    if (renaming != null && !workspace.inCurrentWorkspace(cwdOf(renaming))) cancelRename();
     final id = sessionId;
-    if (id == null || workspace.inCurrentWorkspace(_cwdOf(id))) return;
+    if (id == null || workspace.inCurrentWorkspace(cwdOf(id))) return;
     sessionId = null;
     sessionEpoch++;
   }
@@ -331,24 +349,23 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
     touch();
   }
 
-  /// 每条会话到达过多少条 `session/update`（在事件到达时计数，不等 batcher）：
-  /// `session/load` 失败时用它区分「一条都没重放」与「重放到一半断了」。组合根在 `session_update` 到达时调。
-  void noteUpdateArrival(String sessionId) => _updateArrivals[sessionId] = (_updateArrivals[sessionId] ?? 0) + 1;
-
   // ---- agent 能力（R6）：一律读 `agentCapabilities`，不按 agent 名判（规则 2）。
   // 能力是 agent 级的，不是会话级的——侧栏里各条会话可能属于不同 agent，所以按 agentId 查。
 
-  JsonMap? _capsOf(String? agent) => agent == null ? null : sessions.agents[agent]?.agentCapabilities;
+  @override
+  JsonMap? capsOf(String? agent) => agent == null ? null : sessions.agents[agent]?.agentCapabilities;
 
-  JsonMap _sessionCapsOf(String? agent) {
-    final caps = _capsOf(agent)?['sessionCapabilities'];
+  @override
+  JsonMap sessionCapsOf(String? agent) {
+    final caps = capsOf(agent)?['sessionCapabilities'];
     return caps is Map ? caps.cast<String, dynamic>() : const <String, dynamic>{};
   }
 
-  JsonMap get _sessionCaps => _sessionCapsOf(agentId);
+  JsonMap get _sessionCaps => sessionCapsOf(agentId);
 
   /// `agentCapabilities.loadSession`：重开后能不能把历史重放回来。
-  bool canLoadSessionOf(String? agent) => _capsOf(agent)?['loadSession'] == true;
+  @override
+  bool canLoadSessionOf(String? agent) => capsOf(agent)?['loadSession'] == true;
 
   bool get canLoadSession => canLoadSessionOf(agentId);
   bool get canListSessions => _sessionCaps.containsKey('list');
@@ -358,7 +375,7 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
   /// 照给，与侧栏删除图标同口径：严判的话那会儿粘贴会静默失灵，而多带一个 `image` 块最坏是被 agent
   /// 拒掉一条 prompt。连上之后按它自己声明的来。
   bool get canPromptImage {
-    final caps = _capsOf(agentId);
+    final caps = capsOf(agentId);
     if (caps == null) return true;
     final prompt = caps['promptCapabilities'];
     return prompt is Map && prompt['image'] == true;
@@ -367,8 +384,7 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
   /// ≡ 菜单的三个动作（画板 41）：无能力整行不渲染。
   /// Resume 与 Close 还要看会话是不是还「活着」——实测 dsh-acp-interactive 1.3.0 对活着的会话回
   /// `-32602 session is already active in this ACP connection`（2026-09-16）：`session/resume` 是给**没在本连接上活着**的
-  /// 会话重新挂上下文用的，所以只在 `session/close` 之后给；反过来 Close 只对还活着的给。
-  bool get sessionClosed => sessionId != null && _closedSessions.contains(sessionId);
+  /// 会话重新挂上下文用的，所以只在 `session/close` 之后给；反过来 Close 只对还活着的给（`sessionClosed` 在 `session_attach.dart`）。
   bool get canResumeSession => hasSession && sessionClosed && _sessionCaps.containsKey('resume');
   bool get canCloseSession => hasSession && !sessionClosed && _sessionCaps.containsKey('close');
   bool get canDeleteSession => hasSession && _sessionCaps.containsKey('delete');
@@ -384,7 +400,7 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
     hidePopover(newSessionAnchor);
     // 重入守卫（发布前审查 P2，2026-09-18）：等待期里会话头的 `+` 仍可点（`IgnorePointer` 只包住 `_body()`），
     // 再选一次 agent 会让两条 newSession 交叠：第二条存下的 `wasWaiting` 是 true，它后返回时把等待态永久留在 true
-    // （转录区一直变暗不可点、会话头 spinner 不停、[reloadAgent] 永远被挡）；而且两条都走 `_ensureConnected`，
+    // （转录区一直变暗不可点、会话头 spinner 不停、[reloadAgent] 永远被挡）；而且两条都走 [ensureConnected]，
     // 第二条的 `agent_connect` 会把第一条刚拉起的进程断掉——正是本轮要避免的那种误杀。`send()` 现开一条
     // 与 `+` 交错是同一回事。[reloadAgent] 的「没有旧会话」分支自己已经在等待期里，走不带守卫的 [_newSession]。
     if (waitingForAgent) return;
@@ -410,20 +426,10 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
       // 一起杀掉。所有者报障 2026-09-18（dsh-acp-interactive）：一条会话跑着任务时新建另一条，
       // 跑着的那条当场中断，回头再给它发消息就撞 agent 的 `-32602 unknown session`——
       // 进程已经换了一个，旧 sessionId 在新进程里不存在。要换进程走会话头的「重载 agent」。
-      await _ensureConnected(b, agent.id, cwd);
+      await ensureConnected(agent.id, cwd);
       await createSession(agent.id, cwd);
     } on CoreCommandError catch (e) {
-      lastError = e.message;
-      switch (e.code) {
-        // `session/new` 回 -32000：认证页（画板 52），成功后自动重试这个 cwd 的新会话（docs/design.md § 5 第 5 条）。
-        case 'auth_required':
-          await _openAuth(agent.id, cwd);
-        // npx 型 agent 缺 Node：Agents 面板顶上的受管 Node 提示卡（画板 51）。
-        case 'node_missing':
-          _openAgentsTab();
-        default:
-          break;
-      }
+      await onConnectError(e, agent.id, cwd);
     } catch (e) {
       lastError = e.toString();
       debugPrint('[workbench] newSession: $e');
@@ -433,53 +439,89 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
     }
   }
 
-  /// 已连接的 agent 上开一个会话并切过去（`newSession` 的后半段；认证成功后的自动重试也走这里）。
+  /// 连 agent / 开会话失败的共用出口（新建会话与挂回 [reattach] 两条路同一口径）：原因写进 [lastError]，
+  /// 认证与缺 Node 各自把去处安排好。挂回失败时一轮对话直接用这里写好的原因，不另写一句盖掉它。
+  @override
+  Future<void> onConnectError(CoreCommandError e, String agent, String cwd) async {
+    lastError = e.message;
+    switch (e.code) {
+      // `session/new` 回 -32000：认证页（画板 52），成功后自动重试这个 cwd 的新会话（docs/design.md § 5 第 5 条）。
+      case 'auth_required':
+        await _openAuth(agent, cwd);
+      // npx 型 agent 缺 Node：Agents 面板顶上的受管 Node 提示卡（画板 51）。
+      case 'node_missing':
+        _openAgentsTab();
+      default:
+        break;
+    }
+  }
+
+  /// 已连接的 agent 上开一个会话（`newSession` 的后半段；认证成功后的自动重试也走这里）。
+  /// 索引按**这条**会话写（`target`）：它不一定成了当前会话（见 [_adoptSession]）。
   Future<void> createSession(String agent, String cwd) async {
     final b = bridge;
     if (b == null) return;
+    final SessionStore s;
     try {
-      _adoptSession(agent, cwd, await b.sessionNew(agent, cwd));
+      s = _adoptSession(agent, cwd, await b.sessionNew(agent, cwd));
     } finally {
       // 核心按 session/new 的结果回写了认证状态（已登录 / 需要认证），面板上的徽章跟着刷（画板 50 / 51 / 70）。
       unawaited(agents.refreshRegistry());
     }
-    await saveIndex();
+    await saveIndex(target: s);
   }
 
   /// terminal 型认证由核心顺手开好的会话（`terminal_auth_run` 回的 `session`）：直接采用并写索引。
   Future<void> adoptAuthSession(String agent, String cwd, JsonMap session) async {
-    _adoptSession(agent, cwd, session);
-    await saveIndex();
+    await saveIndex(target: _adoptSession(agent, cwd, session));
+  }
+
+  /// 认证页（没连上的 agent 先 `initialize`）也经这里连：连接换了一代要记账（iteration-07），
+  /// 不然这个 agent 名下内存里的会话还当自己挂着，发出去撞 `-32602 unknown session`。
+  Future<void> connectAgent(String agent, String? cwd) async {
+    final b = bridge;
+    if (b != null) await _connect(b, agent, cwd);
   }
 
   /// `agent_connect` + 把返回的 `initialize` 立刻落进 agent 状态表。
   /// 为什么不等 `acp/agent_state: initialized` 事件：事件要过一轮 batcher 才到，而紧接着的
   /// `session/new` / `session/load` 就要读 `agentCapabilities` 裁剪动作，等不起（R6）。落两次是幂等的。
-  Future<JsonMap> _connect(CoreCommands b, String agent, String cwd) async {
+  /// 换上的是一条新连接：这个 agent 名下内存里的会话全部挂空（iteration-07），切过去或再发时自动挂回。
+  Future<JsonMap> _connect(CoreCommands b, String agent, String? cwd) async {
     final result = await b.agentConnect(agent, cwd: cwd);
     final init = result['initialize'];
     if (init is Map) sessions.agents.applyInitializeResult(agent, init.cast<String, dynamic>());
+    connectionReplaced(agent);
     return result;
   }
 
   /// 已经连着就不动它（`agent_connect` 会先断开旧连接，重连会把正在跑的会话一起杀掉）。
-  Future<void> _ensureConnected(CoreCommands b, String agent, String cwd) async {
-    if (sessions.agents[agent]?.state == AgentLifecycle.initialized) return;
+  @override
+  Future<void> ensureConnected(String agent, String cwd) async {
+    final b = bridge;
+    if (b == null || sessions.agents[agent]?.state == AgentLifecycle.initialized) return;
     await _connect(b, agent, cwd);
   }
 
-  /// `session/new` 的结果落到投影层并切成当前会话。
-  void _adoptSession(String agent, String cwd, JsonMap result) {
+  /// `session/new` 的结果落到投影层；会话的 cwd 属于当前项目时才切成当前会话。
+  /// 认证期间换了项目（BACKLOG P0「认证完成后建出来的会话挂到旧目录」，iteration-07）：认证页成功后的自动重试
+  /// 用的是发起时的 cwd，会话照常登记在它自己的目录下（切回那个项目就在侧栏里），但不顶掉当前项目里正看着的。
+  /// 平常的新建会话在等待期里换不了项目（`WorkspaceState` 的等待期守卫），这道判断对它恒真。
+  SessionStore _adoptSession(String agent, String cwd, JsonMap result) {
     final sid = result['sessionId'];
     if (sid is! String) throw StateError('session/new 没有返回 sessionId');
-    agentId = agent;
-    sessionId = sid;
-    sessionEpoch++;
     _sessionAgent[sid] = agent;
-    sessions.session(sid, agentId: agent)
+    attachedNew(sid);
+    final s = sessions.session(sid, agentId: agent)
       ..cwd = cwd
       ..applyNewSession(result);
-    _showWorkbench();
+    if (workspace.inCurrentWorkspace(cwd)) {
+      agentId = agent;
+      sessionId = sid;
+      sessionEpoch++;
+      _showWorkbench();
+    }
+    return s;
   }
 
   /// 重载 agent（画板 01 / 41）：断开 + 重拉。agent 声明 `loadSession` 时重连后自动 `session/load` 回原来那个会话
@@ -514,7 +556,7 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
         await _connect(b, id, cwd);
         if (!canLoadSessionOf(id) || !await loadSession(id, previous, sessions.maybe(previous)?.cwd ?? cwd)) {
           // 不支持 loadSession：开新会话，旧转录留在内存里只读（R3 的做法）。
-          // 支持但载失败：`loadSession` 已经把那条从内存里拿掉了（转录已清，留空壳会挡住下次重试），这里同样开新会话。
+          // 支持但载失败：这次重放整段作废、原来那份转录原样留着（仍标挂空，点回去会再载），这里同样开新会话。
           await createSession(id, cwd);
         } else {
           loaded = true;
@@ -529,7 +571,7 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
     }
   }
 
-  /// 侧栏点选一条会话（画板 04）。内存里没有转录且 agent 声明 `loadSession` 时顺带 `session/load` 把历史重放回来。
+  /// 侧栏点选一条会话（画板 04）。它没挂在连接上时（内存里没有转录、关过、连接换过一代）顺带挂回来（[ensureLoaded]）。
   Future<void> selectSession(String id) async {
     _showWorkbench();
     // 会话头正在改名时切走：那个输入框改的是原来那条会话，跟着切过去会把名字落到别人头上。
@@ -540,104 +582,12 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
     // 切进来就算「被查看」：绿点淡出（画板 06 B ④）。
     clearUnread(id);
     touch();
-    await _ensureLoaded(id);
+    await ensureLoaded(id);
   }
-
-  /// 关过的会话（`session/close`）：再点开要重新 `session/load`，不能拿内存里那份当还活着。
-  final Set<String> _closedSessions = <String>{};
-
-  /// 每条会话被 `session/close` 的次数：`session/load` 用它判断「我在途时有没有人把它关了」。
-  final Map<String, int> _closeEpoch = <String, int>{};
-
-  /// 正在 `session/load` 的会话（同一条不并发）。
-  final Set<String> _loadsInFlight = <String>{};
-
-  /// 每条会话到达过多少条 `session/update`（见 [noteUpdateArrival]）。
-  final Map<String, int> _updateArrivals = <String, int>{};
 
   /// `session/list` 校对出来的「agent 侧已经没有了」的会话（裁定 2026-09-15：只校对，不自动删、不自动加）。
+  @override
   final Set<String> missingOnAgent = <String>{};
-
-  /// 侧栏点到一条内存里没有转录的会话：连上它的 agent 再 `session/load`。
-  /// agent 没声明 `loadSession` 就什么都不做（转录空着，画板 01 的空态）。
-  Future<void> _ensureLoaded(String id) async {
-    final b = bridge;
-    final owner = _sessionAgent[id];
-    if (b == null || owner == null || owner.isEmpty) return;
-    final reopening = _closedSessions.contains(id);
-    if (sessions.maybe(id) != null && !reopening) return;
-    final cwd = _cwdOf(id) ?? workspace.project?.path;
-    if (cwd == null) return;
-    if (missingOnAgent.contains(id)) {
-      lastError = '$id 在 agent 侧已经不存在了，载不回历史';
-      touch();
-      return;
-    }
-    await guard(() async {
-      await _ensureConnected(b, owner, cwd);
-      if (canLoadSessionOf(owner)) {
-        await loadSession(owner, id, cwd);
-        return;
-      }
-      // 没有 loadSession 但有 resume：agent 侧把上下文挂回来，转录只有内存里这份（不重放，规范如此）。
-      if (_sessionCapsOf(owner).containsKey('resume')) {
-        await b.sessionResume(owner, id, cwd);
-        sessions.session(id, agentId: owner).cwd = cwd;
-        _closedSessions.remove(id);
-      }
-    });
-    touch();
-  }
-
-  /// 这条会话的 cwd：本地索引里登记的，没有就退到内存里那份转录的。
-  String? _cwdOf(String sessionId) => index.cwdOf(sessionId) ?? sessions.maybe(sessionId)?.cwd;
-
-  /// `session/load`（R6）：整段历史由 agent 用 `session/update` 重放，**重放期间不逐条刷新 UI**——
-  /// 事件照常入队，但 batcher 挂起到命令返回后一次性刷完。成功返回 true。
-  Future<bool> loadSession(String agent, String id, String cwd) async {
-    final b = bridge;
-    if (b == null) return false;
-    // 同一条会话不并发 load：连点两下（或重载 agent 撞上侧栏点击）会重放两遍。
-    if (!_loadsInFlight.add(id)) return false;
-    final fresh = sessions.maybe(id) == null;
-    final s = sessions.session(id, agentId: agent)..cwd = cwd;
-    _sessionAgent[id] = agent;
-    final arrivalsBefore = _updateArrivals[id] ?? 0;
-    final closeEpoch = _closeEpoch[id] ?? 0;
-    // 失败且一条都没重放时把清空取消掉：整段重放挂在 batcher 里，这些闭包要到 release 才跑，
-    // 而那时候成败已经知道了（审查 finding high：reload / close 之后 load 失败会丢掉本地唯一一份转录）。
-    var skipReset = false;
-    // hold 与 release 必须严格配对：中间任何一步抛出都得 release，否则 UI 从此不再刷新。
-    batcher.hold();
-    try {
-      // 清空排进同一条挂起队列：清空与重放在 UI 上是一步，中间不会闪一下空转录。
-      batcher.enqueue(() {
-        if (!skipReset) s.resetForReplay();
-      });
-      final result = await b.sessionLoad(agent, id, cwd);
-      batcher.enqueue(() => s.applyLoadSession(result));
-      // 这中间要是有人把它 close 了，别把「已关闭」标记抹掉（审查 finding P2：load 与 close 并发）。
-      if ((_closeEpoch[id] ?? 0) == closeEpoch) _closedSessions.remove(id);
-      return true;
-    } catch (e) {
-      lastError = describeError(e);
-      debugPrint('[workbench] session/load $id: ${describeError(e)}');
-      final replayed = (_updateArrivals[id] ?? 0) - arrivalsBefore;
-      if (replayed == 0) {
-        // 一条历史都没到：内存里原来那份转录原样留着（reload / close 之后重点开的唯一一份就在这儿）。
-        skipReset = true;
-        if (fresh) batcher.enqueue(() => sessions.forget(id));
-      } else if (fresh) {
-        // 重放到一半断了：清空必须生效（否则和旧的叠起来）。刚建的空壳收回，下次点击能重试。
-        batcher.enqueue(() => sessions.forget(id));
-      }
-      // 原先就在内存里 + 重放到一半断了：留下这半份（叠起来更糟），用户可以再点一次重载。
-      return false;
-    } finally {
-      _loadsInFlight.remove(id);
-      batcher.release();
-    }
-  }
 
   /// ≡ 菜单 Resume（画板 41）：`session/resume` 只恢复 agent 侧上下文，**不重放**——转录用内存里已有的那份。
   Future<void> resumeSession() async {
@@ -646,14 +596,15 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
     final id = sessionId;
     final agent = agentId;
     if (b == null || id == null || agent == null) return;
-    final cwd = sessions.maybe(id)?.cwd ?? _cwdOf(id) ?? workspace.project?.path;
+    final cwd = sessions.maybe(id)?.cwd ?? cwdOf(id) ?? workspace.project?.path;
     if (cwd == null) return;
+    final generation = generationOf(agent);
     await guard(() async {
       final result = await b.sessionResume(agent, id, cwd);
       sessions.session(id, agentId: agent)
         ..cwd = cwd
         ..applyLoadSession(result);
-      _closedSessions.remove(id);
+      markResumed(id, agent, generation);
     });
     touch();
   }
@@ -670,8 +621,7 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
     await guard(() async {
       await _releaseSessionRequests(b, agent, id);
       await b.sessionClose(agent, id);
-      _closeEpoch[id] = (_closeEpoch[id] ?? 0) + 1;
-      _closedSessions.add(id);
+      markClosed(id);
     });
     touch();
   }
@@ -749,8 +699,13 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
     });
   }
 
-  /// 删除 / 改名用的 agentId：优先本地索引里记的那个，退到当前连接。
-  String _ownerOf(String sessionId) => _sessionAgent[sessionId] ?? agentId ?? '';
+  /// 删除 / 改名 / 挂载用的 agentId：优先本地索引里记的那个，退到当前连接。
+  @override
+  String ownerOf(String sessionId) => _sessionAgent[sessionId] ?? agentId ?? '';
+
+  /// 这条会话的 cwd：本地索引里登记的，没有就退到内存里那份转录的。
+  @override
+  String? cwdOf(String sessionId) => index.cwdOf(sessionId) ?? sessions.maybe(sessionId)?.cwd;
 
   /// 一条会话写进本地索引（`sessions.json`）：收轮刷消息计数、新会话登记、发消息时打 `updatedAt`（口径见 [SessionIndex.upsert]）。
   /// [target] 缺省是**当前**会话；收轮那次由 `TurnController._runTurn` 把刚跑完的那条传进来——2026-09-18 起
@@ -810,14 +765,14 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
     // agent 之后再发 `session_info_update.title` 仍然照单全收（规则 2），改名只管到那时候。
     sessions.maybe(id)?.title = title.trim();
     await guard(() async {
-      final owner = _ownerOf(id);
+      final owner = ownerOf(id);
       // 计数与 cwd 都从索引本身取，不从侧栏：侧栏只投影当前 workspace 的条目（[_toSidebar]），
       // 核心的 upsert 是整行替换，这里少给一个字段就是把它抹成默认值。
       await index.upsertEntry(<String, dynamic>{
         'agentId': owner,
         'sessionId': id,
         'title': title.trim(),
-        'cwd': _cwdOf(id) ?? workspace.project?.path,
+        'cwd': cwdOf(id) ?? workspace.project?.path,
         'messageCount': (index.entryOf(id)?['messageCount'] as num?)?.toInt() ?? 0,
         // 改名不是发消息：沿用原时间，侧栏不因此重排（见 [SessionIndex.upsert]）。
         'updatedAt': ?index.updatedAtOf(id),
@@ -841,8 +796,8 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
   /// 与侧栏的删除图标（一律给）不同——能力未知时图标照给，但不会发 `session/delete`。
   bool deletesOnAgent(String sessionId) {
     if (_deletedOnAgent.contains(sessionId)) return false;
-    final owner = _ownerOf(sessionId);
-    return owner.isNotEmpty && _sessionCapsOf(owner).containsKey('delete');
+    final owner = ownerOf(sessionId);
+    return owner.isNotEmpty && sessionCapsOf(owner).containsKey('delete');
   }
 
   /// agent 侧那一步已经走过的会话（删成功，或删失败已经放行）：本地索引那步失败后重试时不再发第二次
@@ -857,7 +812,7 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
     hidePopover(deleteAnchor);
     final b = bridge;
     if (b == null) return;
-    final owner = _ownerOf(id);
+    final owner = ownerOf(id);
     final onAgent = deletesOnAgent(id);
     await guard(() async {
       if (onAgent) {
@@ -882,9 +837,7 @@ class SessionController extends ChangeNotifier with GuardedNotifier {
         lastError = '这条会话的本地记录没能删掉（索引里找不到匹配的记录）';
       }
       missingOnAgent.remove(id);
-      _closedSessions.remove(id);
-      _closeEpoch.remove(id);
-      _updateArrivals.remove(id);
+      forgetAttachment(id);
       _deletedOnAgent.remove(id);
       _sessionAgent.remove(id);
       index.forgetPromptSent(id);

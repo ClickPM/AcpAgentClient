@@ -21,6 +21,7 @@ class AuthState extends ChangeNotifier with GuardedNotifier {
     required this.bridge,
     required this.sessions,
     required this._cwd,
+    required this._connect,
     required this._registryName,
     required this._currentAgentId,
     required this._openAgentsTab,
@@ -36,6 +37,10 @@ class AuthState extends ChangeNotifier with GuardedNotifier {
 
   /// 当前项目目录（自动重试新会话的 cwd 缺省从它来）。
   final String? Function() _cwd;
+
+  /// 连 agent（`agent_connect` + 落 `initialize`）：经会话控制器连，连接换了一代它要记账
+  /// （iteration-07：不然这个 agent 名下内存里的会话还当自己挂着，发出去撞 `-32602 unknown session`）。
+  final Future<void> Function(String agent, String? cwd) _connect;
 
   /// registry.json 里的展示名（没连上时会话头 / 认证页的标题退到它）。
   final String? Function(String id) _registryName;
@@ -103,11 +108,7 @@ class AuthState extends ChangeNotifier with GuardedNotifier {
     // agent 从画板 51 / 34 的登录键进来会白白重连一次，把它上面正在跑的会话全杀掉（与 `newSession` 同一个坑）。
     // 重连也换不出新的 authMethods（它就是从 `initialize` 来的），所以连上了就不重连。
     if (b != null && methods.isEmpty && sessions.agents[agent]?.state != AgentLifecycle.initialized) {
-      await guard(() async {
-        final result = await b.agentConnect(agent, cwd: _retryCwd);
-        final init = result['initialize'];
-        if (init is Map) sessions.agents.applyInitializeResult(agent, init.cast<String, dynamic>());
-      });
+      await guard(() => _connect(agent, _retryCwd));
     }
     this.methodId = methodId ?? methods.firstOrNull?['id'] as String?;
     touch();

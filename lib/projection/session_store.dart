@@ -894,6 +894,14 @@ class Sessions extends ChangeNotifier {
   final AgentStateStore agents = AgentStateStore();
   final Map<String, SessionStore> _byId = <String, SessionStore>{};
 
+  /// 正在丢弃 `session/update` 的会话（iteration-07）：`session/load` 失败时这次重放整段作废，原先的转录原样留着。
+  /// 重放挂在 batcher 里、闭包到 release 才跑，那时成败已经知道——接线侧把「开始丢弃」与「停止丢弃」
+  /// 成对排进同一条挂起队列，夹在中间的重放一条都不落。
+  final Set<String> _discarding = <String>{};
+
+  void discardUpdates(String sessionId) => _discarding.add(sessionId);
+  void acceptUpdates(String sessionId) => _discarding.remove(sessionId);
+
   int _requestScopeSeq = 0;
 
   DateTime get now => _clock();
@@ -930,7 +938,7 @@ class Sessions extends ChangeNotifier {
     final env = SessionUpdateEnvelope(payload);
     final n = env.notification;
     final sid = env.sessionId ?? n.sessionId;
-    if (sid == null) return;
+    if (sid == null || _discarding.contains(sid)) return;
     session(sid, agentId: env.agentId).applyNotification(n);
   }
 

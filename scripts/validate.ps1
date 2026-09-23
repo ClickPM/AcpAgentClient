@@ -239,15 +239,18 @@ try {
     Step "lib/app 依赖方向门 (R7.5)" {
         # R7.5 任务卡附录 B：只有 app.dart / workbench_screen.dart / headless_run.dart 可以 import 组合根；
         # 八个子对象之间只允许下面列出的边（谁 → 谁），反向一律走组合根接的回调。
+        # session_attach.dart（iteration-07）是会话控制器混入的挂载那一段（从 session_controller.dart 拆出，行数门），
+        # 边是会话控制器自己那几条的子集；一轮对话只用它的四态枚举分流。
         $allowed = @{
+            "session_attach.dart"    = @("workspace_state.dart", "guarded.dart", "core_bridge.dart")
             "shell_state.dart"       = @("files_state.dart", "local_terminals.dart", "guarded.dart", "core_bridge.dart")
             "workspace_state.dart"   = @("files_state.dart", "guarded.dart", "core_bridge.dart")
             "session_index.dart"     = @("core_bridge.dart")
             "agents_state.dart"      = @("guarded.dart", "core_bridge.dart")
             "auth_state.dart"        = @("guarded.dart", "core_bridge.dart")
             "composer_state.dart"    = @("guarded.dart", "core_bridge.dart", "clipboard_image.dart")
-            "turn_controller.dart"   = @("session_controller.dart", "composer_state.dart", "guarded.dart", "core_bridge.dart")
-            "session_controller.dart" = @("session_index.dart", "agents_state.dart", "workspace_state.dart", "guarded.dart", "core_bridge.dart")
+            "turn_controller.dart"   = @("session_controller.dart", "session_attach.dart", "composer_state.dart", "guarded.dart", "core_bridge.dart")
+            "session_controller.dart" = @("session_index.dart", "session_attach.dart", "agents_state.dart", "workspace_state.dart", "guarded.dart", "core_bridge.dart")
         }
         $appDir = Join-Path $root "lib\app"
         $bad = @()
