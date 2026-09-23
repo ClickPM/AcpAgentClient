@@ -10,8 +10,8 @@ v1.4.2 之后的第一批：BACKLOG P0「附件与剪贴板」两条，所有者
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | fix | 剪贴板文件列表没有张数门：`promptImageCountLimit = 20`（一条消息的总数，连同输入框里已有的），剪贴板与 `+` → Image 两条路共用；`readClipboardImages({maxImages})` 判在读文件 / 编码之前、回 `skippedTooMany`，`pasteImageFromClipboard` 落进输入框时再判一次（连按两下 Ctrl+V 并发），`addImageBytes` 满了不收；提示单独一句 | BACKLOG P0「附件与剪贴板」第 2 条；所有者裁定 2026-09-23 取 20 张 | `claude/attachments-clipboard-p0-19efea` → 待合并 | 未构建（所有者指定）；相关两份 `flutter test` 全绿，`validate.ps1 -Quick` 见备注 | 未审查（所有者指定） | 待合并 |
-| 2 | tidy | 编辑带图的消息会把图弄丢 → **按产品取舍关闭，不修**：编辑历史消息只改文字、不保留原图（与 Claude Code 一致）；只在 `UserMessage.plainText` 的文档注释里写明裁定 | BACKLOG P0「附件与剪贴板」第 1 条；所有者裁定 2026-09-23 | 同上 | 只改注释与文档 | 未审查（所有者指定） | 待合并 |
+| 1 | fix | 剪贴板文件列表没有张数门：`promptImageCountLimit = 20`（一条消息的总数，连同输入框里已有的），剪贴板与 `+` → Image 两条路共用；`readClipboardImages({maxImages})` 判在读文件 / 编码之前、回 `skippedTooMany`，`pasteImageFromClipboard` 落进输入框时再判一次（连按两下 Ctrl+V 并发），`addImageBytes` 满了不收；提示单独一句 | BACKLOG P0「附件与剪贴板」第 2 条；所有者裁定 2026-09-23 取 20 张 | `claude/attachments-clipboard-p0-19efea` → `006bd0f`（快进；合 main 时 BACKLOG 两处登记冲突按「两边都留」解，P0 10 → 7、合计 75 → 72） | 未构建（所有者指定）；相关两份 `flutter test` 全绿，`validate.ps1 -Quick` 见备注 | 未审查（所有者指定） | 已合并 |
+| 2 | tidy | 编辑带图的消息会把图弄丢 → **按产品取舍关闭，不修**：编辑历史消息只改文字、不保留原图（与 Claude Code 一致）；只在 `UserMessage.plainText` 的文档注释里写明裁定 | BACKLOG P0「附件与剪贴板」第 1 条；所有者裁定 2026-09-23 | 同上 | 只改注释与文档 | 未审查（所有者指定） | 已合并 |
 
 ## 收口
 
