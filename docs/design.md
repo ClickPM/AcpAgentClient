@@ -137,10 +137,12 @@ Flutter 宿主进程（Dart）
 
 ## 8. zed-agent-acp sidecar
 
+> 版本、sidecar 化细节、客户端集成、上游限制与相关待办汇总在 [`zed-agent.md`](zed-agent.md)（2026-09-23）；本节只留决策。
+
 - 独立 cargo workspace（`sidecar/zed-agent-acp/`），path 依赖指向 `vendor/upstream/zed/crates/*`；GPL-3.0-or-later。
 - 引导：复制 `eval_cli/src/headless.rs`；`session/new` 时 `Project::local` + `create_worktree(cwd)` + `NativeAgent::new`。
 - 映射：`initialize` → 固定能力（`loadSession` + `sessionCapabilities.{list, delete, resume, close}`，`authMethods` 空）；`session/new` / `session/load` / `session/list` / `session/delete` → `NativeAgentConnection` 与 `ThreadStore`；`session/resume` = load 的不重放版；`session/close` = 放掉 `AcpThread` 引用；`session/prompt` → `Thread::send` 得到 `ThreadEvent` 流；`session/cancel` → `Thread::cancel`；模型选择走 **config options**（一个 `select`，id `model`），**不**声明 `modes`。
-- 事件翻译：`ThreadEvent::{UserMessage, AgentText, AgentThinking, ToolCall, ToolCallUpdate, SubagentSpawned, Retry, ContextCompaction*}` → `session/update`；`ToolCallAuthorization` → `session/request_permission`，结果写回 `response`；`Elicitation` → `elicitation/create`；`Stop` → `PromptResponse`。
+- 事件翻译：`ThreadEvent::{UserMessage, AgentText, AgentThinking, ToolCall, ToolCallUpdate}` → `session/update`（`SubagentSpawned` / `Retry` 只记日志，`ContextCompaction*` 因 acp 2.0.0 发不出去，见 [`zed-agent.md`](zed-agent.md) § 2.5 / § 4.1）；`ToolCallAuthorization` → `session/request_permission`，结果写回 `response`；`Elicitation` → `elicitation/create`；`Stop` → `PromptResponse`。
 - 终端：沿用 Zed 的 `NativeThreadEnvironment::create_terminal`（进程内 `terminal` crate），输出经 § 4 的 `_meta.terminal_info / terminal_output / terminal_exit` 三键推给客户端 —— 终端是 agent 进程内的，客户端没有它的句柄，不能走 `terminal/*`。
 - **数据（R7 实测后按推荐项落地 2026-09-17，待所有者确认）：配置共用、数据隔离。** sidecar 以
   `--zed-settings <%APPDATA%/Zed/settings.json>` **只读**沿用 Zed 的模型与密钥配置（所有者裁定 2026-09-15），

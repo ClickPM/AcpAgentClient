@@ -27,6 +27,7 @@
 
 **新增条目**：挑一档追在该档末尾，照同样的三行格式写。不新开档位；一条只进一档。
 **只收本项目自己的问题**：问题出在上游（agent、zed、xterm 等依赖）或协议本身的，不进本表（所有者裁定 2026-09-23，X 档因此撤掉）；其中实现因此与画板对不上的，照规则 3 记 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)。
+**Zed agent 相关的条目**另在 [`docs/zed-agent.md`](../docs/zed-agent.md) § 5 做索引（2026-09-23 统筹）：增删、关闭这类条目时那边跟着改一行。
 **关闭条目**：把**技术行连同结论压成一行** `- [x]` 剪到 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md) 末尾（那份是平铺存档，不分档），本文删掉这三行。
 
 ## P0 · 真缺陷（7）
@@ -231,7 +232,7 @@
 
 - [ ] **sidecar 缺 languages crate，Zed agent 的语法工具退化**
   - **产品**：Zed agent 的 `read_file` outline 模式与跳转类工具退化成纯文本；编辑、终端、grep、权限不受影响。装上 VS 的「Spectre 缓解库」组件即可恢复。
-  - **技术**：R7 sidecar 没带 `languages` crate（它唯一地依赖 `pet`，`pet` 打开 `msvc_spectre_libs` 的 `error` 特性，本机 VS 2022 BuildTools 没装「Spectre 缓解库」组件，build.rs 直接 panic）。代价：sidecar 里 `LanguageRegistry` 为空，Zed agent 靠语法树的工具（`read_file` 的 outline 模式、跳转类工具）退化成纯文本；编辑、终端、grep、权限不受影响。装上那个 VS 组件后取消 `sidecar/zed-agent-acp/Cargo.toml` 里那一行注释即可恢复 (2026-09-17)
+  - **技术**：R7 sidecar 没带 `languages` crate（它唯一地依赖 `pet`，`pet` 打开 `msvc_spectre_libs` 的 `error` 特性，本机 VS 2022 BuildTools 没装「Spectre 缓解库」组件，build.rs 直接 panic）。代价：sidecar 里 `LanguageRegistry` 为空，Zed agent 靠语法树的工具（`read_file` 的 outline 模式、跳转类工具）退化成纯文本；编辑、终端、grep、权限不受影响。装上那个 VS 组件后取消 `sidecar/zed-agent-acp/Cargo.toml` 里那一行注释即可恢复 (2026-09-17) → **所有者 2026-09-23：放进 `docs/zed-agent.md` 统筹，暂不关闭**（修法与代价见那份 § 5.1 第 3 条）
 
 ### sidecar 打包（2）
 

@@ -22,7 +22,7 @@ This file provides guidance to Claude Code when working in this repository.
 AcpAgentClient/
 ├── CLAUDE.md / AGENTS.md / README.md      约定、审查者指针、简介
 ├── ROUNDS.md                              轮次总览与 roadmap：R0–R8 拆解、画板 → 轮次 → widget 文件、裁定门、进度表
-├── docs/                                  background / requirements / research / design / acp-projection / review-workflow
+├── docs/                                  background / requirements / research / design / acp-projection / review-workflow / zed-agent（内置 Zed agent 的开发文档）
 ├── design/                                设计稿与简报：design/round-NN/{input/（交给 Claude Design 的简报与附件）, canvas.json, NN-<画板>.dc.html, NN-<画板>.png}
 │                                          + design/README.md 画板索引（编号 / 名称 / .dc.html / PNG / 画布 URL）
 │                                          + design/DIVERGENCE.md 画板与实现的偏离清单（这几处以实现为准，不要求补稿）
