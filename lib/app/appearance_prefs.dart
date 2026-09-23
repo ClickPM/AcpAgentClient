@@ -581,16 +581,20 @@ class AppearanceController extends ChangeNotifier with GuardedNotifier {
   /// 改一次外观：等读盘落定 → 算出新的全量 → 立即生效 + 落盘。
   /// 落盘失败不回滚（界面已经变了，下次启动回到旧值即可），只报错。
   ///
-  /// 新值由 `change` 从**当时**的 `_prefs` 算出来，不是调用点先算好再传进来：等读盘的那一下
-  /// `_prefs` 还会变（[_hydrate] 会把盘上的灌进来），先算好就等于拿空快照去整段覆盖。
+  /// 等读盘的那一下 `_prefs` 还会变（[_hydrate] 会把盘上的灌进来），所以新值分两步得出：
+  /// `change` 对着**点下去那一刻**界面上的那一份算，再以读盘后的 `_prefs` 为基底只盖这次真改到的维度
+  /// （[_overlay]）。只取前者等于拿空快照去整段覆盖；只取后者，[cycleTheme] 这种相对操作就会对着
+  /// 用户还没看见的盘上那一档往下切（盘上是深色、首帧还是浅色时点一下，写成了「跟随系统」）。
   Future<void> _edit(AppearancePrefs Function(AppearancePrefs current) change) async {
+    // 用户是按**界面上看得见的这一份**点的，相对操作（[cycleTheme]）必须对准它算——所以在等读盘**之前**
+    // 记下：读盘回来会先把盘上的灌进 `_prefs`，界面却要下一帧才重建（cursor 审查 high，2026-09-23）。
+    final AppearancePrefs seen = _prefs;
     await _awaitHydration();
     if (disposed) return;
     final CoreCommands? bridge = this.bridge;
 
-    // 用户是按**界面上看得见的这一份**点的，相对操作（[cycleTheme]）必须对准它算。
-    final AppearancePrefs seen = _prefs;
-    AppearancePrefs next = change(seen);
+    // 读盘没改动 `_prefs` 时基底就是 `seen`，这一步等于直接取 `change(seen)`。
+    AppearancePrefs next = _overlay(base: _prefs, seen: seen, edited: change(seen));
 
     // 启动那一趟没读到（最常见的是核心还没 `core_init` 完 —— `AcpApp.initState` 里
     // `_appearance.start()` 排在 `_controller.start()` 前面，两个都不 await）就再读一次：
@@ -623,15 +627,16 @@ class AppearanceController extends ChangeNotifier with GuardedNotifier {
     }
   }
 
-  /// 补读成功时的合并：以盘上的 `base` 为基底，把这次**真改到**的维度（`edited` 相对 `seen` 有差的那些）
-  /// 盖上去。
+  /// 「用户按所见改」与「盘上已有的」的合并：以盘上的 `base` 为基底，把这次**真改到**的维度（`edited`
+  /// 相对 `seen` 有差的那些）盖上去。两处用它：读盘还没回来就点了（`base` = 读盘后的 `_prefs`），
+  /// 以及启动读盘失败后的补读（`base` = 补读到的）。
   ///
   /// 两边都不能少（复审 high，2026-09-20）：直接拿 `edited` 落盘会把盘上没改到的项抹掉（`appearance`
   /// 段整段替换）；反过来先把 `base` 灌进 `_prefs` 再算，[cycleTheme] 这种相对操作就会对着**用户没看见
-  /// 的**那一档往下切 —— 盘上是深色、界面因读失败显示浅色时，用户点「转深色」反而被写成「跟随系统」。
+  /// 的**那一档往下切 —— 盘上是深色、界面显示浅色时，用户点「转深色」反而被写成「跟随系统」。
   ///
-  /// [resetAll] 在这条路上只重置用户看得见的那些维度：没看见的以盘上为准。这条路要求「启动读盘失败 +
-  /// 补读成功 + 正好点重置」，而重置目前也没有界面入口。
+  /// [resetAll] 在这两条路上只重置用户看得见的那些维度：没看见的以盘上为准。这要求「点重置时盘上的还没
+  /// 灌进界面」，而重置目前也没有界面入口。
   static AppearancePrefs _overlay({
     required AppearancePrefs base,
     required AppearancePrefs seen,

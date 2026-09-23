@@ -418,6 +418,35 @@ void main() {
       expect(core.appearance, <String, dynamic>{'ui_font_family': 'Inter', 'theme': 'dark'});
     });
 
+    // 读盘回来会先把盘上那一档灌进 `_prefs`，界面却要下一帧才重建；点击时界面上还是缺省浅色。
+    // 若等读盘之后才取基线，就是对着用户没看见的那一档往下切（cursor 审查 high，2026-09-23）。
+    for (final (String saved, String why) in <(String, String)>[
+      ('dark', '盘上深色：往下切会写成跟随系统'),
+      ('system', '盘上跟随系统：往下切是浅色 = 缺省，已存的 system 被抹成 null'),
+    ]) {
+      test('读盘还没回来就点循环：按点击时看见的浅色切到深色，不从盘上的 $saved 往下切', () async {
+        final FakeCore core = FakeCore()..appearance = <String, dynamic>{'ui_font_family': 'Inter', 'theme': saved};
+        final Completer<void> gate = Completer<void>();
+        core.appearanceGetGate = gate;
+        final AppearanceController c = AppearanceController(
+          bridge: core,
+          registry: FontRegistry(loadDirs: const <Directory>[], probeDirs: const <Directory>[]),
+        );
+        addTearDown(c.dispose);
+
+        final Future<void> starting = c.start();
+        expect(c.themeChoice, t.ThemeChoice.light, reason: '点击时界面上是缺省浅色');
+        final Future<void> cycling = c.cycleTheme();
+        gate.complete();
+        await starting;
+        await cycling;
+
+        expect(c.themeChoice, t.ThemeChoice.dark, reason: why);
+        expect(c.fonts.resolved(FontAxis.uiLatin), 'Inter', reason: '盘上已存的字体轴要留着');
+        expect(core.appearance, <String, dynamic>{'ui_font_family': 'Inter', 'theme': 'dark'});
+      });
+    }
+
     test('启动时读设置失败：改动前再读一次，读到了就照常合并落盘（复审 high，2026-09-20）', () async {
       // `AcpApp.initState` 里 `_appearance.start()` 排在 `_controller.start()` 前面、两个都不 await，
       // 所以启动那一趟 GET 可能早于 `core_init`，桥回 not_initialized。
