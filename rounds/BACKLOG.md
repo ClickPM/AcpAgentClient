@@ -21,9 +21,9 @@
 | **P2 功能缺口** | 2 | 该有没有的能力。**全部需所有者裁定才能进轮次**，多数还要先改设计稿。 |
 | P3 设计稿欠账 | — | **已整体释放**到 `design/DIVERGENCE.md`，见下面的占位小节 |
 | P4 平台与分发 | — | **已清空**（2026-09-23）：跨平台暂不做、构建链两条关闭、sidecar 两条移到 `BACKLOG-ZED.md`，见下面的占位小节；以后平台与分发的新问题照常记这一档 |
-| **P5 内部工程与验收** | 16 | 用户无感：测试、行数门、文档措辞、验收自动化。有空就做。 |
+| P5 内部工程与验收 | — | **已清空**（2026-09-23）：16 条整档收掉（iteration-04），见下面的占位小节；以后测试、行数门、验收自动化这类用户无感的新问题照常记这一档 |
 | X 卡在上游 / 协议 | — | **已撤档**：不是本项目的问题不进本表（所有者裁定 2026-09-23），见下面的占位小节 |
-| | **47** | |
+| | **31** | |
 
 **新增条目**：挑一档追在该档末尾，照同样的三行格式写。不新开档位；一条只进一档。
 **只收本项目自己的问题**：问题出在上游（agent、zed、xterm 等依赖）或协议本身的，不进本表（所有者裁定 2026-09-23，X 档因此撤掉）；其中实现因此与画板对不上的，照规则 3 记 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)。
@@ -59,7 +59,7 @@
 
 - [ ] **失败没有出口，用户看到的是「点了没反应」**
   - **产品**：新建会话失败、删除失败、附件超限，界面上什么都不说，只有日志里有一句。「没选项目」和「这一轮发失败」已各自有出口，其余仍是静默。
-  - **技术**：`lastError` 在产品 UI 上没有出口（只有 `debugPrint` 与无头实跑读它）：新建会话失败（缺项目 / 桥报错）、删除会话失败这类只在 `lastError` 落一句话的路径，用户看到的是「点了没反应」。现在靠输入框占位文案兜住了「没选项目」这一条（`composerPlaceholder`），其余仍是静默。其中**「这一轮发出去失败」已于 2026-09-18 有了出口**：`session/prompt` 回 JSON-RPC error 时原因落在 `TurnEntry.error` 上、由画板 31 的结束行显示，不再只进 `lastError`。其余路径（新建会话失败、删除会话失败、附件超限）仍要一处壳级的错误提示位——属于扩边界，先改设计稿 (2026-09-17) → **R7.5 拆分后的新家**：组合根聚合九个对象的 `lastError` + 壳级提示位（画板先画） (2026-09-20)
+  - **技术**：`lastError` 在产品 UI 上没有出口（只有 `debugPrint` 与无头实跑读它）：新建会话失败（缺项目 / 桥报错）、删除会话失败这类只在 `lastError` 落一句话的路径，用户看到的是「点了没反应」。现在靠输入框占位文案兜住了「没选项目」这一条（`composerPlaceholder`），其余仍是静默。其中**「这一轮发出去失败」已于 2026-09-18 有了出口**：`session/prompt` 回 JSON-RPC error 时原因落在 `TurnEntry.error` 上、由画板 31 的结束行显示，不再只进 `lastError`。其余路径（新建会话失败、删除会话失败、附件超限）仍要一处壳级的错误提示位——属于扩边界，先改设计稿 (2026-09-17) → **R7.5 拆分后的新家**：组合根聚合九个对象的 `lastError` + 壳级提示位（画板先画） (2026-09-20)；做聚合时 headless 报告的 `report['lastError']`（`lib/app/headless_run.dart` 三处，现在只读 `session.lastError`）一并改成聚合值（原 P5 条目，2026-09-23 并入）
 
 - [ ] **没有归属的终端缓冲谁都删不到**
   - **产品**：认证用的可见终端、agent 只轮询没嵌进卡的终端，它们的缓冲留到进程结束；一次运行里开的终端越多涨得越多（单条上限 64 KB）。
@@ -193,79 +193,9 @@
 macOS / Linux 暂不做）；「构建链」里中文路径兜底与 Rust 版本漂移 2 条关闭；sidecar 体积 1 条关闭（R8 已给出两个数字）；
 sidecar 的另 2 条（languages crate、`0-dev` 目录名）移到 [`BACKLOG-ZED.md`](BACKLOG-ZED.md)。以后平台与分发的新问题照常追在这里。
 
-## P5 · 内部工程与验收（16）
+## P5 · 内部工程与验收 —— 已清空
 
-### R7.5 收尾（4）
-
-- [ ] **还有三个对象没混入 GuardedNotifier**
-  - **产品**：用户无感。`FilesState` / `LocalTerminals` / `AppearanceController` 各自那份挡板与错误边界还原样留着。
-  - **技术**：R7.5 `GuardedNotifier` mixin（`lib/app/guarded.dart`）只收编了组合根与八个子对象；`FilesState` / `LocalTerminals` / `AppearanceController` 各自那份 `_disposed` 挡板与错误边界原样留着（本轮「不动」范围），下一轮统一混入 (2026-09-20)
-
-- [ ] **两个文件超行数门，靠放宽阈值过的**
-  - **产品**：用户无感。`headless_run.dart` 1186 行、`workbench_screen.dart` 946 行，validate 里分别放宽到 1300 / 1000。
-  - **技术**：R7.5 两个只改了引用路径的既有文件超过 validate 行数门的 900：`lib/app/headless_run.dart` 1186 行（R3 / R5 / R6 三个无头模式的驱动，不是产品代码）与 `lib/app/workbench_screen.dart` 946 行（画板 43 之后就是这个数，任务卡「2026-09-20 复核」记为观察项）；`scripts/validate.ps1` 里分别放宽到 1300 / 1000 并写明理由，门按原始行计（与 `wc -l` 同口径）。要不要拆（headless 按三个模式拆三个文件；screen 把滚动 / 跟随 / 跳转三套多帧纠正逻辑拆出去）等裁定 (2026-09-20)；2026-09-20 quality 轮起 `headless_run.dart` 的入口是 `lib/main_headless.dart`（`flutter build -t`），不再进产品入口与发布包，行数门的放宽照旧
-
-- [ ] **headless 报告的 lastError 只是会话那一段**
-  - **产品**：用户无感。影响无头自检报告的口径，做壳级聚合时一并改。
-  - **技术**：R7.5 headless 报告里 `report['lastError']`（异常收尾时那一份）现在读的是 `session.lastError`：拆分后没有全局 `lastError`，异常路径的兜底只记会话那一段的错误；做壳级聚合（上面 `lastError` 无出口那条）时一并改成聚合值 (2026-09-20)
-
-- [ ] **按区域订阅只量了没动**
-  - **产品**：用户无感（release 真机未量）。流式输出时每帧整壳重建，debug 测试机口径约 37 ms/帧，没触发裁定门的阈值。
-  - **技术**：R7.5 阶段 B（按区域订阅）只量未动：探针（`debugOnRebuildDirtyWidget` 数 `AppShell` 的 build，flutter_tester debug 口径）——290 条 `session/update` 挂在 batcher 里一次放行 → 根通知 1 次、壳级 build **1 次**（首帧 229 ms，含 290 条转录的首次构建）；40 条流式分块逐帧到达 → 40 次通知、每帧壳级 build 1 次、约 37 ms/帧。裁定门第 4 项的阈值是「一次 batch 的壳级 build > 1 次且 > 16 ms」，次数正好是 1，不触发；但每帧一次整壳重建（侧栏 + 顶栏 + 右栏 + 转录容器）在流式输出时的 37 ms/帧是 debug 测试机口径，release 真机要另量；要做的话 screen 改成按区域 `Listenable.merge([...])` 订阅并补一条重建计数的 widget 测试（任务卡验收 10） (2026-09-20)
-
-### 验收与自动化（4）
-
-- [ ] **权限范围下拉没在真 agent 上实测**
-  - **产品**：用户无感。dsh 只给 allow_once / reject_once，下拉里没有第二个同向选项，要找个给 allow_always 的 agent 补。
-  - **技术**：R3 `Ctrl-Alt-A` 的权限「范围下拉」没实测到：dsh 只给 `allow_once` / `reject_once`，下拉里没有第二个同向选项。R6 五 agent 全通时用给 `allow_always` 的 agent 补 (2026-09-15)
-
-- [ ] **GUI 点击类验收没有自动化通道**
-  - **产品**：用户无感。窗口拖拽、文件对话框这类只能靠所有者手测。
-  - **技术**：R3 `computer-use` 的 `request_access` 只认 Start 菜单里的应用，认不出自己构建的 `acp_agent_client.exe`，GUI 点击类验收（窗口拖拽、`file_selector` 对话框）没有自动化通道。要么做 `integration_test` + `flutter drive`，要么每轮留给所有者手测 (2026-09-15)
-
-- [ ] **画板对照拦不住位移类偏差**
-  - **产品**：漏出去的是用户看得见的错位（按钮没贴右那次）。现在靠逐点数值断言补，是否加一层几何不变量断言待裁定。
-  - **技术**：R3 画板逐张对照拦不住「位移类」偏差：右侧那组按钮没贴右这件事在 `build/gallery/01a` 与 `18` 里都画出来了，偏移量却随窗口宽度与文本长度变，肉眼比对时看不出「它本该更靠右」。本轮给三处补了数值断言（`test/ui/shell_alignment_test.dart`），但这是逐点补；是否给画板对照加一层几何不变量（贴左 / 贴右 / 等距）的通用断言，待裁定 (2026-09-16)
-
-- [ ] **gallery 测试只断言 PNG 非零字节**
-  - **产品**：用户无感。能挡渲染崩溃与空白，挡不住视觉回归；但 CLAUDE.md 明确「不做视觉 review」，是取舍不是缺陷。
-  - **技术**：`gallery_test.dart` 对每张画板只断言「PNG 非零字节」（cursor 2026-09-22 finding，低）：能挡住渲染崩溃与空白，挡不住视觉回归。要挡得存基准图做像素对比（字体 / 缩放 / Skia 版本一变就全红，维护成本高），且 CLAUDE.md 明确「不做视觉 review」，所以是取舍不是缺陷；真要做先裁定 (2026-09-22)
-
-### 测试与代码健康（4）
-
-- [ ] **rust/fs 有个用例失败也算绿**
-  - **产品**：用户无感。`mklink /J` 建不出链接时断言一行不跑也算通过。
-  - **技术**：R4 `rust/fs/src/lib.rs` 的 R3 用例 `junctions_are_not_followed_out_of_the_workspace` 在 `mklink /J` 失败时 `eprintln` + `return`，断言一行不跑也算绿（R4 第 3 轮审查顺带指出，同文件新用例已改成 `assert!`）：下次碰这个文件时同样改成建不出链接就红 (2026-09-16)
-
-- [ ] **motion 的两个潜伏项**
-  - **产品**：用户无感。当前调用点传的都是常量，触发不到；真触发会是动画按旧参数跑，或 `Interval` 断言炸。
-  - **技术**：`lib/ui/shell/motion.dart`：`_controller` 与 `_enter` 是 `late final`，`didUpdateWidget` 只比 `epoch`，所以 `duration` / `delay` 只在首次 build 生效；同一元素被复用而这两个入参变了时动画按旧参数跑。另：两者同时为 `Duration.zero` 时 `delay / (delay + duration)` 是 NaN，`Interval` 断言会炸。当前所有调用点传的都是常量（`t.Motion.*`），两条都只是潜伏项，所以放行。最小修复是 `didUpdateWidget` 里比这两个入参并同步 `_controller.duration`。发布前审查 P3 (2026-09-18)
-
-- [ ] **依赖环境的测试跳过仍算绿**
-  - **产品**：用户无感。没装 git 的机器上那几条断言零覆盖，却照样绿。与「rust/fs 有个用例失败也算绿」同类。
-  - **技术**：依赖环境的测试**跳过仍算绿**（cursor 2026-09-22 finding 验真属实，低）：`rust/fs/src/git.rs` 有三处 `git not on PATH; skipping` + `return`，没装 git 的机器上那几条断言零覆盖（本机与所有者机器都有 git，眼下不影响）。同类还有 `node::tests::system_node_is_detected_when_present`、以及新加的 `resolve_inside` 用例里「建不出文件符号链接就只报一句」那半边（目录联接那条越界用例是硬断言，覆盖面没丢）。要改就统一成「环境缺失 = 红」或引一个 ignore 标记按 CI 矩阵跑，属机制类，记账 (2026-09-22)
-
-- [ ] **validate 的 _meta 契约门按子串扫，会连坐误报**
-  - **产品**：用户无感。写 `symlink_metadata` 这类标识符会被门禁误抦，2026-09-22 踩到过一次。
-  - **技术**：`scripts/validate.ps1` 的「`_meta` 键」契约门按**子串**扫 `_meta`，`symlink_metadata` / `session_metadata` 这类标识符会连坐：同一行上再有任何字符串字面量就报「_meta lines with literal keys」。2026-09-22 加 `rust/fs/src/lib.rs` 的用例时踩到，当场把那行拆成两行绕开。最小修复是把模式收紧成 `"_meta"` 或给它加词边界；改门禁要小心别把真该拦的放过去 (2026-09-22)
-
-### 代码质量（quality 批）（4）
-
-- [ ] **桥的四层手写转发**
-  - **产品**：用户无感。62 条桥命令在四层各手写一遍，约 240 处声明，每个方法体都是一行转发。
-  - **技术**：quality 桥的四层手写转发：62 条桥命令在 `rust/bridge/src/api.rs` → frb 生成物 → `lib/bridge/api.dart` → `lib/app/core_bridge.dart`（`CoreCommands` 接口 + `CoreBridge` 实现）→ `test/app/fake_core.dart` 各手写一遍（约 240 处声明），而入参与返回本来就都是 JSON 字符串、每个方法体都是一行转发。理论上一条 `command(name, argsJson)` 能塌成一处；代价是丢每条命令的 doc comment、丢编译期的参数名 / 元数比对、`FakeCore` 从「编译器逼你实现 53 个方法」变成字符串匹配。属机制类改动，只记账，要动先裁定 (2026-09-20)
-
-- [ ] **appearance_prefs 的 6 个字段配了 110 行样板**
-  - **产品**：用户无感。Dart 没有内置 data class、规则 1 又不让引 freezed，是取舍不是缺陷。
-  - **技术**：quality `lib/app/appearance_prefs.dart` 的 `FontPrefs`（4 个可空 String）+ `AppearancePrefs`（2 个字段）合计 6 个字段配了约 110 行 `fromJson` / `toJson` / `withAxis` / `withFonts` / `==` / `hashCode` / `toString`，而桥两端传的本来就是 `JsonMap`、`==` 只用来判要不要 notify；「保留原始 map + 一个 `resolved(axis)` getter」能少 80 行。Dart 没有内置 data class、规则 1 又不让引 freezed，所以是取舍不是缺陷，优先级低 (2026-09-20)
-
-- [ ] **gallery 五个画板文件里各复制了一份 helper**
-  - **产品**：用户无感。gallery 是开发工具。
-  - **技术**：quality `lib/gallery/boards/` 五个文件里 `_page` / `_window` / `_c` / `_sessionTitle` / `_composerOptions` 各复制了 2–4 份，缺一个共享 helper 文件；gallery 是开发工具，优先级低 (2026-09-20)
-
-- [ ] **还有五处 hover 状态没并到 Hoverable**
-  - **产品**：用户无感。本轮只并了 `IconButtonGhost` 与 `PanelIconButton`。
-  - **技术**：quality 其余自带 hover 的 widget 没有并到 `Hoverable`：`AcpButton` 多一个按下态 `_down`，`composer_attachments` / `splitter` / `tool_call_card` / `user_message` 各一份 `bool _hover`（后两者带 `hoveredInitially`，语义是「初始悬浮」不是 `forceHover`）。本轮只并了 `IconButtonGhost` 与 `PanelIconButton` (2026-09-20)
+所有者裁定 2026-09-23，这一档的 16 条整档收掉，档位留空占位，不重排编号：7 条在 iteration-04 改完代码关闭，8 条按裁定不做 / 不修 / 视为已覆盖，「headless 报告的 lastError」并入 P0「失败没有出口」那条；各条结论见 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md) 末尾。以后内部工程与验收的新问题照常追在这里。
 
 ## X · 卡在上游 / 协议 —— 已撤档
 

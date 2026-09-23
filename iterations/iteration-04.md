@@ -11,14 +11,14 @@
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | tidy | 环境缺失的测试一律判红、不再跳过：`rust/fs` 的 git 三处（`git.rs`）+ `watch.rs` 一处（BACKLOG 原文漏记）、`resolve_inside` 的文件符号链接那半边（`lib.rs`）、`rust/pty` 的 `npm.cmd`（原文漏记）、`rust/registry` 的系统 Node（用例改名 `system_node_is_detected`） | BACKLOG P5「测试与代码健康」第 3 条 | `claude/close-backlog-p5` | validate 全绿 | | 待审查 |
-| 2 | tidy | `junctions_are_not_followed_out_of_the_workspace` 在 `mklink /J` 失败时判红 | BACKLOG P5「测试与代码健康」第 1 条 | 同上 | validate 全绿 | | 待审查 |
-| 3 | tidy | validate 的 `_meta` 契约门按整词 `\b_meta\b` 扫，`symlink_metadata` / `terminal_exit_meta` 这类标识符不再连坐；`rust/fs/src/lib.rs` 当初为绕门拆开的那两行并回一行 | BACKLOG P5「测试与代码健康」第 4 条 | 同上 | validate 全绿 | | 待审查 |
-| 4 | tidy | `MotionEnter`：`didUpdateWidget` 比 `duration` / `delay`，同步 `_controller.duration` 与 `_enter.curve`；两者都为零时 Interval 起点取 0（不再 `0 / 0`）；新增 `test/ui/motion_enter_test.dart` 3 条 | BACKLOG P5「测试与代码健康」第 2 条 | 同上 | validate 全绿 | | 待审查 |
-| 5 | tidy | `FilesState` / `LocalTerminals` / `AppearanceController` 混入 `GuardedNotifier`，连同核对时发现的第四个 `TranscriptFolds`；mixin 加一个 `logTag`（文件面板 / 本地终端的日志前缀照旧是 `[files]` / `[terminals]`） | BACKLOG P5「R7.5 收尾」第 1 条 | 同上 | validate 全绿 | | 待审查 |
-| 6 | tidy | gallery 五个 boards 文件的重复 helper 收拢到 `lib/gallery/boards/board_helpers.dart`（`boardText` / `windowBoard` / `pageBoard` / `fixtureAgentTitle` / `fixtureSessionTitle` / `boardComposerOptions`）；`design/DIVERGENCE.md` 第 11 条里点名的函数名跟着改 | BACKLOG P5「代码质量」第 3 条 | 同上 | validate 全绿 | | 待审查 |
-| 7 | tidy | 五处自带 hover 的 widget 并到 `Hoverable`：`AcpButton`（按下态留在按钮里）、`ColumnSplitter`（拖拽态留在把手里）、`_PathChip`、`MentionChip`、`AttachmentChip`；`Hoverable` 加一个可选的 `onHoverChanged`（路径芯片要让卡片放开裁剪、附件芯片要开关预览浮层）。`hoveredInitially` 实际语义就是 `forceHover`（移出时回到它，给 true 就一直悬浮），直接映射过去；新增 `test/ui/hoverable_test.dart` 2 条 | BACKLOG P5「代码质量」第 4 条 | 同上 | validate 全绿 | | 待审查 |
-| 8 | tidy | 其余 9 条按所有者裁定关闭、不改代码：行数门维持放宽、按区域订阅不做、权限范围下拉视为已实测、GUI 点击类验收留给手测、几何不变量断言不做、gallery 像素对比不做、桥四层转发不做、`appearance_prefs` 样板不做；「headless 报告的 lastError」并入 P0「失败没有出口」那条 | BACKLOG P5 其余 9 条；所有者裁定 2026-09-23 | 同上 | 只改文档 | 随本迭代一并审 | 待审查 |
+| 1 | tidy | 环境缺失的测试一律判红、不再跳过：`rust/fs` 的 git 三处（`git.rs`）+ `watch.rs` 一处（BACKLOG 原文漏记）、`resolve_inside` 的文件符号链接那半边（`lib.rs`）、`rust/pty` 的 `npm.cmd`（原文漏记）、`rust/registry` 的系统 Node（用例改名 `system_node_is_detected`） | BACKLOG P5「测试与代码健康」第 3 条 | `claude/close-backlog-p5` | validate 全绿 | 1 轮（cursor），全迭代 1 条：high 0 / P2 1（第 7 项，不采纳，见备注）/ P3 0 | 待合并 |
+| 2 | tidy | `junctions_are_not_followed_out_of_the_workspace` 在 `mklink /J` 失败时判红 | BACKLOG P5「测试与代码健康」第 1 条 | 同上 | validate 全绿 | 1 轮（cursor），全迭代 1 条：high 0 / P2 1（第 7 项，不采纳，见备注）/ P3 0 | 待合并 |
+| 3 | tidy | validate 的 `_meta` 契约门按整词 `\b_meta\b` 扫，`symlink_metadata` / `terminal_exit_meta` 这类标识符不再连坐；`rust/fs/src/lib.rs` 当初为绕门拆开的那两行并回一行 | BACKLOG P5「测试与代码健康」第 4 条 | 同上 | validate 全绿 | 1 轮（cursor），全迭代 1 条：high 0 / P2 1（第 7 项，不采纳，见备注）/ P3 0 | 待合并 |
+| 4 | tidy | `MotionEnter`：`didUpdateWidget` 比 `duration` / `delay`，同步 `_controller.duration` 与 `_enter.curve`；两者都为零时 Interval 起点取 0（不再 `0 / 0`）；新增 `test/ui/motion_enter_test.dart` 3 条 | BACKLOG P5「测试与代码健康」第 2 条 | 同上 | validate 全绿 | 1 轮（cursor），全迭代 1 条：high 0 / P2 1（第 7 项，不采纳，见备注）/ P3 0 | 待合并 |
+| 5 | tidy | `FilesState` / `LocalTerminals` / `AppearanceController` 混入 `GuardedNotifier`，连同核对时发现的第四个 `TranscriptFolds`；mixin 加一个 `logTag`（文件面板 / 本地终端的日志前缀照旧是 `[files]` / `[terminals]`） | BACKLOG P5「R7.5 收尾」第 1 条 | 同上 | validate 全绿 | 1 轮（cursor），全迭代 1 条：high 0 / P2 1（第 7 项，不采纳，见备注）/ P3 0 | 待合并 |
+| 6 | tidy | gallery 五个 boards 文件的重复 helper 收拢到 `lib/gallery/boards/board_helpers.dart`（`boardText` / `windowBoard` / `pageBoard` / `fixtureAgentTitle` / `fixtureSessionTitle` / `boardComposerOptions`）；`design/DIVERGENCE.md` 第 11 条里点名的函数名跟着改 | BACKLOG P5「代码质量」第 3 条 | 同上 | validate 全绿 | 1 轮（cursor），全迭代 1 条：high 0 / P2 1（第 7 项，不采纳，见备注）/ P3 0 | 待合并 |
+| 7 | tidy | 五处自带 hover 的 widget 并到 `Hoverable`：`AcpButton`（按下态留在按钮里）、`ColumnSplitter`（拖拽态留在把手里）、`_PathChip`、`MentionChip`、`AttachmentChip`；`Hoverable` 加一个可选的 `onHoverChanged`（路径芯片要让卡片放开裁剪、附件芯片要开关预览浮层）。`hoveredInitially` 实际语义就是 `forceHover`（移出时回到它，给 true 就一直悬浮），直接映射过去；新增 `test/ui/hoverable_test.dart` 2 条 | BACKLOG P5「代码质量」第 4 条 | 同上 | validate 全绿 | 1 轮（cursor），全迭代 1 条：high 0 / P2 1（第 7 项，不采纳，见备注）/ P3 0 | 待合并 |
+| 8 | tidy | 其余 9 条按所有者裁定关闭、不改代码：行数门维持放宽、按区域订阅不做、权限范围下拉视为已实测、GUI 点击类验收留给手测、几何不变量断言不做、gallery 像素对比不做、桥四层转发不做、`appearance_prefs` 样板不做；「headless 报告的 lastError」并入 P0「失败没有出口」那条 | BACKLOG P5 其余 9 条；所有者裁定 2026-09-23 | 同上 | 只改文档 | 随本迭代一并审（无 findings） | 待合并 |
 
 ## 收口
 
@@ -35,6 +35,11 @@
 - 第一次全量红了一条：`composer_attachments_test.dart`「× 把那一块去掉」按「芯片里唯一的 `Hoverable`」找 ×，芯片外层也改走 `Hoverable` 之后撞出两个；改成按 × 图标（`AcpIcons.x`）找，行为断言不变。
 - 第 3 项：`\b_meta\b` 用六条样本行验过——`json!({"_meta": {"foo": 1}})`、`obj["_meta"]["bar"]`、`x._meta.get("baz")` 照拦；`symlink_metadata(...).expect("...")`、`terminal_exit_meta(...); let s = "x";`、只有 `obj["_meta"]` 没有别的字面量的行不拦。并回一行的 `symlink_metadata` 那行旧门会拦、新门放行，validate 的这一步是 PASS。
 - 第 4 项反证：临时换回旧的 `motion.dart`，新用例前两条红（时长 / 延迟变了仍按旧参数播完），换回后绿。零时长那条在旧代码上也绿：值只会是 0 或 1，Interval 的断言碰不到——真正会走到 NaN 的是本项改成「曲线可变」之后「播到一半切成零」这条路，所以守卫是这次改动自己需要的。
+
+### 审查（1 轮，cursor CLI + `grok-4.7-high-fast`）
+
+- 范围 `-Scope since -Base 2a7c2e9`，即 `2a7c2e9..abcf3d1`；产物 `.claude/reviews/20260923-111400-review.out.md`。结论 1 条：high 0 / P2 1 / P3 0。其余六项审查者逐项确认与改前等价（`\b_meta\b` 照拦整词、`markDisposed` 仍在清理前立旗、零时长起点为 0、拖拽 / 按下态仍盖过悬浮、附件预览仍由 `onHoverChanged` 调 `_sync`、路径芯片的裁剪仍跟报给卡片的悬浮值走）。
+- **[P2] 路径芯片与提及芯片把 `onTap` 交给 `Hoverable`（`HitTestBehavior.opaque`）后，点在芯片底色上、没点到字形时的目标变了** → **不采纳**。前提不成立：改前默认 `deferToChild` 的 `GestureDetector` 点在内边距上**同样命中**——`Container` 带 `BoxDecoration`（有没有底色都一样）就会包一层 `DecoratedBox`，`BoxDecoration.hitTest` 在整个圆角矩形内都返回 true，而内边距在 `DecoratedBox` 里面。实测（临时用例，不入库）：`Container(decoration: BoxDecoration(color: Accent.soft 或 null, borderRadius: Radii.chip), padding: Spacing.chip)` 外包默认 `GestureDetector`，点左内边距正中（芯片底色里、文本框外）`taps == 1`，两种底色都一样。真正的差别只剩圆角弧外那几个像素，`opaque` 本来就是项目里其余芯片走 `Hoverable` 的统一口径。没有采纳整改，按流程不复审。
 
 ### 没改的
 
