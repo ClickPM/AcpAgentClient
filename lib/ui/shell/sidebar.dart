@@ -66,8 +66,9 @@ class Sidebar extends StatelessWidget {
     this.runningIds = const <String>{},
     this.unreadIds = const <String>{},
     this.awaiting = const <String, TranscriptEntry>{},
+    this.themeChoice = t.Theming.defaultChoice,
     this.dark = false,
-    this.onToggleTheme,
+    this.onCycleTheme,
   });
 
   final List<SidebarSession> sessions;
@@ -105,9 +106,10 @@ class Sidebar extends StatelessWidget {
   /// 与 [runningIds] 互斥由调用方保证（`SessionActivity`）；同样是高频运行时态，不烘进 [SidebarSession]。
   final Map<String, TranscriptEntry> awaiting;
 
-  /// 画板 07：当前是不是深色，以及标题条右端那个切换按钮。不给 [onToggleTheme] 就不画按钮。
+  /// 画板 07：当前的主题选择、落到的是不是深色，以及标题条右端那个切换按钮。不给 [onCycleTheme] 就不画按钮。
+  final t.ThemeChoice themeChoice;
   final bool dark;
-  final VoidCallback? onToggleTheme;
+  final VoidCallback? onCycleTheme;
 
   @override
   Widget build(BuildContext context) {
@@ -121,7 +123,7 @@ class Sidebar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          SidebarTitleBar(dragArea: dragArea, dark: dark, onToggleTheme: onToggleTheme),
+          SidebarTitleBar(dragArea: dragArea, themeChoice: themeChoice, dark: dark, onCycleTheme: onCycleTheme),
           SidebarSearchField(
             controller: searchController,
             focusNode: searchFocusNode,
@@ -190,7 +192,14 @@ class SidebarEmpty extends StatelessWidget {
 
 /// 侧栏顶部的应用标题条。
 class SidebarTitleBar extends StatelessWidget {
-  const SidebarTitleBar({super.key, this.title = 'Agent ACP Client', this.dragArea, this.dark = false, this.onToggleTheme});
+  const SidebarTitleBar({
+    super.key,
+    this.title = 'Agent ACP Client',
+    this.dragArea,
+    this.themeChoice = t.Theming.defaultChoice,
+    this.dark = false,
+    this.onCycleTheme,
+  });
 
   final String title;
 
@@ -198,15 +207,32 @@ class SidebarTitleBar extends StatelessWidget {
   /// 要能拖窗口、双击最大化。和 `TopBar.dragArea` 同一种装配 —— 铺在容器**里面**、内容行**下面**。
   final Widget? dragArea;
 
-  /// 当前是不是深色（决定按钮画月亮还是太阳）。
+  /// 当前的主题选择（决定按钮画太阳、月亮还是显示器）。
+  final t.ThemeChoice themeChoice;
+
+  /// 当前落到的是不是深色。只有「跟随系统」的提示文案用它（说清系统眼下是哪套）。
   final bool dark;
 
-  /// 主题切换（画板 07）。不给就不画这个按钮 —— gallery 与画板对照页照画板 01–04 的原样出图。
-  final VoidCallback? onToggleTheme;
+  /// 主题切换（画板 07），三档循环。不给就不画这个按钮 —— gallery 与画板对照页照画板 01–04 的原样出图。
+  final VoidCallback? onCycleTheme;
+
+  /// 按钮显示的是**当前**这一档（三档循环时「切过去的那一档」说不清自己在哪一档，尤其分不出
+  /// 「跟随系统」与手选的同色档），提示文案再补一句点下去会切到哪。
+  static String themeTooltip(t.ThemeChoice choice, {required bool dark}) => switch (choice) {
+    t.ThemeChoice.light => 'Light mode · Switch to dark mode',
+    t.ThemeChoice.dark => 'Dark mode · Switch to system mode',
+    t.ThemeChoice.system => 'System mode (${dark ? 'dark' : 'light'}) · Switch to light mode',
+  };
+
+  static String themeIcon(t.ThemeChoice choice) => switch (choice) {
+    t.ThemeChoice.light => AcpIcons.sun,
+    t.ThemeChoice.dark => AcpIcons.moon,
+    t.ThemeChoice.system => AcpIcons.monitor,
+  };
 
   @override
   Widget build(BuildContext context) {
-    final VoidCallback? toggle = onToggleTheme;
+    final VoidCallback? cycle = onCycleTheme;
     return Container(
       height: t.Geometry.barHeight,
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
@@ -232,14 +258,10 @@ class SidebarTitleBar extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                if (toggle != null)
+                if (cycle != null)
                   AcpTooltip(
-                    message: dark ? 'Switch to light mode' : 'Switch to dark mode',
-                    child: IconButtonGhost(
-                      icon: dark ? AcpIcons.sun : AcpIcons.moon,
-                      size: t.Controls.compact,
-                      onTap: toggle,
-                    ),
+                    message: themeTooltip(themeChoice, dark: dark),
+                    child: IconButtonGhost(icon: themeIcon(themeChoice), size: t.Controls.compact, onTap: cycle),
                   ),
               ],
             ),

@@ -59,6 +59,30 @@ macOS 的 headless `run()` 仍然调用 `CFRunLoopRun()` 并把前台任务投�
 - 认证：`session/new` 返回 `AuthRequired` 错误码时映射为登录界面；auth method 为 terminal 类型时构造终端任务；兼容旧版 `_meta.terminal-auth`（`label / command / args / env`）；首选一等 terminal auth。
 - 其余：`session/list` 带 cursor 分页；elicitation store；ACP 流量调试日志（`acp_tools` 面板消费）。
 
+### 4.1 会话回收：后台自动 `session/close`
+
+> 2026-09-23 按钉版本 `d9e1c02` 核对，是 BACKLOG P1「会话菜单的 Resume / Close 没有入口」（所有者裁定暂不处理）的依据，以后做自动 close 直接从这里开工。行号都是这个 commit 的；换钉版本要重核。
+
+Zed 界面上**没有**手动 Resume / Close。一条会话在 agent 侧占的资源，全靠下面这套自动回收放掉（`session/close` 放掉的是 agent 侧**这一条会话**的资源，agent 进程不退：claude-agent-acp 每条会话挂一个 Claude Code 子进程，`teardownSession` 里 `query.close()` 把它关掉；codex-acp 所有会话共用一个 codex 进程，close 只是 `threadUnsubscribe` 卸掉其中一个 thread）。
+
+- **保活名单**：`crates/agent_ui/src/agent_panel.rs:1169` 的 `retained_threads: HashMap<ThreadId, Entity<ConversationView>>`。正在显示的会话不在名单里，切走的会话进名单，会话在后台照跑。
+- **触发时机：只在切走会话时。** `set_base_view`（:4268）先调 `retain_running_thread`（:4202），把旧视图放进名单（没内容的空草稿直接丢），再调 `cleanup_retained_threads`（:4232）。没有定时器：后台会话跑完之后不会马上被回收，要等下一次切换。
+- **回收条件**（`cleanup_retained_threads`，:4232 起）：
+  - 名单里「`ThreadStatus::Idle`（不在生成；这个枚举只有 `Idle` / `Generating` 两个值）」且「`connection.supports_load_session()`」的会话才算候选。视图还没连上 agent 的也算候选。
+  - 候选按 `updated_at` 升序排，只留最近的 `MaxIdleRetainedThreads` 条（:152–161，GPUI global，没设时取默认值 **5**），更旧的从名单里删掉。
+  - `updated_at`（`conversation_view.rs:293`）：这条会话的 `AcpThread` 每发一个事件就刷成 `Instant::now()`，也就是「最后一次有动静」的时间。
+  - **不回收的两类**：在跑的会话；agent 不支持 `loadSession` 的会话（只支持 resume 的 agent，回收后转录就回不来了）。
+- **从名单删掉以后，怎样变成 `session/close`**：
+  - 名单删掉 → `ConversationView` 及其中的 `AcpThread` 实体被释放 → `crates/agent_servers/src/acp.rs` 的 `register_session`（:1165）在 :1173 挂的 `observe_release` 回调触发。会话表里登记的仍是这个线程实体、且 agent 声明了 `sessionCapabilities.close`（`agent_supports_session_close`，:1215）时，发一次 `CloseSessionRequest`。
+  - 请求是 detach 出去的，结果只 `log_err`：失败了不重试，也不提示用户。
+  - 同一个 session 还有别的句柄、或还有 load 在途时不发；最后一个句柄释放时恰好发一次（acp.rs 测试里 :4049 / :4062 / :4200 / :4212 / :4282 / :4314 这几处断言）。
+  - **易误读**：`ConversationView::close_all_sessions`（`conversation_view.rs:796`；在 `on_release` :857 与 `set_server_state` :910 两处调用）走的是 `AgentConnection::close_session` trait 方法。外部 ACP agent 的 `AcpConnection` **没有**覆盖 `supports_close_session`（默认 false，`crates/acp_thread/src/connection.rs:125`），全仓库只有测试桩实现了它，所以它对外部 agent 是空操作。真正发请求的只有上面那个释放回调。连接状态被替换（出错重置 / 重连）时，旧状态里的线程也是经释放回调被 close 的。
+- **切回被回收的会话**：新建一个 `ConversationView`，`conversation_view.rs:1131` 起，agent 支持 `loadSession` 就走 `session/load` 重放历史；不支持 load、支持 resume 就走 `session/resume`（`resumed_without_history`，转录为空）；两个都不支持则报错。名单里还在的会话切回时直接复用视图（`activate_retained_thread`，agent_panel.rs:3268），不发任何请求。
+- **对照我们**（`lib/app/session_controller.dart`）：
+  - 切会话（`selectSession`）与换项目（`enterWorkspace`）都不 close，会话在 agent 侧一直占着，直到 agent 断开。
+  - 切回已关闭会话的路径（`_ensureLoaded`：load 优先、退回 resume）与 Zed 同序。要照搬，缺的只是「切走时回收」这一步：`selectSession` 里按上面的条件回收，复用 `closeSession` 里现成的「先收干净挂起请求、再 `session/close`」。
+  - 还有一个取舍待裁定：我们内存里的转录还在，切回时可以 resume 优先（不重放，快，本地折叠等状态也不丢）；Zed 连视图一起丢了，所以只能 load。
+
 ## 5. 五个 agent 对客户端的要求
 
 见 `requirements.md` § 必须 第 3 条的表。补充事实：

@@ -169,9 +169,13 @@ abstract final class AcpIcons {
   /// 61：终端状态行的「清屏」。
   static const String clearScreen = '<rect x="3" y="5" width="18" height="14" rx="2"/><line x1="8" y1="12" x2="16" y2="12"/>';
 
-  /// 侧栏标题条右端的主题切换（画板 07；画板上没画这个按钮，见 rounds/BACKLOG.md 的「设计稿补注记」）。
-  /// 显示的是**切过去**的那一档：浅色时出月亮，深色时出太阳。几何照其余图标的路子（24 视口、单线、圆头）。
+  /// 侧栏标题条右端的主题切换（画板 07；画板上没画这个按钮，见 design/DIVERGENCE.md）。
+  /// 显示的是**当前**那一档：浅色出太阳、深色出月亮、跟随系统出显示器。三个的几何照其余图标的路子
+  /// （24 视口、单线、圆头），外廓都撑到 2–22 / 3–21 这一圈，并排看轻重一致。
   static const String moon = '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>';
+  static const String monitor =
+      '<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/>'
+      '<line x1="12" y1="17" x2="12" y2="21"/>';
   static const String sun =
       '<circle cx="12" cy="12" r="4.5"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/>'
       '<line x1="4.2" y1="4.2" x2="5.6" y2="5.6"/><line x1="18.4" y1="18.4" x2="19.8" y2="19.8"/>'
@@ -185,7 +189,7 @@ abstract final class AcpIcons {
     alertTriangle, info, plus, arrowUpRight, play, link, dot, lock, slashCircle, diamond,
     panelLeft, gitBranch, settings, folder, plusSquare, reload, rotateCw, menuLines, target, arrowUp,
     arrowRight, arrowLeft, messageSquare, image, command, windowMinimize, windowMaximize, download,
-    chevronRight, collapseAll, clearScreen, history, moon, sun,
+    chevronRight, collapseAll, clearScreen, history, moon, sun, monitor,
   ];
 
   /// 完整 SVG 文档：stroke 固定为黑，真实颜色由 [AcpIcon] 的 colorFilter 给，这样同一图标只解析一次。

@@ -90,7 +90,8 @@ impl AgentServer {
 /// 不在这里再写一份（同 [`ui_state`] 的口径）。没存过就返回 null，由前端落到 token 上。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct Appearance {
-    /// 主题：`"light"` / `"dark"`（画板 07「深色 Token 对位表」）。
+    /// 主题选择：`"light"` / `"dark"`（画板 07「深色 Token 对位表」）/ `"system"`（跟随操作系统的深浅，
+    /// 由前端换算成前两套之一）。
     ///
     /// 放在 `appearance` 段里而不是顶层 `theme`：顶层那个键是 Zed 的主题名（`"One Dark"` 这种），
     /// 从 Zed 抄过设置的用户文件里可能已经有了；本客户端不解释它，也不能把它改掉（规则 7，见
@@ -133,7 +134,7 @@ impl Transcript {
 const MAX_FAMILY_LEN: usize = 128;
 
 /// 主题档的全部合法取值。手写进文件的别的值一律当没设置（回缺省浅色），不报错。
-const THEMES: [&str; 2] = ["light", "dark"];
+const THEMES: [&str; 3] = ["light", "dark", "system"];
 
 fn sane_theme(value: Option<String>) -> Option<String> {
     let v = value?;
@@ -404,12 +405,13 @@ mod tests {
     }
 
     #[test]
-    fn appearance_theme_only_takes_light_or_dark() {
+    fn appearance_theme_only_takes_light_dark_or_system() {
         let norm = |v: &str| Appearance { theme: Some(v.into()), ..Default::default() }.sanitized().theme;
         assert_eq!(norm("dark").as_deref(), Some("dark"));
         assert_eq!(norm("  Light  ").as_deref(), Some("light"), "去空白 + 大小写不敏感");
+        assert_eq!(norm("System").as_deref(), Some("system"), "跟随系统那一档要能存下来");
         // 手写的别的值一律当没设置：前端落回缺省浅色，不报错也不改用户的文件。
-        assert_eq!(norm("system"), None);
+        assert_eq!(norm("auto"), None);
         assert_eq!(norm("One Dark"), None);
         assert_eq!(norm(""), None);
         assert_eq!(Appearance::default().sanitized().theme, None);

@@ -12,7 +12,12 @@
 //
 // 参考 xterm 4.0.0 的 `lib/src/ui/custom_text_edit.dart`（MIT）改写：基准编辑状态恒为空串，上屏即交给终端再清回去
 // （终端没有可编辑的文本模型，编辑器那套选区 / 删除都不需要）。
+//
+// 正在组的字画在终端光标处：用的是 xterm 自己的组字串绘制（`RenderTerminal.composingText`，终端字体 + 下划线），
+// 不另叠浮层。Windows 引擎在 `WM_IME_SETCONTEXT` 里剥掉了 `ISC_SHOWUICOMPOSITIONWINDOW`（组字串约定由应用自己画），
+// 不画的话光标处什么都没有，只有输入法候选框里看得到拼音。
 
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:xterm/xterm.dart' as xt;
@@ -52,6 +57,9 @@ class _TerminalImeState extends State<TerminalIme> with TextInputClient {
 
   TextEditingValue _value = _empty;
 
+  /// 画在光标处的组字串（已垫好前导空格，见 [_showComposing]）；null = 没在组字。
+  String? _composing;
+
   bool get _attached => _connection?.attached ?? false;
 
   @override
@@ -83,7 +91,7 @@ class _TerminalImeState extends State<TerminalIme> with TextInputClient {
   Widget build(BuildContext context) {
     // 光标每帧回传一次：终端在滚、在打字，候选框得跟着走（没连接时是空操作）。
     _scheduleCaretUpdate();
-    return widget.child;
+    return _ComposingKeeper(onLayout: _applyComposing, child: widget.child);
   }
 
   /// 有焦点且进程在跑就该有连接，否则不该有。
@@ -93,6 +101,7 @@ class _TerminalImeState extends State<TerminalIme> with TextInputClient {
       _open();
     } else {
       _close();
+      _showComposing(null);
     }
   }
 
@@ -149,6 +158,23 @@ class _TerminalImeState extends State<TerminalIme> with TextInputClient {
       ..setCaretRect(caret);
   }
 
+  void _showComposing(String? text) {
+    // 前面垫一格：xterm 从光标格起画组字串、再在光标格上盖实心块光标，不垫的话第一个字母被光标盖住。
+    _composing = text == null || text.isEmpty ? null : ' $text';
+    _applyComposing();
+  }
+
+  /// 写进 xterm 的渲染对象：`RenderTerminal.composingText` 是公开的 setter，TerminalView 自己存组字串的那份状态是私有的。
+  void _applyComposing() {
+    final xt.TerminalViewState? view = widget.viewKey.currentState;
+    if (view == null) return;
+    try {
+      view.renderTerminal.composingText = _composing;
+    } catch (_) {
+      // 同 [_updateCaret]：viewport 这一帧还没建好，等下一次 layout 再写。
+    }
+  }
+
   // ---- TextInputClient
 
   @override
@@ -160,8 +186,13 @@ class _TerminalImeState extends State<TerminalIme> with TextInputClient {
   @override
   void updateEditingValue(TextEditingValue value) {
     _value = value;
-    // 还在组字：候选还没选定，什么都别发给 shell。
-    if (!value.composing.isCollapsed) return;
+    // 还在组字：候选还没选定，什么都别发给 shell，只画在光标处。画整串而不是 composing 那一段：基准恒为空串、
+    // 上屏前一个字都没交出去，部分选定的「你hao」也还全在这里。
+    if (!value.composing.isCollapsed) {
+      _showComposing(value.text);
+      return;
+    }
+    _showComposing(null);
     final String text = value.text;
     if (text.isEmpty) return;
     widget.terminal.textInput(text);
@@ -177,6 +208,7 @@ class _TerminalImeState extends State<TerminalIme> with TextInputClient {
   @override
   void connectionClosed() {
     _connection = null;
+    _showComposing(null);
     _sync();
   }
 
@@ -197,4 +229,36 @@ class _TerminalImeState extends State<TerminalIme> with TextInputClient {
 
   @override
   void showToolbar() {}
+}
+
+/// 组字串的保鲜层：[xt.TerminalView] 每次重建都会在 `updateRenderObject` 里把 `composingText` 清回它自己那份私有
+/// 状态（我们不走它的 `CustomTextEdit`，那份恒为 null），而终端面板每来一段 shell 输出就重建一次。这里在同一帧的
+/// layout 阶段（build 之后、paint 之前）写回去；放 post-frame 会先画出一帧空的，输出不断时组字串就一直闪。
+class _ComposingKeeper extends SingleChildRenderObjectWidget {
+  const _ComposingKeeper({required this.onLayout, required super.child});
+
+  final VoidCallback onLayout;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderComposingKeeper(onLayout);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderComposingKeeper renderObject) {
+    // 走到这里说明这一帧 TerminalView 也跟着重建了。
+    renderObject
+      ..onLayout = onLayout
+      ..markNeedsLayout();
+  }
+}
+
+class _RenderComposingKeeper extends RenderProxyBox {
+  _RenderComposingKeeper(this.onLayout);
+
+  VoidCallback onLayout;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    onLayout();
+  }
 }
