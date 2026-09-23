@@ -358,18 +358,18 @@ impl Core {
         }
     }
 
-    /// 切换：新安装记录继承认证状态，记下运行中那条连接的版本（`reloadPending` 用），写盘即切换。返回清旧目录时要留下的
+    /// 切换：新安装记录继承磁盘上此刻的认证状态，记下运行中那条连接的版本（`reloadPending` 用），写盘即切换。返回清旧目录时要留下的
     /// 入口：新的、当前安装记录的、运行中连接的（这几个目录都推迟到下次启动清），认不出连接的入口就这次不清（`None`）。
     fn commit_upgrade(&self, current: &InstallManifest, mut next: InstallManifest) -> Result<Option<Vec<PathBuf>>> {
         let dirs = self.registry_dirs();
         let id = current.id.clone();
-        next.auth_status = current.auth_status;
         // 连接在这里重新看一次：升级在途时用户可能 Reload 过（那时拉起的还是旧安装记录）。
         let (previous, keep) = switch_plan(current, &next, self.live_entry(&id));
         next.previous_version = previous;
         // settings 里的 registry 条目升级前就在（带用户的 env，不动）；被手动删了就补回，同名 custom 条目则报错不切换。
         self.write_registry_settings(&id)?;
-        next.save(dirs)?;
+        // 认证状态在写盘的那一刻从磁盘取（与 session/new 的回写串行），不用升级开始时读到的 `current`。
+        InstallManifest::switch_to(dirs, next)?;
         Ok(keep)
     }
 
@@ -611,12 +611,15 @@ fn platform_unsupported() -> CoreError {
 }
 
 /// 删一个目录，Windows 上被刚结束的子进程占着时短等重试（与首装回滚同一套次数与间隔）；重试用尽就留着，下次清扫再删。
+/// 删除放在阻塞线程上：npx 握手失败时目录里已是一整份 `node_modules`（审查第 2 轮 P3）。
 async fn remove_dir_retrying(dir: &Path) {
     for attempt in 0..ROLLBACK_ATTEMPTS {
         if attempt > 0 {
             tokio::time::sleep(ROLLBACK_RETRY).await;
         }
-        if !dir.exists() || std::fs::remove_dir_all(dir).is_ok() {
+        let path = dir.to_path_buf();
+        let removed = tokio::task::spawn_blocking(move || !path.exists() || std::fs::remove_dir_all(&path).is_ok()).await;
+        if removed.unwrap_or(false) {
             return;
         }
     }

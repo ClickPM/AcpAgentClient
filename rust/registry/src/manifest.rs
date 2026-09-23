@@ -3,6 +3,7 @@
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+use std::sync::{Mutex, MutexGuard};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -10,6 +11,18 @@ use serde_json::Value;
 use crate::{RegistryDirs, RegistryError, Result};
 
 pub const MANIFEST_FILE: &str = "install.json";
+
+/// 安装记录「读 → 改 → 写」的进程内串行化：`session/new` 结果的认证状态回写（[`InstallManifest::set_auth_status`]）与
+/// 升级切换（[`InstallManifest::switch_to`]）会同时写同一份 `install.json`；不串起来，后写的一方会拿自己读到的旧记录
+/// 整份盖掉对方——升级被静默撤销（下次启动清扫再把新版本目录删掉），或登录结果被切换盖回旧值（round-board-53 审查第 2 轮）。
+static WRITES: Mutex<()> = Mutex::new(());
+
+fn writes() -> MutexGuard<'static, ()> {
+    match WRITES.lock() {
+        Ok(g) => g,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
 
 /// 认证状态（本地态，docs/design.md § 5 第 5 条）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -81,8 +94,9 @@ impl InstallManifest {
         Ok(())
     }
 
-    /// 改认证状态并落盘（没有安装记录时什么都不做）。
+    /// 改认证状态并落盘（没有安装记录时什么都不做）。与升级切换串行（见 [`WRITES`]）。
     pub fn set_auth_status(dirs: &RegistryDirs, agent_id: &str, status: AuthStatus) -> Result<bool> {
+        let _writing = writes();
         let Some(mut manifest) = Self::load(dirs, agent_id)? else { return Ok(false) };
         if manifest.auth_status == status {
             return Ok(true);
@@ -90,6 +104,16 @@ impl InstallManifest {
         manifest.auth_status = status;
         manifest.save(dirs)?;
         Ok(true)
+    }
+
+    /// 升级切换：在与 [`Self::set_auth_status`] 同一把锁里，把磁盘上此刻的认证状态带进 `next` 再写盘——升级在途时
+    /// 运行中的连接照常 `session/new`，那期间记下的登录结果不能被升级开始时读到的旧值盖回去。
+    pub fn switch_to(dirs: &RegistryDirs, mut next: InstallManifest) -> Result<()> {
+        let _writing = writes();
+        if let Some(disk) = Self::load(dirs, &next.id)? {
+            next.auth_status = disk.auth_status;
+        }
+        next.save(dirs)
     }
 
     /// 已安装 = 有记录且拉起用的程序 / 目录还在。
@@ -142,6 +166,13 @@ mod tests {
         assert_eq!(InstallManifest::load(&dirs, "x").expect("load").expect("some").auth_status, AuthStatus::NeedsAuth);
         let v = InstallManifest::load(&dirs, "x").expect("load").expect("some").to_json();
         assert_eq!(v["authStatus"], "needs_auth");
+        // 升级切换带的是磁盘上此刻的认证状态，不是调用方手里那份旧值（审查第 2 轮）。
+        let mut next = InstallManifest::load(&dirs, "x").expect("load").expect("some");
+        next.version = "2.0.0".into();
+        next.auth_status = AuthStatus::Unknown;
+        InstallManifest::switch_to(&dirs, next).expect("switch");
+        let switched = InstallManifest::load(&dirs, "x").expect("load").expect("some");
+        assert_eq!((switched.version.as_str(), switched.auth_status), ("2.0.0", AuthStatus::NeedsAuth));
         std::fs::write(InstallManifest::path(&dirs, "x"), "{ broken").expect("write");
         assert!(matches!(InstallManifest::load(&dirs, "x"), Err(RegistryError::Json(_))));
         let _ = std::fs::remove_dir_all(&dir);

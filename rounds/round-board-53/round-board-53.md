@@ -66,10 +66,17 @@ registry 型（npx / binary）agent 装好之后能看出「registry 有新版�
 
 ## 代码审查
 
-- 审查方式：
-- 审查器与模型：
-- 审查范围与基准提交：
+- 审查方式：`cursor-review.ps1`（默认档）
+- 审查器与模型：cursor CLI `grok-4.7-high-fast`
+- 审查范围与基准提交：第 1 轮全量 `main...8ef163d`；第 2 轮全量 `main...04b9af2`
 - findings 处理：
+  - 第 1 轮（`.claude/reviews/20260923-095515-review.out.md`，3 条：high 1 / P2 1 / P3 1）：
+    - **[high] 升级收尾会删掉正在拉起的旧版本目录** —— 采纳整改（`cfc9d61`）。`agent_connect` 先把旧连接摘出连接表、按当前 `install.json` 拉起新进程、connect 完才插回；这段时间 `live_entry` 看到「没连着」，切换后的清扫只留新入口，会删掉那个进程要用的目录。按审查给的最小修复：`switch_plan` 的 `keep` 恒带当前安装记录的入口，旧版本目录一律推迟到下次启动清；`previousVersion` 在看起来没连着时也记当前版本。单测 `switch_plan_records_…` 与 `binary_upgrade_…` 跟着改（切换后旧目录仍在、重启清扫删掉），a 组真跑按整改后的构建重跑并补 a4。
+    - **[P2] 子进程拉起没有 Windows 实测记录** —— 已处理：审查的是 `8ef163d`，真跑记录在其后的 `880c004` 补上（本卡「验收 7」）。
+    - **[P3] 升级成功后的清扫在 runtime 工作线程上做阻塞删除** —— 采纳（`880c004`，改 `spawn_blocking`）。同条提到的 `install_npx` 开头清空目标目录**不采纳**：目标目录是新取的版本目录，正常不存在，只有上一次同名升级失败 / 被取消时才留有半截，量级远小于旧版本整目录；按审查边界不为它加机制。
+  - 第 2 轮（`.claude/reviews/20260923-102325-review.out.md`，2 条：P2 1 / P3 1；第 1 轮 high 的整改复核通过）：
+    - **[P2] 升级提交用入口处的认证状态覆盖 install.json，升级期间的登录结果会丢** —— 采纳整改。两个方向：① 切换写的是升级开始时读到的 `auth_status`，途中 `session/new` 记下的登录结果被盖回；② `set_auth_status` 读进旧记录后、写回前恰好切换，旧记录整份写回 → 升级被静默撤销，下次启动清扫还会删掉新版本目录。后者属逻辑错误，按收口标准必须修。修法：`manifest.rs` 里一把进程内的 `static` 锁把「读 → 改 → 写」串起来，`set_auth_status` 与新增的 `InstallManifest::switch_to`（切换时在锁内取磁盘上此刻的认证状态再写）都走它；`commit_upgrade` 改调 `switch_to`。它是修这个丢更新竞态的最小做法（只串同一文件的读改写，不改任何对外形状）；只在 `set_auth_status` 写回前重读比对仍留有检查与写之间的窗口，所以没用。`manifest_round_trips_and_tracks_auth_status` 补一段：`switch_to` 带的是磁盘上的认证状态而不是调用方手里的旧值。
+    - **[P3] 升级失败删新目录仍在 runtime 工作线程上做阻塞删除** —— 采纳：`remove_dir_retrying` 每次删除放进 `spawn_blocking`。
 - 结论：
 
 ## 失败处理
