@@ -2,7 +2,7 @@
 
 <!-- 保存为 iterations/iteration-NN.md。一个迭代一个文件、一项一行；流程正本见 iterations/README.md，不在这里复述。 -->
 
-> 状态：进行中　起止：2026-09-23 –　基线：`main` = `34e66be`（本分支开出时；编号 07 是因为 `main` 上 05 / 06 已被别的会话占用）
+> 状态：进行中（1 项待合并；合并时机由所有者定）　起止：2026-09-23 –　基线：`main` = `34e66be`（本分支开出时；编号 07 是因为 `main` 上 05 / 06 已被别的会话占用）
 
 BACKLOG P1「数据一致性」两条合在一起做：「换项目放下的会话挂着请求，界面上没痕迹」与「后台会话挂起的权限 / 表单请求，界面上没痕迹」。
 两条根因相同（挂起队列只在当前会话的停靠条上露出来），差在请求所属会话在不在侧栏里，所以分两处提示：侧栏条目（当前工作区）与项目切换器（按工作区汇总）。
@@ -12,7 +12,7 @@ BACKLOG P1「数据一致性」两条合在一起做：「换项目放下的会�
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | board | 画板 09「等你处理」：侧栏条目在「N 条消息」后出 `▲ 待授权` / `ⓘ 待输入`（warning 色；亮点撤掉只留底线，行高仍 58；当前会话也显示），项目切换器在跑数徽标左边并排一枚等你数徽标（按会话计数，当前工作区也挂，触发钮 tooltip 整句为 0 的段省略）；「等你处理」与「运行中」互斥，在跑数不再含等你的会话。派生挪进 `lib/projection/session_activity.dart`（`session_controller.dart` 已到 897 / 900 行门）；画板 09 入库 + 画板 06 / 08 文字修订 + PNG 重渲 | BACKLOG P1「数据一致性」第 1、2 条；所有者 2026-09-23 | `claude/permission-request-badge-missing-c4a919` | validate 全绿 | — | 待审查 |
+| 1 | board | 画板 09「等你处理」：侧栏条目在「N 条消息」后出 `▲ 待授权` / `ⓘ 待输入`（warning 色；亮点撤掉只留底线，行高仍 58；当前会话也显示），项目切换器在跑数徽标左边并排一枚等你数徽标（按会话计数，当前工作区也挂，触发钮 tooltip 整句为 0 的段省略）；「等你处理」与「运行中」互斥，在跑数不再含等你的会话。派生挪进 `lib/projection/session_activity.dart`（`session_controller.dart` 已到 897 / 900 行门）；画板 09 入库 + 画板 06 / 08 文字修订 + PNG 重渲 | BACKLOG P1「数据一致性」第 1、2 条；所有者 2026-09-23 | `claude/permission-request-badge-missing-c4a919`（实现 `586fd86`） | validate 全绿 | 1 轮（cursor），0 条 | 待合并 |
 
 ## 收口
 
@@ -38,3 +38,7 @@ BACKLOG P1「数据一致性」两条合在一起做：「换项目放下的会�
 - `powershell -File scripts/validate.ps1`：第三次 **VALIDATE OK**（16 项全绿，`flutter test` 473 条全过，`flutter analyze` 的 16 条 info 与基线同数、无新增）。前两次：第一次唯一红的是 fetch-upstream -Check（本 worktree 的 `vendor/upstream` 是空目录，按惯例换成指向主副本的目录联接后全绿）；第二次红在 `rust/acp-core/tests/scripted.rs` 的 `owned_terminals_are_released_when_the_agent_disconnects`（`disconnect().await` 之后立刻断言终端已释放），本分支 `rust/` 零改动，那一轮日志里有别的会话同时在用共享 cargo target 的「waiting for file lock」，单独重跑与第三次全量都过——判为既有的时序偶发，已另开任务跟进，不在本迭代修。
 - 新增用例：`test/projection/session_activity_test.dart` 6 条（互斥、最早那一项定种类且先到的了结后换种类、按工作区计数与没记 cwd 的只进合计、requestScope 不算、回应后回到在跑、`$/cancel_request` / `session/cancel` / agent 退出三条了结路径）；`test/ui/sidebar_awaiting_test.dart` 3 条（整壳：后台会话挂权限请求 → 侧栏「待授权」、亮点停、行高 58、顶栏等你徽标与 tooltip，回应后复原；会话项给了在跑也以等你为准；切换器两枚徽标的挂行、tooltip 与左右顺序）；`test/app/running_badge_test.dart` 加 1 条（换项目之后原工作区那条卡在授权上的会话计在等你数里、回应后回到在跑），原有 08 C 用例改走 `activity`。
 - gallery：新增 `09-awaiting-you` 对照页，与 `design/round-design/09-awaiting-you.png` 逐段对过（①–④ 分帧、悬浮、列表全景、徽标三态、触发钮、切换器弹层）。
+
+### 审查（1 轮，cursor CLI + `grok-4.7-high-fast`）
+
+- `-Scope since -Base 34e66be`（本分支基线），结果 `.claude/reviews/20260923-142715-review.out.md`：**0 条**。审查器逐条核对了互斥在回应、`$/cancel_request`、`session/cancel`（权限与 elicitation 都标掉）、agent 退出、`resetForReplay` 的 `forgetSession`、`Sessions.forget` 这些了结路径上都成立，以及等你标记淡出保留旧种类、回到在跑时换一只新的扫掠线从新周期开始。无整改，不复审。
