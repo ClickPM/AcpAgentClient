@@ -22,7 +22,7 @@ class AcpApp extends StatefulWidget {
   State<AcpApp> createState() => _AcpAppState();
 }
 
-class _AcpAppState extends State<AcpApp> {
+class _AcpAppState extends State<AcpApp> with WidgetsBindingObserver {
   late final WorkbenchController _controller = WorkbenchController(
     source: widget.source ?? DataSource.fromEnvironment(),
     bridge: widget.bridge,
@@ -30,19 +30,29 @@ class _AcpAppState extends State<AcpApp> {
 
   /// 外观偏好（字体四轴 = 画板 70「外观」，主题 = 画板 07）：启动时扫可选字体并读设置，
   /// 改动后 [ChangeNotifier] 触发整树重建。放在最外层而不是设置页里：这些都是全局样式，
-  /// 转录 / 终端 / 弹层都要跟着变。
-  late final AppearanceController _appearance = AppearanceController(bridge: widget.bridge);
+  /// 转录 / 终端 / 弹层都要跟着变。主题选「跟随系统」时要系统当前的深浅：开局给一次，
+  /// 之后每次系统切换由 [didChangePlatformBrightness] 转过去。
+  late final AppearanceController _appearance = AppearanceController(
+    bridge: widget.bridge,
+    platformBrightness: _platformBrightness,
+  );
+
+  Brightness get _platformBrightness => WidgetsBinding.instance.platformDispatcher.platformBrightness;
+
+  @override
+  void didChangePlatformBrightness() => _appearance.setPlatformBrightness(_platformBrightness);
 
   /// 关窗前的收尾（R4 验收 4：应用退出时子进程全部回收）：Windows 引擎把 `WM_CLOSE` 转成 `System.requestAppExit`，
   /// 这里等核心 `core_shutdown`（释放终端、断开 agent）回来再放行。
   late final AppLifecycleListener _lifecycle = AppLifecycleListener(onExitRequested: _onExitRequested);
-  bool _shuttingDown = false;
+
+  /// 只收一次尾，但每一次关窗请求都等它：收尾要几秒（agent 不理 stdin EOF 时要等满 `DISCONNECT_GRACE` 再杀树），
+  /// 这期间窗口一动不动，用户多半会再点一次 ✕。第二次若直接放行，进程就在收尾途中退出，agent 进程树留成孤儿
+  /// （BACKLOG P0「退出时 agent 的子进程没回收」）。
+  Future<void>? _shutdown;
 
   Future<AppExitResponse> _onExitRequested() async {
-    if (!_shuttingDown) {
-      _shuttingDown = true;
-      await _controller.shutdown();
-    }
+    await (_shutdown ??= _controller.shutdown());
     return AppExitResponse.exit;
   }
 
@@ -50,6 +60,7 @@ class _AcpAppState extends State<AcpApp> {
   void initState() {
     super.initState();
     _lifecycle;
+    WidgetsBinding.instance.addObserver(this);
     // 不 await：字体扫描是磁盘 IO，不该拖慢首帧。扫完若与默认不同会自己触发一次重建。
     _appearance.start();
     _controller.start();
@@ -57,6 +68,7 @@ class _AcpAppState extends State<AcpApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _lifecycle.dispose();
     _appearance.dispose();
     _controller.dispose();

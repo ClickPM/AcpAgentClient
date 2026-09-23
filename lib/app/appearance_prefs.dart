@@ -1,5 +1,5 @@
 // 外观偏好（画板 70「外观」小节 + 画板 07「深色 Token 对位表」）：四个字体轴各选一款字体，
-// 外加浅色 / 深色主题，全局生效。
+// 外加主题（浅色 / 深色 / 跟随系统），全局生效。
 //
 // 四个轴是「界面西文 / 界面中文 / 代码西文 / 代码中文」。为什么这么分而不是一个「界面字体」下拉：
 // Flutter 里中西文分轴是靠 `fontFamily` + `fontFamilyFallback` 天然成立的——西文字体对 CJK 的 cmap
@@ -10,9 +10,13 @@
 // （随包的 Noto Sans SC 汉字是全角 1em，而 Geist Mono 的 advance 约 0.6em，2×0.6 ≠ 1，现在就是歪的）。
 // 更纱黑体 Sarasa Mono SC 专门做了 2:1 对齐，是这一轴的推荐项。界面场景不在乎这个，所以两轴分开。
 //
-// 主题只有浅色 / 深色两档（画板 07：深色只换颜色，间距 / 圆角 / 字阶 / 控件高度 / 动效时长全都一样）。
-// 切换入口是侧栏标题条右端那个按钮（`lib/ui/shell/sidebar.dart`）；画板 70 的「外观」小节还没有这一行，
-// 见 rounds/BACKLOG.md 的「设计稿补注记」。
+// 颜色只有浅色 / 深色两套（画板 07：深色只换颜色，间距 / 圆角 / 字阶 / 控件高度 / 动效时长全都一样），
+// 选择多一档「跟随系统」（[t.ThemeChoice.system]：跟着操作系统的深浅走，系统一切换就跟着换套）。
+// 切换入口**只有**侧栏标题条右端那个按钮（`lib/ui/shell/sidebar.dart`），三档循环；设置页不放这一行
+// （所有者 2026-09-23）。画板 07 / 70 都没画这个按钮，见 design/DIVERGENCE.md。
+//
+// 系统当前的深浅由组合根喂进来（[AppearanceController.setPlatformBrightness]；`lib/app/app.dart` 监听
+// `didChangePlatformBrightness`），这一层不碰 binding。
 //
 // 持久化在 `settings.json` 的 `appearance` 段（Rust 侧 `settings::Appearance`，字体键名与 Zed 同形取
 // `ui_font_family` / `buffer_font_family`，主题是我们自己的 `theme`）。生效方式是把值灌进 `tokens.dart`
@@ -280,7 +284,7 @@ class FontPrefs {
   String toString() => 'FontPrefs(${toJson()})';
 }
 
-/// 外观设置的全量：四个字体轴 + 主题。`appearance` 段整段落盘，所以这里一次给全。
+/// 外观设置的全量：四个字体轴 + 主题选择。`appearance` 段整段落盘，所以这里一次给全。
 @immutable
 class AppearancePrefs {
   const AppearancePrefs({this.fonts = const FontPrefs(), this.theme});
@@ -291,31 +295,35 @@ class AppearancePrefs {
   /// `settings.json` 里 `appearance` 段内的键名。不是顶层 `theme`——那个是 Zed 的主题名，我们不碰（规则 7）。
   static const String themeSettingsKey = 'theme';
 
-  /// 落盘取值：`"light"` / `"dark"`，与 Rust 侧 `settings::sane_theme` 的白名单一致。
-  static String themeValue(t.AppTheme mode) => mode.name;
+  /// 落盘取值：`"light"` / `"dark"` / `"system"`，与 Rust 侧 `settings::sane_theme` 的白名单一致。
+  static String themeValue(t.ThemeChoice choice) => choice.name;
 
-  /// 读回来的字符串 → 主题。认不出来的（手写的脏值）一律 null = 没设置过，落回缺省。
-  static t.AppTheme? parseTheme(Object? v) {
+  /// 读回来的字符串 → 主题选择。认不出来的（手写的脏值）一律 null = 没设置过，落回缺省。
+  static t.ThemeChoice? parseTheme(Object? v) {
     if (v is! String) return null;
     final String name = v.trim().toLowerCase();
-    for (final t.AppTheme mode in t.AppTheme.values) {
-      if (mode.name == name) return mode;
+    for (final t.ThemeChoice choice in t.ThemeChoice.values) {
+      if (choice.name == name) return choice;
     }
     return null;
   }
 
   final FontPrefs fonts;
 
-  /// `null` = 没选过，用 [t.Theming.defaultMode]（不往 `settings.json` 里写死缺省值，口径同字体轴）。
-  final t.AppTheme? theme;
+  /// `null` = 没选过，用 [t.Theming.defaultChoice]（不往 `settings.json` 里写死缺省值，口径同字体轴）。
+  final t.ThemeChoice? theme;
 
-  t.AppTheme get resolvedTheme => theme ?? t.Theming.defaultMode;
+  /// 当前的选择（没选过 → 缺省）。
+  t.ThemeChoice get themeChoice => theme ?? t.Theming.defaultChoice;
+
+  /// 落到哪套颜色。`platform` 是操作系统当前的深浅，只有「跟随系统」看它。
+  t.AppTheme resolveTheme(Brightness platform) => themeChoice.resolve(platform);
 
   AppearancePrefs withFonts(FontPrefs next) => AppearancePrefs(fonts: next, theme: theme);
 
   /// 选回缺省档时存 null 而不是档名，理由同 [FontPrefs.withAxis]。
-  AppearancePrefs withTheme(t.AppTheme? mode) =>
-      AppearancePrefs(fonts: fonts, theme: mode == t.Theming.defaultMode ? null : mode);
+  AppearancePrefs withTheme(t.ThemeChoice? choice) =>
+      AppearancePrefs(fonts: fonts, theme: choice == t.Theming.defaultChoice ? null : choice);
 
   Map<String, Object?> toJson() => <String, Object?>{
     ...fonts.toJson(),
@@ -459,7 +467,8 @@ class FontRegistry {
 
 /// 外观偏好的读写与生效。挂在组合根上，[AcpApp] 监听它重建整棵树。
 class AppearanceController extends ChangeNotifier with GuardedNotifier {
-  AppearanceController({this.bridge, FontRegistry? registry}) : registry = registry ?? FontRegistry();
+  AppearanceController({this.bridge, FontRegistry? registry, this._platformBrightness = Brightness.light})
+    : registry = registry ?? FontRegistry();
 
   /// 没有桥（gallery / 单测）就只在内存里生效，不落盘。
   final CoreCommands? bridge;
@@ -471,8 +480,14 @@ class AppearanceController extends ChangeNotifier with GuardedNotifier {
   /// 四个字体轴的当前选择（设置页「外观」小节用）。
   FontPrefs get fonts => _prefs.fonts;
 
-  /// 当前生效的主题。
-  t.AppTheme get theme => _prefs.resolvedTheme;
+  /// 当前生效的那套颜色（「跟随系统」时已按系统当前的深浅落定）。
+  t.AppTheme get theme => _prefs.resolveTheme(_platformBrightness);
+
+  /// 当前的主题选择（侧栏那个按钮画哪个图标看它）。
+  t.ThemeChoice get themeChoice => _prefs.themeChoice;
+
+  /// 操作系统当前的深浅，由组合根喂进来（见文件头）。
+  Brightness _platformBrightness;
 
   /// [start] 这一趟读盘的完成信号（没跑过 [start] 的 gallery / 单测里是 null）。
   ///
@@ -544,13 +559,21 @@ class AppearanceController extends ChangeNotifier with GuardedNotifier {
   Future<void> setAxis(FontAxis axis, String? family) =>
       _edit((AppearancePrefs p) => p.withFonts(p.fonts.withAxis(axis, family)));
 
-  /// 换主题（浅色 ↔ 深色）。
-  Future<void> setTheme(t.AppTheme mode) => _edit((AppearancePrefs p) => p.withTheme(mode));
+  /// 换主题（浅色 / 深色 / 跟随系统）。
+  Future<void> setTheme(t.ThemeChoice choice) => _edit((AppearancePrefs p) => p.withTheme(choice));
 
-  /// 侧栏标题条那个按钮：在两档之间来回切。
-  Future<void> toggleTheme() => _edit(
-    (AppearancePrefs p) => p.withTheme(p.resolvedTheme == t.AppTheme.dark ? t.AppTheme.light : t.AppTheme.dark),
-  );
+  /// 侧栏标题条那个按钮：浅色 → 深色 → 跟随系统 → 浅色，三档循环。
+  Future<void> cycleTheme() => _edit((AppearancePrefs p) => p.withTheme(p.themeChoice.next));
+
+  /// 操作系统切了深浅。选的是「跟随系统」就立即换套并重建；别的档只记下来，等用户切到「跟随系统」时用。
+  ///
+  /// 不落盘、不等读盘：盘上存的是**选择**，系统的深浅不是设置。读盘还没回来时 `_prefs` 是缺省浅色，
+  /// 换算结果不变、不通知；读盘回来灌进「跟随系统」时自然按这里记下的值落定。
+  void setPlatformBrightness(Brightness platform) {
+    if (disposed || platform == _platformBrightness) return;
+    _platformBrightness = platform;
+    if (_prefs.themeChoice == t.ThemeChoice.system) _applyLocally(_prefs, notify: true);
+  }
 
   /// 整段外观回缺省（四个字体轴 + 主题）。
   Future<void> resetAll() => _edit((AppearancePrefs _) => const AppearancePrefs());
@@ -558,16 +581,20 @@ class AppearanceController extends ChangeNotifier with GuardedNotifier {
   /// 改一次外观：等读盘落定 → 算出新的全量 → 立即生效 + 落盘。
   /// 落盘失败不回滚（界面已经变了，下次启动回到旧值即可），只报错。
   ///
-  /// 新值由 `change` 从**当时**的 `_prefs` 算出来，不是调用点先算好再传进来：等读盘的那一下
-  /// `_prefs` 还会变（[_hydrate] 会把盘上的灌进来），先算好就等于拿空快照去整段覆盖。
+  /// 等读盘的那一下 `_prefs` 还会变（[_hydrate] 会把盘上的灌进来），所以新值分两步得出：
+  /// `change` 对着**点下去那一刻**界面上的那一份算，再以读盘后的 `_prefs` 为基底只盖这次真改到的维度
+  /// （[_overlay]）。只取前者等于拿空快照去整段覆盖；只取后者，[cycleTheme] 这种相对操作就会对着
+  /// 用户还没看见的盘上那一档往下切（盘上是深色、首帧还是浅色时点一下，写成了「跟随系统」）。
   Future<void> _edit(AppearancePrefs Function(AppearancePrefs current) change) async {
+    // 用户是按**界面上看得见的这一份**点的，相对操作（[cycleTheme]）必须对准它算——所以在等读盘**之前**
+    // 记下：读盘回来会先把盘上的灌进 `_prefs`，界面却要下一帧才重建（cursor 审查 high，2026-09-23）。
+    final AppearancePrefs seen = _prefs;
     await _awaitHydration();
     if (disposed) return;
     final CoreCommands? bridge = this.bridge;
 
-    // 用户是按**界面上看得见的这一份**点的，相对操作（[toggleTheme]）必须对准它算。
-    final AppearancePrefs seen = _prefs;
-    AppearancePrefs next = change(seen);
+    // 读盘没改动 `_prefs` 时基底就是 `seen`，这一步等于直接取 `change(seen)`。
+    AppearancePrefs next = _overlay(base: _prefs, seen: seen, edited: change(seen));
 
     // 启动那一趟没读到（最常见的是核心还没 `core_init` 完 —— `AcpApp.initState` 里
     // `_appearance.start()` 排在 `_controller.start()` 前面，两个都不 await）就再读一次：
@@ -600,15 +627,16 @@ class AppearanceController extends ChangeNotifier with GuardedNotifier {
     }
   }
 
-  /// 补读成功时的合并：以盘上的 `base` 为基底，把这次**真改到**的维度（`edited` 相对 `seen` 有差的那些）
-  /// 盖上去。
+  /// 「用户按所见改」与「盘上已有的」的合并：以盘上的 `base` 为基底，把这次**真改到**的维度（`edited`
+  /// 相对 `seen` 有差的那些）盖上去。两处用它：读盘还没回来就点了（`base` = 读盘后的 `_prefs`），
+  /// 以及启动读盘失败后的补读（`base` = 补读到的）。
   ///
   /// 两边都不能少（复审 high，2026-09-20）：直接拿 `edited` 落盘会把盘上没改到的项抹掉（`appearance`
-  /// 段整段替换）；反过来先把 `base` 灌进 `_prefs` 再算，[toggleTheme] 这种相对操作就会对着**用户没看见
-  /// 的**主题取反 —— 盘上是深色、界面因读失败显示浅色时，用户点「转深色」反而被写成浅色。
+  /// 段整段替换）；反过来先把 `base` 灌进 `_prefs` 再算，[cycleTheme] 这种相对操作就会对着**用户没看见
+  /// 的**那一档往下切 —— 盘上是深色、界面显示浅色时，用户点「转深色」反而被写成「跟随系统」。
   ///
-  /// [resetAll] 在这条路上只重置用户看得见的那些维度：没看见的以盘上为准。这条路要求「启动读盘失败 +
-  /// 补读成功 + 正好点重置」，而重置目前也没有界面入口。
+  /// [resetAll] 在这两条路上只重置用户看得见的那些维度：没看见的以盘上为准。这要求「点重置时盘上的还没
+  /// 灌进界面」，而重置目前也没有界面入口。
   static AppearancePrefs _overlay({
     required AppearancePrefs base,
     required AppearancePrefs seen,
@@ -623,6 +651,9 @@ class AppearanceController extends ChangeNotifier with GuardedNotifier {
 
   /// 灌进 tokens。`notify` 只在真的变了时才发，避免无谓重建。
   void _applyLocally(AppearancePrefs next, {required bool notify}) {
+    // 选择变了而颜色没变（系统是深色时「深色 → 跟随系统」、系统是浅色时「跟随系统 → 浅色」）也得重建：
+    // 侧栏按钮的图标与文案看的是选择，只看 tokens 变没变，它会停在上一档。
+    final bool choiceChanged = next.themeChoice != _prefs.themeChoice;
     _prefs = next;
     final FontPrefs fonts = next.fonts;
     // 两个 apply 都要跑到：写成 `a || b` 会在字体已经变了的时候短路掉主题那一边。
@@ -632,7 +663,7 @@ class AppearanceController extends ChangeNotifier with GuardedNotifier {
       mono: fonts.resolved(FontAxis.codeLatin),
       codeCjk: fonts.resolved(FontAxis.codeCjk),
     );
-    final bool themeChanged = t.Theming.apply(next.resolvedTheme);
-    if (notify && (fontsChanged || themeChanged)) touch();
+    final bool themeChanged = t.Theming.apply(next.resolveTheme(_platformBrightness));
+    if (notify && (fontsChanged || themeChanged || choiceChanged)) touch();
   }
 }

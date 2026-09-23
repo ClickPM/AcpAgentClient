@@ -34,6 +34,7 @@ import '../ui/shell/right_panel.dart';
 import '../ui/shell/shell_common.dart';
 import '../ui/shell/sidebar.dart';
 import '../ui/shell/session_header.dart';
+import '../ui/shell/toast.dart';
 import '../ui/shell/topbar.dart';
 import '../ui/shell/transcript_empty.dart';
 import '../ui/terminal/terminal_panel.dart';
@@ -241,37 +242,42 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
 
   // ---------------------------------------------------------------- 侧栏（画板 01 / 04）
 
-  Widget _sidebar() => Sidebar(
-        sessions: c.session.visibleSessions,
-        now: DateTime.now(),
-        query: c.session.search,
-        selectedId: c.session.sessionId,
-        // 会话头那支笔就地改（下面的 [SessionHeader]），别同时把侧栏这一行也切成输入框。
-        renamingId: c.session.renamingInHeader ? null : c.session.renamingSessionId,
-        renameController: c.session.rename,
-        renameFocusNode: c.session.renameFocus,
-        searchController: c.session.sidebarSearch,
-        searchFocusNode: c.session.sidebarSearchFocus,
-        activeTab: c.shell.activeNavTab,
-        onSelect: c.session.selectSession,
-        onSearchChanged: c.session.setSearch,
-        onClearSearch: c.session.clearSearch,
-        onStartRename: c.session.startRename,
-        onCommitRename: c.session.commitRename,
-        onCancelRename: c.session.cancelRename,
-        onDelete: _askDelete,
-        onTab: c.shell.toggleNavTab,
-        deleteAnchor: c.session.deleteAnchor,
-        confirmingDeleteId: c.session.confirmingDeleteId,
-        // 画板 06：在跑的出扫掠亮点线，跑完没看的出绿点。
-        runningIds: c.session.runningSessionIds,
-        unreadIds: c.session.unreadSessionIds,
-        // 侧栏标题条与顶栏是同一行：那一段也要能拖窗口、双击最大化。
-        dragArea: _dragArea(),
-        // 画板 07：标题条右端的浅色 / 深色切换。没有外观控制器（gallery / 单测）就不画这个按钮。
-        dark: widget.appearance?.theme == t.AppTheme.dark,
-        onToggleTheme: widget.appearance?.toggleTheme,
-      );
+  Widget _sidebar() {
+    final activity = c.session.activity;
+    return Sidebar(
+      sessions: c.session.visibleSessions,
+      now: DateTime.now(),
+      query: c.session.search,
+      selectedId: c.session.sessionId,
+      // 会话头那支笔就地改（下面的 [SessionHeader]），别同时把侧栏这一行也切成输入框。
+      renamingId: c.session.renamingInHeader ? null : c.session.renamingSessionId,
+      renameController: c.session.rename,
+      renameFocusNode: c.session.renameFocus,
+      searchController: c.session.sidebarSearch,
+      searchFocusNode: c.session.sidebarSearchFocus,
+      activeTab: c.shell.activeNavTab,
+      onSelect: c.session.selectSession,
+      onSearchChanged: c.session.setSearch,
+      onClearSearch: c.session.clearSearch,
+      onStartRename: c.session.startRename,
+      onCommitRename: c.session.commitRename,
+      onCancelRename: c.session.cancelRename,
+      onDelete: _askDelete,
+      onTab: c.shell.toggleNavTab,
+      deleteAnchor: c.session.deleteAnchor,
+      confirmingDeleteId: c.session.confirmingDeleteId,
+      // 画板 06 / 09：在跑的出扫掠亮点线，跑完没看的出绿点，挂着权限 / 表单请求的出「待授权 / 待输入」。
+      runningIds: activity.running,
+      unreadIds: c.session.unreadSessionIds,
+      awaiting: activity.awaiting,
+      // 侧栏标题条与顶栏是同一行：那一段也要能拖窗口、双击最大化。
+      dragArea: _dragArea(),
+      // 画板 07：标题条右端的浅色 / 深色 / 跟随系统三档切换。没有外观控制器（gallery / 单测）就不画这个按钮。
+      themeChoice: widget.appearance?.themeChoice ?? t.Theming.defaultChoice,
+      dark: widget.appearance?.theme == t.AppTheme.dark,
+      onCycleTheme: widget.appearance?.cycleTheme,
+    );
+  }
 
   void _askDelete(String id) {
     c.session.askDelete(id);
@@ -288,6 +294,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   bool get _windowControlsInTopBar => !c.shell.rightPanelOpen;
 
   Widget _topBar({bool windowControls = true}) {
+    final activity = c.session.activity;
     return TopBar(
       projectName: c.workspace.project?.name ?? '—',
       branch: c.workspace.branchAreaVisible ? c.workspace.branch : null,
@@ -302,9 +309,10 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       projectAnchor: c.workspace.projectAnchor,
       branchAnchor: c.workspace.branchAnchor,
       dragArea: _dragArea(),
-      // 画板 08 C：全部工作区在跑会话合计。
-      runningTotal: c.session.runningTotal,
-      runningWorkspaces: c.session.runningWorkspaceCount,
+      // 画板 08 C / 09 B：全部工作区的在跑 / 等你处理会话合计。
+      runningTotal: activity.runningTotal,
+      awaitingTotal: activity.awaitingTotal,
+      activeWorkspaces: activity.workspaceCount,
     );
   }
 
@@ -326,22 +334,26 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   void _openProjectPopover() {
     c.workspace.projectAnchor.toggle((_) => ListenableBuilder(
           listenable: c,
-          builder: (context, _) => ProjectSwitcherPopover(
-            openProjects: <ProjectRef>[if (c.workspace.project != null) c.workspace.project!],
-            recentProjects: <ProjectRef>[
-              for (final p in c.workspace.recentProjects)
-                if (p.path != c.workspace.project?.path) p,
-            ],
-            currentPath: c.workspace.project?.path,
-            searchController: c.workspace.projectSearch,
-            searchFocusNode: c.workspace.projectSearchFocus,
-            query: c.workspace.projectSearch.text,
-            // 画板 08 C：每一行的在跑会话数。归一化那条规则只有 `WorkspaceState.normalizeCwd` 一份。
-            runningOf: (p) => c.session.runningByWorkspace[WorkspaceState.normalizeCwd(p.path)] ?? 0,
-            onQueryChanged: (_) => c.refresh(),
-            onSelect: c.workspace.openProject,
-            onOpenLocalFolders: _pickProjectDirectory,
-          ),
+          builder: (context, _) {
+            final activity = c.session.activity;
+            return ProjectSwitcherPopover(
+              openProjects: <ProjectRef>[if (c.workspace.project != null) c.workspace.project!],
+              recentProjects: <ProjectRef>[
+                for (final p in c.workspace.recentProjects)
+                  if (p.path != c.workspace.project?.path) p,
+              ],
+              currentPath: c.workspace.project?.path,
+              searchController: c.workspace.projectSearch,
+              searchFocusNode: c.workspace.projectSearchFocus,
+              query: c.workspace.projectSearch.text,
+              // 画板 08 C / 09 B：每一行的在跑 / 等你处理会话数。归一化那条规则只有 `WorkspaceState.normalizeCwd` 一份。
+              runningOf: (p) => activity.runningByWorkspace[WorkspaceState.normalizeCwd(p.path)] ?? 0,
+              awaitingOf: (p) => activity.awaitingByWorkspace[WorkspaceState.normalizeCwd(p.path)] ?? 0,
+              onQueryChanged: (_) => c.refresh(),
+              onSelect: c.workspace.openProject,
+              onOpenLocalFolders: _pickProjectDirectory,
+            );
+          },
         ));
   }
 
@@ -399,8 +411,16 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
           timelineAnchor: c.session.timelineAnchor,
           menuAnchor: c.session.sessionMenuAnchor,
         ),
-        body: _body(),
+        body: _toastLayer(_body()),
         composer: _composer(),
+      );
+
+  /// 壳级提示（设计稿之外的增补，所有者 2026-09-23）：「会话正在加载中」与各处的错误，叠在正文区顶上（会话头正下方）。
+  /// 叠在 [_body] 外面：等待期的变暗与挡点击只管正文，提示条不跟着变暗。
+  Widget _toastLayer(Widget child) => ToastLayer(
+        toasts: c.toasts.visible(loadingSession: c.session.loadingSession),
+        onDismiss: c.toasts.dismiss,
+        child: child,
       );
 
   /// 画板 05 的 A 组（会话内容整块替换的入场）与 B 组（等待期：重载 agent、新建会话）都落在中栏这一块。
@@ -958,12 +978,12 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
           children: <Widget>[
             _topBar(windowControls: _windowControlsInTopBar),
             Expanded(
-              child: TrafficPage(
+              child: _toastLayer(TrafficPage(
                 store: c.traffic,
                 filterController: c.shell.trafficFilter,
                 filterFocusNode: c.shell.trafficFilterFocus,
                 stderrAgentId: c.session.agentId,
-              ),
+              )),
             ),
           ],
         ),

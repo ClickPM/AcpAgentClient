@@ -48,7 +48,7 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     if (b == null || id == null) return;
     if (composer.editor.text.trim().isEmpty && composer.pendingBlocks.isEmpty) return; // 空输入不开会话
     if (_blockedByClose()) return;
-    // 按当前会话相对它 agent 当前那条连接的状态分流（iteration-07，BACKLOG P0「会话身份与生命周期」）。
+    // 按当前会话相对它 agent 当前那条连接的状态分流（iteration-09，BACKLOG P0「会话身份与生命周期」）。
     // 以前只看有没有转录（`store`）：载不回转录的会话被另开一条静默顶掉，换过进程的会话直接发、撞 `-32602`。
     final target = session.sessionId;
     var state = session.attachOf(target);
@@ -67,7 +67,7 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
         if (state == SessionAttach.none || state == SessionAttach.unattachable) {
           await session.newSession(session.agentRefOf(id));
           // 挂不回的那条开新会话没开出来：它的转录还在内存里，不能落到下面把这句话发给当前连接上不存在的旧 sessionId，
-          // 再拿 `-32602` 盖掉 `newSession` 写好的原因（cursor 审查 high，iteration-07）。判「开出来没有」看挂没挂上，
+          // 再拿 `-32602` 盖掉 `newSession` 写好的原因（cursor 审查 high，iteration-09）。判「开出来没有」看挂没挂上，
           // 不只看 id：`session/new` 可以回同一个 id（fake-agent 不带 `--sessions` 时总是这样，复审 high）。
           if (target != null && session.sessionId == target && session.attachOf(target) != SessionAttach.attached) return;
         }
@@ -108,14 +108,19 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     touch();
   }
 
-  /// 往当前会话发命令之前（Restore / Regenerate / 三个下拉）：没挂在活着的连接上就先挂回（iteration-07），
+  /// 往当前会话发命令之前（Restore / Regenerate / 三个下拉）：没挂在活着的连接上就先挂回（iteration-09），
   /// 不然重载 / 崩溃之后发出去只会撞 `-32602 unknown session`。挂不回返回 false，原因记到本对象的 [lastError]。
   Future<bool> _ensureAttached() async {
     final state = session.attachOf(session.sessionId);
     if (state == SessionAttach.attached) return true;
     if (session.waitingForAgent) return false;
-    if (state == SessionAttach.detached && await session.reattach() == SessionAttach.attached) return true;
-    lastError = session.lastError ?? '这条会话在当前连接上无法继续，新建一个会话再发';
+    if (state == SessionAttach.detached) {
+      final after = await session.reattach();
+      if (after == SessionAttach.attached) return true;
+      // 挂回失败的原因会话控制器已经写了（写进 `lastError` 就落成一条 toast），这里不再抄一遍。
+      if (after == SessionAttach.detached) return false;
+    }
+    lastError = '这条会话在当前连接上无法继续，新建一个会话再发';
     touch();
     return false;
   }

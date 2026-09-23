@@ -1,8 +1,8 @@
 // 当前会话与会话生命周期（R7.5 从 workbench_controller.dart 拆出）：当前 agent / 会话与派生态（画板 01 的两个空态、
-// 会话头标题、输入框可用性、画板 34 的状态条）、agent 能力（R6）、侧栏列表与搜索（画板 04）、画板 06 的活动指示、
+// 会话头标题、输入框可用性、画板 34 的状态条）、agent 能力（R6）、侧栏列表与搜索（画板 04）、画板 06 / 09 的活动指示、
 // 新建 / 重载 / 点选 / `session/load` / resume / close / delete / `session/list` 校对（R6）、改名与删除确认（画板 41）、
 // 本地索引的写回。协议状态仍在 `lib/projection/`（规则 2），这里只是「唯一知道桥的人」里管会话的那一段。
-// 会话挂在哪条 agent 连接上（四态、挂回、`session/load`、关闭态）在混入的 `session_attach.dart`（iteration-07 拆出）。
+// 会话挂在哪条 agent 连接上（四态、挂回、`session/load`、关闭态）在混入的 `session_attach.dart`（iteration-09 拆出）。
 //
 // 依赖方向（任务卡附录 B）：读本地索引走 [index]、已装 agent 与 registry 走 [agents]、当前项目走 [workspace]；
 // 反向的四件事（切回工作台页、判断是否在工作台页、右栏切到 Agents 标签、进认证页）由组合根经回调接线。
@@ -16,6 +16,7 @@ import 'package:flutter/widgets.dart';
 import '../projection/agent_state.dart';
 import '../projection/batcher.dart';
 import '../projection/pending.dart';
+import '../projection/session_activity.dart';
 import '../projection/session_store.dart';
 import '../projection/wire.dart';
 import '../ui/popovers/topbar_popovers.dart';
@@ -85,7 +86,7 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
   /// → `session/load`）与新建会话（[newSession]：拉进程 → `initialize` → `session/new`，含 `send()`
   /// 现开一条那条路）。画板 05 B 组只画了 reload 图标那个触发，但两者都是「时长不可预知的整块替换」，
   /// 等待期的规格一字不差地套用；新建会话那条是所有者手测报回来的（2026-09-18：选完 agent
-  /// 到会话出来这几秒界面一动不动，像卡住了）。发送前把会话挂回来（`reattach`，iteration-07）也用这一套。
+  /// 到会话出来这几秒界面一动不动，像卡住了）。发送前把会话挂回来（`reattach`，iteration-09）也用这一套。
   @override
   bool waitingForAgent = false;
   final Map<String, String> _sessionAgent = <String, String>{}; // sessionId → agentId
@@ -171,7 +172,7 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
 
   String get composerPlaceholder {
     if (!hasAgent) return '安装并选择一个 agent 后即可输入';
-    // 挂不回的会话（iteration-07）：发送只能照 R3 新开一条，先说清楚，别让它静默顶掉选中的这条。
+    // 挂不回的会话（iteration-09）：发送只能照 R3 新开一条，先说清楚，别让它静默顶掉选中的这条。
     final unattachable = hasSession && !sessionClosed && attachOf(sessionId) == SessionAttach.unattachable;
     // 会话是发第一条消息时才开的，cwd 从当前项目来：没项目就先说清楚，别让发送静默失败。
     if ((!hasSession || unattachable) && workspace.project == null) return '先选一个项目目录，新会话的 cwd 从它来';
@@ -186,10 +187,7 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
   List<SidebarSession> get visibleSessions {
     if (search.isEmpty) return sidebarSessions;
     final q = search.toLowerCase();
-    return <SidebarSession>[
-      for (final s in sidebarSessions)
-        if (s.title.toLowerCase().contains(q)) s,
-    ];
+    return sidebarSessions.where((s) => s.title.toLowerCase().contains(q)).toList();
   }
 
   /// 会话头的 agent 标记。
@@ -208,41 +206,13 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
   /// 跑完了、还没被看过的会话（画板 06 B 的绿点）。纯客户端本地态，不落盘、不进协议。
   final Set<String> _unreadDone = <String>{};
 
-  /// 画板 06 A：有在途 prompt 的会话（出扫掠亮点线）。只有内存里有投影的会话才可能在跑，
-  /// 所以直接从会话表算，不另记一份（少一处要对齐的状态）。
-  Set<String> get runningSessionIds => <String>{
-        for (final s in sessions.all)
-          if (s.isRunning) s.sessionId,
-      };
+  /// 画板 06 A / 08 C / 09：在跑与等你处理的会话、按工作区的计数（每次从会话表与挂起队列现算）。
+  /// 工作区键同 [WorkspaceState.normalizeCwd]。**换项目不关会话**（见 [enterWorkspace]：放下不等于关掉），
+  /// 所以之前打开过的工作区里还在跑 / 在等的会话仍在表里，不必去后台探活；本次运行从没打开过的工作区自然一条都没有。
+  SessionActivity get activity => SessionActivity(sessions, workspaceKey: WorkspaceState.normalizeCwd);
 
   /// 画板 06 B：完成未读的会话。
   Set<String> get unreadSessionIds => _unreadDone;
-
-  // ---------------------------------------------------------------- 画板 08 C：跨工作区在跑数
-
-  /// 按工作区分组的在跑会话数。键是归一化后的 cwd（同 [WorkspaceState.normalizeCwd]，
-  /// 同一目录的两种写法不能被判成两个工作区）。
-  ///
-  /// 数据源与画板 06 的扫掠线是同一个：内存里的会话表。**换项目不关会话**（见 [enterWorkspace]
-  /// 的注释：放下不等于关掉），所以之前打开过的工作区里还在跑的会话仍然在这张表里，
-  /// 不必去后台探活。本次运行从没打开过的工作区自然一条都没有。
-  Map<String, int> get runningByWorkspace {
-    final out = <String, int>{};
-    for (final s in sessions.all) {
-      final String? cwd = s.cwd;
-      if (!s.isRunning || cwd == null || cwd.isEmpty) continue;
-      final key = WorkspaceState.normalizeCwd(cwd);
-      out[key] = (out[key] ?? 0) + 1;
-    }
-    return out;
-  }
-
-  /// 触发钮上的合计：所有工作区（含当前）。**没记 cwd 的在跑会话也算进来**——它确实在跑，
-  /// 只是归不到某一行上，漏掉它就不再是「别处还有多少在跑」的真数。
-  int get runningTotal => runningSessionIds.length;
-
-  /// 有在跑会话的工作区个数（触发钮 tooltip 的第二个数）。
-  int get runningWorkspaceCount => runningByWorkspace.length;
 
   /// 回合结束时点亮绿点（画板 06 D 表）：`stopReason` 是 cancelled / refusal 的不点，失败收轮（没有 `stopReason`）
   /// 的也不点 —— 取消与出错侧栏一律不表达，错误只在转录区（画板 31 / 34）。
@@ -476,7 +446,7 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
     await saveIndex(target: _adoptSession(agent, cwd, session));
   }
 
-  /// 认证页（没连上的 agent 先 `initialize`）也经这里连：连接换了一代要记账（iteration-07），
+  /// 认证页（没连上的 agent 先 `initialize`）也经这里连：连接换了一代要记账（iteration-09），
   /// 不然这个 agent 名下内存里的会话还当自己挂着，发出去撞 `-32602 unknown session`。
   Future<void> connectAgent(String agent, String? cwd) async {
     final b = bridge;
@@ -484,7 +454,7 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
   }
 
   /// 正在 `agent_connect` 的 agent：并发的第二次等这一次，不另发（核心的 `agent_connect` 会先断开已有连接，
-  /// 两次交叠就是把刚拉起的那条杀掉——点开一条没连上的旧会话、紧接着发送就是这个窗口；cursor 审查 high，iteration-07）。
+  /// 两次交叠就是把刚拉起的那条杀掉——点开一条没连上的旧会话、紧接着发送就是这个窗口；cursor 审查 high，iteration-09）。
   final Map<String, Future<void>> _connecting = <String, Future<void>>{};
 
   Future<void> _connectOnce(CoreCommands b, String agent, String? cwd) {
@@ -500,7 +470,7 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
   /// `agent_connect` + 把返回的 `initialize` 立刻落进 agent 状态表。
   /// 为什么不等 `acp/agent_state: initialized` 事件：事件要过一轮 batcher 才到，而紧接着的
   /// `session/new` / `session/load` 就要读 `agentCapabilities` 裁剪动作，等不起（R6）。落两次是幂等的。
-  /// 换上的是一条新连接：这个 agent 名下内存里的会话全部挂空（iteration-07），切过去或再发时自动挂回。
+  /// 换上的是一条新连接：这个 agent 名下内存里的会话全部挂空（iteration-09），切过去或再发时自动挂回。
   Future<JsonMap> _connect(CoreCommands b, String agent, String? cwd) async {
     final result = await b.agentConnect(agent, cwd: cwd);
     final init = result['initialize'];
@@ -518,7 +488,7 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
   }
 
   /// `session/new` 的结果落到投影层；会话的 cwd 属于当前项目时才切成当前会话。
-  /// 认证期间换了项目（BACKLOG P0「认证完成后建出来的会话挂到旧目录」，iteration-07）：认证页成功后的自动重试
+  /// 认证期间换了项目（BACKLOG P0「认证完成后建出来的会话挂到旧目录」，iteration-09）：认证页成功后的自动重试
   /// 用的是发起时的 cwd，会话照常登记在它自己的目录下（切回那个项目就在侧栏里），但不顶掉当前项目里正看着的。
   /// 平常的新建会话在等待期里换不了项目（`WorkspaceState` 的等待期守卫），这道判断对它恒真。
   SessionStore _adoptSession(String agent, String cwd, JsonMap result) {

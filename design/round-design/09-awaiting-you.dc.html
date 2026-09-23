@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet"><style>body{margin:0;background:#fbfbfc}a{color:#4a59c9;text-decoration:none}a:hover{color:#3d4cb5}@keyframes acpSweep{from{background-position-x:-96px,0}to{background-position-x:calc(100% + 96px),0}}@media (prefers-reduced-motion:reduce){.acp-sweep{animation:none!important;background-image:linear-gradient(#5566d8,#5566d8)!important;background-size:100% 1px!important;background-position:0 50%!important}}</style></helmet>
+<div data-screen-label="09" style="width:1440px;min-width:1440px;box-sizing:border-box;padding:24px;background:#fbfbfc;color:#33333d;font-family:Geist,'Noto Sans SC',system-ui,sans-serif;font-size:13px;display:flex;flex-direction:column;gap:18px">
+
+  <div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #e2e2e7;padding-bottom:10px">
+    <span style="font-size:15px;font-weight:500;color:#1e1e26;flex:none">09 · 等你处理 · 侧栏条目 / 工作区切换器</span>
+    <span style="font-size:11px;color:#8b8b96">协议来源：session/request_permission · elicitation/create（挂起中）· $/cancel_request · session/cancel · 会话所属工作区（本地）</span>
+    <span style="margin-left:auto;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;white-space:nowrap;flex:none">解决的问题：后台会话卡在授权上时前台看不出来 · 换走的工作区里有会话在等你却无处可见</span>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:baseline;gap:10px">
+      <span style="font-size:13px;font-weight:500;color:#1e1e26;flex:none">A · 侧栏条目 · 等你处理</span>
+      <span style="font-size:11px;color:#62626e">该会话有挂起的权限请求或表单请求时，扫掠亮点停下，第二行在「N 条消息」后追加一枚「待授权 / 待输入」标记；回应之后标记撤掉，回合没结束就接着扫掠。</span>
+    </div>
+
+    <div style="display:flex;gap:20px;align-items:flex-start">
+      <div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d;margin-bottom:6px">① 运行中 · t = 0ms</div>
+        <div style="width:280px;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px;padding:4px 0">
+          <div style="height:58px;display:flex;align-items:center;gap:8px;padding:0 12px;position:relative">
+            <span style="width:16px;height:16px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:6px;height:6px;background:#8b8b96;transform:rotate(45deg)"></span></span>
+            <span style="flex:1;min-width:0">
+              <span style="display:block;font-size:13px;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">整理构建脚本</span>
+              <span style="display:block;font-size:11px;color:#8b8b96;font-variant-numeric:tabular-nums">刚刚 · 8 条消息</span>
+            </span>
+            <span style="position:absolute;left:12px;right:12px;bottom:6px;height:8px;background-image:linear-gradient(90deg,rgba(85,102,216,0) 0%,#5566d8 50%,rgba(85,102,216,0) 100%),linear-gradient(#e2e2e7,#e2e2e7);background-repeat:no-repeat,no-repeat;background-size:96px 1px,100% 1px;background-position:38% 50%,0 50%"></span>
+          </div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">亮点在扫</div>
+      </div>
+      <div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d;margin-bottom:6px">② 待授权 · t = 0ms</div>
+        <div style="width:280px;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px;padding:4px 0">
+          <div style="height:58px;display:flex;align-items:center;gap:8px;padding:0 12px;position:relative">
+            <span style="width:16px;height:16px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:6px;height:6px;background:#8b8b96;transform:rotate(45deg)"></span></span>
+            <span style="flex:1;min-width:0">
+              <span style="display:block;font-size:13px;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">整理构建脚本</span>
+              <span style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;color:#8b8b96;font-variant-numeric:tabular-nums;white-space:nowrap">刚刚 · 9 条消息</span><span style="flex:none;display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#8a6f12;white-space:nowrap"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>待授权</span></span>
+            </span>
+            <span style="position:absolute;left:12px;right:12px;bottom:6px;height:8px;background-image:linear-gradient(#e2e2e7,#e2e2e7);background-repeat:no-repeat;background-size:100% 1px;background-position:0 50%"></span>
+          </div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">请求到达：亮点同帧撤去，标记淡入</div>
+      </div>
+      <div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d;margin-bottom:6px">③ 待输入</div>
+        <div style="width:280px;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px;padding:4px 0">
+          <div style="height:58px;display:flex;align-items:center;gap:8px;padding:0 12px;position:relative">
+            <span style="width:16px;height:16px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:6px;height:6px;background:#8b8b96;transform:rotate(45deg)"></span></span>
+            <span style="flex:1;min-width:0">
+              <span style="display:block;font-size:13px;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">整理构建脚本</span>
+              <span style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;color:#8b8b96;font-variant-numeric:tabular-nums;white-space:nowrap">刚刚 · 9 条消息</span><span style="flex:none;display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#8a6f12;white-space:nowrap"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="11" x2="12" y2="16"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>待输入</span></span>
+            </span>
+            <span style="position:absolute;left:12px;right:12px;bottom:6px;height:8px;background-image:linear-gradient(#e2e2e7,#e2e2e7);background-repeat:no-repeat;background-size:100% 1px;background-position:0 50%"></span>
+          </div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px">表单请求：换图标与文字，颜色不变</div>
+      </div>
+      <div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d;margin-bottom:6px">④ 回应之后 · t = 0ms</div>
+        <div style="width:280px;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px;padding:4px 0">
+          <div style="height:58px;display:flex;align-items:center;gap:8px;padding:0 12px;position:relative">
+            <span style="width:16px;height:16px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:6px;height:6px;background:#8b8b96;transform:rotate(45deg)"></span></span>
+            <span style="flex:1;min-width:0">
+              <span style="display:block;font-size:13px;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">整理构建脚本</span>
+              <span style="display:block;font-size:11px;color:#8b8b96;font-variant-numeric:tabular-nums">刚刚 · 10 条消息</span>
+            </span>
+            <span style="position:absolute;left:12px;right:12px;bottom:6px;height:8px;background-image:linear-gradient(90deg,rgba(85,102,216,0) 0%,#5566d8 50%,rgba(85,102,216,0) 100%),linear-gradient(#e2e2e7,#e2e2e7);background-repeat:no-repeat,no-repeat;background-size:96px 1px,100% 1px;background-position:-56px 50%,0 50%"></span>
+          </div>
+        </div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px;max-width:280px;line-height:1.6">回合未结束：标记淡出，扫掠从新周期开始，不接着停下前的位置</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:24px;align-items:flex-start;margin-top:6px">
+      <div style="flex:none">
+        <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">列表全景（宽同侧栏）</div>
+        <div style="width:280px;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px;padding:4px 0">
+          <div style="height:58px;display:flex;align-items:center;gap:8px;padding:0 12px;background:rgba(30,30,38,.10);position:relative">
+            <span style="width:16px;height:16px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:6px;height:6px;background:#5566d8;transform:rotate(45deg)"></span></span>
+            <span style="flex:1;min-width:0">
+              <span style="display:block;font-size:13px;font-weight:500;color:#4a59c9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">分析 AAC 项目代码质量</span>
+              <span style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;color:#8b8b96;font-variant-numeric:tabular-nums;white-space:nowrap">刚刚 · 14 条消息</span><span style="flex:none;display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#8a6f12;white-space:nowrap"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>待授权</span></span>
+            </span>
+            <span style="position:absolute;left:12px;right:12px;bottom:6px;height:8px;background-image:linear-gradient(#e2e2e7,#e2e2e7);background-repeat:no-repeat;background-size:100% 1px;background-position:0 50%"></span>
+          </div>
+          <div style="height:58px;display:flex;align-items:center;gap:8px;padding:0 12px;position:relative">
+            <span style="width:16px;height:16px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:6px;height:6px;background:#8b8b96;transform:rotate(45deg)"></span></span>
+            <span style="flex:1;min-width:0">
+              <span style="display:block;font-size:13px;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">整理构建脚本</span>
+              <span style="display:block;font-size:11px;color:#8b8b96;font-variant-numeric:tabular-nums">2 分钟前 · 8 条消息</span>
+            </span>
+            <span class="acp-sweep" style="position:absolute;left:12px;right:12px;bottom:6px;height:8px;background-image:linear-gradient(90deg,rgba(85,102,216,0) 0%,#5566d8 50%,rgba(85,102,216,0) 100%),linear-gradient(#e2e2e7,#e2e2e7);background-repeat:no-repeat,no-repeat;background-size:96px 1px,100% 1px;background-position:-96px 50%,0 50%;animation:acpSweep 1400ms linear infinite"></span>
+          </div>
+          <div style="height:48px;display:flex;align-items:center;gap:8px;padding:0 12px">
+            <span style="width:16px;height:16px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:6px;height:6px;background:#8b8b96;transform:rotate(45deg)"></span></span>
+            <span style="flex:1;min-width:0">
+              <span style="display:block;font-size:13px;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">你能够看到图片内容吗</span>
+              <span style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;color:#8b8b96;font-variant-numeric:tabular-nums">7 分钟前 · 9 条消息</span><span style="width:6px;height:6px;flex:none;border-radius:50%;background:#477f40"></span></span>
+            </span>
+          </div>
+          <div style="height:58px;display:flex;align-items:center;gap:8px;padding:0 12px;position:relative">
+            <span style="width:16px;height:16px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:6px;height:6px;background:#8b8b96;transform:rotate(45deg)"></span></span>
+            <span style="flex:1;min-width:0">
+              <span style="display:block;font-size:13px;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">迁移 settings.json 的读取</span>
+              <span style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;color:#8b8b96;font-variant-numeric:tabular-nums;white-space:nowrap">12 分钟前 · 6 条消息</span><span style="flex:none;display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#8a6f12;white-space:nowrap"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="11" x2="12" y2="16"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>待输入</span></span>
+            </span>
+            <span style="position:absolute;left:12px;right:12px;bottom:6px;height:8px;background-image:linear-gradient(#e2e2e7,#e2e2e7);background-repeat:no-repeat;background-size:100% 1px;background-position:0 50%"></span>
+          </div>
+          <div style="height:48px;display:flex;align-items:center;gap:8px;padding:0 12px">
+            <span style="width:16px;height:16px;flex:none;border:1px solid #8b8b96;border-radius:3px;display:flex;align-items:center;justify-content:center"><span style="width:6px;height:6px;background:#8b8b96;transform:rotate(45deg)"></span></span>
+            <span style="flex:1;min-width:0">
+              <span style="display:block;font-size:13px;color:#33333d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Loaded Agent Skills Overview</span>
+              <span style="display:block;font-size:11px;color:#8b8b96;font-variant-numeric:tabular-nums">19 小时前 · 11 条消息</span>
+            </span>
+          </div>
+        </div>
+        <div style="width:280px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px;line-height:1.6">当前会话同样显示标记（它是状态，不是未读；画板 26 的停靠条照旧另外出现）。多条同时等你时各自显示，不汇总；等你的会话不置顶、不变色、不加粗。</div>
+      </div>
+
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:14px">
+        <div>
+          <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">标记规格</div>
+          <div style="display:grid;grid-template-columns:150px 1fr;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;border-top:1px solid #e2e2e7">
+            <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">属性</div>
+            <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">值</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">位置</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">第二行末尾，紧跟「N 条消息」，间距 6px（同画板 06 绿点的间距）；不加「·」分隔</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">图标</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">12px；permission 用 triangle-alert、elicitation 用 info（与画板 26 停靠条同一对图标、同一描边粗细）；图标与文字 gap 4px</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">文字</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">待授权 / 待输入；11px，与第二行其余文字同字号、同行高；不加粗</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">颜色</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">图标与文字都用 warning（浅色 #8a6f12，深色按画板 07 对位）。两种请求同色——侧栏要表达的是「等你」，种类靠图标和文字区分</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">同时挂着两种</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">显示最早到的那一条的种类（与停靠条取第一条的顺序一致），不显示个数</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">截断</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">标记不参与省略，永远完整显示；标题照旧单行 ellipsis</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">行高</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">保持 58（row.running）：回合还没结束，不因等你改行高，免得列表来回跳</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">细线</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">亮点撤掉，1px 底线（sweep.track）保留、不变色</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">不变的</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">标题、时间、条数、agent 图标、底色、排序、悬浮态的重命名 / 删除图标——全部照画板 04 / 06</div>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">动效</div>
+          <div style="display:grid;grid-template-columns:190px 160px 150px 110px 1fr;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;border-top:1px solid #e2e2e7">
+            <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">属性</div>
+            <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">起 → 止</div>
+            <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">时长</div>
+            <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">曲线</div>
+            <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">备注</div>
+
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">标记出现</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">opacity 0 → 1</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">motion.fast 120ms</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">motion.ease</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">请求到达即出现</div>
+
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">亮点撤掉</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">可见 → 移除</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">0ms</div>
+            <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">—</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">与标记出现同帧</div>
+
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">标记消失</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">opacity 1 → 0</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">motion.fast 120ms</div>
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">motion.ease</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">回应 / 撤回 / 取消之后；回合没结束则同帧恢复扫掠，亮点从左端外新进入</div>
+
+            <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">prefers-reduced-motion</div>
+            <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">—</div>
+            <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">—</div>
+            <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">—</div>
+            <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">画板 06 的静态 accent 替代线在等你期间同样撤掉，只留底线；标记照常显示（无淡入淡出）</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:6px">
+      <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">状态机（取代画板 06 D 表「等待授权 / 追问」一格的「待裁定」）</div>
+      <div style="display:grid;grid-template-columns:150px 170px 110px 130px 1fr;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;border-top:1px solid #e2e2e7">
+        <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">会话态</div>
+        <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">亮点线</div>
+        <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">绿点</div>
+        <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">等你标记</div>
+        <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">入 · 出条件</div>
+
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">空闲 · 已读</div>
+        <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">无</div>
+        <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">无</div>
+        <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">无</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">默认态，同画板 06</div>
+
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">运行中</div>
+        <div style="padding:5px 8px 5px 0;color:#4a59c9;border-bottom:1px solid #e2e2e7">扫掠</div>
+        <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">无</div>
+        <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">无</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">入：session/prompt 发出，或挂起的请求全部了结而回合未结束 · 出：拿到 stop_reason / cancel / agent 退出 / 来了新的挂起请求</div>
+
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">等你处理</div>
+        <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">停（只留底线）</div>
+        <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">无</div>
+        <div style="padding:5px 8px 5px 0;color:#8a6f12;border-bottom:1px solid #e2e2e7">有</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">入：该会话收到 session/request_permission 或 elicitation/create · 出：挂起的全部被回应、被 agent 撤回（$/cancel_request）、随 session/cancel 回了 cancelled，或 agent 退出</div>
+
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">已完成 · 未读</div>
+        <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">无</div>
+        <div style="padding:5px 8px 5px 0;color:#477f40;border-bottom:1px solid #e2e2e7">亮</div>
+        <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">无</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">同画板 06</div>
+
+        <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">被取消 / 出错</div>
+        <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">无</div>
+        <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">无</div>
+        <div style="padding:5px 8px 5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">无</div>
+        <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">同画板 06（agent 退出时挂起的请求一并作废，标记随之撤掉，错误走画板 34）</div>
+      </div>
+      <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e;margin-top:6px">亮点线、绿点、等你标记三者严格互斥：任何一帧最多出现其中一样。搜索结果里的会话项同样遵守本表。</div>
+    </div>
+  </div>
+
+  <div style="height:1px;background:#e2e2e7"></div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:baseline;gap:10px">
+      <span style="font-size:13px;font-weight:500;color:#1e1e26;flex:none">B · 工作区切换器的「等你处理数」</span>
+      <span style="font-size:11px;color:#62626e">有会话在等你时，切换器触发钮与该工作区那一行各出一枚 warning 色徽标，数字 = 等你处理的会话数；与画板 08 C 的在跑数并排，两个数互不重叠。</span>
+    </div>
+
+    <div style="display:flex;gap:20px;align-items:flex-start">
+      <div style="width:300px;flex:none">
+        <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">实时 · 点触发钮开合</div>
+        <div onClick="{{ toggleMenu }}" style="cursor:pointer;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;background:#f4f4f6;border:1px solid #e2e2e7" style-hover="background:#eeeef1">
+          <span style="display:inline-flex;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg></span>
+          <span style="font-size:12px;color:#33333d;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">…ariFlight_work\pi-cordis-toolbox</span>
+          <span style="margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:4px">
+            <span style="flex:none;display:inline-flex;align-items:center;gap:4px;height:16px;padding:0 5px;border-radius:3px;background:#f7f2e2;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8a6f12;font-variant-numeric:tabular-nums"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>2</span>
+            <span style="flex:none;display:inline-flex;align-items:center;gap:4px;height:16px;padding:0 5px;border-radius:3px;background:rgba(85,102,216,.12);font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#4a59c9;font-variant-numeric:tabular-nums"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 4 21 10 15 10"></polyline><path d="M19.4 15a8 8 0 1 1-1.9-8.3L21 10"></path></svg>2</span>
+          </span>
+          <span style="display:inline-flex;color:#8b8b96"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+        </div>
+        <sc-if value="{{ open }}" hint-placeholder-val="{{ true }}">
+          <div style="margin-top:4px;background:#ffffff;border:1px solid #e2e2e7;border-radius:6px;box-shadow:0 4px 12px rgba(28,28,35,.10);padding:4px">
+            <div style="height:22px;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:500;letter-spacing:.06em;color:#8b8b96">This Window</div>
+            <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;background:rgba(30,30,38,.10)">
+              <span style="font-size:12px;color:#4a59c9;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">…ariFlight_work\pi-cordis-toolbox</span>
+              <span style="margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:4px">
+                <span style="flex:none;display:inline-flex;align-items:center;gap:4px;height:16px;padding:0 5px;border-radius:3px;background:rgba(85,102,216,.12);font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#4a59c9;font-variant-numeric:tabular-nums"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 4 21 10 15 10"></polyline><path d="M19.4 15a8 8 0 1 1-1.9-8.3L21 10"></path></svg>1</span>
+              </span>
+              <span style="flex:none;display:inline-flex;color:#4a59c9"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+            </div>
+            <div style="height:22px;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:500;letter-spacing:.06em;color:#8b8b96">Recent Projects</div>
+            <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px">
+              <span style="font-size:12px;color:#33333d;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">…ariFlight_work\VariFlightWork</span>
+              <span style="margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:4px">
+                <span style="flex:none;display:inline-flex;align-items:center;gap:4px;height:16px;padding:0 5px;border-radius:3px;background:#f7f2e2;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8a6f12;font-variant-numeric:tabular-nums"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>1</span>
+                <span style="flex:none;display:inline-flex;align-items:center;gap:4px;height:16px;padding:0 5px;border-radius:3px;background:rgba(85,102,216,.12);font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#4a59c9;font-variant-numeric:tabular-nums"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 4 21 10 15 10"></polyline><path d="M19.4 15a8 8 0 1 1-1.9-8.3L21 10"></path></svg>1</span>
+              </span>
+            </div>
+            <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px">
+              <span style="font-size:12px;color:#33333d;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">…ariFlight_work\AcpAgentClient</span>
+              <span style="margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:4px">
+                <span style="flex:none;display:inline-flex;align-items:center;gap:4px;height:16px;padding:0 5px;border-radius:3px;background:#f7f2e2;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8a6f12;font-variant-numeric:tabular-nums"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>1</span>
+              </span>
+            </div>
+            <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px">
+              <span style="font-size:12px;color:#33333d;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">…9ffdc02c\scratchpad\probe-cwd</span>
+            </div>
+            <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px">
+              <span style="font-size:12px;color:#33333d;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">…o-target\AcpAgentClient\r6-pi</span>
+            </div>
+            <div style="height:1px;background:#e2e2e7;margin:4px 0"></div>
+            <div style="height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px">
+              <span style="display:inline-flex;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg></span>
+              <span style="font-size:12px;color:#33333d">Open Local Folders</span>
+            </div>
+          </div>
+        </sc-if>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;margin-top:6px;line-height:1.6">当前工作区的对勾画在右侧（画板 41 的位置），徽标组排在对勾左边。画板 08 C 把它画在了路径左侧，实现按 41 做的，本画板按 41 画。</div>
+      </div>
+
+      <div style="width:300px;flex:none">
+        <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">徽标三态与几何（放大示意）</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px;height:28px;padding:0 8px;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px">
+            <span style="flex:none;display:inline-flex;align-items:center;gap:4px;height:16px;padding:0 5px;border-radius:3px;background:#f7f2e2;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8a6f12;font-variant-numeric:tabular-nums"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>1</span>
+            <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">只有等你</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;height:28px;padding:0 8px;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px">
+            <span style="flex:none;display:inline-flex;align-items:center;gap:4px">
+              <span style="flex:none;display:inline-flex;align-items:center;gap:4px;height:16px;padding:0 5px;border-radius:3px;background:#f7f2e2;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8a6f12;font-variant-numeric:tabular-nums"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>1</span>
+              <span style="flex:none;display:inline-flex;align-items:center;gap:4px;height:16px;padding:0 5px;border-radius:3px;background:rgba(85,102,216,.12);font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#4a59c9;font-variant-numeric:tabular-nums"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 4 21 10 15 10"></polyline><path d="M19.4 15a8 8 0 1 1-1.9-8.3L21 10"></path></svg>2</span>
+            </span>
+            <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">并排：等你在左、在跑在右，间距 4px</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;height:28px;padding:0 8px;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:6px">
+            <span style="flex:none;display:inline-flex;align-items:center;gap:4px;height:16px;padding:0 5px;border-radius:3px;background:#f7f2e2;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8a6f12;font-variant-numeric:tabular-nums"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>12</span>
+            <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">两位数照排，宽度自适应；&gt; 99 显示 99+</span>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:110px 1fr;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;border-top:1px solid #e2e2e7;margin-top:10px">
+          <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">项</div>
+          <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">值</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">高 / 圆角 / 内边距</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">全同画板 08 C 的在跑数徽标：高 16（badge.h）· 圆角 3 · 左右 padding 5 · 图标与数字 gap 4</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">底 / 字</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">底 warningSoft（浅色 #f7f2e2）· 图标与数字 warning（浅色 #8a6f12）· 数字 mono 11px tabular-nums</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">图标</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">triangle-alert 11px，静态；不分 permission / elicitation，徽标只数会话</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">并排</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">等你在左、在跑在右，间距 4px；为 0 的那枚不渲染、不占位，另一枚右对齐到原位</div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e;margin-bottom:8px">口径与行为</div>
+        <div style="display:grid;grid-template-columns:130px 1fr;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;border-top:1px solid #e2e2e7">
+          <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">问题</div>
+          <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">裁定</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">什么算「等你处理」</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">同 A 段：该会话至少有一条挂起的 permission / elicitation。与侧栏标记的判定完全一致</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">数谁</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">按会话计数，不按请求：一条会话挂着两条请求算 1</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">与在跑数的关系</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">互不重叠：等你处理的会话不再计入在跑数（画板 08 C 的口径同步改，见 § 3）。一个工作区的在途会话 = 在跑 + 等你</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">徽标挂在哪一行</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">同画板 08 C：本次运行里打开过、内存里还有等你会话的工作区都挂，不分 This Window 与 Recent Projects。当前工作区也挂：它的侧栏条目上已有 A 段的标记，这里照样数，触发钮的合计才是真数</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">触发钮的数字</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">所有工作区合计（含当前）；没记录工作区目录的会话也算进合计（同画板 08 C）</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">重启之后</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">同画板 08 C：从零开始，挂起的请求随连接一起没了</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">刷新</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">请求到达 / 了结即时更新，不轮询、不做过渡动画（数字直切）</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">排序</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">不因有会话在等你而置顶、加粗或变色</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">点击工作区行</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">照旧切过去（画板 41），不自动打开那条等你的会话；切过去之后它在侧栏里带着 A 段的标记</div>
+          <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">tooltip</div>
+          <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">触发钮整句：2 个会话等你处理 · 2 个会话在运行 · 3 个工作区，为 0 的那段省略，工作区数 = 有等你或在跑会话的工作区个数；行内等你徽标：该工作区 1 个会话等你处理</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:1px;background:#e2e2e7"></div>
+
+  <div>
+    <div style="font-size:13px;font-weight:500;color:#1e1e26;margin-bottom:8px">本画板引用的 token（全部已有，画板 00 / 07 不改）</div>
+    <div style="display:grid;grid-template-columns:220px 260px 1fr;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;border-top:1px solid #e2e2e7">
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">token</div>
+      <div style="padding:5px 8px 5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">值</div>
+      <div style="padding:5px 0;color:#8b8b96;border-bottom:1px solid #e2e2e7">本画板里的用途</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">warning</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">#8a6f12（深色见画板 07）</div>
+      <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">侧栏标记的图标与文字；等你徽标的图标与数字</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">warningSoft</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">#f7f2e2（深色见画板 07）</div>
+      <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">等你徽标底色</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">sweep.track</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">1px · #e2e2e7</div>
+      <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">等你期间保留的底线</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">row.running</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">58px</div>
+      <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">等你期间的行高（不变）</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">dot.unread 的间距</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">6px</div>
+      <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">侧栏标记与「N 条消息」的间距</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">badge.h 与画板 08 的徽标几何</div>
+      <div style="padding:5px 8px 5px 0;color:#33333d;border-bottom:1px solid #e2e2e7">16px · 圆角 3 · padding 5 · gap 4</div>
+      <div style="padding:5px 0;color:#62626e;border-bottom:1px solid #e2e2e7">等你徽标</div>
+    </div>
+  </div>
+
+  <div style="background:#fbeeea;border:1px solid #e2e2e7;border-radius:4px;padding:6px 8px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#bc4e39;line-height:1.7">反例：等你标记与徽标不得闪烁、呼吸、抖动，不得做成红色（它不是错误）；等你期间不得继续扫掠；不得把等你的会话置顶、加粗、改底色；不得在侧栏顶部加「N 条会话在等你」的汇总条；切换器不得按请求数计数；有会话等你时不得自动切换会话或工作区、不得弹窗。</div>
+
+  <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;line-height:1.6">两处共用一套判定：「该会话有挂起的 permission / elicitation = 等你处理」，与「运行中」互斥。A 回答「这个工作区里哪条在等你」，B 回答「别的工作区有没有会话在等你」。</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1713}}">
+class Component extends DCLogic {
+  state = { open: true };
+  renderVals() {
+    return { open: this.state.open, toggleMenu: () => this.setState(s => ({ open: !s.open })) };
+  }
+}
+</script>
+</body>
+</html>

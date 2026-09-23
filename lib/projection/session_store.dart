@@ -894,7 +894,7 @@ class Sessions extends ChangeNotifier {
   final AgentStateStore agents = AgentStateStore();
   final Map<String, SessionStore> _byId = <String, SessionStore>{};
 
-  /// 正在丢弃 `session/update` 的会话（iteration-07）：`session/load` 失败时这次重放整段作废，原先的转录原样留着。
+  /// 正在丢弃 `session/update` 的会话（iteration-09）：`session/load` 失败时这次重放整段作废，原先的转录原样留着。
   /// 重放挂在 batcher 里、闭包到 release 才跑，那时成败已经知道——接线侧把「开始丢弃」与「停止丢弃」
   /// 成对排进同一条挂起队列，夹在中间的重放一条都不落。
   final Set<String> _discarding = <String>{};
@@ -916,7 +916,7 @@ class Sessions extends ChangeNotifier {
     s.removeListener(notifyListeners);
     pending.forgetSession(sessionId);
     // 这条会话的终端缓冲一并收掉：`terminals` 是跨会话共享的一张表，删会话 / 收回空壳之后没人再引用它们，
-    // 不收就留到进程结束（审查 P3，2026-09-22）。没归属的缓冲（认证终端）不在这里，记 rounds/BACKLOG.md。
+    // 不收就留到进程结束（审查 P3，2026-09-22）。没归属的缓冲（认证终端）不在这里，留到进程结束（所有者裁定 2026-09-23 不做，见 rounds/BACKLOG-CLOSED.md）。
     terminals.removeAll(s.ownedTerminalIds);
     // 不 dispose：在途的那一轮（`session/prompt` 还没返回）还握着这个 store，回来时会调 `endTurn()`；
     // 对 dispose 过的 ChangeNotifier 再 notify 会 assert。摘掉监听就够了，没有别的资源要释放。

@@ -33,6 +33,11 @@ pub struct Core {
     ui_state: UiStateStore,
     terminals: Arc<pty::TerminalManager>,
     agents: Mutex<HashMap<String, Arc<AgentConnection>>>,
+    /// 收尾令牌：`core_shutdown` 一开始就置位。之后的 `agent_connect` 一律回 `cancelled`，还在握手的那些中止握手、结束进程树。
+    closing: CancelToken,
+    /// 在途的 `agent_connect` 各持一把读锁，`core_shutdown` 拿写锁 = 等它们全部落定：握手赢了的已经插进连接表（随后一起断开），
+    /// 被中止的已经结束进程树。不等的话，关窗那一刻还在握手的 agent 不在表里，进程退出后留成孤儿（BACKLOG P0）。
+    connect_gate: tokio::sync::RwLock<()>,
     /// 文件面板的目录监视（R4），按项目根去重；drop 即停。
     watchers: Mutex<HashMap<PathBuf, fs::watch::DirWatcher>>,
     // ---- R5：registry / 安装 / 受管 Node / 日志（编排在 registry_ops.rs）
@@ -142,6 +147,8 @@ impl Core {
             ping_seq: AtomicU64::new(0),
             terminals,
             agents: Mutex::new(HashMap::new()),
+            closing: CancelToken::default(),
+            connect_gate: tokio::sync::RwLock::new(()),
             watchers: Mutex::new(HashMap::new()),
             registry_dirs,
             registry_index,
@@ -255,7 +262,12 @@ impl Core {
     // ---- 连接与会话（docs/design.md § 3 命令）
 
     /// 按 settings 拉起 agent 并完成 `initialize`；已有连接先断开。返回 `{agentId, initialize}`。
+    /// `core_shutdown` 开始之后回 `cancelled`；握手途中撞上收尾也回 `cancelled`，进程树已经结束。
     pub async fn agent_connect(&self, agent_id: &str, cwd: Option<PathBuf>) -> Result<Value> {
+        // 整个调用期间持读锁（见 `connect_gate`）。顺序不能反：先拿锁再看令牌，看到「未置位」时收尾就一定还没拿到写锁、
+        // 会等这把读锁放掉；反过来的话，看完令牌到拿锁之间收尾可能已经走完，这条连接就没人等了。
+        let _in_flight = self.connect_gate.read().await;
+        self.closing.check()?;
         let server = match self.settings.get(agent_id)? {
             Some(server) => server,
             // settings 里没有就看内置条目（R7 的 sidecar；sidecar 不在时照样报 AgentNotConfigured）。
@@ -272,7 +284,8 @@ impl Core {
         if let Some(previous) = previous {
             previous.disconnect().await;
         }
-        let connection = AgentConnection::connect(agent_id.to_string(), launch, cwd, self.sink.clone(), self.terminals.clone()).await?;
+        let connection =
+            AgentConnection::connect(agent_id.to_string(), launch, cwd, self.sink.clone(), self.terminals.clone(), Some(&self.closing)).await?;
         lock(&self.agents).insert(agent_id.to_string(), connection.clone());
         Ok(json!({ "agentId": agent_id, "initialize": connection.initialize }))
     }
@@ -474,23 +487,34 @@ impl Core {
     }
 
     /// 应用退出前的收尾：全部终端释放（还在跑的 kill）、全部 agent 断开（各自最多等 `DISCONNECT_GRACE` 后结束进程树）、
-    /// 监视器停掉。返回 `{terminals, agents}` 计数。
+    /// 监视器停掉。还在握手的 `agent_connect` 中止并结束进程树，等它们落定才返回；之后的 `agent_connect` 回 `cancelled`。
+    /// 返回 `{terminals, agents}` 计数（agents 只数连接表里断开的，被中止的握手不算）。
     pub async fn core_shutdown(&self) -> Result<Value> {
+        self.closing.cancel();
         let terminal_ids = self.terminals.ids();
         for id in &terminal_ids {
             let _ = self.terminals.release(id);
         }
         lock(&self.watchers).clear();
-        let agents: Vec<Arc<AgentConnection>> = lock(&self.agents).drain().map(|(_, c)| c).collect();
-        let count = agents.len();
-        let mut tasks = Vec::new();
-        for connection in agents {
-            tasks.push(tokio::spawn(async move { connection.disconnect().await }));
-        }
+        // 已连上的先开始断开，与下面等在途握手并行：两段各自的宽限期不叠加，Dart 那头只等 8 秒。
+        let mut tasks = self.disconnect_all();
+        // 在途的 `agent_connect` 落定：被中止的已结束进程树；赢了赛跑的已插进连接表，再清一遍。
+        drop(self.connect_gate.write().await);
+        tasks.extend(self.disconnect_all());
+        let count = tasks.len();
         for t in tasks {
             let _ = t.await;
         }
         Ok(json!({ "terminals": terminal_ids.len(), "agents": count }))
+    }
+
+    /// 清空连接表，每条连接起一个断开任务。
+    fn disconnect_all(&self) -> Vec<tokio::task::JoinHandle<()>> {
+        let agents: Vec<Arc<AgentConnection>> = lock(&self.agents).drain().map(|(_, c)| c).collect();
+        agents
+            .into_iter()
+            .map(|connection| tokio::spawn(async move { connection.disconnect().await }))
+            .collect()
     }
 
     // ---- 设置
@@ -786,6 +810,74 @@ mod tests {
         let settings = core.agent_settings_set("z", json!({"type": "custom", "command": "z2.cmd", "args": ["--acp"]})).expect("edit");
         assert_eq!(settings["agent_servers"]["z"]["command"], "z2.cmd");
         assert_eq!(settings["agent_servers"]["z"]["default_config_options"]["model"], "fast");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 录到的 `acp/agent_state` 里某个 agent 的状态序列（边读边清空 sink，所以累积到 `seen`）。
+    fn states_of(sink: &RecordingSink, seen: &mut Vec<Value>, agent_id: &str) -> Vec<String> {
+        seen.extend(
+            sink.take()
+                .into_iter()
+                .filter(|(c, _)| *c == EventChannel::AgentState)
+                .filter_map(|(_, p)| serde_json::from_str::<Value>(&p).ok()),
+        );
+        seen.iter()
+            .filter(|v| v["agentId"] == agent_id)
+            .filter_map(|v| v["state"].as_str().map(str::to_string))
+            .collect()
+    }
+
+    #[test]
+    fn shutdown_kills_an_agent_still_in_its_handshake() {
+        // 关窗那一刻 agent 还在握手（BACKLOG P0「退出时 agent 的子进程没回收」）：这条连接还不在连接表里，
+        // `core_shutdown` 要中止它、等进程树结束再返回，不能清完空表就放行。「agent」是个永远不回 `initialize` 的长命令，
+        // 输出丢进 nul，免得非 JSON 行先把传输弄断。
+        let sink = Arc::new(RecordingSink::default());
+        let dir = std::env::temp_dir().join(format!("acp-core-shutdown-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let core = Arc::new(Core::new(&dir, sink.clone()).expect("core"));
+        let (command, args) = if cfg!(windows) {
+            ("cmd", json!(["/c", "ping -n 30 127.0.0.1 > nul"]))
+        } else {
+            ("sh", json!(["-c", "exec sleep 30"]))
+        };
+        core.agent_settings_set("mute", json!({"type": "custom", "command": command, "args": args}))
+            .expect("set");
+        let task = {
+            let core = core.clone();
+            async move { core.agent_connect("mute", None).await }
+        };
+        let connecting = core.runtime().spawn(task);
+
+        // 等到进程拉起：此刻它在等 `initialize` 的回应，连接表还是空的。
+        let mut seen = Vec::new();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+        while !states_of(&sink, &mut seen, "mute").iter().any(|s| s == "spawned") {
+            assert!(std::time::Instant::now() < deadline, "agent never spawned: {seen:?}");
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+
+        let started = std::time::Instant::now();
+        let summary = core.runtime().block_on(core.core_shutdown()).expect("shutdown");
+        let elapsed = started.elapsed();
+        // 握手被中止：不等 `DISCONNECT_GRACE`，更不会等满那条 30 秒的命令。
+        assert!(elapsed < std::time::Duration::from_secs(10), "shutdown took {elapsed:?}");
+        assert_eq!(summary["agents"], 0, "{summary}");
+        let err = core.runtime().block_on(connecting).expect("join").expect_err("handshake aborted");
+        assert_eq!(err.code(), "cancelled");
+        // `exited` 在唤醒等待者之后才发，给它一点时间。
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while !states_of(&sink, &mut seen, "mute").iter().any(|s| s == "exited") {
+            assert!(std::time::Instant::now() < deadline, "agent never exited: {seen:?}");
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        // 收尾之后的连接一律拒绝，不再拉起进程。
+        let spawned_before = states_of(&sink, &mut seen, "mute").iter().filter(|s| *s == "spawned").count();
+        let err = core.runtime().block_on(core.agent_connect("mute", None)).expect_err("closing");
+        assert_eq!(err.code(), "cancelled");
+        let spawned_after = states_of(&sink, &mut seen, "mute").iter().filter(|s| *s == "spawned").count();
+        assert_eq!(spawned_after, spawned_before, "a connect after shutdown spawned a process");
+        drop(core);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

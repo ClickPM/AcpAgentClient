@@ -1,4 +1,4 @@
-// 会话挂载（iteration-07，BACKLOG P0「会话身份与生命周期」）：ACP 里一条会话只属于创建或载入它的那条 agent 连接。
+// 会话挂载（iteration-09，BACKLOG P0「会话身份与生命周期」）：ACP 里一条会话只属于创建或载入它的那条 agent 连接。
 // 连接换了（重载 agent、进程崩溃后重连、认证页重连），内存里那些会话的 sessionId 在新进程里就不存在了，
 // 直接发消息撞 `-32602 unknown session`。这里记两件事：每个 agent 的连接换过几代、哪些会话挂空了；
 // 连同挂回（`session/load` / `session/resume`）与关闭态——关掉也是「不挂在连接上」的一种。
@@ -100,6 +100,12 @@ mixin SessionAttachment on ChangeNotifier, GuardedNotifier {
   /// 正在 `session/load` 的会话（同一条不并发）：值是那一次的结果，挂回时等它而不是另发一次。
   final Map<String, Future<bool>> _loadsInFlight = <String, Future<bool>>{};
 
+  /// 正在由 [ensureLoaded] 挂回的会话（连 agent + load / resume）：值在那一次收尾时完成。
+  final Map<String, Future<void>> _attaching = <String, Future<void>>{};
+
+  /// 「会话正在加载中」（壳级提示，iteration-06）：按当前会话判——切走不挂，切回来还在挂回就又挂上。
+  bool get loadingSession => _attaching.containsKey(sessionId);
+
   @protected
   int generationOf(String agent) => _generation[agent] ?? 0;
 
@@ -175,12 +181,9 @@ mixin SessionAttachment on ChangeNotifier, GuardedNotifier {
     final b = bridge;
     final owner = registeredOwner(id);
     if (b == null || owner == null || owner.isEmpty) return;
-    // 同一条正在载入（连点两下，或点完马上发）：等那一次的结果，不另发一次。
-    final inFlight = _loadsInFlight[id];
-    if (inFlight != null) {
-      await inFlight;
-      return;
-    }
+    // 同一条已经在挂回 / 载入（连点两下、还没连上就点回来、重载正在载它）：不再来一遍——再一次 `agent_connect`
+    // 会断掉正在握手的进程。要等它结果的（发送前的 [reattach]）自己去等。
+    if (_attaching.containsKey(id) || _loadsInFlight.containsKey(id)) return;
     final state = attachOf(id);
     if (state == SessionAttach.attached) return;
     final cwd = cwdOf(id) ?? workspace.project?.path;
@@ -191,26 +194,31 @@ mixin SessionAttachment on ChangeNotifier, GuardedNotifier {
       return;
     }
     if (state == SessionAttach.unattachable) return;
-    try {
-      await ensureConnected(owner, cwd);
-    } on CoreCommandError catch (e) {
-      await onConnectError(e, owner, cwd);
-      touch();
-      return;
-    } catch (e) {
-      lastError = describeError(e);
-      touch();
-      return;
-    }
-    // 连上之前另一条路（侧栏点选 / 发送）可能已经开始载同一条：等那一次，不把它「在途」的立即 false 当成挂回失败。
-    final started = _loadsInFlight[id];
-    if (started != null) {
-      await started;
-      touch();
-      return;
-    }
-    await guard(() => _attach(b, owner, id, cwd));
+    final done = Completer<void>();
+    _attaching[id] = done.future;
     touch();
+    try {
+      try {
+        await ensureConnected(owner, cwd);
+      } on CoreCommandError catch (e) {
+        await onConnectError(e, owner, cwd);
+        return;
+      } catch (e) {
+        lastError = describeError(e);
+        return;
+      }
+      // 连上之前重载可能已经开始载同一条：等那一次，不把它「在途」的立即 false 当成挂回失败。
+      final started = _loadsInFlight[id];
+      if (started != null) {
+        await started;
+        return;
+      }
+      await guard(() => _attach(b, owner, id, cwd));
+    } finally {
+      _attaching.remove(id);
+      done.complete();
+      touch();
+    }
   }
 
   /// 把一条会话挂到 [owner] 当前这条连接上：声明了 `loadSession` 就 `session/load`（重放）；没有但有 `resume`
@@ -237,7 +245,13 @@ mixin SessionAttachment on ChangeNotifier, GuardedNotifier {
     waitingForAgent = true;
     touch();
     try {
-      await ensureLoaded(id);
+      // 侧栏点选（或重载）已经在挂这一条：等它的结果，不另来一遍、也不把它的「在途」当成挂回失败。
+      final Future<void>? pending = _attaching[id] ?? _loadsInFlight[id];
+      if (pending != null) {
+        await pending;
+      } else {
+        await ensureLoaded(id);
+      }
     } finally {
       waitingForAgent = wasWaiting;
       touch();
@@ -266,7 +280,7 @@ mixin SessionAttachment on ChangeNotifier, GuardedNotifier {
   /// `session/load`（R6）：整段历史由 agent 用 `session/update` 重放，**重放期间不逐条刷新 UI**——
   /// 事件照常入队，但 batcher 挂起到命令返回后一次性刷完。成功返回 true。
   /// 返回的 Future 要等排进 batcher 的清空 / 重放 / 收尾**真的跑完**才完成：别的会话也在载时 batcher 还挂着，
-  /// 早一步报成功，发送会先落进转录、再被随后才跑的清空抹掉（cursor 审查 high，iteration-07）。
+  /// 早一步报成功，发送会先落进转录、再被随后才跑的清空抹掉（cursor 审查 high，iteration-09）。
   Future<bool> loadSession(String agent, String id, String cwd) {
     final b = bridge;
     // 同一条会话不并发 load：连点两下（或重载 agent 撞上侧栏点击）会重放两遍。

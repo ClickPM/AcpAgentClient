@@ -1,12 +1,14 @@
-// 画板 01 / 04 / 06 · 侧栏：应用标题条、会话搜索、会话项（默认 / 悬浮出重命名与删除 / 选中 / 行内重命名 /
-// 运行中的扫掠亮点线 / 完成未读的绿点）、空态与无结果态、底部四个导航入口。
+// 画板 01 / 04 / 06 / 09 · 侧栏：应用标题条、会话搜索、会话项（默认 / 悬浮出重命名与删除 / 选中 / 行内重命名 /
+// 运行中的扫掠亮点线 / 完成未读的绿点 / 等你处理的「待授权 · 待输入」标记）、空态与无结果态、底部四个导航入口。
 // 会话列表以本地索引为准（docs/design.md § 3 末条）：时间戳是客户端本地态，「N 条消息」由投影层分组计数得出（画板 04 注）。
 // 删除图标一律渲染（确认弹层在画板 41）：它删的首先是本地索引这条记录，agent 侧删不删由组合根判——
 // 按 `sessionCapabilities.delete` 裁剪过一版，结果是没声明 delete 的 agent 的会话在侧栏里永远清不掉。
 
 import 'package:flutter/widgets.dart';
 
+import '../../projection/entries.dart';
 import '../../theme/tokens.dart' as t;
+import '../transcript/awaiting_bar.dart';
 import '../transcript/card_chrome.dart';
 import '../transcript/icons.dart';
 import 'app_logo.dart';
@@ -63,8 +65,10 @@ class Sidebar extends StatelessWidget {
     this.dragArea,
     this.runningIds = const <String>{},
     this.unreadIds = const <String>{},
+    this.awaiting = const <String, TranscriptEntry>{},
+    this.themeChoice = t.Theming.defaultChoice,
     this.dark = false,
-    this.onToggleTheme,
+    this.onCycleTheme,
   });
 
   final List<SidebarSession> sessions;
@@ -98,9 +102,14 @@ class Sidebar extends StatelessWidget {
   final Set<String> runningIds;
   final Set<String> unreadIds;
 
-  /// 画板 07：当前是不是深色，以及标题条右端那个切换按钮。不给 [onToggleTheme] 就不画按钮。
+  /// 画板 09 A：等你处理的会话 → 它最早到的那一项（permission 出「待授权」，elicitation 出「待输入」）。
+  /// 与 [runningIds] 互斥由调用方保证（`SessionActivity`）；同样是高频运行时态，不烘进 [SidebarSession]。
+  final Map<String, TranscriptEntry> awaiting;
+
+  /// 画板 07：当前的主题选择、落到的是不是深色，以及标题条右端那个切换按钮。不给 [onCycleTheme] 就不画按钮。
+  final t.ThemeChoice themeChoice;
   final bool dark;
-  final VoidCallback? onToggleTheme;
+  final VoidCallback? onCycleTheme;
 
   @override
   Widget build(BuildContext context) {
@@ -114,7 +123,7 @@ class Sidebar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          SidebarTitleBar(dragArea: dragArea, dark: dark, onToggleTheme: onToggleTheme),
+          SidebarTitleBar(dragArea: dragArea, themeChoice: themeChoice, dark: dark, onCycleTheme: onCycleTheme),
           SidebarSearchField(
             controller: searchController,
             focusNode: searchFocusNode,
@@ -143,6 +152,11 @@ class Sidebar extends StatelessWidget {
           now: now,
           running: runningIds.contains(s.id),
           unread: unreadIds.contains(s.id),
+          awaiting: switch (awaiting[s.id]) {
+            PermissionEntry() => AwaitingKind.permission,
+            ElicitationEntry() => AwaitingKind.input,
+            _ => null,
+          },
           query: query,
           selected: s.id == selectedId,
           renaming: s.id == renamingId,
@@ -178,7 +192,14 @@ class SidebarEmpty extends StatelessWidget {
 
 /// 侧栏顶部的应用标题条。
 class SidebarTitleBar extends StatelessWidget {
-  const SidebarTitleBar({super.key, this.title = 'Agent ACP Client', this.dragArea, this.dark = false, this.onToggleTheme});
+  const SidebarTitleBar({
+    super.key,
+    this.title = 'Agent ACP Client',
+    this.dragArea,
+    this.themeChoice = t.Theming.defaultChoice,
+    this.dark = false,
+    this.onCycleTheme,
+  });
 
   final String title;
 
@@ -186,15 +207,32 @@ class SidebarTitleBar extends StatelessWidget {
   /// 要能拖窗口、双击最大化。和 `TopBar.dragArea` 同一种装配 —— 铺在容器**里面**、内容行**下面**。
   final Widget? dragArea;
 
-  /// 当前是不是深色（决定按钮画月亮还是太阳）。
+  /// 当前的主题选择（决定按钮画太阳、月亮还是显示器）。
+  final t.ThemeChoice themeChoice;
+
+  /// 当前落到的是不是深色。只有「跟随系统」的提示文案用它（说清系统眼下是哪套）。
   final bool dark;
 
-  /// 主题切换（画板 07）。不给就不画这个按钮 —— gallery 与画板对照页照画板 01–04 的原样出图。
-  final VoidCallback? onToggleTheme;
+  /// 主题切换（画板 07），三档循环。不给就不画这个按钮 —— gallery 与画板对照页照画板 01–04 的原样出图。
+  final VoidCallback? onCycleTheme;
+
+  /// 按钮显示的是**当前**这一档（三档循环时「切过去的那一档」说不清自己在哪一档，尤其分不出
+  /// 「跟随系统」与手选的同色档），提示文案再补一句点下去会切到哪。
+  static String themeTooltip(t.ThemeChoice choice, {required bool dark}) => switch (choice) {
+    t.ThemeChoice.light => 'Light mode · Switch to dark mode',
+    t.ThemeChoice.dark => 'Dark mode · Switch to system mode',
+    t.ThemeChoice.system => 'System mode (${dark ? 'dark' : 'light'}) · Switch to light mode',
+  };
+
+  static String themeIcon(t.ThemeChoice choice) => switch (choice) {
+    t.ThemeChoice.light => AcpIcons.sun,
+    t.ThemeChoice.dark => AcpIcons.moon,
+    t.ThemeChoice.system => AcpIcons.monitor,
+  };
 
   @override
   Widget build(BuildContext context) {
-    final VoidCallback? toggle = onToggleTheme;
+    final VoidCallback? cycle = onCycleTheme;
     return Container(
       height: t.Geometry.barHeight,
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
@@ -220,14 +258,10 @@ class SidebarTitleBar extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                if (toggle != null)
+                if (cycle != null)
                   AcpTooltip(
-                    message: dark ? 'Switch to light mode' : 'Switch to dark mode',
-                    child: IconButtonGhost(
-                      icon: dark ? AcpIcons.sun : AcpIcons.moon,
-                      size: t.Controls.compact,
-                      onTap: toggle,
-                    ),
+                    message: themeTooltip(themeChoice, dark: dark),
+                    child: IconButtonGhost(icon: themeIcon(themeChoice), size: t.Controls.compact, onTap: cycle),
                   ),
               ],
             ),
@@ -290,6 +324,7 @@ class SidebarSessionRow extends StatelessWidget {
     this.forceHover = false,
     this.running = false,
     this.unread = false,
+    this.awaiting,
     this.renaming = false,
     this.renameController,
     this.renameFocusNode,
@@ -313,6 +348,10 @@ class SidebarSessionRow extends StatelessWidget {
   /// 画板 06 B：跑完了、还没被看过 —— 条数文字后出绿点。
   final bool unread;
 
+  /// 画板 09 A：这条会话在等你处理（null = 没有）—— 扫掠亮点停下、只留底线，行高仍 58，
+  /// 条数文字后出「待授权 / 待输入」标记。亮点线、绿点、等你标记三者严格互斥，同时给了以它为准。
+  final AwaitingKind? awaiting;
+
   final bool renaming;
   final TextEditingController? renameController;
   final FocusNode? renameFocusNode;
@@ -326,6 +365,9 @@ class SidebarSessionRow extends StatelessWidget {
   final PopoverHandle? deleteAnchor;
 
   static const double height = t.Controls.input + t.Spacing.s16;
+
+  /// 回合在途（在跑或在等你）：行高涨到 58、底边留轨道带。等你处理期间不改行高，免得列表来回跳（画板 09 A）。
+  bool get _inFlight => running || awaiting != null;
 
   @override
   Widget build(BuildContext context) {
@@ -342,7 +384,7 @@ class SidebarSessionRow extends StatelessWidget {
         final showActions = (hovered || deleteAnchor != null) && !inlineEdit;
         final inset = EdgeInsets.only(left: t.Spacing.s12, right: showActions ? t.Spacing.s8 : t.Spacing.s12);
         return Container(
-          height: running ? t.Geometry.sidebarRowRunning : height,
+          height: _inFlight ? t.Geometry.sidebarRowRunning : height,
           color: selected ? t.Overlays.selected : (showActions ? t.Overlays.hover : null),
           // 行内缩在 Stack **里面**：亮点线的 12px 内缩不跟着悬浮态的右内缩变（画板 06 A
           //「悬浮态的重命名 / 删除图标压在细线之上；细线不为它让位」）。
@@ -353,7 +395,7 @@ class SidebarSessionRow extends StatelessWidget {
                 // 运行中行高涨到 58，文字块仍垂直居中于**上方 50px**（余下让给轨道带），
                 // 这样 48 ↔ 58 的切换里文字几乎不动，列表在流式期间不抽动。
                 // 非运行态沿用 [inset] 本身，不另写 `bottom: 0`（规则 3：widget 文件里不写间距字面量，0 也算）。
-                padding: running
+                padding: _inFlight
                     ? inset.copyWith(bottom: t.Geometry.sidebarRowRunning - t.Geometry.sidebarRowRunningContent)
                     : inset,
                 child: Row(
@@ -378,13 +420,15 @@ class SidebarSessionRow extends StatelessWidget {
                   ],
                 ),
               ),
-              if (running)
-                const Positioned(
+              if (_inFlight)
+                Positioned(
                   left: t.Sweep.inset,
                   right: t.Sweep.inset,
                   bottom: t.Sweep.bottom,
                   height: t.Sweep.band,
-                  child: _SessionSweepLine(),
+                  // 等你处理：亮点撤掉、只留常亮底线（reduced-motion 的静态 accent 线同样撤掉）。回应之后换回
+                  // 一只新的扫掠线，亮点从左端外进入新周期，不接着停下前的位置（画板 09 A ④）。
+                  child: awaiting != null ? CustomPaint(painter: _SweepPainter.trackOnly()) : const _SessionSweepLine(),
                 ),
             ],
           ),
@@ -414,9 +458,11 @@ class SidebarSessionRow extends StatelessWidget {
                   style: t.TextStyles.meta.copyWith(fontFeatures: const <FontFeature>[FontFeature.tabularFigures()]),
                 ),
               ),
-              // 画板 06 D「两者严格互斥：任何一帧都不得同时出现亮点线与绿点」——
-              // 运行中即便还挂着未读标记也先撤掉（下一轮结束时再点亮）。
-              _SessionUnreadDot(visible: unread && !running),
+              // 画板 06 D / 09「亮点线、绿点、等你标记三者严格互斥」——
+              // 在途（在跑或在等你）即便还挂着未读标记也先撤掉（下一轮结束时再点亮）。
+              _SessionUnreadDot(visible: unread && !_inFlight),
+              // 画板 09 A：不参与省略（不包 Flexible），永远完整显示；挤的是前面的时间与条数。
+              _SessionAwaitingMark(kind: awaiting),
             ],
           ),
         ],
@@ -514,10 +560,19 @@ class _SessionSweepLineState extends State<_SessionSweepLine> with SingleTickerP
 }
 
 class _SweepPainter extends CustomPainter {
-  _SweepPainter(this.progress) : _styleGeneration = t.Fonts.generation;
+  _SweepPainter(this.progress)
+      : _trackOnly = false,
+        _styleGeneration = t.Fonts.generation;
 
-  /// 一个周期内的进度 0 → 1（linear）。null = reduced-motion 的静态替代线。
+  /// 画板 09 A：等你处理期间只画常亮底线（`sweep.track`），没有亮点。
+  _SweepPainter.trackOnly()
+      : progress = null,
+        _trackOnly = true,
+        _styleGeneration = t.Fonts.generation;
+
+  /// 一个周期内的进度 0 → 1（linear）。null = reduced-motion 的静态替代线（[_trackOnly] 时不看它）。
   final double? progress;
+  final bool _trackOnly;
 
   /// 见 `shell_common.dart` 的 `_DashedBoxPainter`：颜色现取，重绘判定要带上样式代数
   /// （reduced-motion 的静态线 progress 恒为 null，不带这个就永远不会跟着主题变色）。
@@ -527,6 +582,10 @@ class _SweepPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final top = (size.height - t.Sweep.trackWidth) / 2;
     final track = Rect.fromLTWH(0, top, size.width, t.Sweep.trackWidth);
+    if (_trackOnly) {
+      canvas.drawRect(track, Paint()..color = t.Sweep.track);
+      return;
+    }
     final at = progress;
     if (at == null) {
       canvas.drawRect(track, Paint()..color = t.Sweep.focus);
@@ -547,7 +606,8 @@ class _SweepPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_SweepPainter old) => old.progress != progress || old._styleGeneration != _styleGeneration;
+  bool shouldRepaint(_SweepPainter old) =>
+      old.progress != progress || old._trackOnly != _trackOnly || old._styleGeneration != _styleGeneration;
 }
 
 /// 画板 06 B ·「N 条消息」后的完成未读绿点：出现与清除都**只做 opacity**（[t.Motion.fast] · [t.Motion.curve]），
@@ -599,6 +659,82 @@ class _SessionUnreadDotState extends State<_SessionUnreadDot> with SingleTickerP
                 width: t.UnreadDot.size,
                 height: t.UnreadDot.size,
                 decoration: BoxDecoration(color: t.UnreadDot.color, shape: BoxShape.circle),
+              ),
+            ),
+          );
+        },
+      );
+}
+
+/// 画板 09 A ·「N 条消息」后的等你标记：permission 出 `▲ 待授权`、elicitation 出 `ⓘ 待输入`（与画板 26 停靠条同一对图标），
+/// 图标与文字同为 warning。出现与消失都**只做 opacity**（[t.Motion.fast] · [t.Motion.curve]，与绿点同一套）；
+/// 淡出期间仍画消失前的那一种，走完就从布局里移除，不留 [t.AwaitingMark.gap] 的占位。
+class _SessionAwaitingMark extends StatefulWidget {
+  const _SessionAwaitingMark({required this.kind});
+
+  final AwaitingKind? kind;
+
+  @override
+  State<_SessionAwaitingMark> createState() => _SessionAwaitingMarkState();
+}
+
+class _SessionAwaitingMarkState extends State<_SessionAwaitingMark> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: t.Motion.fast,
+    value: widget.kind != null ? 1 : 0,
+  );
+  late final Animation<double> _opacity = _controller.drive(CurveTween(curve: t.Motion.curve));
+
+  /// 正在显示（或正在淡出）的那一种。
+  late AwaitingKind? _shown = widget.kind;
+
+  @override
+  void didUpdateWidget(_SessionAwaitingMark old) {
+    super.didUpdateWidget(old);
+    final kind = widget.kind;
+    if (kind != null) _shown = kind; // 种类换了（先到的那条了结、后面还挂着另一种）直接换，不重播淡入
+    if ((kind == null) == (old.kind == null)) return;
+    if (kind != null) {
+      _controller.forward();
+    } else {
+      _controller.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: _opacity,
+        builder: (context, _) {
+          final kind = _shown;
+          if (_opacity.value == 0 || kind == null) return const SizedBox.shrink();
+          final permission = kind == AwaitingKind.permission;
+          return Padding(
+            padding: const EdgeInsets.only(left: t.AwaitingMark.gap),
+            child: Opacity(
+              opacity: _opacity.value,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  AcpIcon(
+                    permission ? AcpIcons.alertTriangle : AcpIcons.info,
+                    color: t.AwaitingMark.color,
+                    size: t.AwaitingMark.iconSize,
+                    strokeWidth: t.AwaitingMark.iconStroke,
+                  ),
+                  const SizedBox(width: t.AwaitingMark.iconGap),
+                  Text(
+                    permission ? '待授权' : '待输入',
+                    maxLines: 1,
+                    style: t.TextStyles.meta.copyWith(color: t.AwaitingMark.color),
+                  ),
+                ],
               ),
             ),
           );

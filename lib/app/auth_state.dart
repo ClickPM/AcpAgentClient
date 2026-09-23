@@ -39,7 +39,7 @@ class AuthState extends ChangeNotifier with GuardedNotifier {
   final String? Function() _cwd;
 
   /// 连 agent（`agent_connect` + 落 `initialize`）：经会话控制器连，连接换了一代它要记账
-  /// （iteration-07：不然这个 agent 名下内存里的会话还当自己挂着，发出去撞 `-32602 unknown session`）。
+  /// （iteration-09：不然这个 agent 名下内存里的会话还当自己挂着，发出去撞 `-32602 unknown session`）。
   final Future<void> Function(String agent, String? cwd) _connect;
 
   /// registry.json 里的展示名（没连上时会话头 / 认证页的标题退到它）。
