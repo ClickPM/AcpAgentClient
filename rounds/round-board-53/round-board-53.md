@@ -2,7 +2,7 @@
 
 <!-- 画板 53 与画板 08 / 43 同类：R8 之后的单画板轮，登记在 ROUNDS.md § 7 进度表。走轮次而非迭代：新增核心命令、改 registry_list 与 registry/progress 的载荷，属改 docs/design.md § 3 契约（iterations/README.md § 0）。 -->
 
-> 状态：进行中
+> 状态：已完成（审查收口，第 3 轮 0 条；未合并 `main`，由所有者决定合并时机）
 
 ## 目标
 
@@ -68,7 +68,7 @@ registry 型（npx / binary）agent 装好之后能看出「registry 有新版�
 
 - 审查方式：`cursor-review.ps1`（默认档）
 - 审查器与模型：cursor CLI `grok-4.7-high-fast`
-- 审查范围与基准提交：第 1 轮全量 `main...8ef163d`；第 2 轮全量 `main...04b9af2`
+- 审查范围与基准提交：第 1 轮全量 `main...8ef163d`；第 2 轮全量 `main...04b9af2`；第 3 轮只审整改 diff `04b9af2..72066ac`
 - findings 处理：
   - 第 1 轮（`.claude/reviews/20260923-095515-review.out.md`，3 条：high 1 / P2 1 / P3 1）：
     - **[high] 升级收尾会删掉正在拉起的旧版本目录** —— 采纳整改（`cfc9d61`）。`agent_connect` 先把旧连接摘出连接表、按当前 `install.json` 拉起新进程、connect 完才插回；这段时间 `live_entry` 看到「没连着」，切换后的清扫只留新入口，会删掉那个进程要用的目录。按审查给的最小修复：`switch_plan` 的 `keep` 恒带当前安装记录的入口，旧版本目录一律推迟到下次启动清；`previousVersion` 在看起来没连着时也记当前版本。单测 `switch_plan_records_…` 与 `binary_upgrade_…` 跟着改（切换后旧目录仍在、重启清扫删掉），a 组真跑按整改后的构建重跑并补 a4。
@@ -77,7 +77,9 @@ registry 型（npx / binary）agent 装好之后能看出「registry 有新版�
   - 第 2 轮（`.claude/reviews/20260923-102325-review.out.md`，2 条：P2 1 / P3 1；第 1 轮 high 的整改复核通过）：
     - **[P2] 升级提交用入口处的认证状态覆盖 install.json，升级期间的登录结果会丢** —— 采纳整改。两个方向：① 切换写的是升级开始时读到的 `auth_status`，途中 `session/new` 记下的登录结果被盖回；② `set_auth_status` 读进旧记录后、写回前恰好切换，旧记录整份写回 → 升级被静默撤销，下次启动清扫还会删掉新版本目录。后者属逻辑错误，按收口标准必须修。修法：`manifest.rs` 里一把进程内的 `static` 锁把「读 → 改 → 写」串起来，`set_auth_status` 与新增的 `InstallManifest::switch_to`（切换时在锁内取磁盘上此刻的认证状态再写）都走它；`commit_upgrade` 改调 `switch_to`。它是修这个丢更新竞态的最小做法（只串同一文件的读改写，不改任何对外形状）；只在 `set_auth_status` 写回前重读比对仍留有检查与写之间的窗口，所以没用。`manifest_round_trips_and_tracks_auth_status` 补一段：`switch_to` 带的是磁盘上的认证状态而不是调用方手里的旧值。
     - **[P3] 升级失败删新目录仍在 runtime 工作线程上做阻塞删除** —— 采纳：`remove_dir_retrying` 每次删除放进 `spawn_blocking`。
-- 结论：
+  - 第 3 轮（`.claude/reviews/20260923-104122-review.out.md`，`-Wait`，UTF-16）：**0 条**。复核了锁的范围（不跨 `.await`、不重入）、`record_auth_status` 的两个调用点、`install.json` 其余写入点，以及 `spawn_blocking` 的 `JoinError` 按「没删掉」处理。
+  - 整改后 `validate.ps1 -CargoTargetDir D:\cargo-target\AcpAgentClient-upgrade` 16 项全绿。第 2 轮两条整改都不涉及子进程拉起，没有重跑验收 7。
+- 结论：整改后 PASS（累计 5 条：high 1 / P2 2 / P3 2，4 条采纳整改，P2「真跑记录」一条是审查时点早于补记录；0 条 high 未决）。
 
 ## 失败处理
 
