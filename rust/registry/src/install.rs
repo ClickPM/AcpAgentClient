@@ -130,8 +130,9 @@ pub async fn install_npx(
     cancel: Arc<CancelToken>,
     sink: &dyn ProgressSink,
 ) -> Result<InstallManifest> {
+    // 目标还在 = 上一次失败没删干净，里面可能是一整份 node_modules：删目录走阻塞线程，别占着 runtime 的工作线程。
     if target.exists() {
-        std::fs::remove_dir_all(target)?;
+        tokio::fs::remove_dir_all(target).await?;
     }
     std::fs::create_dir_all(target)?;
     // npm 的 prefix 是从 cwd 往上找到的第一个带 package.json 或 node_modules 的目录：先放一个 package.json 把它钉在这里。
