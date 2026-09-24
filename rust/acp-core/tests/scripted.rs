@@ -180,6 +180,68 @@ async fn run_fs_terminal_scenario(cx: &ConnectionTo<Client>, state: &FakeState, 
     call(cx, state, "bg_release", release).await;
 }
 
+/// 长命令（跑一分钟）：`terminal_limits` 场景里靠 kill 收尾。
+fn long_command() -> (&'static str, Vec<&'static str>) {
+    if cfg!(windows) {
+        ("cmd", vec!["/c", "ping -n 60 127.0.0.1 > nul"])
+    } else {
+        ("sh", vec!["-c", "sleep 60"])
+    }
+}
+
+/// BACKLOG P0「agent 开终端不释放时，最终会把整个客户端拖死」（2026-09-24）。测试侧先替连接登记
+/// `MAX_TERMINALS_PER_CONNECTION - 1` 个占位终端，这里建的长命令终端正好顶满：
+/// 连发三个 `wait_for_exit` 不等回 → 读文件（要一条阻塞线程，测试的运行时只给一条：等退出要是占着它，这里就卡住）
+/// → 再建一个被拒 → kill → 三个等待都拿到退出状态 → release 空出名额 → 再建一个短命令成功并收尾。
+async fn run_terminal_limits_scenario(cx: &ConnectionTo<Client>, state: &FakeState, session_id: &str) {
+    let cwd = state.session_cwd.lock().expect("lock").clone().expect("session cwd recorded");
+    let (command, args) = long_command();
+    let create: acp::CreateTerminalRequest =
+        serde_json::from_value(json!({ "sessionId": session_id, "command": command, "args": args })).expect("req");
+    let created = call(cx, state, "long_create", create).await;
+    let tid = created["ok"]["terminalId"].as_str().unwrap_or_default().to_string();
+    let wait = || -> acp::WaitForTerminalExitRequest {
+        serde_json::from_value(json!({ "sessionId": session_id, "terminalId": tid })).expect("req")
+    };
+    // 发出去就在客户端那边挂着（`send_request` 当场发，`block_task` 才等回应）。
+    let waits: Vec<_> = (0..3).map(|_| cx.send_request(wait())).collect();
+    tokio::time::sleep(Duration::from_millis(300)).await;
+
+    let read: acp::ReadTextFileRequest =
+        serde_json::from_value(json!({ "sessionId": session_id, "path": cwd.join("limits.txt").to_string_lossy() })).expect("req");
+    let outcome = match tokio::time::timeout(Duration::from_secs(10), call(cx, state, "read_while_waiting", read)).await {
+        Ok(v) => v,
+        Err(_) => json!({ "step": "read_while_waiting", "error": { "message": "timed out: blocking pool pinned by terminal waits" } }),
+    };
+    state.callback_log.lock().expect("lock").push(json!({ "step": "read_outcome", "value": outcome }));
+
+    let over: acp::CreateTerminalRequest =
+        serde_json::from_value(json!({ "sessionId": session_id, "command": "echo", "args": ["over-limit"] })).expect("req");
+    call(cx, state, "create_over_limit", over).await;
+
+    let kill: acp::KillTerminalRequest = serde_json::from_value(json!({ "sessionId": session_id, "terminalId": tid })).expect("req");
+    call(cx, state, "long_kill", kill).await;
+    for (i, sent) in waits.into_iter().enumerate() {
+        let outcome = match tokio::time::timeout(Duration::from_secs(10), sent.block_task()).await {
+            Ok(Ok(resp)) => json!({ "step": format!("wait_{i}"), "ok": serde_json::to_value(&resp).expect("json") }),
+            Ok(Err(e)) => json!({ "step": format!("wait_{i}"), "error": { "message": e.message } }),
+            Err(_) => json!({ "step": format!("wait_{i}"), "error": { "message": "timed out" } }),
+        };
+        state.callback_log.lock().expect("lock").push(outcome);
+    }
+    let release: acp::ReleaseTerminalRequest = serde_json::from_value(json!({ "sessionId": session_id, "terminalId": tid })).expect("req");
+    call(cx, state, "long_release", release).await;
+
+    let again: acp::CreateTerminalRequest =
+        serde_json::from_value(json!({ "sessionId": session_id, "command": "echo", "args": ["slot-freed"] })).expect("req");
+    let created = call(cx, state, "create_after_release", again).await;
+    let short = created["ok"]["terminalId"].as_str().unwrap_or_default().to_string();
+    let wait: acp::WaitForTerminalExitRequest = serde_json::from_value(json!({ "sessionId": session_id, "terminalId": short })).expect("req");
+    call(cx, state, "short_wait", wait).await;
+    let release: acp::ReleaseTerminalRequest = serde_json::from_value(json!({ "sessionId": session_id, "terminalId": short })).expect("req");
+    call(cx, state, "short_release", release).await;
+}
+
 fn session_update(session_id: &str, update: Value) -> UntypedMessage {
     UntypedMessage::new("session/update", json!({ "sessionId": session_id, "update": update })).expect("untyped")
 }
@@ -253,6 +315,11 @@ fn spawn_fake_agent(state: Arc<FakeState>, transport: Channel, scenario: &'stati
                     tokio::spawn(async move {
                         if scenario == "fs_terminal" {
                             run_fs_terminal_scenario(&cx, &state, &session_id).await;
+                            responder.respond(acp::PromptResponse::new(acp::StopReason::EndTurn)).expect("respond");
+                            return;
+                        }
+                        if scenario == "terminal_limits" {
+                            run_terminal_limits_scenario(&cx, &state, &session_id).await;
                             responder.respond(acp::PromptResponse::new(acp::StopReason::EndTurn)).expect("respond");
                             return;
                         }
@@ -805,6 +872,58 @@ async fn owned_terminals_are_released_when_the_agent_disconnects() {
     connection.disconnect().await;
     assert!(connection.shared().owned_terminal_ids().is_empty());
     assert!(matches!(terminals.output(&id), Err(pty::PtyError::UnknownTerminal(_))), "terminal must be released");
+}
+
+/// BACKLOG P0（2026-09-24）：`terminal/wait_for_exit` 不占 tokio 阻塞池线程、每条连接的终端有上限。
+/// 运行时只给**一条**阻塞线程：等退出若像原先那样 `spawn_blocking` 死等，场景里的读文件就排不上队（见场景说明）。
+#[test]
+fn terminal_waits_do_not_pin_blocking_threads_and_creates_are_capped() {
+    use acp_core::agent::MAX_TERMINALS_PER_CONNECTION;
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(4)
+        .max_blocking_threads(1)
+        .enable_all()
+        .build()
+        .expect("runtime");
+    runtime.block_on(async {
+        let (connection, _events, state, _agent_task) = connect("terminal_limits").await;
+        let cwd = std::env::temp_dir().join(format!("acp-core 终端上限-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&cwd);
+        std::fs::create_dir_all(&cwd).expect("mkdir");
+        std::fs::write(cwd.join("limits.txt"), "ok\n").expect("seed");
+        let _ = connection.session_new(cwd.clone()).await.expect_err("auth required");
+        connection.session_new(cwd.clone()).await.expect("session");
+        for i in 0..MAX_TERMINALS_PER_CONNECTION - 1 {
+            connection.shared().adopt_terminal(&format!("placeholder_{i}"));
+        }
+        let prompt = connection
+            .session_prompt("sess_fake", json!([{ "type": "text", "text": "terminal limits" }]))
+            .await
+            .expect("prompt");
+        assert_eq!(prompt["stopReason"], "end_turn");
+
+        let log = state.callback_log.lock().expect("lock").clone();
+        let step = |name: &str| log.iter().find(|v| v["step"] == name).cloned().unwrap_or_else(|| panic!("no step {name} in {log:#?}"));
+        assert!(step("long_create")["ok"]["terminalId"].is_string(), "{}", step("long_create"));
+        // 三个等退出挂着的时候，读文件照样拿到阻塞线程。
+        assert_eq!(step("read_outcome")["value"]["ok"]["content"], "ok\n", "{}", step("read_outcome"));
+        // 顶满之后再建：回错、不拉进程，错误里说清楚要先 release。
+        let over = step("create_over_limit");
+        assert_eq!(over["error"]["code"], -32603, "{over}");
+        assert!(over["error"]["data"].as_str().is_some_and(|d| d.contains("too many terminals")), "{over}");
+        // kill 之后三个等待都拿到非零退出。
+        for i in 0..3 {
+            let wait = step(&format!("wait_{i}"));
+            assert!(wait["ok"].is_object() && wait["ok"]["exitCode"] != 0, "{wait}");
+        }
+        // release 空出名额，短命令照常建、等、放。
+        assert!(step("create_after_release")["ok"]["terminalId"].is_string(), "{}", step("create_after_release"));
+        assert_eq!(step("short_wait")["ok"]["exitCode"], 0, "{}", step("short_wait"));
+        assert_eq!(connection.shared().owned_terminal_ids().len(), MAX_TERMINALS_PER_CONNECTION - 1);
+
+        connection.disconnect().await;
+        let _ = std::fs::remove_dir_all(&cwd);
+    });
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

@@ -111,7 +111,7 @@ class _TerminalCardState extends State<TerminalCard> {
     super.didUpdateWidget(old);
     if (old.buffer != widget.buffer) {
       old.buffer.removeListener(_sync);
-      _written = 0;
+      _reset();
       widget.buffer.addListener(_sync);
       _sync();
     }
@@ -125,21 +125,30 @@ class _TerminalCardState extends State<TerminalCard> {
     super.dispose();
   }
 
-  /// 只把新增的字节写进终端；缓冲被截断（内容变短）时整体重写。
+  /// 只把新增的部分写进终端。`_written` 是累计流里的位置（[TerminalBuffer.total]），不是 [TerminalBuffer.output]
+  /// 的长度：缓冲写满后长度恒定，按长度比会从此不再刷新（BACKLOG P0，2026-09-24）。
+  /// 视图还没写到的那段已经被截掉（一次写入超过上限）时，清屏重写留存下来的那段。
   void _sync() {
-    final out = widget.buffer.output;
-    if (out.length < _written) {
-      _terminal.buffer.clear();
-      _terminal.buffer.setCursor(0, 0);
-      _terminal.write(_hideCursor);
-      _written = 0;
+    final b = widget.buffer;
+    final out = b.output;
+    final start = b.total - out.length;
+    if (_written < start) {
+      _reset();
+      _written = start;
     }
-    if (out.length > _written) {
-      _terminal.write(out.substring(_written).replaceAll('\n', '\r\n'));
-      _written = out.length;
+    if (b.total > _written) {
+      _terminal.write(out.substring(_written - start).replaceAll('\n', '\r\n'));
+      _written = b.total;
     }
     _autoCollapseOnFinish();
     if (mounted) setState(() {});
+  }
+
+  void _reset() {
+    _terminal.buffer.clear();
+    _terminal.buffer.setCursor(0, 0);
+    _terminal.write(_hideCursor);
+    _written = 0;
   }
 
   /// 工具调用收尾（completed / failed / 本地取消）或终端自己退出，都算跑完。

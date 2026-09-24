@@ -63,7 +63,7 @@
       "name": "dsh-acp-interactive",
       "url": "https://github.com/ClickPM/dsh-acp-interactive.git",
       "branch": "main",
-      "commit": "0b10058dd75d1fdddc6cd455471d748cb010247d",
+      "commit": "e39fd482d574d5b65cff9f61d953e061afde2efb",
       "license": "MIT",
       "role": "first-class agent (own project): reference agent for round 1, widest capability surface"
     },

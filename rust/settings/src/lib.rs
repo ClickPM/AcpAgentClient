@@ -7,6 +7,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 use std::path::PathBuf;
+use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -47,6 +48,26 @@ impl From<fs::FsError> for SettingsError {
 }
 
 pub type Result<T> = std::result::Result<T, SettingsError>;
+
+/// 本地状态文件「读 → 改 → 写」的进程内串行化，一个文件一把锁（`settings.json` 是 [`SETTINGS_WRITES`]，
+/// 另见 [`index`] 与 [`ui_state`] 里的几把）。
+///
+/// 这几份文件都是「整份 load → 改一段 / 一条 → 整份 save」，而桥的每条命令在核心的多线程 runtime 上各起一个任务
+/// （`rust/bridge/src/api.rs` 的 `on_core`），后台的安装 / 升级任务也会写 `settings.json`：两笔重叠时，后落地的一方
+/// 拿自己读到的旧快照整份盖掉先落地的那笔——会话条目丢、删掉的会话复活、刚装好的 agent 条目被抹掉（iteration-10）。
+/// 与 `rust/registry/src/manifest.rs` 的 `WRITES` 同一写法。
+///
+/// - 锁是进程级 `static`，不是 store 的字段：同一份文件不论从哪个 store 实例写都串在一起。
+/// - 只串写、不串读：写是临时文件 + rename，读到的总是某一份完整的文件。
+/// - 只保证两笔写不交叉，**不保证先发的先落地**：同一条会话的写删先后仍由前端管（`lib/app/session_index.dart`）。
+/// - 锁住的方法之间不能互相调用（`Mutex` 不可重入）。
+pub(crate) fn write_lock(lock: &'static Mutex<()>) -> MutexGuard<'static, ()> {
+    // 持锁时 panic 不会留下半份文件（写是原子的），中毒了照常接着用。
+    lock.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// `settings.json` 的写锁（见 [`write_lock`]）。写入方：外观 / 转录偏好、设置页、registry 安装 / 升级 / 移除、Zed 导入。
+static SETTINGS_WRITES: Mutex<()> = Mutex::new(());
 
 /// `agent_servers` 的一条，与钉版本 Zed `crates/settings_content/src/agent.rs` 的 `CustomAgentServerSettings` 同形：
 /// `custom` 是扁平的 `command`（程序路径字符串）+ `args` + `env`；两型都还有 `default_mode` / `default_config_options` /
@@ -224,6 +245,7 @@ impl SettingsStore {
 
     /// 覆盖一条并落盘，返回落盘后的全量设置。
     pub fn upsert(&self, agent_id: &str, server: AgentServer) -> Result<Settings> {
+        let _writing = write_lock(&SETTINGS_WRITES);
         let mut settings = self.load()?;
         settings.agent_servers.insert(agent_id.to_string(), server);
         self.save(&settings)?;
@@ -239,6 +261,7 @@ impl SettingsStore {
     /// 覆盖外观设置并落盘，返回落盘后的外观。整段替换而不是合并：这一段前端一次全给
     /// （所以前端只能有一个写者，见 `lib/app/appearance_prefs.dart`）。
     pub fn set_appearance(&self, appearance: Appearance) -> Result<Appearance> {
+        let _writing = write_lock(&SETTINGS_WRITES);
         let mut settings = self.load()?;
         settings.appearance = appearance.sanitized();
         self.save(&settings)?;
@@ -252,6 +275,7 @@ impl SettingsStore {
 
     /// 覆盖转录偏好并落盘，返回落盘后的值。整段替换（这一段只有一个写者：`lib/app/transcript_folds.dart`）。
     pub fn set_transcript(&self, transcript: Transcript) -> Result<Transcript> {
+        let _writing = write_lock(&SETTINGS_WRITES);
         let mut settings = self.load()?;
         settings.transcript = transcript;
         self.save(&settings)?;
@@ -260,6 +284,7 @@ impl SettingsStore {
 
     /// 删掉一条并落盘（不存在也算成功），返回落盘后的全量设置。
     pub fn remove(&self, agent_id: &str) -> Result<Settings> {
+        let _writing = write_lock(&SETTINGS_WRITES);
         let mut settings = self.load()?;
         if settings.agent_servers.remove(agent_id).is_some() {
             self.save(&settings)?;
@@ -447,6 +472,46 @@ mod tests {
         assert_eq!(back["theme"], serde_json::json!("One Dark"), "未知顶层键被抹掉了");
         assert_eq!(back["telemetry"]["diagnostics"], serde_json::json!(false));
         assert_eq!(back["appearance"]["ui_font_family"], serde_json::json!("Geist"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 各段并发写（后台安装写 agent 条目的同时改外观、拨转录开关）：谁都不能拿旧快照把别人那笔盖掉（iteration-10）。
+    #[test]
+    fn concurrent_writes_keep_every_section() {
+        const WRITERS: usize = 8;
+        const EACH: usize = 8;
+        let dir = temp_dir("concurrent");
+        let store = SettingsStore::new(dir.clone());
+        let start = std::sync::Barrier::new(WRITERS + 2);
+        std::thread::scope(|s| {
+            for w in 0..WRITERS {
+                let (store, start) = (&store, &start);
+                s.spawn(move || {
+                    start.wait();
+                    for i in 0..EACH {
+                        let server = AgentServer::Registry { env: BTreeMap::new(), extra: BTreeMap::new() };
+                        store.upsert(&format!("agent-{w}-{i}"), server).expect("upsert");
+                    }
+                });
+            }
+            s.spawn(|| {
+                start.wait();
+                for _ in 0..EACH {
+                    let dark = Appearance { theme: Some("dark".into()), ..Appearance::default() };
+                    store.set_appearance(dark).expect("appearance");
+                }
+            });
+            s.spawn(|| {
+                start.wait();
+                for _ in 0..EACH {
+                    store.set_transcript(Transcript { collapse_finished_turns: Some(false) }).expect("transcript");
+                }
+            });
+        });
+        let settings = store.load().expect("load");
+        assert_eq!(settings.agent_servers.len(), WRITERS * EACH, "agent 条目被旧快照盖掉了");
+        assert_eq!(settings.appearance.theme.as_deref(), Some("dark"));
+        assert_eq!(settings.transcript.collapse_finished_turns, Some(false));
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
