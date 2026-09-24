@@ -9,10 +9,14 @@
 //! 没存过就返回 null，由前端落到 token 上。夹取范围同理，也在前端。
 
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Result, SettingsError};
+use crate::{Result, SettingsError, write_lock};
+
+/// `ui-state.json` 的写锁（见 [`crate::write_lock`]）：[`UiStateStore::merge`] 是合并写，两次拖不同的把手不能互相盖掉。
+static UI_STATE_WRITES: Mutex<()> = Mutex::new(());
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -57,6 +61,7 @@ impl UiStateStore {
 
     /// 合并写：只覆盖 `patch` 里给到的字段，没给的保留原值。返回落盘后的全量状态。
     pub fn merge(&self, patch: UiState) -> Result<UiState> {
+        let _writing = write_lock(&UI_STATE_WRITES);
         let mut state = self.load();
         if let Some(width) = sane(patch.sidebar_width) {
             state.sidebar_width = Some(width);
@@ -128,5 +133,38 @@ mod tests {
         let junk = br#"{"sidebarWidth": 0, "rightPanelWidth": 1e400, "filesTreeWidth": -3}"#;
         std::fs::write(&store.path, junk).expect("write");
         assert_eq!(store.load(), UiState::default());
+    }
+
+    /// 四个字段各由一个线程同时合并写一次：哪一个都不能被别人的旧快照盖回 null（iteration-10）。
+    /// 每轮从空文件起、各写一次就核对——同一个线程反复写的话，中途被盖掉的值会被它自己下一次写补回来，测不出来。
+    #[test]
+    fn concurrent_merges_of_different_fields_all_land() {
+        let store = store("concurrent");
+        let patches = [
+            UiState { sidebar_width: Some(300.0), ..UiState::default() },
+            UiState { right_panel_width: Some(600.0), ..UiState::default() },
+            UiState { files_tree_width: Some(200.0), ..UiState::default() },
+            UiState { files_tree_collapsed: Some(true), ..UiState::default() },
+        ];
+        let all = UiState {
+            sidebar_width: Some(300.0),
+            right_panel_width: Some(600.0),
+            files_tree_width: Some(200.0),
+            files_tree_collapsed: Some(true),
+        };
+        for round in 0..32 {
+            let _ = std::fs::remove_file(&store.path);
+            let start = std::sync::Barrier::new(patches.len());
+            std::thread::scope(|s| {
+                for patch in patches {
+                    let (store, start) = (&store, &start);
+                    s.spawn(move || {
+                        start.wait();
+                        store.merge(patch).expect("merge");
+                    });
+                }
+            });
+            assert_eq!(store.load(), all, "第 {round} 轮");
+        }
     }
 }

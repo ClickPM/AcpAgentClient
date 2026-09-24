@@ -16,14 +16,14 @@
 
 | 档 | 条数 | 这档是什么 |
 |---|---|---|
-| **P0 真缺陷** | 8 | 会丢内容、作用到错对象、吃光资源、静默失败。撞上就是事故，排进最近的轮次。 |
+| **P0 真缺陷** | 7 | 会丢内容、作用到错对象、吃光资源、静默失败。撞上就是事故，排进最近的轮次。 |
 | **P1 看得见的粗糙** | 3 | 用户看得见的不一致、缺等待态、行为不符直觉。能用，膈应；攒批做。 |
 | **P2 功能缺口** | 0 | 该有没有的能力。**全部需所有者裁定才能进轮次**，多数还要先改设计稿。 |
 | P3 设计稿欠账 | — | **已整体释放**到 `design/DIVERGENCE.md`，见下面的占位小节 |
 | P4 平台与分发 | — | **已清空**（2026-09-23）：跨平台暂不做、构建链两条关闭、sidecar 两条移到 `BACKLOG-ZED.md`，见下面的占位小节；以后平台与分发的新问题照常记这一档 |
 | P5 内部工程与验收 | — | **已清空**（2026-09-23）：16 条整档收掉（iteration-04），见下面的占位小节；以后测试、行数门、验收自动化这类用户无感的新问题照常记这一档 |
 | X 卡在上游 / 协议 | — | **已撤档**：不是本项目的问题不进本表（所有者裁定 2026-09-23），见下面的占位小节 |
-| | **11** | |
+| | **10** | |
 
 **新增条目**：挑一档追在该档末尾，照同样的三行格式写。不新开档位；一条只进一档。
 **只收本项目自己的问题**：问题出在上游（agent、zed、xterm 等依赖）或协议本身的，不进本表（所有者裁定 2026-09-23，X 档因此撤掉）；其中实现因此与画板对不上的，照规则 3 记 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)。
@@ -31,9 +31,9 @@
 **内置 Zed agent（sidecar）的问题不进本表**：记 [`BACKLOG-ZED.md`](BACKLOG-ZED.md)（所有者裁定 2026-09-23：原先本表的 4 条连同统筹时新盘点出的 5 条都移到那里，**当前不修**）；背景与上游限制见 [`docs/zed-agent.md`](../docs/zed-agent.md)。
 **关闭条目**：把**技术行连同结论压成一行** `- [x]` 剪到 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md) 末尾（那份是平铺存档，不分档），本文删掉这三行。
 
-## P0 · 真缺陷（8）
+## P0 · 真缺陷（7）
 
-2026-09-23 全仓只读审查（v1.4.4 之后的 `main`，Rust 核心 / 文件与终端 / Dart 状态层 / 投影与转录四路）登记了其中 7 条，代码路径都逐条核过，均未在 Windows 实机复现；「dsh 的会话存到哪里跟着进程工作目录走」来自所有者同日报障，根因由读代码推出，待实机确认。
+2026-09-23 全仓只读审查（v1.4.4 之后的 `main`，Rust 核心 / 文件与终端 / Dart 状态层 / 投影与转录四路）登记了其中 7 条（「本地状态文件的读改写没有串行化」已由 iteration-10 修掉，余 6 条），代码路径都逐条核过，均未在 Windows 实机复现；「dsh 的会话存到哪里跟着进程工作目录走」来自所有者同日报障，根因由读代码推出，待实机确认。
 
 ### 请求与会话路由（3）
 
@@ -49,11 +49,7 @@
   - **产品**：用 dsh 这类不支持删除的 agent，会话正在跑或挂着权限卡时在侧栏删掉它：界面上干净了，agent 那一轮却没被取消，继续跑到底（继续改工作区文件、继续耗 token）；挂着的权限 / 表单请求永远没人回，agent 卡在那里。
   - **技术**：`SessionController.deleteSession`（`lib/app/session_controller.dart`）把收尾整段圈在 `if (onAgent)` 里：`deletesOnAgent` 为假（agent 没连，或没声明 `sessionCapabilities.delete`，dsh-acp-interactive 1.3.0 实测就是）时既不 `_releaseSessionRequests`、也不发 `session/cancel`，核心的 `cancel_pending_permissions` 一次都不会跑；随后 `sessions.forget(id)` → `PendingQueue.forgetSession` 把挂起项从本地抹掉、不发任何回应。与 `BACKLOG-CLOSED.md`「删会话时 agent 侧可能留着」不是一回事：那条裁定的是会话记录在 agent 侧残留，这条是在途的那一轮与 client 请求没收尾。最小修法：owner 连着时不论 `onAgent`，先对在跑的会话发 `session/cancel`、再 `_releaseSessionRequests`，与 `closeSession` 同一口径 (2026-09-23)
 
-### 数据一致性（2）
-
-- [ ] **本地状态文件的读改写没有串行化：会话条目会丢、删掉的会话会复活、刚装好的 agent 配置会被抹掉**
-  - **产品**：两条会话前后脚写索引（后台会话收轮 + 前台发消息）时，其中一条可能从侧栏永久消失，重启也回不来；删会话的同时别的会话在写，删掉的那条又冒出来。安装 agent 期间去改字体，装好的 agent 可能显示「已安装」却连不上、也装不了，只能移除重装。
-  - **技术**：`rust/settings/src/index.rs` 的 `upsert_session` / `remove_session` / `open_project`、`rust/settings/src/lib.rs` 的 `upsert` / `set_appearance` / `set_transcript` / `remove`、`rust/settings/src/ui_state.rs` 的 `merge` 都是「整份 load → 改一条 → 整份 save」、无锁，而桥的每条命令都在多线程 runtime 上各起一个任务（`rust/bridge/src/api.rs` `on_core`），两笔重叠时后落地的用旧快照整份盖掉先落地的。前端 `SessionIndex` 的 `_inFlight` / `_removing` 只按 (agentId, sessionId) 挡同一条会话，跨会话不挡，而 `stampPromptSent` 是不 await 的。`settings.json` 这一半，`BACKLOG-CLOSED.md`「settings.json 的各段写入没有串行化」已裁定不修，理由是「现有交互做不到同时改外观和拨转录开关」；但写入方还有后台安装 / 升级任务（`rust/acp-core/src/registry_ops.rs` 的 `write_registry_settings`，`run_install` 与 `commit_upgrade` 里调），那条理由覆盖不到，**请所有者按这条新证据复议**。最小修法：照 `rust/registry/src/manifest.rs` 现成的 `static WRITES: Mutex<()>`，给 `IndexStore` / `SettingsStore` / `UiStateStore` 各加一把，load 到 save 整段罩住 (2026-09-23)
+### 数据一致性（1）
 
 - [ ] **dsh 的会话存到哪里跟着进程工作目录走：换过项目后重载，原会话报「不存在」并被新建会话顶掉**
   - **产品**：先在项目 A 用 dsh，再切到项目 B 新建会话聊完，点会话头的「重载」：弹出 `session restore failed: session "…" not found`，随即新开一条空会话，原会话再也载不回来。不止重载：重启应用后先打开哪个项目，决定了哪些旧会话能载回来，表现为时好时坏；每个项目根目录还会多出一个 `.sessions` 文件夹（容易被误提交进 git）。
