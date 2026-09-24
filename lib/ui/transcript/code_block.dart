@@ -89,6 +89,20 @@ class CodeBlock extends StatefulWidget {
 class _CodeBlockState extends State<CodeBlock> {
   late bool _copied = widget.copiedInitially;
 
+  /// 高亮结果按 (code, language, 字体代数) 缓存（BACKLOG「流式渲染性能」）：上百行的代码高亮一次要十几毫秒，
+  /// 而转录每个流式 chunk 都会重建这张卡（Markdown 尾部重解析、Copy 态切换）。色表与字阶烘在 span 里，
+  /// 换主题 / 字体时 [t.Fonts.generation] 会变，同 `markdown_body.dart` 的块缓存。
+  ({String code, String? language, int generation})? _key;
+  TextSpan? _span;
+
+  TextSpan _highlighted() {
+    final key = (code: widget.code, language: widget.language, generation: t.Fonts.generation);
+    final cached = _span;
+    if (cached != null && key == _key) return cached;
+    _key = key;
+    return _span = highlightCode(widget.code.trimRight(), widget.language);
+  }
+
   Future<void> _copy() async {
     await Clipboard.setData(ClipboardData(text: widget.code));
     if (!mounted) return;
@@ -99,7 +113,7 @@ class _CodeBlockState extends State<CodeBlock> {
 
   @override
   Widget build(BuildContext context) {
-    final span = highlightCode(widget.code.trimRight(), widget.language);
+    final span = _highlighted();
     return TranscriptCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

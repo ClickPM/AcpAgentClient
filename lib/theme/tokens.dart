@@ -518,6 +518,9 @@ abstract final class LineHeights {
   static const double body = 1.5;
   static const double control = 1.35;
   static const double kbdPx = 16.0;
+
+  /// 画板 21 的 diff 行：mono 12.5 · line-height 1.7，每行等高（展开体按固定行高惰性建行，见 `diff_card.dart`）。
+  static const double diffRow = 1.7;
 }
 
 /// 字阶五档 + mono 12.5（画板 00「字阶（5 档）」）。颜色按画板样例带上，需要时 copyWith。

@@ -7,6 +7,8 @@
 // - 围栏交给 code_block.dart（语言 mermaid 交给 mermaid_block.dart）、表格交给 gfm_table.dart；
 // - 表头行启发式：只有一行 `| a | b |` 还没等到分隔行时先按表头渲染，避免分隔行到达那一帧跳变。
 // - 列表项里行内内容与嵌套块（子列表 / 围栏 / 表格）共存时，行内的先并成一段再渲染（见 [MarkdownBlock._mixedChildren]）。
+// - 流式追加时只重解析尾部（BACKLOG「流式渲染性能」）：最后一个安全块边界（[markdownSafeBoundary]）之前的块解析一次、
+//   widget 实例留着复用，每个 chunk 只重解析、重建边界之后的那几块。
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
@@ -90,11 +92,104 @@ class MarkdownBody extends StatefulWidget {
   State<MarkdownBody> createState() => _MarkdownBodyState();
 }
 
+/// 流式 Markdown 的「安全块边界」：[data] 里 [from] 之后最后一个可以切开分段解析的位置，没有就是 [from]。
+/// [from] 本身必须是安全边界（或 0）。
+///
+/// 安全 = 在这里切开、两段各自 [MarkdownBody.parse] 再首尾相接，与整段解析出的顶层块一致（`test/ui/markdown_incremental_test.dart`
+/// 按字符逐段喂真实 fixtures 与边角样例对照）。判据宁可少切：
+/// 1. 位置在一行或几行空行之后、下一块首行的行首，且那一行已经收全（后面有换行）；
+/// 2. 不在围栏代码块里：开栏认缩进 ≤ 3 的 ``` / ~~~（比 package:markdown 认的宽），收栏要同一字符、不短于开栏、
+///    后面只有空白（比它认的窄）——两头都往「还在围栏里」偏；
+/// 3. 下一块首行顶格、不是列表标记：空行后跟这样一行，前面的列表、引用、缩进代码块、表格、段落一定已经结束；
+///    也不以 `<` 开头——package:markdown 给「不是全文第一块」的 HTML 块前面补一个换行，切开后它成了第一块就少了这个换行；
+/// 4. 出现能跨空行的 HTML 块（CommonMark 第 1–5 类：`<pre>` / `<script>` / `<style>` / `<textarea>` / 注释 / `<?` / `<!X` /
+///    CDATA）之后不再切。
+/// 链接引用定义与脚注定义是全文级的（后文的定义改前文的渲染），`\r` 换行另有切法——这两种由调用方整段解析，不走这里。
+int markdownSafeBoundary(String data, int from) {
+  var best = from;
+  String? fence;
+  var afterBlank = false;
+  var pos = from;
+  while (true) {
+    final nl = data.indexOf('\n', pos);
+    if (nl < 0) break;
+    final line = data.substring(pos, nl);
+    if (fence != null) {
+      if (_closesFence(line, fence)) fence = null;
+    } else if (_blankLine.hasMatch(line)) {
+      afterBlank = true;
+    } else {
+      if (afterBlank && pos > from && !_notABlockStart.hasMatch(line)) best = pos;
+      afterBlank = false;
+      if (_spanningHtmlBlock.hasMatch(line)) break;
+      fence = _fenceOpen.firstMatch(line)?[1];
+    }
+    pos = nl + 1;
+  }
+  return best;
+}
+
+final RegExp _blankLine = RegExp(r'^[ \t]*$');
+
+/// 空行之后不能当新块起点的行：缩进、`<`、列表标记（判据 3）。
+final RegExp _notABlockStart = RegExp(r'^(?:[ \t<]|(?:\d{1,9}[.)]|[*+-])(?:[ \t]|$))');
+
+/// 开栏（判据 2）：缩进 ≤ 3 的 ``` / ~~~，信息串不管。
+final RegExp _fenceOpen = RegExp(r'^ {0,3}(`{3,}|~{3,})');
+
+/// 收栏（判据 2）：同一字符、不短于开栏、后面只有空白。
+final RegExp _fenceClose = RegExp(r'^ {0,3}(`{3,}|~{3,})[ \t]*$');
+
+bool _closesFence(String line, String fence) {
+  final m = _fenceClose.firstMatch(line);
+  return m != null && m[1]![0] == fence[0] && m[1]!.length >= fence.length;
+}
+
+/// 能跨空行的 HTML 块起点（判据 4）。
+final RegExp _spanningHtmlBlock = RegExp(r'^ {0,3}(?:<(?:pre|script|style|textarea)(?:\s|>|$)|<!--|<\?|<![a-z]|<!\[CDATA\[)', caseSensitive: false);
+
+/// 行首（缩进 ≤ 3）的 `[…]:`：链接引用定义或脚注定义。
+final RegExp _definitionLine = RegExp(r'^ {0,3}\[.*\]:', multiLine: true);
+
+/// 流式 Markdown 的块级增量解析：[markdownSafeBoundary] 之前的部分「封口」，只解析一次；每次 [update] 只重解析边界之后的尾部。
+/// 新全文以已封口的原文开头（流式追加）时沿用；否则（改写、有全文级定义、`\r` 换行）作废重来，整段当尾部解析。
+class MarkdownStream {
+  String _sealed = '';
+
+  /// 喂入最新全文。`reset` = 之前封口的块作废；`sealed` = 这次新封口、接在已封口之后的块；`tail` = 边界之后的块。
+  ({bool reset, List<md.Node> sealed, List<md.Node> tail}) update(String data) {
+    final incremental = !data.contains('\r') && !(data.contains(']:') && _definitionLine.hasMatch(data));
+    final reset = _sealed.isNotEmpty && (!incremental || !data.startsWith(_sealed));
+    if (reset) _sealed = '';
+    var sealed = const <md.Node>[];
+    if (incremental) {
+      final from = _sealed.length;
+      final to = markdownSafeBoundary(data, from);
+      if (to > from) {
+        sealed = MarkdownBody.parse(data.substring(from, to));
+        _sealed = data.substring(0, to);
+      }
+    }
+    return (reset: reset, sealed: sealed, tail: MarkdownBody.parse(_sealed.isEmpty ? data : data.substring(_sealed.length)));
+  }
+
+  /// 忘掉已封口的部分，下次 [update] 从头解析。
+  void clear() => _sealed = '';
+}
+
 class _MarkdownBodyState extends State<MarkdownBody> {
-  final LinkRecognizers _links = LinkRecognizers();
+  /// 封口的块（解析一次、实例留着）与尾部的块（每次输入变都重建）各用一份 recognizer 登记处，
+  /// 尾部重建时只释放尾部那一份。
+  final LinkRecognizers _stableLinks = LinkRecognizers();
+  final LinkRecognizers _tailLinks = LinkRecognizers();
+
+  final MarkdownStream _stream = MarkdownStream();
+
+  /// 封口的块 widget（按顺序，下标即 key）与当前整列。
+  final List<Widget> _stableBlocks = <Widget>[];
   List<Widget> _blocks = const <Widget>[];
 
-  /// 算 [_blocks] 时的字体代数。块实例是缓存的（见 [_rebuild]），而每块都把当时的字阶连同颜色
+  /// 算 [_blocks] 时的字体代数。块实例是缓存的（见 [_update]），而每块都把当时的字阶连同颜色
   /// 一起烘了进去（`base` 与各处 `CardText` / 颜色 token），换字体或换主题后必须重解析一次；
   /// [t.Fonts.generation] 两件事都会 +1（tokens.dart 的注释写明了），一个代数覆盖两件事。
   /// 同 `lib/ui/files/files_panel.dart` 的 `_SourceView`。
@@ -103,37 +198,57 @@ class _MarkdownBodyState extends State<MarkdownBody> {
   @override
   void initState() {
     super.initState();
-    _rebuild();
+    _update();
   }
 
   @override
   void didUpdateWidget(MarkdownBody old) {
     super.didUpdateWidget(old);
-    if (old.data != widget.data || old.onLink != widget.onLink || old.mermaidFontFamily != widget.mermaidFontFamily || old.baseStyle != widget.baseStyle) {
-      _rebuild();
+    if (old.onLink != widget.onLink || old.mermaidFontFamily != widget.mermaidFontFamily || old.baseStyle != widget.baseStyle) {
+      _reset();
+      _update();
+    } else if (old.data != widget.data) {
+      _update();
     }
   }
 
   @override
   void dispose() {
-    _links.disposeAll();
+    _stableLinks.disposeAll();
+    _tailLinks.disposeAll();
     super.dispose();
   }
 
+  /// 丢掉封口的缓存（输入以外的参数、字体或主题变了），下次 [_update] 从头解析。
+  void _reset() {
+    _stream.clear();
+    _stableLinks.disposeAll();
+    _stableBlocks.clear();
+  }
+
   /// 只在输入变化（或字体 / 主题换了）时重新解析；块 widget 实例缓存，父级重建时子树不重建，
-  /// recognizer 也就不会随父级 build 反复登记。
-  void _rebuild() {
+  /// recognizer 也就不会随父级 build 反复登记。流式追加时封口的块原样复用（[MarkdownStream]），只重建尾部。
+  void _update() {
     _fontGeneration = t.Fonts.generation;
-    _links.disposeAll();
-    final nodes = MarkdownBody.parse(widget.data);
+    final r = _stream.update(widget.data);
+    if (r.reset) {
+      _stableLinks.disposeAll();
+      _stableBlocks.clear();
+    }
+    _stableBlocks.addAll(_widgets(r.sealed, _stableBlocks.length, _stableLinks));
+    _tailLinks.disposeAll();
+    _blocks = <Widget>[..._stableBlocks, ..._widgets(r.tail, _stableBlocks.length, _tailLinks)];
+  }
+
+  List<Widget> _widgets(List<md.Node> nodes, int start, LinkRecognizers links) {
     final base = widget.baseStyle ?? t.TextStyles.body;
-    _blocks = <Widget>[
+    return <Widget>[
       for (var i = 0; i < nodes.length; i++)
         KeyedSubtree(
-          key: ValueKey<int>(i),
+          key: ValueKey<int>(start + i),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: t.Spacing.s4),
-            child: MarkdownBlock(node: nodes[i], onLink: widget.onLink, links: _links, mermaidFontFamily: widget.mermaidFontFamily, base: base),
+            child: MarkdownBlock(node: nodes[i], onLink: widget.onLink, links: links, mermaidFontFamily: widget.mermaidFontFamily, base: base),
           ),
         ),
     ];
@@ -145,11 +260,14 @@ class _MarkdownBodyState extends State<MarkdownBody> {
     // 放在 build 而不是监听器里：MarkdownBody 拿不到 AppearanceController，而组合根换主题时本来
     // 就会重建整棵树，这里只是顺带对一次代数——同 `_SourceView`。
     //
-    // [_rebuild] 会 `disposeAll()` 掉旧的 link recognizer，这一条与 [didUpdateWidget] 那条路径
-    // （流式 chunk 每到一段就这么做一次）是同一个操作，不是新增的风险面：代数只由 `Fonts.apply` /
+    // 整段重来会 `disposeAll()` 掉旧的 link recognizer，这一条与 [didUpdateWidget] 那条路径
+    // （流式 chunk 每到一段就对尾部这么做一次）是同一个操作，不是新增的风险面：代数只由 `Fonts.apply` /
     // `Theming.apply` 推进，那一下用户的指针在外观开关上、不在转录的链接上；真撞上了也只是那次点击
     // 被取消（`OneSequenceGestureRecognizer.dispose` 先 `resolve(rejected)` 再摘路由），不会挂。
-    if (_fontGeneration != t.Fonts.generation) _rebuild();
+    if (_fontGeneration != t.Fonts.generation) {
+      _reset();
+      _update();
+    }
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: _blocks);
   }
 }

@@ -17,6 +17,7 @@ import 'package:acp_agent_client/ui/files/files_panel.dart';
 import 'package:acp_agent_client/ui/registry/registry_entry.dart';
 import 'package:acp_agent_client/ui/transcript/awaiting_bar.dart';
 import 'package:acp_agent_client/ui/transcript/card_chrome.dart';
+import 'package:acp_agent_client/ui/transcript/code_block.dart';
 import 'package:acp_agent_client/ui/transcript/icons.dart';
 import 'package:acp_agent_client/ui/transcript/markdown_body.dart';
 import 'package:flutter/widgets.dart';
@@ -72,6 +73,29 @@ void main() {
 
     expect(paragraph().style!.color, t.Theming.darkColors.text, reason: '缓存的块实例原样返回的话这里还是浅色的字');
     expect(inlineCodeBackground(), t.Theming.darkColors.surface);
+  });
+
+  testWidgets('代码块：换主题后高亮色表跟着走（高亮结果按字体代数缓存）', (WidgetTester tester) async {
+    final ValueNotifier<int> tick = ValueNotifier<int>(0);
+    addTearDown(tick.dispose);
+    await pumpUnder(tester, tick, () => MarkdownBody('```dart\nvoid main() {}\n```'));
+
+    // 关键字 `void` 的颜色（画板 13：关键字 = accent 文字色）。
+    Color? keywordColor() {
+      Color? found;
+      tester.widget<Text>(find.descendant(of: find.byType(CodeBlock), matching: find.byType(Text)).last).textSpan!.visitChildren((InlineSpan span) {
+        if (span is TextSpan && span.text == 'void') {
+          found = span.style?.color;
+          return false;
+        }
+        return true;
+      });
+      return found;
+    }
+
+    expect(keywordColor(), t.Theming.lightColors.accentText);
+    await toDark(tester, tick);
+    expect(keywordColor(), t.Theming.darkColors.accentText, reason: '高亮缓存没按代数失效的话还是浅色那套');
   });
 
   testWidgets('registry 行：徽章与占位菱形跟着换主题', (WidgetTester tester) async {
