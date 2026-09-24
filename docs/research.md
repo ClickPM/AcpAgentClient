@@ -83,6 +83,44 @@ Zed 界面上**没有**手动 Resume / Close。一条会话在 agent 侧占的�
   - 切回已关闭会话的路径（`_ensureLoaded`：load 优先、退回 resume）与 Zed 同序。要照搬，缺的只是「切走时回收」这一步：`selectSession` 里按上面的条件回收，复用 `closeSession` 里现成的「先收干净挂起请求、再 `session/close`」。
   - 还有一个取舍待裁定：我们内存里的转录还在，切回时可以 resume 优先（不重放，快，本地折叠等状态也不丢）；Zed 连视图一起丢了，所以只能 load。
 
+### 4.2 回合进行中的发送队列（Queued Messages）
+
+> 2026-09-24 按钉版本 `d9e1c02` 核对，是 round-send-queue（[`rounds/round-send-queue/round-send-queue.md`](../rounds/round-send-queue/round-send-queue.md)）的依据。行号都是这个 commit 的；换钉版本要重核。
+
+**结论：队列完全在客户端，协议一行没加。** ACP v1 一个会话同一时刻只有一个 `session/prompt`，Zed 在回合进行中把用户输入收进本地队列，回合结束再当普通 `session/prompt` 发；「Send Now」= 先 `session/cancel` 当前回合、等它返回、再发。对任何外部 agent 都成立（所有者的截图是 pi ACP）。
+
+- **状态机**：`crates/agent_ui/src/conversation_view/message_queue.rs`（192 行，纯状态，不碰协议）。
+  - 队列项 `QueueEntry { id, content: Vec<acp::ContentBlock>, tracked_buffers, steer, editor }`：`content` 是**入队时就解析好**的 ACP 内容块（含 @ 提及）；每项挂一个只读的小编辑器，就是截图里的一行。
+  - `ProcessingState` 三态：**AutoProcess**（回合结束自动弹队首发出）；**Paused**（用户手动点停止时进入，`thread_view.rs:1975` 的 `cancel_generation`，否则一停就立刻发下一条、等于停不下来；用户再发任何消息或再入队一条即恢复 AutoProcess）；**AbsorbingCancel**（Send Now / fast-track 是自己发起的 cancel，那次回合结束事件要吞掉，否则会连带把下一条也发出去）。
+  - `on_generation_stopped(is_first_editor_focused)`（:149）：用户正在编辑队首那条时不自动发。
+  - `can_fast_track`：入队即置 true，fast-track 一次后置 false。
+- **发送入口**：`thread_view.rs:1480` 的 `send()`。输入框有字 + 回合进行中 → `queue_message` 入队、不打断（:1499）；输入框为空 + 按 Enter → `try_fast_track`（:1493），刚入过队就把队首立即发出（截图里「Send Now **Enter**」的来历）；空闲时照常发送。另一个快捷键 `SendImmediately` → `interrupt_and_send`（:1813）：pause 队列 → `thread.cancel()` 并 await → `send_impl`。`/compact 做X` 这类内置命令先发命令、余下的「做X」自动入队（:1559）。
+- **出队**：`dispatch_queued_entry`（:2256）是自动出队 / fast-track / Send Now 的唯一出口：先 `thread.cancel()`（空闲时是空操作）并 await，再 `send_content`（即一次普通 `session/prompt`）。回合结束时的自动出队挂在 `conversation_view.rs:1704`（Stopped 事件 → `on_generation_stopped` → `dispatch_queued_entry`）。
+- **队列条上的操作**：删除 `remove_from_queue`（:2212）；编辑 `move_queued_message_to_main_editor`（:2307，挪回主输入框，主输入框已有字时以 `\n\n` 拼在后面并校正光标）；在队列行上直接打字 / 粘贴也会把它挪回主输入框并带上这次按键（`InputAttempted`，:2163）；主输入框为空时按 ↑ 把队尾拉回来编辑（:2356）；Clear All（:3682）；标题「N Queued Message(s)」可折叠（:3636）。
+- **生命周期**：队列只在内存里，挂在线程视图上，重启即丢，不落盘。
+
+### 4.3 Steer（回合中途插话）：研究记录与裁定
+
+> 2026-09-24 调研。**所有者裁定 2026-09-24：不做 ACP 标准协议之外的事——不接各家 agent 的 steer 私有扩展，也不为内置 Zed agent（sidecar）做 steer 适配**；发送队列只用标准的 `session/prompt` / `session/cancel`（§ 4.2）。本节只作记录，ACP v2 或官方把 steer 收进标准之后再议。
+
+「Steer」= 回合还在跑时把新消息**注入当前回合**，agent 在下一个步骤边界（一批工具结果回来之后、下一次调模型之前）看到它并改道，而不是等回合结束另起一轮。
+
+- **Zed 只对自家 agent 做了**：队列项上有 Steer 开关（默认关，`thread_view.rs:4459` 的 `render_queue_steer_button`）。打开时 `sync_queue_flag_to_native_thread`（:2230）在进程内直接设 native `Thread` 的 `end_turn_at_next_boundary`，`crates/agent/src/thread.rs:3092` 看到它就在工具结果之后收轮，队首随即作为下一轮发出。**这是进程内的布尔标志，线上没有对应的 ACP 消息**；外部 agent 在 Zed 里只能「排队等回合结束」或「cancel 掉再发」。zed main（2026-09-23，`4c902c9`）的 `agent_servers` / `acp_thread` 里仍然没有 `steering` 这个词。
+- **外部 agent 的现状**（均按本仓库钉版本的源码）：
+
+  | agent | 支持 | 形态 |
+  |---|---|---|
+  | claude-agent-acp | 是（至迟 0.64.0 / 2026-07 起，之后几版持续修） | 扩展方法 `_session/steering`（`src/acp-agent.ts:454`，示例 `examples/steering.ts`） |
+  | codex-acp | 是 | 同一个 `_session/steering`（`src/AcpExtensions.ts:43`），背后是 Codex app-server 的 turn steer |
+  | pi-acp | pi 本身有 steering / follow-up 模式，适配层**没有**做成协议能力 | 只暴露斜杠命令 `/steering`、`/follow-up` 切 pi 的模式；README 写明「Queue is implemented client-side」 |
+  | dsh-acp-interactive | 否 | — |
+
+- **claude-agent-acp 与 codex-acp 共用的线上约定**（两边注释都称 agreed ACP steering wire protocol）：① agent 在 `initialize` 响应的顶层 `_meta.steering.supported` 声明；② 回合进行中客户端发 `_session/steering { sessionId, prompt }`，可带 `_meta.steering.idleBehavior: "promptRequired"`；③ agent 回 `outcome`：`injected`（已并入当前回合）/ `startedNewTurn`（回合已结束，agent 按旧兜底自己另起一轮）/ `promptRequired`（回合已结束，且请求要求由客户端负责投递，这条没被消费，要改走普通 `session/prompt`）。方法名以 `_` 开头 = ACP 的自定义扩展方法，**不是标准的一部分**。
+- **为什么 Zed（和我们）不接**（Zed 这半是推断，没找到官方说明）：
+  1. ACP v1 里 `session/prompt` 的请求到响应就是整个回合，中途插进来的用户消息算哪一轮、转录里落在哪、重放时怎么还原，规范都没定义，扩展方法只能各家自己约定。
+  2. 标准解在 ACP v2 草案里：`docs/announcements/acp-v2-draft.mdx` 明说为了 queueing 与 steering，prompt 响应改为「已收到」而非回合结束、agent 在实际插入处重放用户消息、新增 `idle` 状态。本项目按规则 10 不开 `unstable_protocol_v2`，要等 v2 定稿、官方 rust-sdk 跟进。
+  3. 对我们还有规则 2（`_meta` 只许 `docs/design.md` § 4 的键）与 `docs/requirements.md` 第 1 条（不给任何 agent 做私有通道）。
+
 ## 5. 五个 agent 对客户端的要求
 
 见 `requirements.md` § 必须 第 3 条的表。补充事实：
