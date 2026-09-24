@@ -2,32 +2,33 @@
 
 <!-- 保存为 iterations/iteration-NN.md。一个迭代一个文件、一项一行；流程正本见 iterations/README.md，不在这里复述。 -->
 
-> 状态：进行中　起止：2026-09-24 –　基线：`main` = `7dcdfbe`
+> 状态：已合并（所有者 2026-09-24 确认两处取值并指示合并；未构建、未手测）　起止：2026-09-24 – 2026-09-24　基线：`main` = `7dcdfbe`
 
 所有者 2026-09-24 点名「资源与静默失败」一小节的三条一起做，在 worktree 分支里做。三条互不相干：一条纯前端（终端卡），两条纯核心（fs / pty + acp-core）。
-**编号**：开工时 `main` 最新是 iteration-09，另一个 worktree（`claude/backlog-optimization-990610`，状态文件串行化）未提交的文件里已占 10，本文取 **11**；合 `main` 时按当时的最大号再定终号。
+**编号**：开工时 `main` 最新是 iteration-09，另一个 worktree（`claude/backlog-optimization-990610`，状态文件串行化）未提交的文件里已占 10，本文取 **11**；合 `main` 时 `main` 最大是 10、另一个 worktree 已占 12，11 不变。
 
 ## 工作项
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | fix | 终端输出超过 64 K 字符后，终端卡的画面就冻住了：`TerminalBuffer` 加只增不减的累计写入量 `total`，画板 22 / 23 的终端卡与画板 52 的认证终端都按它写增量；没写到的那段已被截掉时清屏重写留存段 | BACKLOG P0「资源与静默失败」第 1 条 | `claude/optimize-three-p0-issues-6b5905`（`9aac7b9`） | validate 全绿（532 项 flutter test）；未构建、未手测 | 1 轮，**0 条** | 待合并 |
-| 2 | fix | agent 读大文件时整份读进内存：`fs/read_text_file` 改成按 `line` / `limit` 流式读（跳过的行只数不存），回出去的内容超过 16 MiB 回 invalid params | BACKLOG P0「资源与静默失败」第 2 条 | 同上 | 同上 | 同上 | 待合并 |
-| 3 | fix | agent 开终端不释放时，最终会把整个客户端拖死：每条连接同时持有的终端上限 64（先占名额再拉起，超限回错、不拉进程）；`terminal/wait_for_exit` 与 terminal auth 的等退出改成 pty 等待线程回调 + oneshot，不再占 tokio 阻塞池线程，连接先结束就不等 | BACKLOG P0「资源与静默失败」第 3 条 | 同上 | 同上 | 同上 | 待合并 |
+| 1 | fix | 终端输出超过 64 K 字符后，终端卡的画面就冻住了：`TerminalBuffer` 加只增不减的累计写入量 `total`，画板 22 / 23 的终端卡与画板 52 的认证终端都按它写增量；没写到的那段已被截掉时清屏重写留存段 | BACKLOG P0「资源与静默失败」第 1 条 | `claude/optimize-three-p0-issues-6b5905`（`9aac7b9`）→ 合 `main`（`3ccb5ed`）后快进 | validate 全绿（合并前后各一次）；未构建、未手测 | 1 轮，**0 条** | 已合并 |
+| 2 | fix | agent 读大文件时整份读进内存：`fs/read_text_file` 改成按 `line` / `limit` 流式读（跳过的行只数不存），回出去的内容超过 16 MiB 回 invalid params | BACKLOG P0「资源与静默失败」第 2 条 | 同上 | 同上 | 同上 | 已合并 |
+| 3 | fix | agent 开终端不释放时，最终会把整个客户端拖死：每条连接同时持有的终端上限 64（先占名额再拉起，超限回错、不拉进程）；`terminal/wait_for_exit` 与 terminal auth 的等退出改成 pty 等待线程回调 + oneshot，不再占 tokio 阻塞池线程，连接先结束就不等 | BACKLOG P0「资源与静默失败」第 3 条 | 同上 | 同上 | 同上 | 已合并 |
 
 ## 收口
 
-- 构建 / 手测：<待定>。所有者手测项（Windows，真 agent）：
+- 构建 / 手测：未构建（所有者指定）、未手测。所有者手测项（Windows，真 agent）：
   1. **终端卡不冻**（codex 这类在 `_meta` 里带终端输出的 agent，或 fake-agent）：让 agent 跑一条输出很多的命令（`cargo build -v`、`npm install --verbose`，或 `1..5000 | % { "line $_" }`），终端卡一路滚到最后一行，尾巴（退出码、报错）看得见。
   2. **读大文件**：工作区里放一个几百 MB 的日志，让 agent「读一下最后几行」→ 应用内存不暴涨；让它「把整个文件读进来」→ agent 收到一条要它分段读的错误，应用不闪退。
   3. **终端照常**（钉版本的真 agent 都不发 `terminal/create`，用 `test/fake-agent/fake-agent.mjs --terminal` 当自定义 agent）：终端卡照常出输出与退出码，停止方块照常能停。
-- 发版：<待定>
+- 合并：`main` 已前进到 `3ccb5ed`（iteration-10，只动 `rust/settings/`），先把它合进分支：代码全部自动合并、与本分支改动的文件不相交；冲突只在三份登记文档——`iterations/README.md` 迭代清单与 `rounds/BACKLOG-CLOSED.md` 末尾两边都留（`main` 在前），`rounds/BACKLOG.md` 的档位计数按 `- [ ] ` 逐小节重数（P0 7 → 4、总计 10 → 7，P0 引言补一句本迭代）。解冲突没改代码，按惯例不复审；合并后 validate 全绿再快进 `main`。
+- 发版：不发。
 - 移出项去向：—
 - 设计稿补注记：—（三条都没有画板可见的变化）
 
 ## 备注
 
-### 取值（实现时的默认，待所有者确认）
+### 取值（所有者 2026-09-24 确认）
 
 - **`fs/read_text_file` 上限 16 MiB**（`rust/fs/src/lib.rs` `READ_TEXT_FILE_LIMIT`）：比查看器的 2 MiB（`READ_FILE_LIMIT`）宽，因为 agent 的编辑工具常见「整份读 → 改 → 整份写回」，几 MB 的锁文件 / 打包产物要读得动；再大的整份读超过任何上下文窗口，对 agent 没用。超限回 `-32602`，消息叫它带 `line` / `limit` 分段读。带 `line` / `limit` 的读不受文件大小限制（跳过的行只数不存，峰值只有一块 64 KiB 读缓冲 + 回出去的那段）。
 - **每条连接终端上限 64**（`rust/acp-core/src/agent.rs` `MAX_TERMINALS_PER_CONNECTION`）：数的是「建了还没 release」的，含已退出没 release 的（它们各留着最多 4 MiB 的输出缓冲）与正在拉起的。钉版本的五个 agent 源码里没有一个发 `terminal/create`（codex-acp 只在 `_meta` 里带终端输出），内置 Zed agent 的终端也在 sidecar 进程内跑（`sidecar/zed-agent-acp/src/translate.rs` 第 1 条），正常用法撞不上。超限回 `-32603`，消息叫它先 `terminal/release`。

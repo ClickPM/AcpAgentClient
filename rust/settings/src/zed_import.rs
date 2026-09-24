@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::{AgentServer, Result, Settings, SettingsError, SettingsStore};
+use crate::{AgentServer, Result, SETTINGS_WRITES, Settings, SettingsError, SettingsStore, write_lock};
 
 /// Zed 的 settings.json 位置：Windows `%APPDATA%\Zed\settings.json`，macOS / Linux `~/.config/zed/settings.json`
 /// （`XDG_CONFIG_HOME` 优先）。
@@ -124,6 +124,7 @@ impl SettingsStore {
     /// 同名不覆盖（验收 4）；解不开的条目记 `invalid`。一条都没新增时不写文件。
     pub fn import_zed(&self, zed_path: &Path) -> Result<ImportReport> {
         let servers = read_zed_agent_servers(zed_path)?;
+        let _writing = write_lock(&SETTINGS_WRITES);
         let mut settings: Settings = self.load()?;
         let mut report = ImportReport { path: zed_path.to_string_lossy().into_owned(), ..Default::default() };
         for (id, raw) in servers {
