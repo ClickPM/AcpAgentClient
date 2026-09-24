@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../theme/tokens.dart' as t;
+import '../shell/motion.dart';
 
 /// 图标路径体（`<svg>` 标签内部）。命名按语义，注释标出处画板。
 abstract final class AcpIcons {
@@ -220,7 +221,10 @@ class AcpIcon extends StatelessWidget {
 
 /// spinner：accent · 1.5px 弧，持续旋转（tokens Spinner）。
 /// 构造函数不带 `const`：build 里现取颜色 token，换主题要重建（理由见 card_chrome.dart 的 Chevron）。
-class Spinner extends StatefulWidget {
+///
+/// 转角取共用低频时钟 [AmbientClock]，不逐帧跑（iteration-14）：Windows 上每出一帧都是整窗重画，
+/// 这只 spinner 挂多久，整窗就按显示器刷新率重画多久。所在子树的 `TickerMode` 关掉时不订阅、停在起点。
+class Spinner extends StatelessWidget {
   // ignore: prefer_const_constructors_in_immutables
   Spinner({super.key, this.size = t.IconSizes.toolbar, this.color});
 
@@ -230,26 +234,15 @@ class Spinner extends StatefulWidget {
   final Color? color;
 
   @override
-  State<Spinner> createState() => _SpinnerState();
-}
-
-class _SpinnerState extends State<Spinner> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(vsync: this, duration: t.Geometry.spinnerPeriod)..repeat();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    // RepaintBoundary：这只永远在转。没有边界时每一帧弄脏的是它上面最近的图层——整个应用没别的边界，就是整窗，
-    // 2880×1800 @ 120Hz 的核显上会话运行中实测 GPU 44–64%（2026-09-22，风扇常转）。有了边界只重栅格这一小块。
+    final Animation<double> turns = TickerMode.valuesOf(context).enabled
+        ? AmbientClock.instance.phase(t.Geometry.spinnerPeriod)
+        : const AlwaysStoppedAnimation<double>(0);
+    // RepaintBoundary：每一跳只重录这一小块；省不了整窗合成与上屏（那一半靠时钟降跳数）。
     return RepaintBoundary(
       child: RotationTransition(
-        turns: _controller,
-        child: AcpIcon(AcpIcons.spinnerArc, color: widget.color ?? t.Spinner.color, size: widget.size, strokeWidth: t.Spinner.strokeWidth),
+        turns: turns,
+        child: AcpIcon(AcpIcons.spinnerArc, color: color ?? t.Spinner.color, size: size, strokeWidth: t.Spinner.strokeWidth),
       ),
     );
   }

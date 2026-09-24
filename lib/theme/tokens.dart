@@ -678,6 +678,14 @@ abstract final class Motion {
   /// 鼠标扫过一排按钮时不会一路弹提示，停下来又不用等太久。
   static final Duration tooltipDelay = fast * 4;
 
+  /// 常驻动画（spinner、扫掠线）的跳动间隔（设计稿之外的增补，iteration-14）：≈ 15 帧/秒。
+  /// 画板只定了周期（`sweep.cycle`、spinner 转速），没定帧率；逐帧跟显示器刷新率跑时，Windows 上每一帧都是整窗重画
+  /// （嵌入层没有局部重绘），2880×1800 @ 120Hz 的核显实测 72%。15 帧/秒与终端 spinner 常见的 80–130ms 步长同档。
+  static const Duration ambientInterval = Duration(milliseconds: 66);
+
+  /// 窗口失焦（`AppLifecycleState.inactive`：看得见、不在前台）时的跳动间隔：4 帧/秒，只留「还在动」的信号。
+  static const Duration ambientIntervalInactive = Duration(milliseconds: 250);
+
   /// 入场位移只发生在纵轴上（[rise] 上移、[pop] 上下弹），横轴恒 0。
   /// 这个「横轴恒 0」也是几何字面量，按规则 3 归 tokens.dart，widget 文件里不写 `Offset(0, …)`。
   static Offset offsetY(double dy) => Offset(0, dy);

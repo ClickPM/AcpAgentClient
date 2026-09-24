@@ -12,6 +12,7 @@ import '../transcript/awaiting_bar.dart';
 import '../transcript/card_chrome.dart';
 import '../transcript/icons.dart';
 import 'app_logo.dart';
+import 'motion.dart';
 import 'popover_anchor.dart';
 import 'shell_common.dart';
 import 'tooltip.dart';
@@ -514,46 +515,22 @@ class SidebarSessionRow extends StatelessWidget {
 /// accent 亮点自左向右匀速掠过，走完即从左侧重新进入。**亮点位置与进度无关**，单向、不回弹、不反向。
 ///
 /// 由外面的 [Positioned] 给它 [t.Sweep.band] 高的轨道带，线画在带的中线上。
-class _SessionSweepLine extends StatefulWidget {
+///
+/// 亮点位置取共用低频时钟 [AmbientClock]，不逐帧跑（iteration-14，理由见那里）；所在子树的 `TickerMode` 关掉时不订阅、停在起点。
+class _SessionSweepLine extends StatelessWidget {
   const _SessionSweepLine();
 
   @override
-  State<_SessionSweepLine> createState() => _SessionSweepLineState();
-}
-
-class _SessionSweepLineState extends State<_SessionSweepLine> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(vsync: this, duration: t.Sweep.cycle);
-
-  /// prefers-reduced-motion。关掉动效时**不能只是不画**：`AnimationController` 在这个开关下会把时长当 0，
-  /// `repeat()` 就成了每帧空转一个周期。
-  bool _reduced = false;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _reduced = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    if (_reduced) {
-      _controller.stop();
-    } else if (!_controller.isAnimating) {
-      _controller.repeat();
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    // 降级为同位置、同内缩的静态 1px accent 实线（亮点不移动），运行中依然可辨。
-    if (_reduced) return CustomPaint(painter: _SweepPainter(null));
-    // RepaintBoundary：与 icons.dart 的 Spinner 同一个理由——常驻动画没有边界就是每帧整窗重栅格。
+    // prefers-reduced-motion：降级为同位置、同内缩的静态 1px accent 实线（亮点不移动），运行中依然可辨。
+    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) return CustomPaint(painter: _SweepPainter(null));
+    if (!TickerMode.valuesOf(context).enabled) return CustomPaint(painter: _SweepPainter(0));
+    final Animation<double> phase = AmbientClock.instance.phase(t.Sweep.cycle);
+    // RepaintBoundary：每一跳只重录这一小块；省不了整窗合成与上屏（那一半靠时钟降跳数）。
     return RepaintBoundary(
       child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, _) => CustomPaint(painter: _SweepPainter(_controller.value)),
+        animation: phase,
+        builder: (context, _) => CustomPaint(painter: _SweepPainter(phase.value)),
       ),
     );
   }

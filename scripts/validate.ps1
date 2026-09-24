@@ -5,6 +5,7 @@
 # flutter analyze / test、pubspec 依赖 ⊆ 白名单（规则 1）、Assert-NoStyleLiteral（规则 3）、
 # rust/ 的 _meta 键 ⊆ docs/design.md § 4（规则 2）、Zed 派生文件头注释（规则 5）、fetch-upstream -Check（规则 4）。
 # R7.5 起另有两道门：lib/app 行数门（组合根 ≤ 450、其余 ≤ 900）与 lib/app 依赖方向门（任务卡附录 B 的边）。
+# iteration-14 起：lib/ 里不许 AnimationController.repeat()，常驻动画走 lib/ui/shell/motion.dart 的 AmbientClock。
 param(
     [switch]$Quick,
     [string]$CargoTargetDir = "D:\cargo-target\AcpAgentClient"
@@ -214,6 +215,23 @@ try {
             }
         }
         if ($hits) { throw ("style literals outside tokens.dart:`n" + ($hits -join "`n")) }
+        Write-Host ("scanned " + $files.Count + " dart files")
+    }
+
+    Step "常驻动画走共用时钟 (iteration-14)" {
+        # AnimationController.repeat() 逐帧跟显示器刷新率跑，而 Windows 上每一帧都是整窗重画（嵌入层没有局部重绘）：
+        # 挂着多久整窗就按 120Hz 重画多久。常驻动画一律用 lib/ui/shell/motion.dart 的 AmbientClock。
+        $files = Get-SourceFiles (Join-Path $root "lib") @("*.dart") | Where-Object { $_.FullName -notmatch '[\\/]lib[\\/]bridge[\\/]' }
+        $hits = @()
+        foreach ($f in $files) {
+            $n = 0
+            foreach ($line in (Get-Content $f.FullName -Encoding UTF8)) {
+                $n++
+                if ($line -match '^\s*//') { continue }
+                if ($line -match '\.repeat\(') { $hits += "$($f.FullName):${n}: $($line.Trim())" }
+            }
+        }
+        if ($hits) { throw ("AnimationController.repeat() in lib/ (use AmbientClock):`n" + ($hits -join "`n")) }
         Write-Host ("scanned " + $files.Count + " dart files")
     }
 
