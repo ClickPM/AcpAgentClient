@@ -405,11 +405,8 @@ impl Core {
                 "args": spawn.args,
             }),
         );
-        let terminals = self.terminals.clone();
-        let wait_id = terminal_id.clone();
-        let status = tokio::task::spawn_blocking(move || terminals.wait(&wait_id))
-            .await
-            .map_err(|e| CoreError::Pty(format!("wait task failed: {e}")))??;
+        // 登录可能要等用户好几分钟：同 `terminal/wait_for_exit`，不占阻塞池线程。
+        let status = crate::agent::wait_terminal_exit(&self.terminals, &terminal_id).await?;
         let _ = self.terminals.release(&terminal_id);
         let session = connection.session_new(cwd).await;
         match &session {

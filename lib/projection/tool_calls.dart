@@ -234,7 +234,14 @@ class TerminalBuffer extends ChangeNotifier {
   String get output => _cached;
   bool get exited => exitCode != null || signal != null;
 
+  /// 累计写入过的字符数（UTF-16 码元），只增不减、截断也不回退：视图按它记「写到哪了」。
+  /// 写满之后 [output] 的长度恒定在 [limit] 附近，只比长度分不出「又来了新输出」，终端卡会从此不再刷新
+  /// （BACKLOG P0，2026-09-24）。[output] 是累计流里 `[total - output.length, total)` 那一段。
+  int get total => _total;
+  int _total = 0;
+
   void append(String chunk) {
+    _total += chunk.length;
     _out.write(chunk);
     var s = _out.toString();
     if (s.length > limit) {

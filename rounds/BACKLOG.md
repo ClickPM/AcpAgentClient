@@ -16,14 +16,14 @@
 
 | 档 | 条数 | 这档是什么 |
 |---|---|---|
-| **P0 真缺陷** | 8 | 会丢内容、作用到错对象、吃光资源、静默失败。撞上就是事故，排进最近的轮次。 |
+| **P0 真缺陷** | 5 | 会丢内容、作用到错对象、吃光资源、静默失败。撞上就是事故，排进最近的轮次。 |
 | **P1 看得见的粗糙** | 3 | 用户看得见的不一致、缺等待态、行为不符直觉。能用，膈应；攒批做。 |
 | **P2 功能缺口** | 0 | 该有没有的能力。**全部需所有者裁定才能进轮次**，多数还要先改设计稿。 |
 | P3 设计稿欠账 | — | **已整体释放**到 `design/DIVERGENCE.md`，见下面的占位小节 |
 | P4 平台与分发 | — | **已清空**（2026-09-23）：跨平台暂不做、构建链两条关闭、sidecar 两条移到 `BACKLOG-ZED.md`，见下面的占位小节；以后平台与分发的新问题照常记这一档 |
 | P5 内部工程与验收 | — | **已清空**（2026-09-23）：16 条整档收掉（iteration-04），见下面的占位小节；以后测试、行数门、验收自动化这类用户无感的新问题照常记这一档 |
 | X 卡在上游 / 协议 | — | **已撤档**：不是本项目的问题不进本表（所有者裁定 2026-09-23），见下面的占位小节 |
-| | **11** | |
+| | **8** | |
 
 **新增条目**：挑一档追在该档末尾，照同样的三行格式写。不新开档位；一条只进一档。
 **只收本项目自己的问题**：问题出在上游（agent、zed、xterm 等依赖）或协议本身的，不进本表（所有者裁定 2026-09-23，X 档因此撤掉）；其中实现因此与画板对不上的，照规则 3 记 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)。
@@ -31,7 +31,7 @@
 **内置 Zed agent（sidecar）的问题不进本表**：记 [`BACKLOG-ZED.md`](BACKLOG-ZED.md)（所有者裁定 2026-09-23：原先本表的 4 条连同统筹时新盘点出的 5 条都移到那里，**当前不修**）；背景与上游限制见 [`docs/zed-agent.md`](../docs/zed-agent.md)。
 **关闭条目**：把**技术行连同结论压成一行** `- [x]` 剪到 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md) 末尾（那份是平铺存档，不分档），本文删掉这三行。
 
-## P0 · 真缺陷（8）
+## P0 · 真缺陷（5）
 
 2026-09-23 全仓只读审查（v1.4.4 之后的 `main`，Rust 核心 / 文件与终端 / Dart 状态层 / 投影与转录四路）登记了其中 7 条，代码路径都逐条核过，均未在 Windows 实机复现；「dsh 的会话存到哪里跟着进程工作目录走」来自所有者同日报障，根因由读代码推出，待实机确认。
 
@@ -58,20 +58,6 @@
 - [ ] **dsh 的会话存到哪里跟着进程工作目录走：换过项目后重载，原会话报「不存在」并被新建会话顶掉**
   - **产品**：先在项目 A 用 dsh，再切到项目 B 新建会话聊完，点会话头的「重载」：弹出 `session restore failed: session "…" not found`，随即新开一条空会话，原会话再也载不回来。不止重载：重启应用后先打开哪个项目，决定了哪些旧会话能载回来，表现为时好时坏；每个项目根目录还会多出一个 `.sessions` 文件夹（容易被误提交进 git）。
   - **技术**：dsh 的会话日志落在 `root/<projectKey(会话 cwd)>/<sessionId>/`，`root` 缺省是**相对路径** `./.sessions`（dsh 包 `config/cordis.yml`：`DSH_ACP_SESSIONS_ROOT ?? './.sessions'`），实际位置由 **agent 进程的工作目录**决定。客户端只在第一次连接时拿当时的项目目录当进程 cwd（`rust/acp-core/src/command.rs` `build_command` 的注释「dsh 把会话存在 cwd 下」），之后换项目新建会话，`ensureConnected` 见已连着就复用同一个进程（`lib/app/session_controller.dart`），会话于是存进 A 的 `.sessions`；`reloadAgent` 却用**当前项目** `workspace.project.path` 重拉（`_connectOnce(b, id, cwd)`），新进程去 B 的 `.sessions` 找 → `readSession` 报 not found → 按「载失败就开新会话」的既定回退新开一条。所有者 2026-09-23 报障（media-studio 项目，Gemini 3.8 Flash via CLIProxy）。最小修法：内置 dsh 条目（`rust/acp-core/src/builtin.rs` `dsh_entry`，现在 `env` 为空）固定传 `DSH_ACP_SESSIONS_ROOT = <数据目录>/dsh-sessions` 的绝对路径，与 sidecar 的 `--user-data-dir <数据目录>/zed-agent` 同一做法；已散落在各项目 `.sessions` 里的旧会话要一次性搬过去（或首启时迁移）。待实机确认的前提：出事那次 dsh 进程最早是在别的项目里拉起的，可在那个项目下找 `.sessions\--…media-studio--\<sessionId>` 验证 (2026-09-23)
-
-### 资源与静默失败（3）
-
-- [ ] **终端输出超过 64 K 字符后，终端卡的画面就冻住了**
-  - **产品**：`cargo build`、`npm install`、跑测试这类输出多的命令，终端卡停在写满 64 K 那一刻，之后的输出全都不显示——编译报错、测试失败这些最要紧的尾巴恰好看不到。只有卡片被重建（比如滚出列表缓存再滚回来）才会刷新。
-  - **技术**：`TerminalBuffer`（`lib/projection/tool_calls.dart`，`defaultLimit = 65536`，`ensure` 从不传别的上限）写满后只留最后 64 K，长度恒定在 65536；`TerminalCard._sync`（`lib/ui/transcript/terminal_card.dart`）只按「长度变长就写增量、变短就整体重写」判断，长度不变两支都不进，xterm 视图从此不再更新（偶发的 65535 → 65536 那一帧还只写进 1 个字符，画面与真实输出对不上）。现有用例只在缓冲层验了 `truncated`，没覆盖卡片。最小修法：`TerminalBuffer` 加一个只增不减的累计写入量（或 revision），`_sync` 按它算增量、按「这次丢掉了多少前缀」决定整体重写 (2026-09-23)
-
-- [ ] **agent 读大文件时整份读进内存**
-  - **产品**：工作区里有很大的文件（几个 GB 的日志 / 数据导出），agent 去读它时应用内存暴涨，极端时整个应用直接闪退、没有任何提示。
-  - **技术**：`rust/fs/src/lib.rs` 的 `read_text_file`（agent 的 `fs/read_text_file`）先 `std::fs::read` 整份读入、再 `from_utf8_lossy`、再按 `line` / `limit` 切行，`line` / `limit` 压不住峰值；查看器那条路径有 `READ_FILE_LIMIT = 2 MiB` 的 `take` 上限，这条没有。分配失败时 Rust 直接 abort，Flutter 宿主进程一起没。最小修法：给这条路径加同量级的上限（超限回 invalid params），或按 `line` / `limit` 流式读 (2026-09-23)
-
-- [ ] **agent 开终端不释放时，最终会把整个客户端拖死**
-  - **产品**：某个 agent 反复开跑不完的终端（`npm run dev`、`ping -t`）又不释放、还对每个都等退出，次数多了以后文件树、git 徽章、所有 agent 的读写文件回调、连「杀终端」本身都会排队不动，只能重启应用。正常 agent 撞不上，写得糙的 agent 能撞上。
-  - **技术**：`terminal/create` 没有数量上限（`rust/acp-core/src/agent.rs` `on_create_terminal`）；`terminal/wait_for_exit` 走 `spawn_blocking` + `ExitCell::wait` 条件变量死等、无超时（`agent.rs` `on_wait_for_terminal_exit`、`rust/pty/src/lib.rs`），每个都钉住一条阻塞池线程。这个池子（tokio 默认 512，`core.rs` 未设 `max_blocking_threads`）与文件面板、git、agent 的 fs 回调、`terminal/kill` 共用；终端只在 agent release 或连接结束时回收。最小修法：每条连接的 `owned_terminals` 设上限、超限回错；等退出改成带超时的等待或在连接关闭时唤醒，不长期占阻塞池线程 (2026-09-23)
 
 ## P1 · 看得见的粗糙（3）
 

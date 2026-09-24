@@ -134,8 +134,8 @@ Flutter 宿主进程（Dart）
 
 ## 7. 终端与 fs
 
-- pty：portable-pty；每个终端有输出字节上限（`terminal/create.outputByteLimit`，缺省只受 4 MiB 的绝对上限约束）；**截断从头截、落在 UTF-8 字符边界**（规范原文；Zed 的 `truncated_output` 是从尾截，本项目按规范）；`terminal/output` 返回的文本去掉 ANSI 转义、`\r\n` 归一成 `\n`；`terminal/kill` 结束进程但句柄与输出留存，`terminal/release` 才释放（还在跑的先 kill）；kill 的成败以进程真的退出为准（portable-pty 0.9.0 的 Windows `kill` 把 TerminateProcess 的成败判反了，成功时带回陈旧的 GetLastError，R4 实测见过 os error 0 / 6），最多等 5 s；**终端嵌进工具卡后即使 release 也继续显示输出**——前端的 `TerminalBuffer` 跟工具卡走、自己留存一份，核心侧 release 后不再持有。agent 只许碰自己建的终端；agent 断开 / 退出时它建的终端一并释放。命令经系统默认 shell 拼装（`rust/pty/src/shell.rs`，转写 Zed `ShellBuilder`：Windows 首选 PowerShell `-C "$null | & {<command> <args>}"`，退到 `cmd /S /C`；其他平台 `sh -c "exec </dev/null\n…"`），`.cmd` 包装与引号处理在 Windows 实测（R4 任务卡）。
-- fs：路径必须是绝对路径且在会话工作目录之内（越界 `-32602`）；`line` / `limit` 是 1-based（行的口径照 Zed：末尾换行之后算一个空行，起点落在最后一行之后 `-32602`）；文件不存在 `-32002`；写文件不存在则创建、父目录一并创建，直接落盘（temp + rename）。
+- pty：portable-pty；每个终端有输出字节上限（`terminal/create.outputByteLimit`，缺省只受 4 MiB 的绝对上限约束）；**截断从头截、落在 UTF-8 字符边界**（规范原文；Zed 的 `truncated_output` 是从尾截，本项目按规范）；`terminal/output` 返回的文本去掉 ANSI 转义、`\r\n` 归一成 `\n`；`terminal/kill` 结束进程但句柄与输出留存，`terminal/release` 才释放（还在跑的先 kill）；kill 的成败以进程真的退出为准（portable-pty 0.9.0 的 Windows `kill` 把 TerminateProcess 的成败判反了，成功时带回陈旧的 GetLastError，R4 实测见过 os error 0 / 6），最多等 5 s；**终端嵌进工具卡后即使 release 也继续显示输出**——前端的 `TerminalBuffer` 跟工具卡走、自己留存一份，核心侧 release 后不再持有。agent 只许碰自己建的终端；agent 断开 / 退出时它建的终端一并释放；每条连接同时持有的终端（建了还没 release 的，含正在拉起的）最多 64 个，超了 `terminal/create` 回 `-32603`、不拉进程；`terminal/wait_for_exit` 不占 tokio 阻塞线程（pty 等待线程退出时回调），连接先结束就不等（iteration-11）。命令经系统默认 shell 拼装（`rust/pty/src/shell.rs`，转写 Zed `ShellBuilder`：Windows 首选 PowerShell `-C "$null | & {<command> <args>}"`，退到 `cmd /S /C`；其他平台 `sh -c "exec </dev/null\n…"`），`.cmd` 包装与引号处理在 Windows 实测（R4 任务卡）。
+- fs：路径必须是绝对路径且在会话工作目录之内（越界 `-32602`）；`line` / `limit` 是 1-based（行的口径照 Zed：末尾换行之后算一个空行，起点落在最后一行之后 `-32602`）；文件不存在 `-32002`；写文件不存在则创建、父目录一并创建，直接落盘（temp + rename）；`fs/read_text_file` 按 `line` / `limit` 流式读，回出去的内容最多 16 MiB，超了 `-32602` 叫 agent 分段读（iteration-11）。
 
 ## 8. zed-agent-acp sidecar
 

@@ -118,43 +118,88 @@ fn is_link(meta: &std::fs::Metadata) -> bool {
 /// 行的口径照 Zed `acp_thread.rs::read_text_file`：按 `\n` 切成「行」（文件末尾的换行之后算一个空行），
 /// 起点落在最后一行之后 → invalid params「Attempting to read beyond the end of the file」；返回的片段保留每行自己的换行。
 /// 文件不存在 → [`FsError::NotFound`]（agent 侧收到 `-32002`）。不是合法 UTF-8 的字节按 lossy 解码。
+/// 按行流式读（[`read_lines`]），回给 agent 的内容超过 [`READ_TEXT_FILE_LIMIT`] 回 invalid params。
 pub fn read_text_file(cwd: &Path, path: &Path, line: Option<u32>, limit: Option<u32>) -> Result<String> {
     let real = resolve_inside(cwd, path)?;
-    let bytes = match std::fs::read(&real) {
-        Ok(b) => b,
+    let file = match std::fs::File::open(&real) {
+        Ok(f) => f,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Err(FsError::NotFound(path.to_path_buf())),
         Err(e) => return Err(FsError::Io(format!("{}: {e}", path.display()))),
     };
-    let text = String::from_utf8_lossy(&bytes);
-    slice_lines(&text, line, limit)
+    let reader = std::io::BufReader::with_capacity(READ_TEXT_CHUNK, file);
+    read_lines(reader, line, limit, READ_TEXT_FILE_LIMIT).map_err(|e| match e {
+        FsError::Io(msg) => FsError::Io(format!("{}: {msg}", path.display())),
+        other => other,
+    })
 }
 
-/// 纯函数便于测试：`text` 按 1-based 的 `line` / `limit` 取行。
-pub fn slice_lines(text: &str, line: Option<u32>, limit: Option<u32>) -> Result<String> {
+/// `fs/read_text_file` 一次最多回给 agent 的字节数（BACKLOG P0，2026-09-24）。原先整份读进内存再切行，
+/// 几个 GB 的日志 / 数据导出能把宿主进程的内存吃爆（分配失败时 Rust 直接 abort，Flutter 一起没）。
+/// 比查看器的 [`READ_FILE_LIMIT`] 宽：agent 的编辑工具常见「整份读 → 改 → 整份写回」，几 MB 的锁文件 / 打包产物要读得动；
+/// 再大的整份读对 agent 也没用（远超任何上下文窗口），超限回 invalid params，叫它带 `line` / `limit` 分段读。
+pub const READ_TEXT_FILE_LIMIT: usize = 16 * 1024 * 1024;
+
+/// [`read_text_file`] 的读缓冲：跳过前面的行时只占这一块，文件再大也一样。
+const READ_TEXT_CHUNK: usize = 64 * 1024;
+
+/// `reader` 按 1-based 的 `line` / `limit` 取行（口径见 [`read_text_file`]）。流式：先只数不存地跳过 `line` 之前的换行，
+/// 再收 `limit` 行（缺省到文件尾），收的字节超过 `cap` 就回 invalid params——峰值内存由 `cap` 压住，不再是文件大小。
+/// 按 `\n` 切段后再 lossy 解码与整份解码结果一样：`\n` 不会是多字节字符的一部分。
+fn read_lines(mut reader: impl std::io::BufRead, line: Option<u32>, limit: Option<u32>, cap: usize) -> Result<String> {
+    let io = |e: std::io::Error| FsError::Io(e.to_string());
     // Zed：args 是 1-based，转 0-based；`line: 0` 与缺省同义。
     let start = line.unwrap_or_default().saturating_sub(1) as usize;
-    let rows: Vec<&str> = text.split('\n').collect();
-    let last_row = rows.len() - 1;
-    if start > last_row {
-        return Err(FsError::InvalidParams(format!(
-            "Attempting to read beyond the end of the file, line {}:{}",
-            last_row + 1,
-            rows[last_row].len()
-        )));
+    // 当前所在的行（0-based）与这一行已经读过的字节数（报「读过了文件尾」时用）。
+    let mut row = 0usize;
+    let mut row_len = 0usize;
+    while row < start {
+        let buf = reader.fill_buf().map_err(io)?;
+        if buf.is_empty() {
+            return Err(FsError::InvalidParams(format!(
+                "Attempting to read beyond the end of the file, line {}:{row_len}",
+                row + 1
+            )));
+        }
+        let n = match buf.iter().position(|&b| b == b'\n') {
+            Some(at) => {
+                row += 1;
+                row_len = 0;
+                at + 1
+            }
+            None => {
+                row_len += buf.len();
+                buf.len()
+            }
+        };
+        reader.consume(n);
     }
-    let end = match limit {
-        Some(n) => start.saturating_add(n as usize).min(rows.len()),
-        None => rows.len(),
-    };
-    // 逐行拼回：除最后一行外每行带自己的 `\n`；切到文件尾时最后那个尾块不补换行。
-    let mut out = String::new();
-    for (i, row) in rows[start..end].iter().enumerate() {
-        out.push_str(row);
-        if start + i < last_row {
-            out.push('\n');
+    // 每行带自己的 `\n`；文件的最后一行本来就没有换行，读到文件尾就停。
+    let mut out: Vec<u8> = Vec::new();
+    let mut rows_left = limit.map(|n| n as usize);
+    while rows_left != Some(0) {
+        let buf = reader.fill_buf().map_err(io)?;
+        if buf.is_empty() {
+            break;
+        }
+        let (n, row_ended) = match buf.iter().position(|&b| b == b'\n') {
+            Some(at) => (at + 1, true),
+            None => (buf.len(), false),
+        };
+        if out.len() + n > cap {
+            return Err(FsError::InvalidParams(format!(
+                "content exceeds {cap} bytes; read it in pieces with line / limit"
+            )));
+        }
+        out.extend_from_slice(&buf[..n]);
+        reader.consume(n);
+        if row_ended && let Some(left) = rows_left.as_mut() {
+            *left -= 1;
         }
     }
-    Ok(out)
+    Ok(match String::from_utf8(out) {
+        Ok(s) => s,
+        Err(e) => String::from_utf8_lossy(e.as_bytes()).into_owned(),
+    })
 }
 
 /// `fs/write_text_file`（docs/design.md § 7）：不存在则创建（规范 MUST），父目录不存在一并创建；临时文件 + rename（规则 7）。
@@ -628,6 +673,11 @@ mod tests {
 
     // ---- R4：fs/read_text_file 的 1-based 行口径（照 Zed 的测试用例）
 
+    /// 不设上限、整段在内存里的 [`read_lines`]：R4 的行口径用例照旧跑在流式实现上。
+    fn slice_lines(text: &str, line: Option<u32>, limit: Option<u32>) -> Result<String> {
+        read_lines(text.as_bytes(), line, limit, usize::MAX)
+    }
+
     #[test]
     fn slice_lines_is_one_based_and_keeps_newlines() {
         let text = "line 1\nline 2\nline 3\nline 4\nline 5\n";
@@ -648,6 +698,54 @@ mod tests {
         assert_eq!(slice_lines(no_nl, Some(2), None).expect("last"), "b");
         assert_eq!(slice_lines(no_nl, Some(1), Some(1)).expect("first"), "a\n");
         assert!(slice_lines("", None, None).expect("empty").is_empty());
+        // 读过文件尾的报错带最后一行的行号与长度（Zed 的措辞）。
+        let err = slice_lines("a\nbcd", Some(4), None).expect_err("beyond eof");
+        assert_eq!(err, FsError::InvalidParams("Attempting to read beyond the end of the file, line 2:3".into()));
+    }
+
+    /// BACKLOG P0（2026-09-24）：回给 agent 的内容按字节设上限，超了回 invalid params；
+    /// 带 `line` / `limit` 读一小段不受文件大小影响。读缓冲只有 3 字节，行与多字节字符都会被切在块边界上。
+    #[test]
+    fn read_lines_streams_in_small_chunks_and_caps_the_result() {
+        let text = "第一行\n第二行\nthird\n";
+        let chunked = |line, limit, cap| read_lines(std::io::BufReader::with_capacity(3, text.as_bytes()), line, limit, cap);
+        assert_eq!(chunked(Some(2), Some(1), usize::MAX).expect("line 2"), "第二行\n");
+        assert_eq!(chunked(None, None, usize::MAX).expect("all"), text);
+        assert_eq!(chunked(Some(3), None, usize::MAX).expect("tail"), "third\n");
+        // 上限卡的是回出去的内容，不是文件：整份超限，只读最后一行不超。
+        let cap = "third\n".len();
+        let err = chunked(None, None, cap).expect_err("over cap");
+        assert!(matches!(&err, FsError::InvalidParams(m) if m.contains("line / limit")), "{err:?}");
+        assert_eq!(chunked(Some(3), Some(1), cap).expect("fits"), "third\n");
+        // 正好等于上限可以。
+        assert_eq!(chunked(None, None, text.len()).expect("exactly cap"), text);
+        // 不是 UTF-8 的字节照旧 lossy（坏字节跨块边界也一样）。
+        let bad: &[u8] = b"ab\xff\xfecd\nok";
+        let lossy = read_lines(std::io::BufReader::with_capacity(3, bad), None, None, usize::MAX).expect("lossy");
+        assert_eq!(lossy, String::from_utf8_lossy(bad));
+    }
+
+    /// 真文件走一遍：超过 [`READ_TEXT_FILE_LIMIT`] 的文件整份读回 invalid params，带 `line` / `limit` 能读到它的任意一段。
+    #[test]
+    fn read_text_file_refuses_whole_reads_over_the_limit() {
+        let dir = sandbox("big");
+        let big = dir.join("big.log");
+        let row = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcde\n"; // 64 字节一行
+        let rows = READ_TEXT_FILE_LIMIT / row.len() + 16;
+        {
+            use std::io::Write;
+            let mut f = std::io::BufWriter::new(std::fs::File::create(&big).expect("create"));
+            for _ in 0..rows {
+                f.write_all(row.as_bytes()).expect("write");
+            }
+            f.write_all(b"LAST").expect("write");
+        }
+        let err = read_text_file(&dir, &big, None, None).expect_err("over limit");
+        assert!(matches!(err, FsError::InvalidParams(_)), "{err:?}");
+        assert_eq!(read_text_file(&dir, &big, Some(2), Some(2)).expect("window"), row.repeat(2));
+        let last = u32::try_from(rows + 1).expect("row count fits u32");
+        assert_eq!(read_text_file(&dir, &big, Some(last), None).expect("last line"), "LAST");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
