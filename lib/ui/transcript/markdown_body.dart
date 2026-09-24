@@ -98,12 +98,15 @@ class MarkdownBody extends StatefulWidget {
 /// 安全 = 在这里切开、两段各自 [MarkdownBody.parse] 再首尾相接，与整段解析出的顶层块一致（`test/ui/markdown_incremental_test.dart`
 /// 按字符逐段喂真实 fixtures 与边角样例对照）。判据宁可少切：
 /// 1. 位置在一行或几行空行之后、下一块首行的行首，且那一行已经收全（后面有换行）；
-/// 2. 不在围栏代码块里：开栏认缩进 ≤ 3 的 ``` / ~~~（比 package:markdown 认的宽），收栏要同一字符、不短于开栏、
-///    后面只有空白（比它认的窄）——两头都往「还在围栏里」偏；
+/// 2. 不在围栏代码块里。围栏行与 package:markdown 7.3.1 的 `codeFencePattern` **整行**同一条判（反引号围栏的信息串里不能再有反引号），
+///    收栏要同一字符、不短于开栏、信息串 `trim()` 后为空——与它逐条一致，才不会出现「这边收了、它还开着」的失步
+///    （审查 high：`` ``` a`b `` 不是开栏，当成开栏的话下一行 `` ``` `` 被当收栏，真围栏中间就切了一刀）。
+///    只跟踪顶格的围栏：顶格的围栏行一定在顶层（它会打断列表、引用、段落、表格）；缩进 1–3 格的可能在列表项里，
+///    项结束时围栏被隐式收掉，这边跟不上，所以碰到就不再往后切；
 /// 3. 下一块首行顶格、不是列表标记：空行后跟这样一行，前面的列表、引用、缩进代码块、表格、段落一定已经结束；
 ///    也不以 `<` 开头——package:markdown 给「不是全文第一块」的 HTML 块前面补一个换行，切开后它成了第一块就少了这个换行；
-/// 4. 出现能跨空行的 HTML 块（CommonMark 第 1–5 类：`<pre>` / `<script>` / `<style>` / `<textarea>` / 注释 / `<?` / `<!X` /
-///    CDATA）之后不再切。
+/// 4. 出现 `<` 开头的行（HTML 块）之后不再切：第 1–5 类能跨空行，第 6 / 7 类到空行为止、但块里的 `` ``` `` 是原文不是开栏，
+///    两种这边都不去模拟。
 /// 链接引用定义与脚注定义是全文级的（后文的定义改前文的渲染），`\r` 换行另有切法——这两种由调用方整段解析，不走这里。
 int markdownSafeBoundary(String data, int from) {
   var best = from;
@@ -121,8 +124,9 @@ int markdownSafeBoundary(String data, int from) {
     } else {
       if (afterBlank && pos > from && !_notABlockStart.hasMatch(line)) best = pos;
       afterBlank = false;
-      if (_spanningHtmlBlock.hasMatch(line)) break;
-      fence = _fenceOpen.firstMatch(line)?[1];
+      final f = _fenceLine.firstMatch(line);
+      if (_htmlLine.hasMatch(line) || (f != null && f[1]!.isNotEmpty)) break;
+      fence = f == null ? null : f[2] ?? f[4];
     }
     pos = nl + 1;
   }
@@ -134,19 +138,18 @@ final RegExp _blankLine = RegExp(r'^[ \t]*$');
 /// 空行之后不能当新块起点的行：缩进、`<`、列表标记（判据 3）。
 final RegExp _notABlockStart = RegExp(r'^(?:[ \t<]|(?:\d{1,9}[.)]|[*+-])(?:[ \t]|$))');
 
-/// 开栏（判据 2）：缩进 ≤ 3 的 ``` / ~~~，信息串不管。
-final RegExp _fenceOpen = RegExp(r'^ {0,3}(`{3,}|~{3,})');
-
-/// 收栏（判据 2）：同一字符、不短于开栏、后面只有空白。
-final RegExp _fenceClose = RegExp(r'^ {0,3}(`{3,}|~{3,})[ \t]*$');
+/// 围栏行（判据 2）：package:markdown 7.3.1 `codeFencePattern` 的原样。组 1 缩进，组 2 / 3 反引号标记与信息串，组 4 / 5 波浪号。
+final RegExp _fenceLine = RegExp(r'^( {0,3})(?:(`{3,})([^`]*)|(~{3,})(.*))$');
 
 bool _closesFence(String line, String fence) {
-  final m = _fenceClose.firstMatch(line);
-  return m != null && m[1]![0] == fence[0] && m[1]!.length >= fence.length;
+  final m = _fenceLine.firstMatch(line);
+  if (m == null) return false;
+  final marker = m[2] ?? m[4]!;
+  return marker[0] == fence[0] && marker.length >= fence.length && (m[3] ?? m[5]!).trim().isEmpty;
 }
 
-/// 能跨空行的 HTML 块起点（判据 4）。
-final RegExp _spanningHtmlBlock = RegExp(r'^ {0,3}(?:<(?:pre|script|style|textarea)(?:\s|>|$)|<!--|<\?|<![a-z]|<!\[CDATA\[)', caseSensitive: false);
+/// HTML 块起点（判据 4）：缩进 ≤ 3 的 `<`。
+final RegExp _htmlLine = RegExp(r'^ {0,3}<');
 
 /// 行首（缩进 ≤ 3）的 `[…]:`：链接引用定义或脚注定义。
 final RegExp _definitionLine = RegExp(r'^ {0,3}\[.*\]:', multiLine: true);

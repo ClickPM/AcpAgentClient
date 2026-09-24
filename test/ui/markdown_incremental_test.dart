@@ -53,7 +53,21 @@ const List<String> _edgeCases = <String>[
   '````\n```\n\n````\n\nafter\n',
   '```\ncode\n```   \n\nafter\n',
   '```\ncode\n``` x\n\nstill code\n```\n\nafter\n',
+  // 审查 high：信息串带反引号的不是开栏，下一行 ``` 才是，真围栏里的空行后不能切。
+  '``` a`b\n\n```\nreal code\n\n```\n\nafter\n',
+  '~~~ a`b\ncode\n\n~~~\n\nafter\n',
+  // 列表项里缩进的围栏在项结束时被隐式收掉，后面顶格的 ``` 是新开栏。
+  '- a\n  ```\n\npara\n```\nreal\n\n```\nx\n```\n\nafter\n',
+  // HTML 块（第 6 类）里的 ``` 是原文，不是开栏。
+  '<div>\n```\n</div>\n\npara\n```\nreal\n\n```\n\nafter\n',
+  'para\n\n<details>\n\n```\ncode\n\n```\n\n</details>\n\nafter\n',
 ];
+
+/// 收栏后跟 NBSP：package:markdown 按 `trim()` 认它是收栏（NBSP 用 fromCharCode 拼，源码里不放不可见字符）。
+List<String> _runtimeCases() {
+  final nbsp = String.fromCharCode(0xA0);
+  return <String>['```\ncode\n```$nbsp\n\npara\n```\nreal\n\n```\n\nafter\n'];
+}
 
 /// fixtures 里 agent 消息的正文（同一 messageId 的 text chunk 首尾相接）。
 List<String> _fixtureMessages() {
@@ -111,19 +125,20 @@ Future<void> _pump(WidgetTester tester, String source, {LinkCallback? onLink}) a
 
 void main() {
   test('边角样例逐字符喂：每一步都与整段解析一致', () {
-    for (final s in _edgeCases) {
+    for (final s in <String>[..._edgeCases, ..._runtimeCases()]) {
       _stream(s, math.Random(1), maxChunk: 1);
     }
   });
 
   test('边角样例随机 chunk 喂（多个种子）', () {
+    final cases = <String>[..._edgeCases, ..._runtimeCases()];
     for (var seed = 0; seed < 20; seed++) {
       final rng = math.Random(seed);
-      for (final s in _edgeCases) {
+      for (final s in cases) {
         _stream(s, rng, maxChunk: 8);
       }
       // 拼起来当一条长消息再喂一遍：结构之间的衔接也要对。
-      _stream(_edgeCases.join('\n'), rng, maxChunk: 16);
+      _stream(cases.join('\n'), rng, maxChunk: 16);
     }
   });
 
@@ -159,7 +174,7 @@ void main() {
 
   testWidgets('封口的块实例在后续 chunk 里原样复用', (WidgetTester tester) async {
     const head = '第一段，**加粗**。\n\n第二段。\n\n';
-    await _pump(tester, '${head}尾');
+    await _pump(tester, '$head尾');
     final first = tester.widget<MarkdownBlock>(find.byType(MarkdownBlock).first);
     for (final more in <String>['尾巴长一点', '尾巴长一点\n\n再一段', '尾巴长一点\n\n再一段\n\n又一段']) {
       await _pump(tester, '$head$more');
