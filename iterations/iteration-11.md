@@ -11,9 +11,9 @@
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | fix | 终端输出超过 64 K 字符后，终端卡的画面就冻住了：`TerminalBuffer` 加只增不减的累计写入量 `total`，画板 22 / 23 的终端卡与画板 52 的认证终端都按它写增量；没写到的那段已被截掉时清屏重写留存段 | BACKLOG P0「资源与静默失败」第 1 条 | `claude/optimize-three-p0-issues-6b5905` | | | 待审查 |
-| 2 | fix | agent 读大文件时整份读进内存：`fs/read_text_file` 改成按 `line` / `limit` 流式读（跳过的行只数不存），回出去的内容超过 16 MiB 回 invalid params | BACKLOG P0「资源与静默失败」第 2 条 | 同上 | | | 待审查 |
-| 3 | fix | agent 开终端不释放时，最终会把整个客户端拖死：每条连接同时持有的终端上限 64（先占名额再拉起，超限回错、不拉进程）；`terminal/wait_for_exit` 与 terminal auth 的等退出改成 pty 等待线程回调 + oneshot，不再占 tokio 阻塞池线程，连接先结束就不等 | BACKLOG P0「资源与静默失败」第 3 条 | 同上 | | | 待审查 |
+| 1 | fix | 终端输出超过 64 K 字符后，终端卡的画面就冻住了：`TerminalBuffer` 加只增不减的累计写入量 `total`，画板 22 / 23 的终端卡与画板 52 的认证终端都按它写增量；没写到的那段已被截掉时清屏重写留存段 | BACKLOG P0「资源与静默失败」第 1 条 | `claude/optimize-three-p0-issues-6b5905`（`9aac7b9`） | validate 全绿（532 项 flutter test）；未构建、未手测 | 1 轮，**0 条** | 待合并 |
+| 2 | fix | agent 读大文件时整份读进内存：`fs/read_text_file` 改成按 `line` / `limit` 流式读（跳过的行只数不存），回出去的内容超过 16 MiB 回 invalid params | BACKLOG P0「资源与静默失败」第 2 条 | 同上 | 同上 | 同上 | 待合并 |
+| 3 | fix | agent 开终端不释放时，最终会把整个客户端拖死：每条连接同时持有的终端上限 64（先占名额再拉起，超限回错、不拉进程）；`terminal/wait_for_exit` 与 terminal auth 的等退出改成 pty 等待线程回调 + oneshot，不再占 tokio 阻塞池线程，连接先结束就不等 | BACKLOG P0「资源与静默失败」第 3 条 | 同上 | 同上 | 同上 | 待合并 |
 
 ## 收口
 
@@ -64,4 +64,4 @@ test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fin
 
 ### 代码审查
 
-- <待审>
+- **第 1 轮**（cursor CLI `grok-4.7-high-fast`，`-Scope since -Base 7dcdfbe`，审 `9aac7b9`，约 7 分钟）：**0 条**。审查者逐条核过终端卡的累计位置口径、`read_lines` 与原 `slice_lines` 的行口径、名额加减与登记同锁、`on_exit` 锁外回调，以及规则 1–11。无整改，不复审。产物 `.claude/reviews/20260924-091253-review.out.md`。
