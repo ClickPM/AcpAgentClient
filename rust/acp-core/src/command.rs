@@ -106,7 +106,7 @@ fn candidate_names(program: &str) -> Vec<String> {
         .collect()
 }
 
-/// 三路管道、kill_on_drop、无控制台窗口。`cwd` 是 agent 进程的工作目录（第一个会话的项目目录；dsh 把会话存在 cwd 下）。
+/// 三路管道、kill_on_drop、无控制台窗口。`cwd` 是 agent 进程的工作目录（第一个会话的项目目录）。
 pub fn build_command(spec: &LaunchSpec, cwd: Option<&Path>) -> tokio::process::Command {
     let program = resolve_program(&spec.program);
     let mut cmd = tokio::process::Command::new(program);
