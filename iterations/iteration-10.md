@@ -2,7 +2,7 @@
 
 <!-- 保存为 iterations/iteration-NN.md。一个迭代一个文件、一项一行；流程正本见 iterations/README.md，不在这里复述。 -->
 
-> 状态：进行中　起止：2026-09-24 –　基线：`main` = `7dcdfbe`
+> 状态：待合并（审查 0 条收口，合并时机待所有者定）　起止：2026-09-24 –　基线：`main` = `7dcdfbe`
 
 BACKLOG P0「数据一致性」的「本地状态文件的读改写没有串行化」。它的 `settings.json` 那一半就是 2026-09-23 关掉的「settings.json 的各段写入没有串行化」，
 当时的理由是「现有交互做不到同时改外观和拨转录开关」；新证据是 `settings.json` 还有一个不靠用户点击的写入方（后台安装 / 升级任务的 `write_registry_settings`），
@@ -12,7 +12,7 @@ BACKLOG P0「数据一致性」的「本地状态文件的读改写没有串行�
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | fix | 本地状态文件的「读 → 改 → 写」加进程内写锁：`rust/settings` 给四份文件各加一把 `static *_WRITES: Mutex<()>`（共用 `lib.rs` 的 `write_lock`，写法照 `rust/registry/src/manifest.rs`），罩住 `settings.json` 的 `upsert` / `set_appearance` / `set_transcript` / `remove` / `import_zed`、`sessions.json` 的 `upsert_session` / `remove_session`、`projects.json` 的 `open_project`、`ui-state.json` 的 `merge`；core / 桥 / 前端零改动。用例 4 条 | BACKLOG P0「数据一致性」第 1 条（所有者 2026-09-24 复议重开 `BACKLOG-CLOSED.md`「settings.json 的各段写入没有串行化」） | `claude/backlog-optimization-990610` | validate 全绿（独立 `-CargoTargetDir`；527 项 flutter test）；未构建、未手测 | 待审查 | 待审查 |
+| 1 | fix | 本地状态文件的「读 → 改 → 写」加进程内写锁：`rust/settings` 给四份文件各加一把 `static *_WRITES: Mutex<()>`（共用 `lib.rs` 的 `write_lock`，写法照 `rust/registry/src/manifest.rs`），罩住 `settings.json` 的 `upsert` / `set_appearance` / `set_transcript` / `remove` / `import_zed`、`sessions.json` 的 `upsert_session` / `remove_session`、`projects.json` 的 `open_project`、`ui-state.json` 的 `merge`；core / 桥 / 前端零改动。用例 4 条 | BACKLOG P0「数据一致性」第 1 条（所有者 2026-09-24 复议重开 `BACKLOG-CLOSED.md`「settings.json 的各段写入没有串行化」） | `claude/backlog-optimization-990610` | validate 全绿（独立 `-CargoTargetDir`；527 项 flutter test）；未构建、未手测 | 1 轮（cursor，`7dcdfbe..d626643`）：**0 条** | 待合并 |
 
 ## 收口
 
@@ -35,6 +35,10 @@ BACKLOG P0「数据一致性」的「本地状态文件的读改写没有串行�
 
 - **先后**：锁只保证两笔写不交叉，不保证先发的先落地（桥的每条命令各起一个任务）。同一条会话「写与删」的先后仍由前端 `lib/app/session_index.dart` 的 `_inFlight` / `_removing` 管，这些不能因为有了锁就删；`BACKLOG-CLOSED.md`「连着改两次外观可能丢一次」是先后问题，维持关闭。
 - **查了再写**：`write_registry_settings` 与 `agent_settings_set` 是「`get` 一次 → 再 `upsert`」两次拿锁，中间留一个极小的空档（空档里有人建了同名条目）。它不会再冲掉别的段，不为它另加机制。
+
+### 审查
+
+- 第 1 轮（cursor `grok-4.7-high-fast`，`-Scope since -Base 7dcdfbe`，产物 `.claude/reviews/20260924-090904-review.out.md`）：**0 条**。审查器逐一核对了四份文件的读改写都在锁内、`core` / `registry_ops` 的写入都经这些方法、持锁方法之间无互调、四把锁不嵌套、持锁期间无 `.await`，以及四条用例写的都是「不会被自己补回来」的条目。无整改，不复审。
 
 ### 用例与反证
 
