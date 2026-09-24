@@ -13,6 +13,13 @@
 // 「最后一段连续的 agent 文本」= 从回合末尾往前数，直到遇上第一个非 agent-文本的块为止的那一段
 // （所有者裁定 2026-09-22）。一个回合里 agent 文本可能有好几段，只有最后这一段是结论。
 //
+// **收轮之后才到的条目不进折叠块**（iteration-15，所有者报障 2026-09-24，记 design/DIVERGENCE.md）：
+// agent 可以在 `session/prompt` 已经回了 `stopReason` 之后接着推 update（Claude Code 的后台命令 / 后台子代理
+// 跑完把它唤醒，实测一次收轮后又跑了 10 分钟），这些条目仍排在这一轮里。只拿**收轮那一刻已有的条目**
+// （`at` 不晚于 [TurnEntry.endedAt]）算折叠与「最后一段」：否则末尾换成新来的工具调用，原来的结论跟着被折进去，
+// 新来的那些又全藏在一个已经收起的折叠块里，界面上看起来是「收轮了、却没有结论」。
+// 收轮之后的条目按到达顺序排在结论后面照常显示，回合页脚仍在整轮最后。
+//
 // **轮的切分**（所有者裁定 2026-09-22）：有 [TurnEntry] 就按轮边界，没有就退到**顶层用户消息**。
 // 轮边界只有我们自己 `session/prompt` 时才放，`session/load` 重放回来的历史一条都没有（R6 裁定，
 // docs/design.md § 3），只认轮边界的话重开应用后整份历史都不会折（所有者报障 2026-09-22）。
@@ -147,10 +154,15 @@ TurnFold? foldContaining(Iterable<TurnFold> folds, TranscriptEntry e) {
 /// 单个回合的分组。[owner] 是这一轮的身份（轮边界，或没有轮边界时那条顶层用户消息），
 /// `body` 是这一轮里的条目（不含 [owner] 本身），按到达顺序。
 /// 没有任何可折叠的块时回 null（那一轮不出摘要行）。
+///
+/// 已收轮的实时轮只看收轮那一刻已有的条目（见文件头）；重放回来的历史轮没有 [turn]，整段都算。
 TurnFold? foldOfTurn(TranscriptEntry owner, List<TranscriptEntry> body, {TurnEntry? turn}) {
+  final DateTime? endedAt = turn?.endedAt;
+  final settled = endedAt == null ? body : <TranscriptEntry>[for (final e in body) if (!e.at.isAfter(endedAt)) e];
+
   // 从末尾往前数出「最后一段连续的 agent 文本」，它不参与折叠。
-  var tail = body.length;
-  while (tail > 0 && _isAgentText(body[tail - 1])) {
+  var tail = settled.length;
+  while (tail > 0 && _isAgentText(settled[tail - 1])) {
     tail--;
   }
 
@@ -159,7 +171,7 @@ TurnFold? foldOfTurn(TranscriptEntry owner, List<TranscriptEntry> body, {TurnEnt
   var failures = 0;
   var cancelled = 0;
   for (var i = 0; i < tail; i++) {
-    final e = body[i];
+    final e = settled[i];
     if (!_isProcess(e) && !_isAgentText(e)) continue;
     folded.add(e);
     if (e is ToolCallEntry) {

@@ -7,8 +7,10 @@ import 'package:acp_agent_client/app/workbench_controller.dart';
 import 'package:acp_agent_client/app/workbench_screen.dart';
 import 'package:acp_agent_client/projection/entries.dart';
 import 'package:acp_agent_client/projection/session_store.dart';
+import 'package:acp_agent_client/projection/wire.dart';
 import 'package:acp_agent_client/ui/transcript/icons.dart';
 import 'package:acp_agent_client/ui/transcript/transcript_list.dart';
+import 'package:acp_agent_client/ui/transcript/turn_state.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -32,6 +34,13 @@ void _say(SessionStore store, int from, int count) {
     });
   }
 }
+
+void _tool(SessionStore store, String id) => store.applyUpdateJson(<String, dynamic>{
+      'sessionUpdate': 'tool_call',
+      'toolCallId': id,
+      'title': 'Read file',
+      'status': 'completed',
+    });
 
 ScrollPosition _pos(WidgetTester tester) => tester.widget<ListView>(_list).controller!.position;
 
@@ -137,5 +146,34 @@ void main() {
 
     expect(c.session.store!.entries.whereType<TurnEntry>(), hasLength(1), reason: '这一轮真的发出去了');
     expect(_pos(tester).pixels, moreOrLessEquals(_pos(tester).maxScrollExtent, epsilon: 0.5));
+  });
+
+  testWidgets('收轮自动折叠时贴着底部：仍贴底、页脚看得见，收轮之后再来的内容照样跟随（iteration-15）', (tester) async {
+    // 改前：自动折叠时滚动锚点把结论钉回原位，收轮新出的回合页脚落在视口下方，离底部那一截超过容差，
+    // 跟随被关掉——之后 agent 在 stopReason 之后接着推的内容全长在视口下面。
+    final (_, store) = await _pumpShell(tester);
+    final turn = store.startTurn(<ContentBlockWire>[
+      ContentBlockWire(<String, dynamic>{'type': 'text', 'text': '查一下'}),
+    ]);
+    for (var i = 0; i < 4; i++) {
+      _tool(store, 'tc-$i');
+    }
+    _say(store, 20, 3);
+    await _settle(tester);
+    expect(_pos(tester).pixels, moreOrLessEquals(_pos(tester).maxScrollExtent, epsilon: 0.5), reason: '流式期间贴着底部');
+
+    store.endTurn(turn: turn, stopReason: 'end_turn');
+    await _settle(tester);
+    expect(find.byType(TurnEndLine), findsOneWidget);
+    expect(_pos(tester).pixels, moreOrLessEquals(_pos(tester).maxScrollExtent, epsilon: 0.5), reason: '收轮折叠之后仍贴着底部');
+    expect(tester.getBottomLeft(find.byType(TurnEndLine)).dy, lessThanOrEqualTo(tester.getBottomLeft(_list).dy),
+        reason: '回合页脚在视口里');
+
+    final before = _pos(tester).maxScrollExtent;
+    _tool(store, 'tc-late');
+    _say(store, 30, 2);
+    await _settle(tester);
+    expect(_pos(tester).maxScrollExtent, greaterThan(before), reason: '收轮之后确实又长了内容');
+    expect(_pos(tester).pixels, moreOrLessEquals(_pos(tester).maxScrollExtent, epsilon: 0.5), reason: '收轮之后进来的内容照样跟到最新');
   });
 }

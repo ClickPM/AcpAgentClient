@@ -189,6 +189,29 @@ void main() {
       expect(find.text('第二阶段已全部开发完毕。'), findsOneWidget, reason: '最终助手文本不参与折叠');
     });
 
+    testWidgets('收轮之后才到的条目排在结论后面照常显示，结论不被折走，页脚仍在最后（iteration-15）', (tester) async {
+      final s = sample();
+      final folds = TranscriptFolds();
+      await pump(tester, TranscriptList(s, folds: folds, onToggleFold: folds.toggle));
+      expect(find.byType(ToolCallCard), findsNothing, reason: '收轮即折');
+
+      // agent 在 stopReason 之后接着推（Claude Code 后台命令跑完把它唤醒）。
+      toolCall(s, 'tc-late');
+      agent(s, '后台跑完了，补一句。');
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TurnFoldRow), findsOneWidget);
+      expect(find.text('3 条消息 · 2 次工具调用'), findsOneWidget, reason: '摘要行只数收轮那一刻的过程（思考 1 + 工具调用 2）');
+      expect(find.byType(ToolCallCard), findsOneWidget, reason: '收轮前的两张仍折着，收轮后的那张照常出');
+      double top(Finder f) => tester.getTopLeft(f).dy;
+      final Finder conclusion = find.byWidgetPredicate((w) => w is AssistantText && w.entry.text == '第二阶段已全部开发完毕。');
+      final Finder late = find.byWidgetPredicate((w) => w is AssistantText && w.entry.text == '后台跑完了，补一句。');
+      expect(conclusion, findsOneWidget, reason: '原结论不被折进去');
+      expect(top(conclusion), lessThan(top(find.byType(ToolCallCard))));
+      expect(top(find.byType(ToolCallCard)), lessThan(top(late)));
+      expect(top(late), lessThan(top(find.byType(TurnEndLine))), reason: '页脚留在整轮最后');
+    });
+
     testWidgets('全局开关关掉后回合结束不自动折叠，摘要行仍在（可手动折）', (tester) async {
       final folds = TranscriptFolds();
       await folds.setAutoCollapse(false);

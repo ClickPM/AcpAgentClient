@@ -159,7 +159,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   /// **这一刻屏幕上还是旧布局**（重建在本帧稍后），所以 `stop_reason` 那一下的自动折叠要在这里
   /// 先把锚点量下来（复审 high，2026-09-22：自动折叠不经过任何点击回调，第 1 轮实现整条没校正）。
   void _onTranscriptGrew() {
-    _foldAnchor.beforeRebuild();
+    // 贴着底部时不定锚、交给跟随（见 `TranscriptFoldAnchor.beforeRebuild` 的 `arm`）：锚点是给翻上去的人用的。
+    _foldAnchor.beforeRebuild(arm: !_stick);
     if (_stick) _scheduleFollow();
   }
 

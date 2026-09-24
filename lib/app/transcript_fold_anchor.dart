@@ -81,11 +81,16 @@ class TranscriptFoldAnchor {
 
   /// 路径 ② / ③：转录重建之前（store 或 `TranscriptFolds` 的通知）。这一刻 `isCollapsed` 已经翻面，
   /// 而屏幕上还是旧布局 —— 正好量。
-  void beforeRebuild() {
+  ///
+  /// [arm] 为假时只同步快照、不定锚：组合根在视口贴着底部时这么调（iteration-15）。那时跟随会把视口留在底部，
+  /// 结论本来就在最下面；这里再把结论钉回原位，收轮新出的回合页脚就被挤到视口外，离底部的那一截还会把跟随关掉，
+  /// 之后再进来的内容都长在视口下面。
+  void beforeRebuild({bool arm = true}) {
     final Set<String> now = _collapsedNow();
     if (setEquals(now, _collapsed)) return;
     final Set<String> changed = now.difference(_collapsed).union(_collapsed.difference(now));
     _collapsed = now;
+    if (!arm) return;
     // 从后往前：收轮折叠的是最后那一轮；全局开关一下全变时，靠后的那轮离视口最近。
     // 量不到就再往前找一轮，直到有一轮的锚点此刻在已建窗口里。
     final List<TurnFold> turns = <TurnFold>[

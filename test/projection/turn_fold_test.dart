@@ -191,6 +191,71 @@ void main() {
     });
   });
 
+  group('收轮之后才到的条目（iteration-15，所有者报障 2026-09-24）', () {
+    // agent 在 `session/prompt` 回了 stopReason 之后接着推 update（Claude Code 的后台命令跑完把它唤醒）。
+    // 改前：末尾换成新来的工具调用，原结论被当成过程折进去，新来的也全在已经收起的折叠块里。
+    test('收轮后来的工具调用与文本都不进折叠块，原结论也不被折进去', () {
+      final s = newStore();
+      startTurn(s, '那条报价没有命中政策让利吗');
+      toolCall(s, 'tc-1');
+      agent(s, '目前查到的情况：结果回来后给你结论。');
+      s.endTurn(stopReason: 'end_turn');
+      toolCall(s, 'tc-late-1');
+      agent(s, 'codescope 没返回内容，拆成两个小问题重问。');
+      toolCall(s, 'tc-late-2', status: 'failed');
+      thought(s, '回到数据层面');
+
+      final fold = foldOf(s)!;
+      expect(fold.folded.map((e) => e is ToolCallEntry ? e.toolCallId : e.runtimeType.toString()), <String>['tc-1']);
+      expect(fold.messages, 1);
+      expect(fold.toolCalls, 1, reason: '摘要行的计数只算收轮那一刻的过程');
+      expect(fold.failures, 0, reason: '收轮后才失败的那一条不进摘要行');
+      expect(fold.autoCollapsible, isTrue, reason: '收轮前那段照常自动折叠');
+      final conclusion = s.entries.whereType<MessageEntry>().firstWhere((m) => m.text.startsWith('目前查到的情况'));
+      expect(fold.contains(conclusion), isFalse);
+    });
+
+    test('收轮后先来的是思考块：原结论照样不折，思考块也不进折叠块', () {
+      // 2026-09-24 实测的形状：唤醒之后先思考、再调工具。
+      final s = newStore();
+      startTurn(s, '跑一下');
+      toolCall(s, 'tc-1');
+      agent(s, '跑完了。');
+      s.endTurn(stopReason: 'end_turn');
+      thought(s, '回到数据层面');
+
+      final fold = foldOf(s)!;
+      expect(fold.folded.whereType<MessageEntry>(), isEmpty, reason: '原结论不被折进去');
+      expect(fold.folded.whereType<ThoughtEntry>(), isEmpty, reason: '收轮后的思考块不进折叠块');
+      expect(fold.messages, 1);
+    });
+
+    test('收轮那一刻还没开出来的结论（最后几个 chunk 晚一帧才落地）：前面的过程照常折，结论不折', () {
+      // `session/prompt` 的返回是当场收轮，`session/update` 要等下一帧批量应用，所以结论那条可能收轮之后才建出来。
+      final s = newStore();
+      startTurn(s, '走两步');
+      agent(s, '先看看仓库。');
+      toolCall(s, 'tc-1');
+      s.endTurn(stopReason: 'end_turn');
+      agent(s, '这就是结论。');
+
+      final fold = foldOf(s)!;
+      expect(fold.folded.whereType<MessageEntry>().map((m) => m.text), <String>['先看看仓库。']);
+      expect(fold.folded.whereType<ToolCallEntry>(), hasLength(1));
+      final conclusion = s.entries.whereType<MessageEntry>().firstWhere((m) => m.text == '这就是结论。');
+      expect(fold.contains(conclusion), isFalse);
+    });
+
+    test('还在跑的轮不按时间切：流式期间一切照旧', () {
+      final s = newStore();
+      startTurn(s, '跑一下');
+      agent(s, '先看看。');
+      toolCall(s, 'tc-1');
+      final fold = foldOf(s)!;
+      expect(fold.folded, hasLength(2), reason: '没有 endedAt，整段都算（运行中本来也不折）');
+    });
+  });
+
   group('多轮与 session/load', () {
     test('每轮各自一份，按 TurnEntry.id 索引', () {
       final s = newStore();
