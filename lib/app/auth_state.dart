@@ -259,10 +259,10 @@ class AuthState extends ChangeNotifier with GuardedNotifier {
     final b = bridge;
     final agent = e.agentId ?? agentId;
     if (e.status == PendingStatus.pending && b != null && agent != null) {
-      final payload = sessions.pending.answerElicitation(e.requestId, 'accept', now: sessions.now);
+      final payload = sessions.pending.answerElicitation(e.agentId, e.requestId, 'accept', now: sessions.now);
       if (payload != null) await guard(() => b.acpRespond(agent, e.requestId, payload));
     }
-    sessions.pending.markOpened(e.requestId);
+    sessions.pending.markOpened(e.agentId, e.requestId);
     touch();
     return e.wire.url;
   }
@@ -272,10 +272,10 @@ class AuthState extends ChangeNotifier with GuardedNotifier {
     final b = bridge;
     final agent = e.agentId ?? agentId;
     if (e.status == PendingStatus.pending && b != null && agent != null) {
-      final payload = sessions.pending.answerElicitation(e.requestId, 'cancel', now: sessions.now);
+      final payload = sessions.pending.answerElicitation(e.agentId, e.requestId, 'cancel', now: sessions.now);
       if (payload != null) await guard(() => b.acpRespond(agent, e.requestId, payload));
     } else {
-      sessions.pending.cancelRequest(e.requestId, now: sessions.now);
+      sessions.pending.cancelRequest(e.agentId, e.requestId, now: sessions.now);
     }
     touch();
   }

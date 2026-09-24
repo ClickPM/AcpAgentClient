@@ -1200,7 +1200,7 @@ class _AutoAnswer {
         });
         if (e.isRequestScope) {
           // 队列项不属于任何会话：直接经 PendingQueue 回应。
-          final payload = c.sessions.pending.answerElicitation(e.requestId, 'accept', now: c.sessions.now);
+          final payload = c.sessions.pending.answerElicitation(e.agentId, e.requestId, 'accept', now: c.sessions.now);
           final bridge = c.bridge;
           final agent = e.agentId ?? c.session.agentId;
           if (payload != null && bridge != null && agent != null) {

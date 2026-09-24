@@ -267,8 +267,8 @@ void main() {
     }
     expect(sessions.pending.pending, hasLength(2));
     mine.resetForReplay();
-    expect(sessions.pending.byRequestId('r1'), isNull);
-    expect(sessions.pending.byRequestId('r2'), isNotNull);
+    expect(sessions.pending.byRequestId('a', 'r1'), isNull);
+    expect(sessions.pending.byRequestId('a', 'r2'), isNotNull);
     expect(sessions.pending.forSession('sess_other'), hasLength(1));
   });
 
@@ -343,9 +343,9 @@ void main() {
     expect(sessions.pending.pending, hasLength(3));
 
     sessions.applyAgentState(<String, dynamic>{'agentId': 'a', 'state': 'exited', 'code': 1});
-    expect((sessions.pending.byRequestId('r1')! as PermissionEntry).status, PendingStatus.withdrawn);
-    expect((sessions.pending.byRequestId('r2')! as ElicitationEntry).status, PendingStatus.withdrawn);
-    expect((sessions.pending.byRequestId('r3')! as PermissionEntry).status, PendingStatus.pending,
+    expect((sessions.pending.byRequestId('a', 'r1')! as PermissionEntry).status, PendingStatus.withdrawn);
+    expect((sessions.pending.byRequestId('a', 'r2')! as ElicitationEntry).status, PendingStatus.withdrawn);
+    expect((sessions.pending.byRequestId('b', 'r3')! as PermissionEntry).status, PendingStatus.pending,
         reason: '另一个 agent 的请求不受影响');
     expect(sessions.pending.forSession(loadedSid), isEmpty, reason: '停靠条上不该再留着点不动的卡');
     // 回应也不该再发得出去：队列项已经不是 pending，answer* 返回 null（接线侧据此不调 acp_respond）。
@@ -369,7 +369,7 @@ void main() {
     });
     sessions.forget(loadedSid);
     expect(sessions.maybe(loadedSid), isNull);
-    expect(sessions.pending.byRequestId('r1'), isNull);
+    expect(sessions.pending.byRequestId('a', 'r1'), isNull);
     sessions.forget(loadedSid); // 幂等
   });
 

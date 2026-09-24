@@ -6,13 +6,20 @@
 //! 文件读不动 / 不是合法 JSON 时视为空索引并在下一次写入时重建——索引是可再生的缓存，不该让它挡住启动。
 
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Result, SettingsError};
+use crate::{Result, SettingsError, write_lock};
 
 /// 最近项目列表的上限（画板 41 的 Recent Projects）。
 pub const RECENT_PROJECTS_LIMIT: usize = 20;
+
+/// `sessions.json` 的写锁（见 [`crate::write_lock`]）：多条会话并跑时收轮、发消息、改标题、删除各自写索引，互不等待。
+static SESSIONS_WRITES: Mutex<()> = Mutex::new(());
+
+/// `projects.json` 的写锁（见 [`crate::write_lock`]）。
+static PROJECTS_WRITES: Mutex<()> = Mutex::new(());
 
 pub fn now_ms() -> i64 {
     std::time::SystemTime::now()
@@ -106,6 +113,7 @@ impl IndexStore {
 
     /// 新增或更新一条（键是 agentId + sessionId）。`created_at` 只在新增时写，`updated_at` 每次都刷新。
     pub fn upsert_session(&self, mut entry: SessionEntry) -> Result<Vec<SessionEntry>> {
+        let _writing = write_lock(&SESSIONS_WRITES);
         let mut index: SessionIndex = load(&self.sessions_path);
         let now = now_ms();
         if entry.updated_at == 0 {
@@ -134,6 +142,7 @@ impl IndexStore {
 
     /// 移除一条（画板 41 的删除确认；向 agent 发 `session/delete` 是 R6 的事）。
     pub fn remove_session(&self, agent_id: &str, session_id: &str) -> Result<Vec<SessionEntry>> {
+        let _writing = write_lock(&SESSIONS_WRITES);
         let mut index: SessionIndex = load(&self.sessions_path);
         index.sessions.retain(|s| !(s.agent_id == agent_id && s.session_id == session_id));
         save(&self.sessions_path, &index)?;
@@ -160,6 +169,7 @@ impl IndexStore {
             name: project_name(path),
             opened_at: now_ms(),
         };
+        let _writing = write_lock(&PROJECTS_WRITES);
         let mut index: ProjectIndex = load(&self.projects_path);
         index.projects.retain(|p| p.path != entry.path);
         index.projects.insert(0, entry.clone());
@@ -257,6 +267,63 @@ mod tests {
         assert!(store.sessions().is_empty());
         let after = store.upsert_session(entry("s1", 10)).expect("upsert rebuilds");
         assert_eq!(after.len(), 1);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 多条会话同时写索引（并跑的会话各自收轮、中途又删掉一条）：新写的一条都不丢，删掉的一条都不复活（iteration-10）。
+    #[test]
+    fn concurrent_writes_to_different_sessions_all_land() {
+        const WRITERS: usize = 8;
+        const EACH: usize = 8;
+        let dir = temp_dir("concurrent");
+        let store = IndexStore::new(dir.clone());
+        for w in 0..WRITERS {
+            store.upsert_session(entry(&format!("old-{w}"), 1)).expect("seed");
+        }
+        let start = std::sync::Barrier::new(WRITERS);
+        std::thread::scope(|s| {
+            for w in 0..WRITERS {
+                let (store, start) = (&store, &start);
+                s.spawn(move || {
+                    start.wait();
+                    for i in 0..EACH {
+                        store.upsert_session(entry(&format!("new-{w}-{i}"), 100)).expect("upsert");
+                        if i == EACH / 2 {
+                            store.remove_session("a", &format!("old-{w}")).expect("remove");
+                        }
+                    }
+                });
+            }
+        });
+        let ids: Vec<String> = store.sessions().into_iter().map(|s| s.session_id).collect();
+        assert_eq!(ids.len(), WRITERS * EACH, "丢了条目或删掉的复活了：{ids:?}");
+        assert!(ids.iter().all(|id| id.starts_with("new-")), "删掉的会话复活了：{ids:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn concurrent_project_opens_all_land() {
+        const WRITERS: usize = 8;
+        const _: () = assert!(WRITERS <= RECENT_PROJECTS_LIMIT);
+        let dir = temp_dir("projects-concurrent");
+        let store = IndexStore::new(dir.clone());
+        let projects: Vec<PathBuf> = (0..WRITERS).map(|w| dir.join(format!("proj-{w}"))).collect();
+        for p in &projects {
+            std::fs::create_dir_all(p).expect("mkdir");
+        }
+        let start = std::sync::Barrier::new(WRITERS);
+        std::thread::scope(|s| {
+            for p in &projects {
+                let (store, start) = (&store, &start);
+                s.spawn(move || {
+                    start.wait();
+                    for _ in 0..8 {
+                        store.open_project(p).expect("open");
+                    }
+                });
+            }
+        });
+        assert_eq!(store.projects().len(), WRITERS);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

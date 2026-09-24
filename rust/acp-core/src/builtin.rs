@@ -52,7 +52,7 @@ const DSH_BIN: &str = "dsh-acp-interactive";
 
 /// 本机没有全局安装时的退路：`npx -y <包名>@<版本>`。
 /// **版本跟着 `pins/upstream.json` 的 `dsh-acp-interactive` 走（CLAUDE.md 规则 4：改版本先改 pins）。**
-const DSH_PACKAGE: &str = "deepseekharness-acp-interactive@1.3.0";
+const DSH_PACKAGE: &str = "deepseekharness-acp-interactive@1.3.2";
 
 /// 覆盖 dsh 可执行文件的环境变量：开发时指向本地 checkout 里的 `lib/bin.js` 包装或另一个版本。
 pub const DSH_PATH_ENV: &str = "ACP_DSH_PATH";

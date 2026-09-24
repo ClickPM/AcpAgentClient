@@ -82,7 +82,7 @@ Flutter 宿主进程（Dart）
 - **用户消息由客户端在 `session/prompt` 发出时本地回显**（acp-projection.md § 7 第 8 条）：一等 agent 只在 `session/load` 的重放里发 `user_message_chunk`，不本地回显的话实时一轮里转录只有轮边界、没有用户气泡。重放来的同一批块按块内容去重并认领 `messageId`（照 Zed）。
 - 待处理的 permission 与 elicitation 是队列，回应后出队。
 - 不在前端做任何 agent 特判。
-- 待处理队列按 `sessionId` 索引，另有一个无会话的 requestScope 队列（认证阶段的 elicitation）。
+- 待处理队列按 `sessionId` 索引，另有一个无会话的 requestScope 队列（认证阶段的 elicitation）。队列项按 `(agentId, requestId)` 认：`requestId` 是各条连接自己的 JSON-RPC id，两个 agent 同时挂着请求、或同一个 agent 重连之后都会撞号；`$/cancel_request` 与 `elicitation/complete` 也只作用于信封里那个 agent 的项（iteration-12）。
 - 工具调用「已取消」是前端本地态（`ToolCallStatus` 没有 cancelled）：发出 `session/cancel` 后把本轮未完成的工具卡标 cancelled，核心不伪造状态。
 - 用户消息上的 Restore 与 Regenerate（画板 11）= 本地截断其后的投影块并在同一会话重发 prompt；协议没有回滚，agent 侧上下文不回退，这是已知限制（所有者裁定 2026-09-15）。**画板 10 的 Restore Checkpoint 分隔线已废弃**（所有者裁定 2026-09-17）：我们没有 git checkpoint（Zed 那条线恢复的是项目文件），它点下去与画板 11 的 Restore 完全同一个动作，轮开始因此不再画任何东西。
 - `session/load` 的重放只带回 agent 侧的 `session/update`：轮边界（`TurnEntry` / `stopReason` / 回合级 usage）、权限卡与 elicitation 卡是客户端按自己发出的请求造的，**回不来**；也不在本地补一份轮边界——不造协议之外的状态（所有者裁定 2026-09-16，R6）。Restore / Regenerate 因此**不按轮边界定位**：截断点是那条用户气泡自己（气泡前面紧挨着轮边界时一起截掉，重发用轮记下的那批块），载回来的历史照样能重发（所有者报障 2026-09-18：按轮定位时重开应用后每条气泡的 ↺ 与 Regenerate 都是点了毫无反应的死键）。
@@ -134,8 +134,8 @@ Flutter 宿主进程（Dart）
 
 ## 7. 终端与 fs
 
-- pty：portable-pty；每个终端有输出字节上限（`terminal/create.outputByteLimit`，缺省只受 4 MiB 的绝对上限约束）；**截断从头截、落在 UTF-8 字符边界**（规范原文；Zed 的 `truncated_output` 是从尾截，本项目按规范）；`terminal/output` 返回的文本去掉 ANSI 转义、`\r\n` 归一成 `\n`；`terminal/kill` 结束进程但句柄与输出留存，`terminal/release` 才释放（还在跑的先 kill）；kill 的成败以进程真的退出为准（portable-pty 0.9.0 的 Windows `kill` 把 TerminateProcess 的成败判反了，成功时带回陈旧的 GetLastError，R4 实测见过 os error 0 / 6），最多等 5 s；**终端嵌进工具卡后即使 release 也继续显示输出**——前端的 `TerminalBuffer` 跟工具卡走、自己留存一份，核心侧 release 后不再持有。agent 只许碰自己建的终端；agent 断开 / 退出时它建的终端一并释放。命令经系统默认 shell 拼装（`rust/pty/src/shell.rs`，转写 Zed `ShellBuilder`：Windows 首选 PowerShell `-C "$null | & {<command> <args>}"`，退到 `cmd /S /C`；其他平台 `sh -c "exec </dev/null\n…"`），`.cmd` 包装与引号处理在 Windows 实测（R4 任务卡）。
-- fs：路径必须是绝对路径且在会话工作目录之内（越界 `-32602`）；`line` / `limit` 是 1-based（行的口径照 Zed：末尾换行之后算一个空行，起点落在最后一行之后 `-32602`）；文件不存在 `-32002`；写文件不存在则创建、父目录一并创建，直接落盘（temp + rename）。
+- pty：portable-pty；每个终端有输出字节上限（`terminal/create.outputByteLimit`，缺省只受 4 MiB 的绝对上限约束）；**截断从头截、落在 UTF-8 字符边界**（规范原文；Zed 的 `truncated_output` 是从尾截，本项目按规范）；`terminal/output` 返回的文本去掉 ANSI 转义、`\r\n` 归一成 `\n`；`terminal/kill` 结束进程但句柄与输出留存，`terminal/release` 才释放（还在跑的先 kill）；kill 的成败以进程真的退出为准（portable-pty 0.9.0 的 Windows `kill` 把 TerminateProcess 的成败判反了，成功时带回陈旧的 GetLastError，R4 实测见过 os error 0 / 6），最多等 5 s；**终端嵌进工具卡后即使 release 也继续显示输出**——前端的 `TerminalBuffer` 跟工具卡走、自己留存一份，核心侧 release 后不再持有。agent 只许碰自己建的终端；agent 断开 / 退出时它建的终端一并释放；每条连接同时持有的终端（建了还没 release 的，含正在拉起的）最多 64 个，超了 `terminal/create` 回 `-32603`、不拉进程；`terminal/wait_for_exit` 不占 tokio 阻塞线程（pty 等待线程退出时回调），连接先结束就不等（iteration-11）。命令经系统默认 shell 拼装（`rust/pty/src/shell.rs`，转写 Zed `ShellBuilder`：Windows 首选 PowerShell `-C "$null | & {<command> <args>}"`，退到 `cmd /S /C`；其他平台 `sh -c "exec </dev/null\n…"`），`.cmd` 包装与引号处理在 Windows 实测（R4 任务卡）。
+- fs：路径必须是绝对路径且在会话工作目录之内（越界 `-32602`）；`line` / `limit` 是 1-based（行的口径照 Zed：末尾换行之后算一个空行，起点落在最后一行之后 `-32602`）；文件不存在 `-32002`；写文件不存在则创建、父目录一并创建，直接落盘（temp + rename）；`fs/read_text_file` 按 `line` / `limit` 流式读，回出去的内容最多 16 MiB，超了 `-32602` 叫 agent 分段读（iteration-11）。
 
 ## 8. zed-agent-acp sidecar
 

@@ -336,7 +336,7 @@ void main() {
     await c.session.closeSession();
 
     expect(store.pending.forSession(_session), isEmpty, reason: '卡还停在 pending 的话用户点 Allow 会撞 unknown_request');
-    expect((store.pending.byRequestId('req_perm')! as PermissionEntry).status, PendingStatus.cancelled);
+    expect((store.pending.byRequestId(_agent, 'req_perm')! as PermissionEntry).status, PendingStatus.cancelled);
     // 权限请求由核心自动回；前端不能再回一遍。
     expect(core.responded, isEmpty);
     c.dispose();
@@ -428,6 +428,127 @@ void main() {
       expect(core.sessionIndex, isEmpty);
       c.dispose();
     });
+
+    // iteration-12，BACKLOG P0「请求与会话路由」第 3 条：收尾不再圈在「删 agent 侧」里。
+    (SessionStore, PermissionEntry, ElicitationEntry) runningWithRequests(WorkbenchController c) {
+      c.session.sessionId = _session;
+      final store = c.sessions.session(_session, agentId: _agent)..cwd = _cwd;
+      store.startTurn(const <ContentBlockWire>[
+        ContentBlockWire(<String, dynamic>{'type': 'text', 'text': '在跑的那一轮'}),
+      ]);
+      c.sessions.applyClientRequestEnvelope(<String, dynamic>{
+        'agentId': _agent,
+        'requestId': 'req_perm',
+        'method': 'session/request_permission',
+        'params': <String, dynamic>{
+          'sessionId': _session,
+          'toolCall': <String, dynamic>{'toolCallId': 'call_1', 'title': '删文件'},
+          'options': <Object?>[
+            <String, dynamic>{'optionId': 'ok', 'name': 'Allow', 'kind': 'allow_once'},
+          ],
+        },
+      });
+      c.sessions.applyClientRequestEnvelope(<String, dynamic>{
+        'agentId': _agent,
+        'requestId': 'req_elic',
+        'method': 'elicitation/create',
+        'params': <String, dynamic>{
+          'mode': 'form',
+          'sessionId': _session,
+          'message': '要不要提交？',
+          'requestedSchema': <String, dynamic>{'type': 'object', 'properties': <String, dynamic>{}},
+        },
+      });
+      return (
+        store,
+        store.pending.byRequestId(_agent, 'req_perm')! as PermissionEntry,
+        store.pending.byRequestId(_agent, 'req_elic')! as ElicitationEntry,
+      );
+    }
+
+    test('没声明 delete 的 agent：删一条在跑、挂着请求的会话，照样先 session/cancel 再回掉 elicitation', () async {
+      final (c, core) = await _connected(initialize: _initialize(caps: <String>['list', 'close']));
+      final (_, perm, elic) = runningWithRequests(c);
+
+      await c.session.deleteSession(_session);
+
+      expect(core.cancelledSessions, <(String, String)>[(_agent, _session)], reason: '那一轮不能在 agent 那边接着跑到底');
+      expect(core.responded.map((r) => r.$1), <String>['req_elic'],
+          reason: '权限请求由核心随 session/cancel 回掉；elicitation 核心不代答，前端要回');
+      expect(core.responded.single.$2, <String, dynamic>{'action': 'cancel'});
+      expect(perm.status, PendingStatus.cancelled);
+      expect(elic.status, PendingStatus.cancelled);
+      expect(core.deletedSessions, isEmpty, reason: '没声明 delete 仍然不发 session/delete');
+      expect(core.sessionIndex, isEmpty);
+      expect(c.sessions.maybe(_session), isNull);
+      c.dispose();
+    });
+
+    test('声明了 delete 的 agent：在跑的会话同样先 cancel、再 session/delete', () async {
+      final (c, core) = await _connected();
+      runningWithRequests(c);
+
+      await c.session.deleteSession(_session);
+
+      expect(core.cancelledSessions, <(String, String)>[(_agent, _session)]);
+      expect(core.responded.map((r) => r.$1), <String>['req_elic']);
+      expect(core.deletedSessions, <(String, String)>[(_agent, _session)]);
+      c.dispose();
+    });
+
+    test('会话没挂在活着的连接上（agent 已退出）：不往连接发 cancel / 回应，照删本地', () async {
+      final (c, core) = await _connected(initialize: _initialize(caps: <String>['list', 'close']));
+      runningWithRequests(c);
+      c.sessions.applyAgentState(<String, dynamic>{'agentId': _agent, 'state': 'exited', 'code': 1});
+
+      await c.session.deleteSession(_session);
+
+      expect(core.cancels, 0, reason: '核心的挂起表早已清空，发了只会撞错');
+      expect(core.responded, isEmpty);
+      expect(core.sessionIndex, isEmpty);
+      expect(c.session.lastError, isNull);
+      c.dispose();
+    });
+
+    test('没在跑、也没挂着请求的会话：不发 session/cancel', () async {
+      final (c, core) = await _connected(initialize: _initialize(caps: <String>['list', 'close']));
+      c.session.sessionId = _session;
+      c.sessions.session(_session, agentId: _agent).cwd = _cwd;
+
+      await c.session.deleteSession(_session);
+
+      expect(core.cancels, 0);
+      expect(core.sessionIndex, isEmpty);
+      c.dispose();
+    });
+  });
+
+  test('回应发给发请求的那个 agent；另一个 agent 同号的卡不受影响（iteration-12，BACKLOG P0「请求与会话路由」第 1 条）', () async {
+    final (c, core) = await _connected();
+    c.session.sessionId = _session;
+    c.sessions.session(_session, agentId: _agent).cwd = _cwd;
+    c.sessions.session('sess_b', agentId: 'b').cwd = _cwd;
+    JsonMap perm(String agent, String sessionId) => <String, dynamic>{
+          'agentId': agent,
+          'requestId': '9',
+          'method': 'session/request_permission',
+          'params': <String, dynamic>{
+            'sessionId': sessionId,
+            'toolCall': <String, dynamic>{'toolCallId': 'call_$agent', 'title': '删文件'},
+            'options': <Object?>[
+              <String, dynamic>{'optionId': 'ok', 'name': 'Allow', 'kind': 'allow_once'},
+            ],
+          },
+        };
+    c.sessions.applyClientRequestEnvelope(perm(_agent, _session));
+    c.sessions.applyClientRequestEnvelope(perm('b', 'sess_b')); // 后到：旧实现里它把 a 的那张卡顶掉了
+
+    await c.turn.answerPermission('9', 'ok');
+
+    expect(core.respondedTo, <(String, String)>[(_agent, '9')]);
+    expect(c.sessions.pending.forSession(_session), isEmpty);
+    expect(c.sessions.pending.forSession('sess_b'), hasLength(1), reason: 'b 的卡还在等用户');
+    c.dispose();
   });
 
   test('≡ 菜单按 sessionCapabilities 裁剪', () async {

@@ -274,7 +274,7 @@ class TranscriptList extends StatelessWidget {
             onOpen: () {
               onLink?.call(el.wire.url ?? '');
               if (el.status == PendingStatus.pending) {
-                store.pending.markOpened(el.requestId);
+                store.pending.markOpened(el.agentId, el.requestId);
                 onAnswerElicitation?.call(el.requestId, 'accept', null);
               }
             },
@@ -282,7 +282,7 @@ class TranscriptList extends StatelessWidget {
               if (el.status == PendingStatus.pending) {
                 onAnswerElicitation?.call(el.requestId, 'cancel', null);
               } else {
-                store.pending.cancelRequest(el.requestId, now: store.now);
+                store.pending.cancelRequest(el.agentId, el.requestId, now: store.now);
               }
             },
           );

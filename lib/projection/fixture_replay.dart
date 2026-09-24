@@ -147,7 +147,7 @@ class FixtureReplayer {
           if (sid is String) {
             sessions.session(sid, agentId: agentId).answerElicitation(key, action, content: values);
           } else {
-            sessions.pending.answerElicitation(key, action, content: values, now: sessions.now);
+            sessions.pending.answerElicitation(agentId, key, action, content: values, now: sessions.now);
           }
         }
       default:
@@ -252,7 +252,7 @@ class FixtureReplayer {
   }
 
   void _autoAnswer(String method, String requestId, JsonMap params) {
-    final entry = sessions.pending.byRequestId(requestId);
+    final entry = sessions.pending.byRequestId(agentId, requestId);
     if (entry is PermissionEntry) {
       final options = entry.options;
       PermissionOptionWire? pick;
@@ -271,7 +271,7 @@ class FixtureReplayer {
       if (sid != null) {
         sessions.session(sid, agentId: agentId).answerElicitation(requestId, 'accept', content: <String, dynamic>{});
       } else {
-        sessions.pending.answerElicitation(requestId, 'accept', content: <String, dynamic>{}, now: sessions.now);
+        sessions.pending.answerElicitation(agentId, requestId, 'accept', content: <String, dynamic>{}, now: sessions.now);
       }
     }
   }

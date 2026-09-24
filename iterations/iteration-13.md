@@ -2,7 +2,7 @@
 
 <!-- 保存为 iterations/iteration-NN.md。一个迭代一个文件、一项一行；流程正本见 iterations/README.md，不在这里复述。 -->
 
-> 状态：待合并（审查已收口，未构建、未手测）　起止：2026-09-24 –　基线：`main` = `7dcdfbe`
+> 状态：已合并（待构建与手测收口）　起止：2026-09-24 –　基线：`main` = `7dcdfbe`
 
 所有者 2026-09-24 点名做 BACKLOG P1「流式渲染性能」两条（全仓审查 2026-09-23 登记），在 worktree 分支里做。两条都是 `fix`，契约零 diff、没有新依赖。
 **编号**：开工基线 `7dcdfbe` 上最新是 iteration-09；做的过程中并行会话把 10–12 先后合进了 `main`，本文取 **13**。合 `main` 那一刻再核一次。
@@ -11,8 +11,8 @@
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | fix | 转录里有大 diff 时流式越来越卡、展开慢：`lineDiff` 改线性；diff 结果与 +N / −N 按 (oldText, newText) 缓存在 State；展开体按画板 21 的固定行高（新 token `LineHeights.diffRow` = 1.7）只建视口附近的行，行 widget 按下标缓存，悬浮提示改成浮在行上 | BACKLOG P1「流式渲染性能」第 1 条 | `claude/streaming-render-performance-153577`（`d60660f` + 整改 `4bdee91`）→ 待合并 | validate 全绿（`d60660f`，545 项 flutter test）；整改后除 `fetch-upstream -Check` 外全绿（见备注）；未构建、未手测 | 2 轮：1（high 1）→ **0** | 待合并 |
-| 2 | fix | 长回答 / 大代码块流式时每帧整段重解析、重高亮：Markdown 按「安全块边界」封口，只重解析、重建边界之后的尾部，封口块的 widget 实例原样复用（链接 recognizer 分封口 / 尾部两份登记）；`CodeBlock` 高亮结果按 (code, language, 字体代数) 缓存 | BACKLOG P1「流式渲染性能」第 2 条 | 同上 | 同上 | 同上（high 出在这一项） | 待合并 |
+| 1 | fix | 转录里有大 diff 时流式越来越卡、展开慢：`lineDiff` 改线性；diff 结果与 +N / −N 按 (oldText, newText) 缓存在 State；展开体按画板 21 的固定行高（新 token `LineHeights.diffRow` = 1.7）只建视口附近的行，行 widget 按下标缓存，悬浮提示改成浮在行上 | BACKLOG P1「流式渲染性能」第 1 条 | `claude/streaming-render-performance-153577`（`d60660f` + 整改 `4bdee91`）→ 分支上合 `main`（`fb4a5d5`）后 `main` 快进 | validate 全绿（`d60660f`，545 项 flutter test）；整改后除 `fetch-upstream -Check` 外全绿（见备注）；未构建、未手测 | 2 轮：1（high 1）→ **0** | 已合并 |
+| 2 | fix | 长回答 / 大代码块流式时每帧整段重解析、重高亮：Markdown 按「安全块边界」封口，只重解析、重建边界之后的尾部，封口块的 widget 实例原样复用（链接 recognizer 分封口 / 尾部两份登记）；`CodeBlock` 高亮结果按 (code, language, 字体代数) 缓存 | BACKLOG P1「流式渲染性能」第 2 条 | 同上 | 同上 | 同上（high 出在这一项） | 已合并 |
 
 ## 收口
 
@@ -27,6 +27,12 @@
 - 设计稿补注记：无。展开体的行高与悬浮提示这次改成与画板 21 一致（改前行高随字体、悬浮时行被撑高），不是新偏离，不记 `design/DIVERGENCE.md`。
 
 ## 备注
+
+### 合并（所有者 2026-09-24 指示合入 `main`）
+
+- 开工基线 `7dcdfbe`，其间 `main` 前进到 `fb4a5d5`（iteration-10 / 11 / 12、round dsh-1.3.2，12 个提交）。先把 `main` 合进本分支：`merge-tree` 探过，只冲突三份登记文档——
+  `iterations/README.md`（清单两边各加行，都留、按编号排）、`rounds/BACKLOG.md`（档位计数按 `- [ ]` 逐节重数：P0 0、P1 1、P5 1，合计 2）、`rounds/BACKLOG-CLOSED.md`（末尾两边各追加，都留，`main` 的在前）。
+  代码文件两边没有交集（`main` 碰 `transcript_list.dart` 的只是 elicitation 请求键那三处），自动合并；按「解冲突没改代码就不复审」不再发审查。合并后 validate 全绿（563 项 flutter test；`fetch-upstream -Check` 随 `main` 的 pins 一起回绿），再快进 `main`。
 
 ### 实测（改动前后同一基准，`flutter test` JIT，绝对值偏大、看比值）
 

@@ -3,6 +3,10 @@
 // 硬要求（docs/acp-projection.md § 3.1）：发出 session/cancel 后挂起的权限请求 MUST 以 cancelled 回应。
 // `$/cancel_request`（agent 撤回）与 `elicitation/complete`（URL 收尾）以 requestId null 的通知到达（design.md § 3）。
 // 纯 Dart。
+//
+// **键是 (agentId, requestId)**（iteration-12，BACKLOG P0「请求与会话路由」第 1 条）：`requestId` 是每条连接自己的
+// JSON-RPC id、从小整数起步，两个 agent 同时挂着请求时撞号的机会不低；只按裸 requestId 当键的话，
+// 在一边点「允许」会命中另一边的卡。同一个 agent 重连之后 id 又从头数，所以删键时还要认条目本身（见 [forgetSession]）。
 
 import 'package:flutter/foundation.dart';
 
@@ -10,7 +14,7 @@ import 'entries.dart';
 import 'wire.dart';
 
 class PendingQueue extends ChangeNotifier {
-  final Map<String, TranscriptEntry> _byRequestId = <String, TranscriptEntry>{};
+  final Map<(String, String), TranscriptEntry> _byKey = <(String, String), TranscriptEntry>{};
   final List<TranscriptEntry> _order = <TranscriptEntry>[];
 
   /// 仍在等用户的项（先到先出）。
@@ -42,7 +46,8 @@ class PendingQueue extends ChangeNotifier {
           if (e is ElicitationEntry && e.isRequestScope) e,
       ];
 
-  TranscriptEntry? byRequestId(String requestId) => _byRequestId[requestId];
+  /// [agentId] 是发出这条请求的 agent（信封里的 `agentId`）；同一个 requestId 在别的 agent 名下的条目不算。
+  TranscriptEntry? byRequestId(String? agentId, String requestId) => _byKey[_key(agentId, requestId)];
 
   PermissionEntry addPermission(ClientRequestEnvelope env, {required DateTime now, required String Function() newId}) {
     final p = env.permission;
@@ -55,7 +60,7 @@ class PendingQueue extends ChangeNotifier {
       toolCallPatch: p.toolCall,
       options: p.options,
     );
-    _add(entry.requestId, entry);
+    _add(entry, now);
     return entry;
   }
 
@@ -67,13 +72,13 @@ class PendingQueue extends ChangeNotifier {
       agentId: env.agentId,
       wire: env.elicitation,
     );
-    _add(entry.requestId, entry);
+    _add(entry, now);
     return entry;
   }
 
   /// 回应权限请求；返回 `acp_respond` 的 result 载荷（`{outcome: {outcome: selected, optionId}}`）。
-  JsonMap? answerPermission(String requestId, String optionId, {required DateTime now}) {
-    final e = _byRequestId[requestId];
+  JsonMap? answerPermission(String? agentId, String requestId, String optionId, {required DateTime now}) {
+    final e = byRequestId(agentId, requestId);
     if (e is! PermissionEntry || e.status != PendingStatus.pending) return null;
     e
       ..status = PendingStatus.answered
@@ -86,8 +91,8 @@ class PendingQueue extends ChangeNotifier {
   }
 
   /// 回应 elicitation：action ∈ accept / decline / cancel；accept 时带 content。
-  JsonMap? answerElicitation(String requestId, String action, {JsonMap? content, required DateTime now}) {
-    final e = _byRequestId[requestId];
+  JsonMap? answerElicitation(String? agentId, String requestId, String action, {JsonMap? content, required DateTime now}) {
+    final e = byRequestId(agentId, requestId);
     if (e is! ElicitationEntry || e.status != PendingStatus.pending) return null;
     e
       ..status = PendingStatus.answered
@@ -101,8 +106,8 @@ class PendingQueue extends ChangeNotifier {
   }
 
   /// url 模式：本地记「已打开浏览器」（画板 28 第二态）。
-  void markOpened(String requestId) {
-    final e = _byRequestId[requestId];
+  void markOpened(String? agentId, String requestId) {
+    final e = byRequestId(agentId, requestId);
     if (e is ElicitationEntry) {
       e.opened = true;
       notifyListeners();
@@ -150,8 +155,8 @@ class PendingQueue extends ChangeNotifier {
   /// 把一条请求标成 cancelled。挂起的（Restore Checkpoint 截断时用）要回应：permission 回 [cancelledOutcome]、
   /// elicitation 回 [cancelledAction]；已 accept 的 URL elicitation 也可本地标 cancelled（画板 28 已打开后的 Cancel，
   /// 照 Zed `cancel_accepted_url_elicitations`）——这种没有第二个响应可发，调用方按调用前的 status 区分。
-  bool cancelRequest(String requestId, {required DateTime now}) {
-    final e = _byRequestId[requestId];
+  bool cancelRequest(String? agentId, String requestId, {required DateTime now}) {
+    final e = byRequestId(agentId, requestId);
     if (e is PermissionEntry && e.status == PendingStatus.pending) {
       e
         ..status = PendingStatus.cancelled
@@ -169,9 +174,9 @@ class PendingQueue extends ChangeNotifier {
     return true;
   }
 
-  /// `$/cancel_request`：agent 撤回了自己的请求。
-  bool withdraw(String requestId, {required DateTime now}) {
-    final e = _byRequestId[requestId];
+  /// `$/cancel_request`：agent 撤回了自己的请求（[agentId] 是发通知的那个，别的 agent 同号的卡不动）。
+  bool withdraw(String? agentId, String requestId, {required DateTime now}) {
+    final e = byRequestId(agentId, requestId);
     if (e == null) return false;
     if (e is PermissionEntry && e.status == PendingStatus.pending) {
       e
@@ -216,9 +221,11 @@ class PendingQueue extends ChangeNotifier {
   }
 
   /// `elicitation/complete`：URL elicitation 由 agent 收尾（已回应过的也标 completed，画板 28 第三态）。
-  ElicitationEntry? completeElicitation(String elicitationId, {required DateTime now}) {
-    for (final e in _order) {
-      if (e is ElicitationEntry && e.wire.elicitationId == elicitationId) {
+  /// 只认 [agentId] 名下的、从最新的往前找：elicitationId 是 agent 自己起的，别的 agent、或同一个 agent
+  /// 重连前的那一代可能用过同一个值（与 requestId 同一类撞号，iteration-12）。
+  ElicitationEntry? completeElicitation(String? agentId, String elicitationId, {required DateTime now}) {
+    for (final e in _order.reversed) {
+      if (e is ElicitationEntry && e.wire.elicitationId == elicitationId && (e.agentId ?? '') == (agentId ?? '')) {
         e
           ..status = PendingStatus.completed
           ..answeredAt = now;
@@ -233,17 +240,20 @@ class PendingQueue extends ChangeNotifier {
   /// agent 已经不会再等我们的回应（`session/load` 之前要么断开过、要么 agent 自己把旧回合收了）。
   /// requestScope 的（无 sessionId，认证页）不动。返回被移除的 requestId。
   List<String> forgetSession(String sessionId) {
-    final removed = <String>[
+    final removed = <TranscriptEntry>[
       for (final e in _order)
-        if (_sessionOf(e) == sessionId) _requestIdOf(e),
+        if (_sessionOf(e) == sessionId) e,
     ];
-    if (removed.isEmpty) return removed;
+    if (removed.isEmpty) return const <String>[];
     _order.removeWhere((e) => _sessionOf(e) == sessionId);
-    for (final id in removed) {
-      _byRequestId.remove(id);
+    for (final e in removed) {
+      // 键此刻指向的可能已经是别的条目：同一个 agent 重连后新一代的请求从同一个 id 数起，把这个键占过去了。
+      // 那时只按键删会把新卡从表里摘掉，它就成了点不动的死按钮（iteration-12）。
+      final key = _key(_agentOf(e), _requestIdOf(e));
+      if (identical(_byKey[key], e)) _byKey.remove(key);
     }
     notifyListeners();
-    return removed;
+    return <String>[for (final e in removed) _requestIdOf(e)];
   }
 
   static String _requestIdOf(TranscriptEntry e) => switch (e) {
@@ -252,8 +262,23 @@ class PendingQueue extends ChangeNotifier {
         _ => '',
       };
 
-  void _add(String requestId, TranscriptEntry e) {
-    _byRequestId[requestId] = e;
+  void _add(TranscriptEntry e, DateTime now) {
+    final key = _key(_agentOf(e), _requestIdOf(e));
+    // 同一个键又来一条：核心那边按连接记的挂起表同样是按这个 id 覆盖的，旧那条的回应通道已经没了。
+    // 还挂着就标 withdrawn，卡片收尾成不可点，而不是留一个点下去撞 unknown_request 的按钮。
+    switch (_byKey[key]) {
+      case final PermissionEntry p when p.status == PendingStatus.pending:
+        p
+          ..status = PendingStatus.withdrawn
+          ..answeredAt = now;
+      case final ElicitationEntry el when el.status == PendingStatus.pending:
+        el
+          ..status = PendingStatus.withdrawn
+          ..answeredAt = now;
+      default:
+        break;
+    }
+    _byKey[key] = e;
     _order.add(e);
     notifyListeners();
   }
@@ -276,8 +301,11 @@ class PendingQueue extends ChangeNotifier {
         _ => null,
       };
 
-  /// 队列键：核心把 requestId 归一化成字符串（design.md § 3），数字 id 也按 Display 形状转。
+  /// requestId：核心把它归一化成字符串（design.md § 3），数字 id 也按 Display 形状转。
   static String _reqId(Object? id) => id == null ? '' : id.toString();
+
+  /// 队列键：(agentId, requestId)。核心发来的信封总带 agentId；缺省按空串算，只和同样缺省的条目相认。
+  static (String, String) _key(String? agentId, String requestId) => (agentId ?? '', requestId);
 
   List<JsonMap> debugSnapshot() => <JsonMap>[
         for (final e in _order)

@@ -127,8 +127,8 @@ InstallProgress _progressOf(List<JsonMap> events, {String agentId = 'x'}) {
 /// 回放 `26-auth-url-elicitation.jsonl`：`opened` = 喂到用户 accept 之后（等 elicitation/complete），否则停在挂起态。
 ElicitationEntry _requestScopeElicitation({bool opened = false}) {
   final r = FixtureReplay.replay(<String>['26-auth-url-elicitation'], upTo: opened ? 3 : 2);
-  final entry = r.sessions.pending.byRequestId('32')! as ElicitationEntry;
-  if (opened) r.sessions.pending.markOpened(entry.requestId);
+  final entry = r.sessions.pending.byRequestId(FixtureReplay.agentId, '32')! as ElicitationEntry;
+  if (opened) r.sessions.pending.markOpened(entry.agentId, entry.requestId);
   return entry;
 }
 

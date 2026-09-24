@@ -9,8 +9,14 @@ import 'package:acp_agent_client/projection/wire.dart';
 /// 记账用的假核心：只记调用，不做任何 IO。
 class FakeCore implements CoreCommands {
   final List<(String requestId, JsonMap response)> responded = <(String, JsonMap)>[];
+
+  /// 回应发给了哪个 agent（与 [responded] 同序）：requestId 只在发请求的那条连接上有意义（iteration-12）。
+  final List<(String agentId, String requestId)> respondedTo = <(String, String)>[];
   final List<List<Object?>> prompts = <List<Object?>>[];
   int cancels = 0;
+
+  /// `session/cancel` 打到了哪条会话（与 [cancels] 同步记）。
+  final List<(String agentId, String sessionId)> cancelledSessions = <(String, String)>[];
 
   /// 拖分栏落盘（画板 04）：只记账，不碰文件。
   JsonMap uiState = <String, dynamic>{};
@@ -76,6 +82,7 @@ class FakeCore implements CoreCommands {
   @override
   Future<JsonMap> acpRespond(String agentId, String requestId, JsonMap response) async {
     responded.add((requestId, response));
+    respondedTo.add((agentId, requestId));
     return <String, dynamic>{};
   }
 
@@ -88,6 +95,7 @@ class FakeCore implements CoreCommands {
   @override
   Future<JsonMap> sessionCancel(String agentId, String sessionId) async {
     cancels++;
+    cancelledSessions.add((agentId, sessionId));
     return <String, dynamic>{'cancelledRequestIds': <String>[]};
   }
 

@@ -35,7 +35,7 @@ PermissionEntry newEntry() {
   var now = DateTime.utc(2026, 9, 18, 12);
   final s = SessionStore(sessionId: sid, clock: () => now = now.add(const Duration(seconds: 1)));
   s.applyClientRequest(const ClientRequestEnvelope(permissionRequest));
-  return s.pending.byRequestId('p1')! as PermissionEntry;
+  return s.pending.byRequestId('a', 'p1')! as PermissionEntry;
 }
 
 final Key belowKey = UniqueKey();

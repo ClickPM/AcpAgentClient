@@ -90,9 +90,9 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     composer.clearForSend();
     // 又开了一轮：上一轮留下的绿点立即撤（画板 06 D「运行中 · 绿点：无（有则立即撤）」）。
     session.clearUnread(s.sessionId);
-    s.startTurn(<ContentBlockWire>[for (final b in blocks) ContentBlockWire(b)]);
+    final started = s.startTurn(<ContentBlockWire>[for (final b in blocks) ContentBlockWire(b)]);
     unawaited(session.stampPromptSent());
-    await _runTurn(b, id, s, blocks);
+    await _runTurn(b, id, s, started, blocks);
   }
 
   /// 挂回失败的这一轮：不开新会话顶掉选中的那条，用户的消息与原因收在转录里（画板 31 的结束行，
@@ -125,21 +125,26 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     return false;
   }
 
-  /// 在途的那一轮（`session/prompt` 还没返回）。Restore / Regenerate 要先等它结束，
+  /// 各会话在途的那一轮（`session/prompt` 还没返回），按 sessionId。Restore / Regenerate 要先等**本会话**那一轮结束，
   /// 否则同一个 session 上会重叠两个 `session/prompt`，先返回的那次会把 `endTurn` 打到新开的轮上
-  /// （审查 finding high，2026-09-15）。
-  Future<void>? _turnInFlight;
+  /// （审查 finding high，2026-09-15）。2026-09-18 起会话能并跑，以前的全局单槽谁后发谁占：
+  /// Restore 等到的可能是别的会话那一轮，也可能已被清空（iteration-12，BACKLOG P0「请求与会话路由」第 2 条）。
+  final Map<String, Future<void>> _turnsInFlight = <String, Future<void>>{};
 
-  Future<void> _runTurn(CoreCommands b, String id, SessionStore s, List<JsonMap> blocks) async {
+  /// [started] 是 `startTurn` 开出来的那一轮：收轮只落在它身上（[SessionStore.endTurn] 的 `turn`）。
+  Future<void> _runTurn(CoreCommands b, String id, SessionStore s, TurnEntry started, List<JsonMap> blocks) async {
+    final sid = s.sessionId;
     final turn = () async {
       try {
-        final result = await b.sessionPrompt(id, s.sessionId, blocks);
+        final result = await b.sessionPrompt(id, sid, blocks);
         final stopReason = result['stopReason'] as String?;
-        s.endTurn(
+        final ended = s.endTurn(
+          turn: started,
           stopReason: stopReason,
           usage: result['usage'] is Map ? (result['usage'] as Map).cast<String, dynamic>() : null,
         );
-        session.markDone(s.sessionId, stopReason);
+        // 已经不是当前那一轮（被 Restore 截掉、或重放清掉了）：不点绿点，新的一轮可能正在跑（运行中与绿点互斥）。
+        if (ended) session.markDone(sid, stopReason);
         // 只刷消息计数：`updatedAt` 沿用发消息时打的那个（见 `SessionIndex.upsert`）。
         // 写的是**刚跑完这一轮的那条**（`s`）而不是当前选中的：会话可以并跑，后台那条跑完时前台往往是另一条。
         await session.saveIndex(target: s);
@@ -150,16 +155,16 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
         // 由画板 31 的结束行显示——只记 `lastError` 的话整条错误在界面上无处可见，用户只看到一个 `?` 徽章
         // （2026-09-18 实测：dsh 回 `-32602 model does not declare image input` 与 `-32603 turn failed`，界面全无提示）。
         final message = describeError(e);
-        s.endTurn(error: message);
+        s.endTurn(turn: started, error: message);
         lastError = message;
         debugPrint('[workbench] session/prompt failed: $message');
       }
     }();
-    _turnInFlight = turn;
+    _turnsInFlight[sid] = turn;
     try {
       await turn;
     } finally {
-      if (identical(_turnInFlight, turn)) _turnInFlight = null;
+      _turnsInFlight.removeWhere((key, inFlight) => key == sid && identical(inFlight, turn));
     }
     touch();
   }
@@ -193,25 +198,34 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     touch();
   }
 
+  /// 回应发往**发请求的那个 agent**（条目上记的 agentId）：requestId 只在那条连接上有意义（iteration-12）。
   Future<void> answerPermission(String requestId, String optionId) async {
     final s = session.store;
     final b = bridge;
-    final id = session.agentId;
     if (s == null) return;
+    final asker = _askerOf(s, requestId);
     final payload = s.answerPermission(requestId, optionId);
-    if (payload == null || b == null || id == null) return;
-    await guard(() => b.acpRespond(id, requestId, payload));
+    if (payload == null || b == null || asker == null) return;
+    await guard(() => b.acpRespond(asker, requestId, payload));
   }
 
   Future<void> answerElicitation(String requestId, String action, JsonMap? content) async {
     final s = session.store;
     final b = bridge;
-    final id = session.agentId;
     if (s == null) return;
+    final asker = _askerOf(s, requestId);
     final payload = s.answerElicitation(requestId, action, content: content);
-    if (payload == null || b == null || id == null) return;
-    await guard(() => b.acpRespond(id, requestId, payload));
+    if (payload == null || b == null || asker == null) return;
+    await guard(() => b.acpRespond(asker, requestId, payload));
   }
+
+  /// 要在回应**之前**取：回应之后条目就不在「还在等用户」的那一份里了。
+  String? _askerOf(SessionStore s, String requestId) => switch (s.pendingRequest(requestId)) {
+        final PermissionEntry p => p.agentId,
+        final ElicitationEntry el => el.agentId,
+        _ => null,
+      } ??
+      session.agentId;
 
   /// 用户气泡上的 Restore 与 Regenerate（画板 11）：从这条用户消息本地截断 + 同会话重发
   /// （截断点是消息本身而不是轮边界：`session/load` 重放回来的历史没有轮边界，见 `restoreTo` 的注释）。
@@ -226,10 +240,11 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     if (_blockedByClose()) return;
     // 挂不回就什么都不动（截断在前的话本地白白少一截）；挂回时整段重放过的，点的那条气泡已经不在转录里了。
     if (!await _ensureAttached() || !s.entries.contains(message)) return;
-    // 先把在途的那一轮收干净（发 cancel 并等 session/prompt 真正返回），再截断重发。
+    // 先把本会话在途的那一轮收干净（发 cancel 并等它的 session/prompt 真正返回），再截断重发。
+    // 只等本会话的：别的会话并跑着的长任务与这里无关。
     if (s.isRunning) {
       await cancel();
-      await _turnInFlight;
+      await _turnsInFlight[s.sessionId];
     }
     final result = s.restoreTo(message.id);
     if (result == null) return;
@@ -248,9 +263,9 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
       return;
     }
     session.clearUnread(s.sessionId);
-    s.startTurn(<ContentBlockWire>[for (final x in blocks) ContentBlockWire(x)]);
+    final started = s.startTurn(<ContentBlockWire>[for (final x in blocks) ContentBlockWire(x)]);
     unawaited(session.stampPromptSent());
-    await _runTurn(b, id, s, blocks);
+    await _runTurn(b, id, s, started, blocks);
   }
 
   /// 把被截断的挂起请求逐条回应（顺序无所谓，但一条都不能漏）。
