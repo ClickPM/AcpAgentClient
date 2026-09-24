@@ -72,7 +72,7 @@ void main() {
       expect(s.toolCalls['t2']!.displayStatus, ToolDisplayStatus.completed);
       // 协议状态不被伪造：t1 的 status 仍是 in_progress，cancelled 只是本地态。
       expect(s.toolCalls['t1']!.status, ToolStatus.inProgress);
-      final p = s.pending.byRequestId('req1')! as PermissionEntry;
+      final p = s.pending.byRequestId('a', 'req1')! as PermissionEntry;
       expect(p.status, PendingStatus.cancelled);
       expect(s.pending.forSession(sid), isEmpty);
       // 已 cancelled 的请求不能再回答。
@@ -102,7 +102,7 @@ void main() {
         'method': r'$/cancel_request',
         'params': <String, dynamic>{'requestId': 'req2'},
       }));
-      expect((s.pending.byRequestId('req2')! as PermissionEntry).status, PendingStatus.withdrawn);
+      expect((s.pending.byRequestId('a', 'req2')! as PermissionEntry).status, PendingStatus.withdrawn);
 
       s.applyClientRequest(const ClientRequestEnvelope(<String, dynamic>{
         'agentId': 'a',
@@ -117,7 +117,7 @@ void main() {
         'method': 'elicitation/complete',
         'params': <String, dynamic>{'elicitationId': 'el1'},
       }));
-      expect((s.pending.byRequestId('req3')! as ElicitationEntry).status, PendingStatus.completed);
+      expect((s.pending.byRequestId('a', 'req3')! as ElicitationEntry).status, PendingStatus.completed);
     });
 
     test('URL elicitation 已 accept 后 Cancel 只本地标 cancelled，没有第二个响应', () {
@@ -128,10 +128,10 @@ void main() {
         'method': 'elicitation/create',
         'params': <String, dynamic>{'mode': 'url', 'message': 'login', 'sessionId': sid, 'elicitationId': 'el9', 'url': 'https://x'},
       }));
-      s.pending.markOpened('u2');
+      s.pending.markOpened('a', 'u2');
       expect(s.answerElicitation('u2', 'accept'), <String, dynamic>{'action': 'accept', 'content': <String, dynamic>{}});
-      expect(s.pending.cancelRequest('u2', now: s.now), isTrue);
-      final el = s.pending.byRequestId('u2')! as ElicitationEntry;
+      expect(s.pending.cancelRequest('a', 'u2', now: s.now), isTrue);
+      final el = s.pending.byRequestId('a', 'u2')! as ElicitationEntry;
       expect(el.status, PendingStatus.cancelled);
       expect(s.answerElicitation('u2', 'cancel'), isNull);
       // 表单模式已回应的不能本地取消。
@@ -142,7 +142,7 @@ void main() {
         'params': <String, dynamic>{'mode': 'form', 'message': 'q', 'sessionId': sid, 'requestedSchema': <String, dynamic>{'type': 'object', 'properties': <String, dynamic>{}}},
       }));
       s.answerElicitation('f2', 'accept', content: <String, dynamic>{});
-      expect(s.pending.cancelRequest('f2', now: s.now), isFalse);
+      expect(s.pending.cancelRequest('a', 'f2', now: s.now), isFalse);
     });
 
     test(r'Sessions 处理 elicitation/complete 与 $/cancel_request 通知时，所属 SessionStore 也通知', () {
@@ -164,7 +164,7 @@ void main() {
         'params': <String, dynamic>{'elicitationId': 'e9'},
       });
       expect(n, 1);
-      expect((sessions.pending.byRequestId('u1')! as ElicitationEntry).status, PendingStatus.completed);
+      expect((sessions.pending.byRequestId('a', 'u1')! as ElicitationEntry).status, PendingStatus.completed);
       sessions.applyClientRequestEnvelope(<String, dynamic>{
         'agentId': 'a',
         'requestId': null,
@@ -172,7 +172,7 @@ void main() {
         'params': <String, dynamic>{'requestId': 'p9'},
       });
       expect(n, 2);
-      expect((sessions.pending.byRequestId('p9')! as PermissionEntry).status, PendingStatus.withdrawn);
+      expect((sessions.pending.byRequestId('a', 'p9')! as PermissionEntry).status, PendingStatus.withdrawn);
     });
 
     test('requestScope 的 elicitation 只进队列不进转录', () {
@@ -361,14 +361,14 @@ void main() {
       final r = s.restoreTo(t2.id)!;
       expect(r.cancelledRequestIds, <String>['nested']);
       expect(r.cancelledElicitationIds, <String>['el']);
-      expect((s.pending.byRequestId('nested')! as PermissionEntry).status, PendingStatus.cancelled);
-      expect((s.pending.byRequestId('answered')! as PermissionEntry).status, PendingStatus.answered);
-      final el = s.pending.byRequestId('el')! as ElicitationEntry;
+      expect((s.pending.byRequestId('a', 'nested')! as PermissionEntry).status, PendingStatus.cancelled);
+      expect((s.pending.byRequestId('a', 'answered')! as PermissionEntry).status, PendingStatus.answered);
+      final el = s.pending.byRequestId('a', 'el')! as ElicitationEntry;
       expect(el.status, PendingStatus.cancelled);
       expect(el.action, 'cancel');
-      expect((s.pending.byRequestId('keep')! as PermissionEntry).status, PendingStatus.pending);
+      expect((s.pending.byRequestId('a', 'keep')! as PermissionEntry).status, PendingStatus.pending);
       expect(s.pending.pending, hasLength(1));
-      expect(s.pending.pending.single, same(s.pending.byRequestId('keep')));
+      expect(s.pending.pending.single, same(s.pending.byRequestId('a', 'keep')));
     });
   });
 
@@ -714,5 +714,97 @@ void main() {
       s.applyUpdateJson(chunk('agent_message_chunk', 'x'));
       expect(n, 2);
     });
+  });
+
+  group('请求路由：队列键是 (agentId, requestId)（iteration-12，BACKLOG P0「请求与会话路由」第 1 条）', () {
+    JsonMap perm(String agent, String requestId, String sessionId) => <String, dynamic>{
+          ...permissionEnvelope(requestId, 'call_$agent', sessionId: sessionId),
+          'agentId': agent,
+        };
+    JsonMap notice(String agent, String method, JsonMap params) =>
+        <String, dynamic>{'agentId': agent, 'requestId': null, 'method': method, 'params': params};
+
+    test('两个 agent 撞同一个 requestId：在一边回应不会落到另一边的卡上', () {
+      final sessions = Sessions(clock: FakeClock().call);
+      sessions.applyClientRequestEnvelope(perm('a', '9', 's_a'));
+      sessions.applyClientRequestEnvelope(perm('b', '9', 's_b'));
+      final ca = sessions.pending.byRequestId('a', '9')! as PermissionEntry;
+      final cb = sessions.pending.byRequestId('b', '9')! as PermissionEntry;
+      expect(ca, isNot(same(cb)));
+      expect(sessions.pending.pending, hasLength(2), reason: '后到的不能把先到的顶掉');
+
+      expect(sessions.maybe('s_a')!.answerPermission('9', 'allow'), isNotNull);
+      expect(ca.status, PendingStatus.answered);
+      expect(cb.status, PendingStatus.pending, reason: '另一个 agent 的卡还在等用户');
+      expect(sessions.maybe('s_b')!.answerPermission('9', 'reject'), isNotNull);
+      expect(cb.chosenOptionId, 'reject');
+    });
+
+    test('`\$/cancel_request` 只撤发通知的那个 agent 的请求', () {
+      final sessions = Sessions(clock: FakeClock().call);
+      sessions.applyClientRequestEnvelope(perm('a', '9', 's_a'));
+      sessions.applyClientRequestEnvelope(perm('b', '9', 's_b'));
+      sessions.applyClientRequestEnvelope(notice('a', r'$/cancel_request', <String, dynamic>{'requestId': '9'}));
+      expect((sessions.pending.byRequestId('a', '9')! as PermissionEntry).status, PendingStatus.withdrawn);
+      expect((sessions.pending.byRequestId('b', '9')! as PermissionEntry).status, PendingStatus.pending);
+    });
+
+    test('同一个 agent 重连后 id 从头数：删掉旧会话不会把新会话同号的卡从队列里摘掉', () {
+      final sessions = Sessions(clock: FakeClock().call);
+      sessions.applyClientRequestEnvelope(perm('a', '9', 's_old'));
+      sessions.applyAgentState(<String, dynamic>{'agentId': 'a', 'state': 'exited', 'code': 1});
+      sessions.applyClientRequestEnvelope(perm('a', '9', 's_new'));
+      final fresh = sessions.pending.byRequestId('a', '9')! as PermissionEntry;
+      expect(fresh.sessionId, 's_new');
+
+      sessions.forget('s_old');
+      expect(sessions.pending.byRequestId('a', '9'), same(fresh), reason: '键此刻指向新一代的卡，不能按键一删了之');
+      expect(sessions.maybe('s_new')!.answerPermission('9', 'allow'), isNotNull, reason: '不然新卡是点不动的死按钮');
+    });
+
+    test('同一个键又来一条：还挂着的旧那条标 withdrawn（它的回应通道已经被覆盖了）', () {
+      final sessions = Sessions(clock: FakeClock().call);
+      sessions.applyClientRequestEnvelope(perm('a', '9', 's_a'));
+      final first = sessions.pending.byRequestId('a', '9')! as PermissionEntry;
+      sessions.applyClientRequestEnvelope(perm('a', '9', 's_a'));
+      expect(first.status, PendingStatus.withdrawn);
+      expect(sessions.pending.forSession('s_a'), hasLength(1));
+      expect(sessions.pending.forSession('s_a').single, isNot(same(first)));
+    });
+
+    test('`elicitation/complete` 只收发通知的那个 agent 的 elicitation', () {
+      final sessions = Sessions(clock: FakeClock().call);
+      for (final agent in <String>['a', 'b']) {
+        sessions.applyClientRequestEnvelope(<String, dynamic>{
+          'agentId': agent,
+          'requestId': 'u_$agent',
+          'method': 'elicitation/create',
+          'params': <String, dynamic>{'mode': 'url', 'message': 'login', 'sessionId': 's_$agent', 'elicitationId': 'el_1', 'url': 'https://x'},
+        });
+      }
+      sessions.applyClientRequestEnvelope(notice('b', 'elicitation/complete', <String, dynamic>{'elicitationId': 'el_1'}));
+      expect((sessions.pending.byRequestId('b', 'u_b')! as ElicitationEntry).status, PendingStatus.completed);
+      expect((sessions.pending.byRequestId('a', 'u_a')! as ElicitationEntry).status, PendingStatus.pending);
+    });
+  });
+
+  test('旧那一轮晚回来的 endTurn 不收新开的轮（iteration-12，BACKLOG P0「请求与会话路由」第 2 条）', () {
+    final s = newStore();
+    final first = s.startTurn(const <ContentBlockWire>[
+      ContentBlockWire(<String, dynamic>{'type': 'text', 'text': '一'}),
+    ]);
+    s.restoreTo(s.entries.whereType<MessageEntry>().first.id);
+    final second = s.startTurn(const <ContentBlockWire>[
+      ContentBlockWire(<String, dynamic>{'type': 'text', 'text': '二'}),
+    ]);
+
+    expect(s.endTurn(turn: first, stopReason: 'cancelled'), isFalse);
+    expect(s.currentTurn, same(second), reason: '停止键要还在');
+    expect(s.isRunning, isTrue);
+    expect(second.stopReason, isNull);
+
+    expect(s.endTurn(turn: second, stopReason: 'end_turn'), isTrue);
+    expect(second.stopReason, 'end_turn');
+    expect(s.isRunning, isFalse);
   });
 }

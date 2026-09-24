@@ -19,7 +19,7 @@ void main() {
       'method': 'elicitation/create',
       'params': <String, dynamic>{'sessionId': 'sess_1', 'mode': 'url', 'elicitationId': 'el_1', 'url': 'https://example.invalid'},
     });
-    return sessions.pending.byRequestId(requestId)! as ElicitationEntry;
+    return sessions.pending.byRequestId('a', requestId)! as ElicitationEntry;
   }
 
   Future<void> pump(WidgetTester tester, Widget child) async {
@@ -68,7 +68,7 @@ void main() {
     final sessions = Sessions(clock: () => DateTime.utc(2026, 9, 22));
     sessions.session('sess_1', agentId: 'a');
     final ElicitationEntry e = urlRequest(sessions, requestId: 'r1');
-    sessions.pending.markOpened('r1');
+    sessions.pending.markOpened('a', 'r1');
     await pump(tester, ElicitationUrlCard(e, agentName: 'agent'));
     expect(find.text('Waiting for completion...'), findsOneWidget);
     expect(find.widgetWithText(AcpButton, 'Cancel'), findsOneWidget);

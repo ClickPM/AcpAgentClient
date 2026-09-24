@@ -82,7 +82,7 @@ Flutter 宿主进程（Dart）
 - **用户消息由客户端在 `session/prompt` 发出时本地回显**（acp-projection.md § 7 第 8 条）：一等 agent 只在 `session/load` 的重放里发 `user_message_chunk`，不本地回显的话实时一轮里转录只有轮边界、没有用户气泡。重放来的同一批块按块内容去重并认领 `messageId`（照 Zed）。
 - 待处理的 permission 与 elicitation 是队列，回应后出队。
 - 不在前端做任何 agent 特判。
-- 待处理队列按 `sessionId` 索引，另有一个无会话的 requestScope 队列（认证阶段的 elicitation）。
+- 待处理队列按 `sessionId` 索引，另有一个无会话的 requestScope 队列（认证阶段的 elicitation）。队列项按 `(agentId, requestId)` 认：`requestId` 是各条连接自己的 JSON-RPC id，两个 agent 同时挂着请求、或同一个 agent 重连之后都会撞号；`$/cancel_request` 与 `elicitation/complete` 也只作用于信封里那个 agent 的项（iteration-12）。
 - 工具调用「已取消」是前端本地态（`ToolCallStatus` 没有 cancelled）：发出 `session/cancel` 后把本轮未完成的工具卡标 cancelled，核心不伪造状态。
 - 用户消息上的 Restore 与 Regenerate（画板 11）= 本地截断其后的投影块并在同一会话重发 prompt；协议没有回滚，agent 侧上下文不回退，这是已知限制（所有者裁定 2026-09-15）。**画板 10 的 Restore Checkpoint 分隔线已废弃**（所有者裁定 2026-09-17）：我们没有 git checkpoint（Zed 那条线恢复的是项目文件），它点下去与画板 11 的 Restore 完全同一个动作，轮开始因此不再画任何东西。
 - `session/load` 的重放只带回 agent 侧的 `session/update`：轮边界（`TurnEntry` / `stopReason` / 回合级 usage）、权限卡与 elicitation 卡是客户端按自己发出的请求造的，**回不来**；也不在本地补一份轮边界——不造协议之外的状态（所有者裁定 2026-09-16，R6）。Restore / Regenerate 因此**不按轮边界定位**：截断点是那条用户气泡自己（气泡前面紧挨着轮边界时一起截掉，重发用轮记下的那批块），载回来的历史照样能重发（所有者报障 2026-09-18：按轮定位时重开应用后每条气泡的 ↺ 与 Regenerate 都是点了毫无反应的死键）。

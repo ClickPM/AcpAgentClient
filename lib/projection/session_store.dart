@@ -419,7 +419,13 @@ class SessionStore extends ChangeNotifier {
 
   /// `session/prompt` 返回：`stopReason` 五种之一，`usage` 是回合级用量（可空）。
   /// 失败收轮时 `stopReason` 留空、把原因给 [error]（见 [TurnEntry.error]）。
-  void endTurn({String? stopReason, JsonMap? usage, String? error}) {
+  ///
+  /// [turn] 是发起这次 `session/prompt` 时 [startTurn] 开出来的那一轮。给了且它已经不是 [currentTurn]
+  /// （被 Restore 截掉、被重放清掉）就什么都不做、返回 false：旧那一轮晚回来的 `cancelled` 不能收掉新开的轮、
+  /// 清空 [currentTurn]，否则停止键消失、新轮真返回时 stopReason / error 落不下（iteration-12）。
+  /// 不给 [turn] 的（fixture 回放、测试）照旧收当前那一轮。
+  bool endTurn({TurnEntry? turn, String? stopReason, JsonMap? usage, String? error}) {
+    if (turn != null && !identical(turn, currentTurn)) return false;
     final now = this.now;
     _closeOpenThought(entries);
     for (final e in entries) {
@@ -435,6 +441,7 @@ class SessionStore extends ChangeNotifier {
     }
     currentTurn = null;
     _changed();
+    return true;
   }
 
   /// 发出 `session/cancel` 后的本地处理（§ 7 第 1 条 + § 3.1）。
@@ -483,14 +490,24 @@ class SessionStore extends ChangeNotifier {
     final now = this.now;
     final removed = entries.sublist(idx);
     entries.removeRange(idx, entries.length);
-    final permissions = <String>[];
-    final elicitations = <String>[];
+    final cut = <TranscriptEntry>[];
     for (final e in removed) {
       _forget(e);
-      _collectPending(e, permissions, elicitations);
+      _collectPending(e, cut);
     }
-    for (final id in <String>[...permissions, ...elicitations]) {
-      pending.cancelRequest(id, now: now);
+    final permissions = <String>[];
+    final elicitations = <String>[];
+    for (final e in cut) {
+      switch (e) {
+        case final PermissionEntry p:
+          permissions.add(p.requestId);
+          pending.cancelRequest(p.agentId, p.requestId, now: now);
+        case final ElicitationEntry el:
+          elicitations.add(el.requestId);
+          pending.cancelRequest(el.agentId, el.requestId, now: now);
+        default:
+          break;
+      }
     }
     if (turnN != null) turnCount = turnN - 1;
     currentTurn = null;
@@ -498,15 +515,15 @@ class SessionStore extends ChangeNotifier {
     return RestoreResult(prompt: prompt, cancelledRequestIds: permissions, cancelledElicitationIds: elicitations);
   }
 
-  void _collectPending(TranscriptEntry e, List<String> permissions, List<String> elicitations) {
+  void _collectPending(TranscriptEntry e, List<TranscriptEntry> out) {
     switch (e) {
       case final PermissionEntry p when p.status == PendingStatus.pending:
-        permissions.add(p.requestId);
+        out.add(p);
       case final ElicitationEntry el when el.status == PendingStatus.pending:
-        elicitations.add(el.requestId);
+        out.add(el);
       case final ToolCallEntry tc:
         for (final c in tc.children) {
-          _collectPending(c, permissions, elicitations);
+          _collectPending(c, out);
         }
       default:
         break;
@@ -559,24 +576,42 @@ class SessionStore extends ChangeNotifier {
     switch (env.method) {
       case 'elicitation/complete':
         final id = env.params['elicitationId'];
-        if (id is String) pending.completeElicitation(id, now: now);
+        if (id is String) pending.completeElicitation(env.agentId, id, now: now);
       case r'$/cancel_request':
         final id = env.params['requestId'];
-        if (id != null) pending.withdraw(id.toString(), now: now);
+        if (id != null) pending.withdraw(env.agentId, id.toString(), now: now);
       default:
         return;
     }
     _changed();
   }
 
+  /// 本会话里还在等用户的那条请求（按 requestId）。队列的键是**发请求的 agent** + requestId（[PendingQueue]），
+  /// 这里按会话找、用条目上记的 agentId，不拿本会话的 [agentId] 去拼键：单测与 fixture 回放里会话可以没登记 agent。
+  TranscriptEntry? pendingRequest(String requestId) {
+    for (final e in pending.forSession(sessionId)) {
+      final id = switch (e) {
+        final PermissionEntry p => p.requestId,
+        final ElicitationEntry el => el.requestId,
+        _ => null,
+      };
+      if (id == requestId) return e;
+    }
+    return null;
+  }
+
   JsonMap? answerPermission(String requestId, String optionId) {
-    final r = pending.answerPermission(requestId, optionId, now: now);
+    final e = pendingRequest(requestId);
+    if (e is! PermissionEntry) return null;
+    final r = pending.answerPermission(e.agentId, requestId, optionId, now: now);
     if (r != null) _changed();
     return r;
   }
 
   JsonMap? answerElicitation(String requestId, String action, {JsonMap? content}) {
-    final r = pending.answerElicitation(requestId, action, content: content, now: now);
+    final e = pendingRequest(requestId);
+    if (e is! ElicitationEntry) return null;
+    final r = pending.answerElicitation(e.agentId, requestId, action, content: content, now: now);
     if (r != null) _changed();
     return r;
   }
@@ -953,12 +988,12 @@ class Sessions extends ChangeNotifier {
       switch (env.method) {
         case 'elicitation/complete':
           final id = env.params['elicitationId'];
-          if (id is String) touched = pending.completeElicitation(id, now: now);
+          if (id is String) touched = pending.completeElicitation(env.agentId, id, now: now);
         case r'$/cancel_request':
           final id = env.params['requestId'];
           if (id != null) {
-            touched = pending.byRequestId(id.toString());
-            pending.withdraw(id.toString(), now: now);
+            touched = pending.byRequestId(env.agentId, id.toString());
+            pending.withdraw(env.agentId, id.toString(), now: now);
           }
         default:
           return;

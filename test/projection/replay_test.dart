@@ -112,7 +112,7 @@ void main() {
 
     final edit = s.toolCalls['call_edit_1']!;
     expect(edit.diffs.single.newText, contains('gen-acp-types'));
-    final perm = s.pending.byRequestId('6')! as PermissionEntry;
+    final perm = s.pending.byRequestId('fixture-agent', '6')! as PermissionEntry;
     expect(perm.status, PendingStatus.pending, reason: '03 没有记录用户回应，留在队列');
 
     final exec = s.toolCalls['call_exec_1']!;
@@ -152,7 +152,7 @@ void main() {
     final turn = s.entries.whereType<TurnEntry>().single;
     expect(turn.stopReason, 'cancelled');
     expect(s.toolCalls['call_exec_c1']!.displayStatus, ToolDisplayStatus.cancelled);
-    expect((s.pending.byRequestId('21')! as PermissionEntry).status, PendingStatus.cancelled);
+    expect((s.pending.byRequestId('fixture-agent', '21')! as PermissionEntry).status, PendingStatus.cancelled);
   });
 
   test('14-subagent：只按 _meta 键分组', () {
@@ -169,15 +169,15 @@ void main() {
 
   test('15 / 16：用户回应记录在队列里', () {
     final s = replayWhole(loadFixtures(where: (n) => n.startsWith('01') || n.startsWith('15') || n.startsWith('16'))).maybe(sid)!;
-    final perm = s.pending.byRequestId('27')! as PermissionEntry;
+    final perm = s.pending.byRequestId('fixture-agent', '27')! as PermissionEntry;
     expect(perm.status, PendingStatus.answered);
     expect(perm.chosenOptionId, 'allow-once');
     expect(perm.options.map((o) => o.kind), <String>['allow_always', 'allow_always', 'allow_once', 'reject_once', 'reject_always']);
-    final form = s.pending.byRequestId('29')! as ElicitationEntry;
+    final form = s.pending.byRequestId('fixture-agent', '29')! as ElicitationEntry;
     expect(form.isForm, isTrue);
     expect(form.action, 'accept');
     expect(form.values!['concurrency'], 4);
-    final url = s.pending.byRequestId('30')! as ElicitationEntry;
+    final url = s.pending.byRequestId('fixture-agent', '30')! as ElicitationEntry;
     expect(url.isUrl, isTrue);
     expect(url.wire.elicitationId, 'elic_login_1');
     expect(s.pending.forSession(sid), isEmpty);

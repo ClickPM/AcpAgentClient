@@ -54,7 +54,7 @@ void main() {
     await tester.pump();
     expect(links, <String>['https://x']);
     expect(answers, <String>['u1:accept']);
-    final el = s.pending.byRequestId('u1')! as ElicitationEntry;
+    final el = s.pending.byRequestId('a', 'u1')! as ElicitationEntry;
     expect(el.opened, isTrue);
     expect(el.status, PendingStatus.answered);
     expect(find.text('Waiting for completion...'), findsOneWidget);

@@ -716,7 +716,7 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
 
   /// 用户发出一条消息（发送 / Restore / Regenerate）：把索引的 `updatedAt` 打成现在，侧栏这条立刻升到最上面。
   /// **不 await**：`startTurn` 与 `_runTurn` 之间不能有异步间隙，否则这段里 `isRunning` 已是 true 而
-  /// `_turnInFlight` 还是 null，Restore / cancel 等不到在途那一轮就会重叠两个 `session/prompt`
+  /// `_turnsInFlight` 里还没有这条会话，Restore / cancel 等不到在途那一轮就会重叠两个 `session/prompt`
   /// （审查 finding high，2026-09-15）。先后由 [SessionIndex] 本地记的发消息时间兜住：收轮那次 [saveIndex]
   /// 不靠这条命令回没回来，本地记的那份时间总在。写不动只记日志不挡发送——索引是可再生缓存
   /// （`rust/settings/src/index.rs`），发送才是正事。
@@ -798,6 +798,12 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
   /// 删除会话（画板 41 的确认弹层）：agent 连着且声明了 `sessionCapabilities.delete` 就先删 agent 侧，
   /// 然后删本地索引；agent 没连或没声明就只删本地索引。
   /// 没连的 agent 不为了删一条记录去拉进程（已知限制，记 rounds/round-06 任务卡）。
+  ///
+  /// **在途的那一轮与挂起的请求不论删不删 agent 侧都要收尾**（iteration-12，BACKLOG P0「请求与会话路由」第 3 条）：
+  /// 以前整段圈在「删 agent 侧」里，没声明 delete 的 agent（dsh-acp-interactive 1.3.0）那一轮继续跑到底、
+  /// 挂着的权限 / 表单请求永远没人回。会话还挂在活着的连接上时，先 `session/cancel`（核心随即把挂起的权限请求回
+  /// cancelled，并把之后到的也就地回掉），再逐条回 elicitation——与停止键同一口径。没挂在连接上的，核心的挂起表
+  /// 早已清空，不往它发。
   Future<void> deleteSession(String id) async {
     confirmingDeleteId = null;
     hidePopover(deleteAnchor);
@@ -806,8 +812,15 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
     final owner = ownerOf(id);
     final onAgent = deletesOnAgent(id);
     await guard(() async {
-      if (onAgent) {
+      final live = sessions.maybe(id);
+      if (live != null && attachOf(id) == SessionAttach.attached) {
+        if (live.isRunning || live.pending.forSession(id).isNotEmpty) {
+          // 发不出去（连接恰好断了）也不挡删除：收尾是尽力而为，删本地这条才是用户要的（与下面 `session/delete` 同口径）。
+          await guard(() => b.sessionCancel(owner, id));
+        }
         await _releaseSessionRequests(b, owner, id);
+      }
+      if (onAgent) {
         try {
           await b.sessionDelete(owner, id);
         } catch (e) {

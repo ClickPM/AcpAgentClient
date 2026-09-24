@@ -223,7 +223,7 @@ final List<GalleryBoard> transcriptBoards2 = <GalleryBoard>[
     ElicitationEntry url(FixtureReplay r) => r.all<ElicitationEntry>().firstWhere((e) => e.isUrl);
     final a = FixtureReplay.replay(<String>['01-connect', '16-elicitation'], upTo: 4);
     final b = FixtureReplay.replay(<String>['01-connect', '16-elicitation'], upTo: 4);
-    b.sessions.pending.markOpened(url(b).requestId);
+    b.sessions.pending.markOpened(url(b).agentId, url(b).requestId);
     // 完成态由 fixtures 的 `elicitation/complete` 通知驱动（R3 补进方法表与 16-elicitation.jsonl）。
     final c = FixtureReplay.replay(<String>['01-connect', '16-elicitation'], untilTag: 'elicitation/complete');
     return BoardPage(
