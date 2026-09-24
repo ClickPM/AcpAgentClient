@@ -88,7 +88,14 @@ If the project path contains non-ASCII characters or spaces, use `scripts/build.
 
 ## Status
 
-Current release: **v1.4.5**, Windows x64. Per-version changes are on [Releases](https://github.com/ClickPM/AcpAgentClient/releases), and development rounds and the progress table are in [`ROUNDS.md`](ROUNDS.md). As of 2026-09-22 the R0–R8 core is done and the project is in agile iterations. Day-to-day bug fixes, UX polish and single-board features follow the iteration process in [`iterations/`](iterations/README.md): one file per iteration, one line per item, one review round. The round process is reserved for major core work.
+Current release: **v1.4.6**, Windows x64. Per-version changes are on [Releases](https://github.com/ClickPM/AcpAgentClient/releases), and development rounds and the progress table are in [`ROUNDS.md`](ROUNDS.md). As of 2026-09-22 the R0–R8 core is done and the project is in agile iterations. Day-to-day bug fixes, UX polish and single-board features follow the iteration process in [`iterations/`](iterations/README.md): one file per iteration, one line per item, one review round. The round process is reserved for major core work.
+
+v1.4.6 fixes two everyday problems:
+
+- Fans spinning up while an agent runs a long command: always-on animations (spinners, the sidebar sweep line) now run on a shared low-rate clock (about 15 ticks/s in the foreground, 4 when the window is inactive, stopped when minimized). In the same scenario, foreground integrated-GPU usage drops from 45.8% to 6.0%.
+- Output that arrives after a turn ends: when an agent keeps going after `end_turn`, the turn's conclusion is no longer folded away with the late content. Late entries appear below the conclusion, and the view follows them while pinned to the bottom.
+
+It also adds this English README. Both fixes passed cursor review with zero findings before merging (iteration-14 and 15 in [`iterations/`](iterations/README.md)).
 
 v1.4.5 closes the last seven BACKLOG P0 items:
 

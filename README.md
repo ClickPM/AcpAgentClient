@@ -88,7 +88,9 @@ powershell -File scripts/package.ps1           # 打包 zip 与安装器 → dis
 
 ## 状态
 
-当前 **v1.4.5**，Windows x64。逐版本的改动见 [Releases](https://github.com/ClickPM/AcpAgentClient/releases)；开发轮次与进度表在 [`ROUNDS.md`](ROUNDS.md)。2026-09-22 起 R0–R8 主体完成、进入敏捷迭代阶段：日常的缺陷修复、交互优化与单画板功能按 [`iterations/`](iterations/README.md) 的迭代流程走（一迭代一文件、一项一行、一轮审查），轮次流程保留给核心大迭代。
+当前 **v1.4.6**，Windows x64。逐版本的改动见 [Releases](https://github.com/ClickPM/AcpAgentClient/releases)；开发轮次与进度表在 [`ROUNDS.md`](ROUNDS.md)。2026-09-22 起 R0–R8 主体完成、进入敏捷迭代阶段：日常的缺陷修复、交互优化与单画板功能按 [`iterations/`](iterations/README.md) 的迭代流程走（一迭代一文件、一项一行、一轮审查），轮次流程保留给核心大迭代。
+
+v1.4.6 修两处日常问题：agent 跑长命令时风扇狂转——转圈与侧栏扫掠线这类常驻动画改挂共用的低频时钟（前台约 15 帧/秒、失焦 4 帧/秒、最小化停表），同一场景前台核显占用 45.8% → 6.0%；agent 收轮之后又接着输出时，原来的结论不再被一并折进折叠块，后到的内容排在结论下面照常显示，贴底时视口跟到最新。另新增英文版 README（[`README.en.md`](README.en.md)）。两项合并前各自经 cursor 审查到 0 条（[`iterations/`](iterations/README.md) 的 iteration-14、15）。
 
 v1.4.5 关掉 BACKLOG P0 余下的七条（本地状态文件的读改写加进程内写锁；终端输出超过 64 K 字符后画面不再冻住、agent 读大文件改为流式、每条连接的终端数设上限；两个 agent 同时在线时权限 / 表单卡不再串、并跑时 Restore 不再让停止键消失、删掉正在跑的会话先 `session/cancel`），P1「流式渲染性能」两条（大 diff 卡线性 diff + 惰性展开体；长回答只重解析尾部、代码块高亮缓存），以及内置 DeepSeek Harness 升到 1.3.2（会话存到 `~/.dsh/acp-sessions`，不再跟着进程工作目录走）。各批合并前各自经 cursor 审查到 0 条（[`iterations/`](iterations/README.md) 的 iteration-10 ～ 13、[`rounds/round-dsh-1.3.2`](rounds/round-dsh-1.3.2/round-dsh-1.3.2.md)）。
 
