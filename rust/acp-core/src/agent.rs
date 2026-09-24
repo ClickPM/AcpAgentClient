@@ -10,7 +10,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::future::Future;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -36,6 +36,12 @@ const DISCONNECT_GRACE: Duration = Duration::from_secs(3);
 const STDERR_SETTLE: Duration = Duration::from_millis(200);
 /// 请求因「传输已关闭」失败时，等退出监视补上退出码与 stderr 尾巴的时间（进程死亡先于 SDK 报错被观察到的窗口）。
 const EXIT_INFO_GRACE: Duration = Duration::from_secs(2);
+
+/// 每条连接同时持有的终端上限（建了、还没 release 的；正在拉起的也算）。超了 `terminal/create` 回错、不拉进程
+/// （BACKLOG P0，2026-09-24）：终端只在 agent release 或连接结束时回收，写得糙的 agent 反复开 `npm run dev` 这类
+/// 跑不完的命令又不释放，子进程 / 伪终端 / 读写线程与留存缓冲会一路攒下去。规范说 agent MUST release，
+/// 正常 agent 同时开着的终端是个位数。
+pub const MAX_TERMINALS_PER_CONNECTION: usize = 64;
 
 pub const METHOD_SESSION_UPDATE: &str = "session/update";
 pub const METHOD_REQUEST_PERMISSION: &str = "session/request_permission";
@@ -100,6 +106,8 @@ pub struct Shared {
     /// 终端表（核心共享）与本连接经 `terminal/create` 建的终端 id（R4）：agent 只许碰自己建的；断开 / 退出时一并释放。
     terminals: Arc<pty::TerminalManager>,
     owned_terminals: Mutex<HashSet<String>>,
+    /// `terminal/create` 已经占了名额、还在拉起的个数（[`MAX_TERMINALS_PER_CONNECTION`]）；只在持 `owned_terminals` 锁时改。
+    creating_terminals: AtomicUsize,
 }
 
 impl std::fmt::Debug for Shared {
@@ -130,6 +138,7 @@ impl Shared {
             has_process,
             terminals,
             owned_terminals: Mutex::new(HashSet::new()),
+            creating_terminals: AtomicUsize::new(0),
         }
     }
 
@@ -523,6 +532,19 @@ impl Shared {
                 Some(p) => p,
                 None => session_cwd,
             };
+            // 先占名额再拉起：超限直接回错，不拉进程（拉起来再杀，命令已经跑了一截）；并发的 create 也越不过上限。
+            {
+                let owned = lock(&shared.owned_terminals);
+                if owned.len() + shared.creating_terminals.load(Ordering::SeqCst) >= MAX_TERMINALS_PER_CONNECTION {
+                    drop(owned);
+                    let _ = responder.respond_with_error(acp::Error::internal_error().data(format!(
+                        "too many terminals: this connection already holds {MAX_TERMINALS_PER_CONNECTION}; \
+                         release finished ones with terminal/release before creating more"
+                    )));
+                    return;
+                }
+                shared.creating_terminals.fetch_add(1, Ordering::SeqCst);
+            }
             let env: Vec<(String, String)> = request.env.into_iter().map(|v| (v.name, v.value)).collect();
             let terminals = shared.terminals.clone();
             let (command, args, limit) = (request.command, request.args, request.output_byte_limit);
@@ -530,19 +552,22 @@ impl Shared {
                 terminals.spawn_shell_command(&command, &args, env, Some(cwd), limit, pty::TerminalSource::Agent)
             })
             .await;
+            // 名额换成登记（或撤掉）与上面的判断在同一把锁下：两者之间别的 create 不会多看出一个空位。
+            // 审查 finding（2026-09-16）：拉起期间这条连接可能已经 finish()（agent 退出 / 断开）并把 owned 集合
+            // 释放过一轮，之后没人再释放这条终端。exit 与登记在同一把锁下判：已退出就当场释放、回错误。
+            let registered = {
+                let mut owned = lock(&shared.owned_terminals);
+                shared.creating_terminals.fetch_sub(1, Ordering::SeqCst);
+                match &spawned {
+                    Ok(Ok(id)) if shared.exit_info().is_none() => {
+                        owned.insert(id.clone());
+                        true
+                    }
+                    _ => false,
+                }
+            };
             match spawned {
                 Ok(Ok(id)) => {
-                    // 审查 finding（2026-09-16）：拉起期间这条连接可能已经 finish()（agent 退出 / 断开）并把 owned 集合
-                    // 释放过一轮，之后没人再释放这条终端。exit 与登记在同一把锁下判：已退出就当场释放、回错误。
-                    let registered = {
-                        let mut owned = lock(&shared.owned_terminals);
-                        if shared.exit_info().is_some() {
-                            false
-                        } else {
-                            owned.insert(id.clone());
-                            true
-                        }
-                    };
                     if !registered {
                         let _ = shared.terminals.release(&id);
                         let _ = responder.respond_with_error(
@@ -616,16 +641,20 @@ impl Shared {
                     return;
                 }
             };
-            let terminals = shared.terminals.clone();
-            match tokio::task::spawn_blocking(move || terminals.wait(&id)).await {
-                Ok(Ok(status)) => {
+            // 不占阻塞池线程（[`wait_terminal_exit`]）；连接先结束就不等了：终端已随连接释放，回应也送不出去。
+            let status = tokio::select! {
+                status = wait_terminal_exit(&shared.terminals, &id) => status,
+                _ = shared.wait_exit() => {
+                    let _ = responder.respond_with_error(acp::Error::internal_error().data("agent connection closed"));
+                    return;
+                }
+            };
+            match status {
+                Ok(status) => {
                     let _ = responder.respond(acp::WaitForTerminalExitResponse::new(exit_status(&status)));
                 }
-                Ok(Err(e)) => {
+                Err(e) => {
                     let _ = responder.respond_with_error(acp::Error::internal_error().data(e.to_string()));
-                }
-                Err(join) => {
-                    let _ = responder.respond_with_error(acp::Error::internal_error().data(join.to_string()));
                 }
             }
         });
@@ -683,6 +712,17 @@ impl Shared {
             }
         });
     }
+}
+
+/// 等终端退出而不占 tokio 阻塞池线程（BACKLOG P0，2026-09-24）：原先 `spawn_blocking` + 条件变量死等，
+/// 跑不完的终端每个钉住一条阻塞线程，而这个池子与文件面板、git、agent 的 fs 回调、`terminal/kill` 共用，攒多了全排队。
+/// 现在由 pty 的等待线程在退出那一下回调送来状态，这边只挂一个 oneshot。
+pub(crate) async fn wait_terminal_exit(terminals: &pty::TerminalManager, id: &str) -> pty::Result<pty::ExitStatus> {
+    let (tx, rx) = oneshot::channel();
+    terminals.on_exit(id, move |status| {
+        let _ = tx.send(status.clone());
+    })?;
+    rx.await.map_err(|_| pty::PtyError::Io(format!("{id}: terminal dropped before it exited")))
 }
 
 /// `pty::ExitStatus` → 协议的 `TerminalExitStatus`。

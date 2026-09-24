@@ -302,9 +302,7 @@ class _AuthTerminalCardState extends State<AuthTerminalCard> {
     super.didUpdateWidget(old);
     if (old.buffer != widget.buffer) {
       old.buffer.removeListener(_sync);
-      _written = 0;
-      _terminal.buffer.clear();
-      _terminal.buffer.setCursor(0, 0);
+      _reset();
       widget.buffer.addListener(_sync);
       _sync();
     }
@@ -316,19 +314,28 @@ class _AuthTerminalCardState extends State<AuthTerminalCard> {
     super.dispose();
   }
 
+  /// 按累计写入量 [TerminalBuffer.total] 写增量，不按 [TerminalBuffer.output] 的长度（写满后长度恒定，
+  /// 同画板 22 / 23 的终端卡，BACKLOG P0，2026-09-24）；没写到的那段已被截掉时清屏重写留存的那段。
   void _sync() {
-    final out = widget.buffer.output;
-    if (out.length < _written) {
-      _terminal.buffer.clear();
-      _terminal.buffer.setCursor(0, 0);
-      _written = 0;
+    final b = widget.buffer;
+    final out = b.output;
+    final start = b.total - out.length;
+    if (_written < start) {
+      _reset();
+      _written = start;
     }
-    if (out.length > _written) {
+    if (b.total > _written) {
       // pty 的输出自带 \r\n；fixtures / 假数据只有 \n 时补上 \r。
-      _terminal.write(out.substring(_written).replaceAll(RegExp(r'(?<!\r)\n'), '\r\n'));
-      _written = out.length;
+      _terminal.write(out.substring(_written - start).replaceAll(RegExp(r'(?<!\r)\n'), '\r\n'));
+      _written = b.total;
     }
     if (mounted) setState(() {});
+  }
+
+  void _reset() {
+    _terminal.buffer.clear();
+    _terminal.buffer.setCursor(0, 0);
+    _written = 0;
   }
 
   @override

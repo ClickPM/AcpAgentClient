@@ -5,7 +5,7 @@
 //! kill 不释放、release 后核心侧缓冲释放而前端自己留存（跟工具卡走）。
 //!
 //! 本 crate 不依赖 tokio：输出与退出经 [`TerminalSink`] 回调从读线程 / 等待线程推出；[`TerminalManager::wait`]
-//! 是阻塞调用，异步侧用 `spawn_blocking` 包。
+//! 是阻塞调用，异步侧等退出用 [`TerminalManager::on_exit`] 的回调，不拿 `spawn_blocking` 包 `wait`。
 
 use std::collections::HashMap;
 use std::fmt;
@@ -200,23 +200,52 @@ pub trait TerminalSink: Send + Sync {
     fn exited(&self, terminal_id: &str, source: TerminalSource, status: &ExitStatus);
 }
 
+/// [`TerminalManager::on_exit`] 登记的回调。
+type ExitCallback = Box<dyn FnOnce(&ExitStatus) + Send>;
+
+#[derive(Default)]
+struct ExitState {
+    status: Option<ExitStatus>,
+    /// 还没退出时登记的回调，退出那一下逐个调一次。
+    callbacks: Vec<ExitCallback>,
+}
+
 #[derive(Default)]
 struct ExitCell {
-    status: Mutex<Option<ExitStatus>>,
+    state: Mutex<ExitState>,
     changed: Condvar,
 }
 
 impl ExitCell {
     fn set(&self, status: ExitStatus) {
-        let mut guard = lock_or_recover(&self.status);
-        *guard = Some(status);
-        self.changed.notify_all();
+        let callbacks = {
+            let mut guard = lock_or_recover(&self.state);
+            guard.status = Some(status.clone());
+            self.changed.notify_all();
+            std::mem::take(&mut guard.callbacks)
+        };
+        // 锁外调：回调里再查这个终端（`try_status` / `output`）不会自己锁死自己。
+        for callback in callbacks {
+            callback(&status);
+        }
+    }
+
+    /// 退出时回调一次；已经退出就当场回调（在调用方线程上）。
+    fn on_exit(&self, callback: ExitCallback) {
+        let mut guard = lock_or_recover(&self.state);
+        match guard.status.clone() {
+            Some(status) => {
+                drop(guard);
+                callback(&status);
+            }
+            None => guard.callbacks.push(callback),
+        }
     }
 
     fn wait(&self) -> ExitStatus {
-        let mut guard = lock_or_recover(&self.status);
+        let mut guard = lock_or_recover(&self.state);
         loop {
-            if let Some(status) = guard.as_ref() {
+            if let Some(status) = guard.status.as_ref() {
                 return status.clone();
             }
             guard = match self.changed.wait(guard) {
@@ -227,15 +256,15 @@ impl ExitCell {
     }
 
     fn get(&self) -> Option<ExitStatus> {
-        lock_or_recover(&self.status).clone()
+        lock_or_recover(&self.state).status.clone()
     }
 
     /// 最多等 `timeout`；到点还没退出返回 None。
     fn wait_timeout(&self, timeout: Duration) -> Option<ExitStatus> {
         let deadline = Instant::now() + timeout;
-        let mut guard = lock_or_recover(&self.status);
+        let mut guard = lock_or_recover(&self.state);
         loop {
-            if let Some(status) = guard.as_ref() {
+            if let Some(status) = guard.status.as_ref() {
                 return Some(status.clone());
             }
             let remaining = deadline.saturating_duration_since(Instant::now());
@@ -529,10 +558,19 @@ impl TerminalManager {
         }
     }
 
-    /// 阻塞等退出。异步侧用 `spawn_blocking`。
+    /// 阻塞等退出。异步侧用 [`TerminalManager::on_exit`]，别拿 `spawn_blocking` 包它：进程跑不完就钉住一条阻塞线程。
     pub fn wait(&self, id: &str) -> Result<ExitStatus> {
         let handle = self.handle(id)?;
         Ok(handle.exit.wait())
+    }
+
+    /// 进程退出时回调一次（已经退出就当场回调），不阻塞：异步侧等退出用它挂一个 oneshot，不占线程
+    /// （BACKLOG P0，2026-09-24：`terminal/wait_for_exit` 原先 `spawn_blocking` + [`TerminalManager::wait`]，
+    /// 跑不完的终端每个钉住一条 tokio 阻塞线程，攒多了文件树 / git / fs 回调 / `terminal/kill` 全排队）。
+    /// 回调在等待线程上跑，与 [`TerminalSink`] 一样必须非阻塞。登记之后 release 掉这个终端也照样回调（release 会先 kill）。
+    pub fn on_exit(&self, id: &str, callback: impl FnOnce(&ExitStatus) + Send + 'static) -> Result<()> {
+        self.handle(id)?.exit.on_exit(Box::new(callback));
+        Ok(())
     }
 
     pub fn try_status(&self, id: &str) -> Result<Option<ExitStatus>> {
@@ -726,6 +764,51 @@ mod tests {
         assert!(out.text.contains("started"));
         assert!(out.exit.is_some());
         manager.release(&id).expect("release");
+    }
+
+    /// 等退出的回调（BACKLOG P0，2026-09-24）：跑着时登记的在退出那一下回调、只回一次；release（先 kill）之后照样回调；
+    /// 退出之后登记的当场回调；不认识的 id 报错。整个过程不占调用方线程。
+    #[test]
+    fn on_exit_fires_once_on_exit_and_immediately_after() {
+        let manager = TerminalManager::new(Arc::new(Recorder::default()));
+        let mut spec = if cfg!(windows) {
+            let mut s = SpawnSpec::new("cmd.exe");
+            s.args = vec!["/c".into(), "ping -n 30 127.0.0.1 > nul".into()];
+            s
+        } else {
+            let mut s = SpawnSpec::new("sh");
+            s.args = vec!["-c".into(), "sleep 30".into()];
+            s
+        };
+        spec.cwd = Some(std::env::temp_dir());
+        let id = manager.spawn(spec, TerminalSource::Agent).expect("spawn");
+        let (tx, rx) = std::sync::mpsc::channel::<ExitStatus>();
+        for _ in 0..2 {
+            let tx = tx.clone();
+            manager
+                .on_exit(&id, move |s| {
+                    let _ = tx.send(s.clone());
+                })
+                .expect("on_exit");
+        }
+        assert!(rx.try_recv().is_err(), "still running: no callback yet");
+        manager.release(&id).expect("release kills it");
+        for _ in 0..2 {
+            let status = rx.recv_timeout(KILL_CONFIRM).expect("callback after release");
+            assert_ne!(status.exit_code, Some(0), "{status:?}");
+        }
+        assert!(rx.recv_timeout(Duration::from_millis(200)).is_err(), "each callback fires once");
+
+        let quick = manager.spawn(echo_spec(), TerminalSource::Agent).expect("spawn");
+        let status = manager.wait(&quick).expect("wait");
+        manager
+            .on_exit(&quick, move |s| {
+                let _ = tx.send(s.clone());
+            })
+            .expect("on_exit after exit");
+        assert_eq!(rx.try_recv().expect("fired inline"), status);
+        manager.release(&quick).expect("release");
+        assert!(matches!(manager.on_exit(&quick, |_| {}), Err(PtyError::UnknownTerminal(_))));
     }
 
     /// `terminal/create` 的 shell 拼装路径（规则 9：Windows 上经 PowerShell，带引号与中文的参数、含空格与中文的 cwd）。

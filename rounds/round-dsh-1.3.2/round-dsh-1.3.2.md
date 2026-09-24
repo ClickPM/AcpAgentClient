@@ -2,7 +2,7 @@
 
 <!-- 改钉版本按 iterations/README.md § 0 走轮次；所有者 2026-09-24 当面指示开工，不另设裁定门。 -->
 
-> 状态：已完成（待所有者决定合并时机）
+> 状态：已完成，2026-09-24 快进合入 `main`（所有者指示；未构建，所有者指定）
 
 ## 目标
 
@@ -56,6 +56,7 @@
 - 审查范围与基准提交：`main...HEAD`（`7dcdfbe...2a4d12f`，8 个文件）；产物 `.claude/reviews/20260924-091955-review.out.md`
 - findings 处理：0 条。审查器核对了钉版本三处一致（pins commit = 上游 HEAD `e39fd48`、`DSH_PACKAGE` `@1.3.2`、research.md 与上游 `cordis.yml` 的写法），并确认 `rust/` 与 `lib/` 里没有把会话根目录绑在进程 cwd 或 `./.sessions` 上的遗留
 - 结论：PASS（无采纳整改，不复审）
+- 合并：所有者 2026-09-24 指示合入、不构建。先把 `main@4f1c057`（iteration-10 / 11）合进分支：冲突只有 `rounds/BACKLOG.md` 与 `rounds/BACKLOG-CLOSED.md` 两份登记文档，代码全部自动合并、与本轮改的 `builtin.rs` / `command.rs` 不重叠 → **无代码改动不复审**；BACKLOG 以 main 为底删掉 dsh 那条连同变空的「数据一致性」小节，逐小节重数（P0 3 / P1 3 / P2 0，合计 6），CLOSED 两边都留、本条排在 main 的四行之后；合并后 validate 全绿再快进 `main`
 - 上游 dsh-acp-interactive 的改动不在本仓库审查范围：它有自己的门禁（验收 1），并经 CI / Release / Registry auth check 三条 workflow 通过
 
 ## 失败处理
