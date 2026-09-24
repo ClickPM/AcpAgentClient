@@ -2,7 +2,7 @@
 
 <!-- 保存为 iterations/iteration-NN.md。一个迭代一个文件、一项一行；流程正本见 iterations/README.md，不在这里复述。 -->
 
-> 状态：待合并（审查 0 条，待所有者定合并时机与 Impeller 取舍）　起止：2026-09-24 –　基线：`main` = `ec0678a`
+> 状态：已合并（未构建，不发版；所有者 2026-09-24 指示）；Impeller 取舍待裁定　起止：2026-09-24 –　基线：`main` = `ec0678a`
 
 所有者 2026-09-24 报障：agent 跑长命令（十几分钟）期间风扇一直狂转、发热。实测是安装版 v1.4.5 自己在烧：
 agent 进程 CPU 为 0、键鼠 30 秒没动，应用仍占 AMD 780M 核显 3D 引擎 ~72%、CPU ~1.4 核（dwm 与 System 的 copy 引擎在同一块卡上再陪 ~14% / ~17%）。
@@ -13,8 +13,8 @@ iteration-02 第 7 项给 `Spinner` 与侧栏扫掠线加的 `RepaintBoundary` �
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | fix | 常驻动画（`Spinner`、侧栏扫掠线）不再逐帧跑：改挂共用低频时钟 `AmbientClock`（`lib/ui/shell/motion.dart`），一个定时器、一跳只出一帧，按窗口状态分档（前台 `Motion.ambientInterval` ≈ 15 跳/秒、失焦 `Motion.ambientIntervalInactive` 4 跳/秒、最小化停表），没有订阅者时定时器不存在；相位按帧时间戳取模；`TickerMode` 关掉的子树不订阅。新单测 `test/ui/ambient_clock_test.dart`；`validate.ps1` 加静态门「`lib/` 里不许 `.repeat(`」 | 所有者报障 2026-09-24 | `claude/ambient-motion-throttle`（`c00f442`） | validate 全绿（569 项 flutter test）；`build.ps1` release 构建 + 实机实测（见备注） | 1 轮：**0**（cursor `grok-4.7-high-fast`，`.claude/reviews/20260924-131415-review.out.md`） | 待合并 |
-| 2 | tidy | 实测：同一场景（fake-agent `--hang-on-prompt`，隔离 `APPDATA`）改前 / 改后的核显与 CPU；外加 Impeller 开 / 关对照（只测不改） | 同上（第二档 A） | 同上（只动本文） | 两轮实测，数据一致 | —（登记文档） | 待合并 |
+| 1 | fix | 常驻动画（`Spinner`、侧栏扫掠线）不再逐帧跑：改挂共用低频时钟 `AmbientClock`（`lib/ui/shell/motion.dart`），一个定时器、一跳只出一帧，按窗口状态分档（前台 `Motion.ambientInterval` ≈ 15 跳/秒、失焦 `Motion.ambientIntervalInactive` 4 跳/秒、最小化停表），没有订阅者时定时器不存在；相位按帧时间戳取模；`TickerMode` 关掉的子树不订阅。新单测 `test/ui/ambient_clock_test.dart`；`validate.ps1` 加静态门「`lib/` 里不许 `.repeat(`」 | 所有者报障 2026-09-24 | `claude/ambient-motion-throttle`（`c00f442` + 回填）→ `main` 快进 | validate 全绿（569 项 flutter test）；`build.ps1` release 构建 + 实机实测（见备注） | 1 轮：**0**（cursor `grok-4.7-high-fast`，`.claude/reviews/20260924-131415-review.out.md`） | 已合并 |
+| 2 | tidy | 实测：同一场景（fake-agent `--hang-on-prompt`，隔离 `APPDATA`）改前 / 改后的核显与 CPU；外加 Impeller 开 / 关对照（只测不改） | 同上（第二档 A） | 同上（只动本文） | 两轮实测，数据一致 | —（登记文档） | 已合并 |
 
 ## 收口
 
