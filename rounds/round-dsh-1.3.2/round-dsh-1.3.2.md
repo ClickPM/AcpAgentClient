@@ -2,7 +2,7 @@
 
 <!-- 改钉版本按 iterations/README.md § 0 走轮次；所有者 2026-09-24 当面指示开工，不另设裁定门。 -->
 
-> 状态：进行中
+> 状态：已完成（待所有者决定合并时机）
 
 ## 目标
 
@@ -51,11 +51,12 @@
 
 ## 代码审查
 
-- 审查方式：
-- 审查器与模型：
-- 审查范围与基准提交：
-- findings 处理：
-- 结论：
+- 审查方式：`cursor-review.ps1 -Wait`（默认档，1 轮）
+- 审查器与模型：cursor CLI `grok-4.7-high-fast`
+- 审查范围与基准提交：`main...HEAD`（`7dcdfbe...2a4d12f`，8 个文件）；产物 `.claude/reviews/20260924-091955-review.out.md`
+- findings 处理：0 条。审查器核对了钉版本三处一致（pins commit = 上游 HEAD `e39fd48`、`DSH_PACKAGE` `@1.3.2`、research.md 与上游 `cordis.yml` 的写法），并确认 `rust/` 与 `lib/` 里没有把会话根目录绑在进程 cwd 或 `./.sessions` 上的遗留
+- 结论：PASS（无采纳整改，不复审）
+- 上游 dsh-acp-interactive 的改动不在本仓库审查范围：它有自己的门禁（验收 1），并经 CI / Release / Registry auth check 三条 workflow 通过
 
 ## 失败处理
 
