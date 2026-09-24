@@ -1,5 +1,7 @@
 # AcpAgent Client
 
+中文 | [English](README.en.md)
+
 > 一个好看的多 agent 桌面客户端：所有 agent 都经 [Agent Client Protocol（ACP）](https://agentclientprotocol.com/) 接入，官方 registry 里的 agent 装上即用。
 
 Claude Agent、Codex、Cursor、pi、DeepSeek Harness 共用同一个界面 —— 同一套转录卡片、同一个文件与终端面板、同一套权限与认证流程；Zed 的内置 agent 也能用（以随包的 sidecar 形式接入）。Flutter 壳 + Rust 核心（进程内 cdylib，经 flutter_rust_bridge v2 桥接），界面按 Claude Design 设计稿逐画板实现。
