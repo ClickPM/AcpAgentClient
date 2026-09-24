@@ -2,7 +2,7 @@
 
 <!-- 保存为 iterations/iteration-NN.md。一个迭代一个文件、一项一行；流程正本见 iterations/README.md，不在这里复述。 -->
 
-> 状态：进行中　起止：2026-09-24 –　基线：`main` = `7dcdfbe`
+> 状态：待合并（审查已收口，待构建与手测）　起止：2026-09-24 –　基线：`main` = `7dcdfbe`
 
 BACKLOG P0「请求与会话路由」三条一起做（下文「第 N 条」按那一小节原来的顺序数），所有者 2026-09-24 按推荐方案开工。
 三条都只改前端（Dart），核心与 `docs/design.md` § 3 的事件 / 命令语义零 diff（§ 0 判据：走迭代）。
@@ -13,9 +13,9 @@ BACKLOG P0「请求与会话路由」三条一起做（下文「第 N 条」按�
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | fix | 两个 agent 同时在线时权限卡 / 表单卡串到另一个 agent 上：`PendingQueue` 的键从裸 `requestId` 改成 `(agentId, requestId)`，`byRequestId` / `answer*` / `markOpened` / `cancelRequest` / `withdraw` / `completeElicitation` 都带上 agentId；`forgetSession` 只删仍指向被删条目的键（同一个 agent 重连后同号的新卡不被摘掉）；同一个键又来一条时旧的挂起项标 withdrawn；`TurnController` 的回应发给发请求的那个 agent | BACKLOG P0「请求与会话路由」第 1 条 | `claude/p0-session-routing-optimization-89bc64` | validate 全绿（540 项 flutter test）；未构建、未手测 | | 待审查 |
-| 2 | fix | 会话并跑时对正在跑的会话点 Restore，停止键消失、这一轮停不下来：`TurnController` 的在途轮从全局单槽改成按 sessionId 的 Map，Restore / Regenerate 只等本会话那一轮；`SessionStore.endTurn` 带上发起时 `startTurn` 开出的那一轮，已不是当前轮就不动（返回 false，调用方不点绿点） | BACKLOG P0「请求与会话路由」第 2 条 | 同上 | 同上 | | 待审查 |
-| 3 | fix | 删掉一条正在跑的会话（agent 没声明 delete 时）agent 那边没人收尾：`deleteSession` 把收尾从「删 agent 侧」里拆出来——会话还挂在活着的连接上时，在跑或挂着请求就先 `session/cancel`（失败不挡删除），再 `_releaseSessionRequests` 回掉 elicitation；没挂在连接上的不往连接发 | BACKLOG P0「请求与会话路由」第 3 条 | 同上 | 同上 | | 待审查 |
+| 1 | fix | 两个 agent 同时在线时权限卡 / 表单卡串到另一个 agent 上：`PendingQueue` 的键从裸 `requestId` 改成 `(agentId, requestId)`，`byRequestId` / `answer*` / `markOpened` / `cancelRequest` / `withdraw` / `completeElicitation` 都带上 agentId；`forgetSession` 只删仍指向被删条目的键（同一个 agent 重连后同号的新卡不被摘掉）；同一个键又来一条时旧的挂起项标 withdrawn；`TurnController` 的回应发给发请求的那个 agent | BACKLOG P0「请求与会话路由」第 1 条 | `claude/p0-session-routing-optimization-89bc64` | validate 全绿（540 项 flutter test）；未构建、未手测 | cursor 1 轮（`7dcdfbe..7aca3bb`）：**0 条** | 待合并 |
+| 2 | fix | 会话并跑时对正在跑的会话点 Restore，停止键消失、这一轮停不下来：`TurnController` 的在途轮从全局单槽改成按 sessionId 的 Map，Restore / Regenerate 只等本会话那一轮；`SessionStore.endTurn` 带上发起时 `startTurn` 开出的那一轮，已不是当前轮就不动（返回 false，调用方不点绿点） | BACKLOG P0「请求与会话路由」第 2 条 | 同上 | 同上 | 同上 | 待合并 |
+| 3 | fix | 删掉一条正在跑的会话（agent 没声明 delete 时）agent 那边没人收尾：`deleteSession` 把收尾从「删 agent 侧」里拆出来——会话还挂在活着的连接上时，在跑或挂着请求就先 `session/cancel`（失败不挡删除），再 `_releaseSessionRequests` 回掉 elicitation；没挂在连接上的不往连接发 | BACKLOG P0「请求与会话路由」第 3 条 | 同上 | 同上 | 同上 | 待合并 |
 
 ## 收口
 
