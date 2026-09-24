@@ -20,10 +20,10 @@
 | **P1 看得见的粗糙** | 3 | 用户看得见的不一致、缺等待态、行为不符直觉。能用，膈应；攒批做。 |
 | **P2 功能缺口** | 1 | 该有没有的能力。**全部需所有者裁定才能进轮次**，多数还要先改设计稿。 |
 | P3 设计稿欠账 | — | **已整体释放**到 `design/DIVERGENCE.md`，见下面的占位小节 |
-| P4 平台与分发 | — | **已清空**（2026-09-23）：跨平台暂不做、构建链两条关闭、sidecar 两条移到 `BACKLOG-ZED.md`，见下面的占位小节；以后平台与分发的新问题照常记这一档 |
+| **P4 平台与分发** | 1 | 安装、打包、跨平台、构建链这类问题（2026-09-23 曾整档清空：跨平台暂不做、构建链两条关闭、sidecar 两条移到 `BACKLOG-ZED.md`，见下面该节首段） |
 | **P5 内部工程与验收** | 1 | 测试、行数门、验收自动化这类用户无感的问题（2026-09-23 曾整档清空，16 条收在 iteration-04，见下面该节首段） |
 | X 卡在上游 / 协议 | — | **已撤档**：不是本项目的问题不进本表（所有者裁定 2026-09-23），见下面的占位小节 |
-| | **5** | |
+| | **6** | |
 
 **新增条目**：挑一档追在该档末尾，照同样的三行格式写。不新开档位；一条只进一档。
 **只收本项目自己的问题**：问题出在上游（agent、zed、xterm 等依赖）或协议本身的，不进本表（所有者裁定 2026-09-23，X 档因此撤掉）；其中实现因此与画板对不上的，照规则 3 记 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)。
@@ -66,11 +66,15 @@
 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)，按「实现已超越画板 / 画板画错 / 实现有意少做」
 分三节记着，那几处以实现为准、PNG 不再是它们的验收基准。档位留空占位，不重排编号。
 
-## P4 · 平台与分发 —— 已清空
+## P4 · 平台与分发（1）
 
 所有者裁定 2026-09-23，这一档的 7 条都已移出，档位留空占位，不重排编号：「跨平台」2 条关闭（目前没有 mac 设备，
 macOS / Linux 暂不做）；「构建链」里中文路径兜底与 Rust 版本漂移 2 条关闭；sidecar 体积 1 条关闭（R8 已给出两个数字）；
 sidecar 的另 2 条（languages crate、`0-dev` 目录名）移到 [`BACKLOG-ZED.md`](BACKLOG-ZED.md)。以后平台与分发的新问题照常追在这里。
+
+- [ ] **安装器换到需要管理员权限的目录会装不上**（待裁定）
+  - **产品**：安装向导里保持默认目录（`%LOCALAPPDATA%\Programs\AcpAgentClient`）能装，改到别的目录（所有者报的是 D 盘的 Program 类目录）会提示不能安装；向导只让选目录，不告诉用户为什么不行、也不给提权的出路。
+  - **技术**：`packaging/windows/AcpAgentClient.iss` 设了 `PrivilegesRequired=lowest`（R8 裁定 2026-09-20：per-user、免 UAC、不签名），安装器全程以普通用户身份跑、从不提权，所以选中的目录普通用户写不进去就失败（Inno Setup 报 `ErrorCreatingDir`：`Setup was unable to create the directory …`）；`C:\Program Files` 必然如此，其他盘看那个目录的 ACL。本机**未复现**：1.4.6 安装包静默装到 `D:\Program Files\AcpAgentClient` 退出码 0（本机该目录给了 Authenticated Users「修改」，非提权进程可写），随后已静默卸载干净；所有者看到的弹窗原文与完整路径待补，拿到后先确认是不是 `ErrorCreatingDir`。最小修法：`[Setup]` 加一行 `PrivilegesRequiredOverridesAllowed=dialog`，向导开头多一页「只为我安装 / 为所有用户安装」，前者与现在一致，后者走 UAC 后可装进 Program Files 类目录；代价是改了 R8「免 UAC」的口径，且不签名时 per-machine 安装会被 SmartScreen 拦得更凶，所以要所有者裁定 (2026-09-24)
 
 ## P5 · 内部工程与验收（1）
 
