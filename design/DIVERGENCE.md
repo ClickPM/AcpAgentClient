@@ -70,6 +70,7 @@
 26. **画板 27 Other 文本框的占位文案**：画板写「留空表示用上面的选项」，这句不在 elicitation 的 `requestedSchema` 里 → 规则 2 不自造文案，widget 里没有这个占位。（R2, 2026-09-15）
 27. **画板 80 没有「返回工作台」的控件**：画板上没画 → 实现从画板 34 的「打开流量面板」进、点侧栏任一会话返回。（R3, 2026-09-15）
 28. **画板 07 § 2.9 终端搜索的「当前命中」**：画板要「命中 = warning.soft 底 + strong 字，**当前**命中 = warning 底 + canvas 字」→ `xterm` 4.0.0 的 `TerminalTheme` 只有一个 `searchHitForeground`，两种命中共用，实现取了前者（`t.Neutral.strong`），深色下当前命中是 #f0f0f4 压在 #d8a83c 上、对比不够；终端搜索目前没有入口，看不见。库的限制，要一致只能给 xterm 提 PR 或自己画命中层（原 BACKLOG X 档，所有者裁定 2026-09-23上游问题不进 BACKLOG 后移到这里）。（画板 07 深色模式落地时, 2026-09-20）
+35. **常驻动画的帧率（画板 06 A 组扫掠线 `sweep.cycle 1400ms · linear · infinite`、画板 17 / 18 / 23 / 24 / 26 / 28 / 29 / 31 / 33 的 spinner「持续旋转」）**：画板写的是连续匀速 → 实现按共用低频时钟步进：前台约 15 帧/秒（`Motion.ambientInterval`）、窗口失焦 4 帧/秒（`Motion.ambientIntervalInactive`）、最小化停；周期与路径不变，只是不再逐帧。理由是 Windows 上逐帧 = 整窗按显示器刷新率重画（嵌入层没有局部重绘），agent 跑长命令时一只 16px 的 spinner 让 2880×1800 @ 120Hz 的核显占到 72%、风扇常转（所有者报障）。（iteration-14, 2026-09-24）
 
 ## 附 · 设计源自身的待核项
 

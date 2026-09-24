@@ -14,7 +14,7 @@
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | fix | 收轮后才到的条目不进折叠块：`foldOfTurn` 只按 `at` 不晚于 `TurnEntry.endedAt` 的条目算折叠与「最后一段连续 agent 文本」，收轮后的条目排在结论后面照常显示、不计入摘要行；回合页脚仍在整轮最后（所有者裁定） | 所有者报障 2026-09-24 | `claude/post-end-fold`（`92e0208`）→ `main` 快进 | validate 全绿（`92e0208`，569 项 flutter test）；未构建、未手测 | 1 轮：**0** | 已合并 |
+| 1 | fix | 收轮后才到的条目不进折叠块：`foldOfTurn` 只按 `at` 不晚于 `TurnEntry.endedAt` 的条目算折叠与「最后一段连续 agent 文本」，收轮后的条目排在结论后面照常显示、不计入摘要行；回合页脚仍在整轮最后（所有者裁定） | 所有者报障 2026-09-24 | `claude/post-end-fold`（`92e0208`）→ 分支上合 `main`（`672ed30`）后 `main` 快进 | validate 全绿（`92e0208`，569 项 flutter test）；未构建、未手测 | 1 轮：**0** | 已合并 |
 | 2 | fix | 贴着底部时收轮自动折叠不定锚、交给跟随：改前锚点把结论钉回原位，新出的页脚落在视口外 36px，超过 `_atBottomSlack`（32）把跟随关掉，收轮后再来的内容都长在视口下面 | 同上（分析时回放发现） | 同上 | 同上 | 同上 | 已合并 |
 
 ## 收口
@@ -51,8 +51,11 @@
 
 ### 合并（所有者 2026-09-24 指示合入 `main`，先不构建、不发版）
 
-- 开工到合并 `main` 没动（仍是基线 `ec0678a`），`main` 直接快进，无冲突。全量 validate 跑在 `92e0208`（代码的最后一次改动），之后只改了这份文件与 `iterations/README.md`，合并前对最终的树补跑 `validate -Quick` 全绿。
-- 编号合并时再核：`main` 上最大仍是 iteration-13 / DIVERGENCE 34，`claude/ambient-motion-throttle` 占着 14 / 35，本文 15 / 36 不变。那条分支后合时要在 `iterations/README.md` 与 `design/DIVERGENCE.md` 各解一处登记冲突（两边各加一行，都留、按编号排）。
+- 要合时 `main` 已从基线 `ec0678a` 前进到 `672ed30`（iteration-14「常驻动画走共用低频时钟」，3 个提交）。先把 `main` 合进本分支：
+  只冲突 `iterations/README.md`（清单两边各加一行，都留、按编号排）；`design/DIVERGENCE.md` 自动合并（35 在 C 段、36 在 A 段）。
+  代码文件两边没有交集（iteration-14 动的是 `motion.dart` / `sidebar.dart` / `icons.dart` / `tokens.dart` / `validate.ps1`），自动合并；按「解冲突没改代码就不复审」不再发审查。
+  合并后全量 validate 全绿（575 项 flutter test），再快进 `main`。
+- 编号合并时再核：iteration-14 / DIVERGENCE 35 已在 `main` 上，本文 15 / 36 不变。
 
 ### 代码审查
 
