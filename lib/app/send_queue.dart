@@ -83,11 +83,14 @@ class SendQueue extends ChangeNotifier {
 
   int nextId() => _nextId++;
 
-  /// 入队一条新消息。入队是积极操作，若此前处于 Paused 态则自动恢复为 AutoProcess（与 Zed 一致）。
+  /// 入队一条新消息。入队是积极操作，若此前处于 Paused 态则自动恢复为 AutoProcess；
+  /// 若处于 AbsorbingCancel（正在等待插队取消的在途回合结束），保持 AbsorbingCancel 不覆盖，防止取消收轮时双发。
   QueueEntry enqueue(List<JsonMap> content) {
     final entry = QueueEntry(id: nextId(), content: content);
     _entries.add(entry);
-    _processingState = ProcessingState.autoProcess;
+    if (_processingState == ProcessingState.paused) {
+      _processingState = ProcessingState.autoProcess;
+    }
     _canFastTrack = true;
     notifyListeners();
     return entry;

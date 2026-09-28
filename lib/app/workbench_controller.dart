@@ -65,6 +65,8 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     for (final child in <ChangeNotifier>[shell, workspace, agents, auth, composer, turn, session, toasts]) {
       child.addListener(notifyListeners);
     }
+    session.onClearQueue = turn.clearQueue;
+    session.onClearAgentQueues = turn.clearQueuesForAgent;
     // 错误的前台出口：谁的 `lastError` 写进一句，都落成一条 toast（BACKLOG「失败没有出口」）。
     for (final source in <GuardedNotifier>[this, shell, workspace, agents, auth, composer, turn, session, files, terminals]) {
       source.reportError = toasts.error;
@@ -206,6 +208,10 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
       b.on(CoreEvent.clientRequest).listen((e) => _enqueue(e, (json) => sessions.applyClientRequestEnvelope(json))),
       b.on(CoreEvent.agentState).listen((e) => _enqueue(e, (json) {
             sessions.applyAgentState(json);
+            if (json['state'] == 'exited') {
+              final aid = json['agentId'] as String?;
+              if (aid != null) turn.clearQueuesForAgent(aid);
+            }
             _onAgentReconnected(json);
           })),
       b.on(CoreEvent.terminalOutput).listen((e) => _enqueue(e, _onTerminalOutput)),

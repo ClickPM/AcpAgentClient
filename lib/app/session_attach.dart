@@ -156,7 +156,8 @@ mixin SessionAttachment on ChangeNotifier, GuardedNotifier {
     _detached.remove(id);
   }
 
-  bool get sessionClosed => sessionId != null && _closedSessions.contains(sessionId);
+  bool isSessionClosed(String? id) => id != null && _closedSessions.contains(id);
+  bool get sessionClosed => isSessionClosed(sessionId);
 
   // ---------------------------------------------------------------- 四态
 

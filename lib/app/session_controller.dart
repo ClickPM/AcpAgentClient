@@ -70,6 +70,10 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
   /// `session/new` 回 `-32000`：进认证页（画板 52），成功后自动重试这个 cwd 的新会话。
   final Future<void> Function(String agent, String cwd) _openAuth;
 
+  /// 发送队列清除钩子（裁定 c：关闭 / 删除 / 重载时清空队列）。
+  void Function(String sessionId)? onClearQueue;
+  void Function(String agentId)? onClearAgentQueues;
+
   // ---- 本地态（协议之外）
   List<SidebarSession> sidebarSessions = const <SidebarSession>[];
   String? agentId;
@@ -252,6 +256,7 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
 
   /// 卸载了这个 agent：正在用它就放下（`AgentsState.remove` 里那一步）。
   void dropAgent(String id) {
+    onClearAgentQueues?.call(id);
     if (agentId == id) {
       agentId = null;
       sessionId = null;
@@ -500,7 +505,10 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
     final s = sessions.session(sid, agentId: agent);
     // id 与内存里某条撞了（fake-agent 不带 `--sessions` 时总回同一个 id；关掉后再新建也是这条路）：agent 侧这是一条
     // 空会话，旧转录不能留在它上面——留着的话下一条 prompt 会接在一段 agent 侧没有的历史后面（cursor 审查 high，1.4.4）。
-    if (existing != null) s.resetForReplay();
+    if (existing != null) {
+      onClearQueue?.call(sid);
+      s.resetForReplay();
+    }
     s
       ..cwd = cwd
       ..applyNewSession(result);
@@ -521,6 +529,7 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
     final b = bridge;
     final cwd = workspace.project?.path;
     if (id == null || b == null || cwd == null) return;
+    onClearAgentQueues?.call(id);
     // 重入守卫：等待期里会话头的重载按钮仍可点（`canReload` 全程为真，`IgnorePointer` 只包住 `_body()`），
     // 连点两下会让两条 disconnect → reconnect → load 序列交叠，且先返回的那条提前把等待态收掉
     // （审查 finding P2，2026-09-18）。判据换成 [waitingForAgent] 之后，「新会话正在开」时点重载
@@ -609,6 +618,7 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
     final id = sessionId;
     final agent = agentId;
     if (b == null || id == null || agent == null) return;
+    onClearQueue?.call(id);
     await guard(() async {
       await _releaseSessionRequests(b, agent, id);
       await b.sessionClose(agent, id);
@@ -807,6 +817,7 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
   Future<void> deleteSession(String id) async {
     confirmingDeleteId = null;
     hidePopover(deleteAnchor);
+    onClearQueue?.call(id);
     final b = bridge;
     if (b == null) return;
     final owner = ownerOf(id);

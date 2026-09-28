@@ -657,6 +657,9 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
       ..enqueue(<JsonMap>[
         <String, dynamic>{'type': 'text', 'text': '测试消息 1'},
       ])
+      ..enqueue(<JsonMap>[
+        <String, dynamic>{'type': 'text', 'text': '测试消息 2'},
+      ])
       ..sendNow(0, isGenerating: true);
     final qExpanded = SendQueue()
       ..enqueue(<JsonMap>[

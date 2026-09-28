@@ -90,28 +90,33 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     // 真实原因写进会话控制器的 `lastError`（认证 / 缺 Node / 没选项目目录）并安排好认证页，这里再写一句会盖掉它。
     final s = session.store;
     if (s == null) return;
+    final inFlight = _isTurnActive(s);
     // 快照要取在开会话之后：拉起进程 + `initialize` + `session/new` 要几百毫秒到数秒，
     // 这期间新打的字与新加的附件也得发出去，否则下面的 clear 会把它们静默抹掉（审查 finding P2，2026-09-18）。
     final blocks = _promptBlocks(composer.editor.text);
     if (blocks.isEmpty) {
       // 空输入框按 Enter：尝试 fast-track 插队队首（Zed Send Now Enter，裁定 g）。
+      // 只有在空闲、或回合仍在线上跑时才处理；若在 endTurn 到 _onTurnStopped 的空隙中，不重入起 prompt。
       final sid = session.sessionId;
       if (sid != null) {
         final q = queueFor(sid);
-        if (q.canFastTrack) {
+        if (q.canFastTrack && (s.isRunning || !inFlight)) {
           await fastTrack(sid);
         }
       }
       return;
     }
-    // 回合进行中：将内容块收进当前会话的本地发送队列（裁定 1 / e / h），线上不重叠发第二个 prompt。
-    if (s.isRunning) {
+    // 回合进行中（含 endTurn 到 finally 自动出队之间的在途空隙）：
+    // 将内容块收进当前会话的本地发送队列（裁定 1 / e / h），线上不重叠发第二个 prompt。
+    if (inFlight) {
       composer.clearForSend();
       queueFor(s.sessionId).enqueue(blocks);
       touch();
       return;
     }
     composer.clearForSend();
+    // 空闲时主动发送新消息：解除 Paused 态恢复自动出队（对齐 Zed，审查 P2）。
+    queueFor(s.sessionId).resume();
     // 又开了一轮：上一轮留下的绿点立即撤（画板 06 D「运行中 · 绿点：无（有则立即撤）」）。
     session.clearUnread(s.sessionId);
     final started = s.startTurn(<ContentBlockWire>[for (final b in blocks) ContentBlockWire(b)]);
@@ -154,6 +159,8 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
   /// （审查 finding high，2026-09-15）。2026-09-18 起会话能并跑，以前的全局单槽谁后发谁占：
   /// Restore 等到的可能是别的会话那一轮，也可能已被清空（iteration-12，BACKLOG P0「请求与会话路由」第 2 条）。
   final Map<String, Future<void>> _turnsInFlight = <String, Future<void>>{};
+
+  bool _isTurnActive(SessionStore s) => s.isRunning || _turnsInFlight.containsKey(s.sessionId);
 
   /// [started] 是 `startTurn` 开出来的那一轮：收轮只落在它身上（[SessionStore.endTurn] 的 `turn`）。
   Future<void> _runTurn(CoreCommands b, String id, SessionStore s, TurnEntry started, List<JsonMap> blocks) async {
@@ -199,6 +206,10 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
   /// 一轮结束（正常结束、被取消、或报错）：收束队列状态机（裁定 a / d）。
   Future<void> _onTurnStopped(String sid, {required bool failed}) async {
     final queue = queueFor(sid);
+    if (session.isSessionClosed(sid) || session.attachOf(sid) != SessionAttach.attached) {
+      queue.clear();
+      return;
+    }
     if (failed) {
       // 裁定 d：回合以错误结束按 Paused 处理：不自动发，等用户再次操作
       queue.pause();
@@ -216,7 +227,8 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     final b = bridge;
     final id = session.registeredOwner(sid) ?? session.agentId;
     if (s == null || b == null || id == null) return;
-    if (session.sessionClosed) {
+    // 审查 high：按正在出队的这条会话自身的关闭态判断，不要读前台当前选中的 sessionClosed。
+    if (session.isSessionClosed(sid) || session.attachOf(sid) != SessionAttach.attached) {
       queueFor(sid).clear();
       return;
     }
@@ -232,13 +244,13 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     final b = bridge;
     final id = session.registeredOwner(sid) ?? session.agentId;
     if (s == null || b == null || id == null) return;
-    if (_blockedByClose()) return;
+    if (session.isSessionClosed(sid)) return;
     final queue = queueFor(sid);
-    final isGen = s.isRunning;
+    final isGen = _isTurnActive(s);
     final entry = queue.tryFastTrack(isGenerating: isGen);
     if (entry == null) return;
     if (isGen) {
-      await cancel(userInitiated: false);
+      if (s.isRunning) await cancel(userInitiated: false);
       await _turnsInFlight[sid];
     }
     await _sendQueuedEntry(sid, entry);
@@ -250,13 +262,13 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     final b = bridge;
     final id = session.registeredOwner(sid) ?? session.agentId;
     if (s == null || b == null || id == null) return;
-    if (_blockedByClose()) return;
+    if (session.isSessionClosed(sid)) return;
     final queue = queueFor(sid);
-    final isGen = s.isRunning;
+    final isGen = _isTurnActive(s);
     final entry = queue.sendNow(entryId, isGenerating: isGen);
     if (entry == null) return;
     if (isGen) {
-      await cancel(userInitiated: false);
+      if (s.isRunning) await cancel(userInitiated: false);
       await _turnsInFlight[sid];
     }
     await _sendQueuedEntry(sid, entry);
@@ -267,7 +279,7 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     final queue = queueFor(sid);
     queue.resume();
     final s = session.sessions.maybe(sid) ?? session.store;
-    if (s != null && !s.isRunning) {
+    if (s != null && !_isTurnActive(s)) {
       final next = queue.onTurnStopped();
       if (next != null) {
         unawaited(_sendQueuedEntry(sid, next));
@@ -297,6 +309,16 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
   /// 清空本会话的发送队列。
   void clearQueue(String sid) {
     _queues[sid]?.clear();
+    touch();
+  }
+
+  /// 清空某个 agent 下全部会话的发送队列（裁定 c：agent 断开 / 重载 / 卸载时）。
+  void clearQueuesForAgent(String agentId) {
+    for (final entry in _queues.entries) {
+      if (session.registeredOwner(entry.key) == agentId) {
+        entry.value.clear();
+      }
+    }
     touch();
   }
 

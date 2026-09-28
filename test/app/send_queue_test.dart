@@ -67,7 +67,7 @@ void main() {
       expect(q.processingState, ProcessingState.autoProcess);
     });
 
-    test('Send Now 在回合进行中 → AbsorbingCancel，吞掉那次 Stopped 不双发', () {
+    test('Send Now 在回合进行中 → AbsorbingCancel，等待期间再入队不覆盖 AbsorbingCancel，吞掉那次 Stopped 不双发', () {
       final q = SendQueue();
       final e1 = q.enqueue(<JsonMap>[<String, dynamic>{'type': 'text', 'text': 'm1'}]);
       final e2 = q.enqueue(<JsonMap>[<String, dynamic>{'type': 'text', 'text': 'm2'}]);
@@ -79,16 +79,23 @@ void main() {
       expect(q.isAbsorbingCancel, isTrue);
       expect(q.length, 1); // 只剩 m1
 
+      // 等待取消期间，用户又打字入队了一条 m3：不能把 absorbingCancel 覆盖掉
+      q.enqueue(<JsonMap>[<String, dynamic>{'type': 'text', 'text': 'm3'}]);
+      expect(q.processingState, ProcessingState.absorbingCancel);
+      expect(q.length, 2);
+
       // 吞掉当前正在执行的回合被 cancel 时的 Stopped 事件
       final absorbed = q.onTurnStopped();
       expect(absorbed, isNull);
-      // 恢复为 autoProcess，未双发 m1
+      // 恢复为 autoProcess，未双发
       expect(q.processingState, ProcessingState.autoProcess);
-      expect(q.length, 1);
+      expect(q.length, 2);
 
-      // 后续回合结束时正常弹出 m1
-      final next = q.onTurnStopped();
-      expect(next?.id, e1.id);
+      // 后续回合结束时正常依次弹出 m1, m3
+      final next1 = q.onTurnStopped();
+      expect(next1?.id, e1.id);
+      final next2 = q.onTurnStopped();
+      expect(next2?.plainText, 'm3');
     });
 
     test('fast-track 插队：生成中转入 AbsorbingCancel；空闲时不进 AbsorbingCancel', () {

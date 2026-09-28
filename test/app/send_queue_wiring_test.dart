@@ -51,6 +51,15 @@ class _QueueTurnCore extends FakeCore {
     return result;
   }
 
+  Completer<void>? indexSaveGate;
+
+  @override
+  Future<JsonMap> sessionIndexUpsert(JsonMap entry) async {
+    final gate = indexSaveGate;
+    if (gate != null) await gate.future;
+    return super.sessionIndexUpsert(entry);
+  }
+
   void finish(String sessionId, [String stopReason = 'end_turn']) {
     turns[sessionId]!.firstWhere((t) => !t.isCompleted).complete(<String, dynamic>{'stopReason': stopReason});
   }
@@ -204,24 +213,94 @@ void main() {
     expect(core.callLog.last, 'prompt:$sid:q-after-error');
   });
 
-  test('验收 3 & 裁定 a：多会话独立队列，A 排队时切到 B 发消息不串队，A 后台收轮后照常自动出队', () async {
+  test('前台会话关闭不误清后台会话队列；后台收轮后正常自动出队', () async {
     final core = _QueueTurnCore();
     final c = _controller(core);
     final sidA = await _startRunning(c, 'A-1');
 
     c.composer.editor.text = 'A-queued';
     await c.turn.send();
-    expect(c.turn.queueFor(sidA).length, 1);
 
-    // 切到新会话 B
+    // 切到会话 B 并关闭会话 B
     final sidB = await _startRunning(c, 'B-1');
-    expect(sidB, isNot(sidA));
-    expect(c.turn.currentQueue!.isEmpty, isTrue); // A 的队列不串到 B
+    core.finish(sidB);
+    await _settle();
+    await c.session.closeSession();
+    expect(c.session.sessionClosed, isTrue);
 
-    // A 在后台收轮 → 自动发出 A-queued
+    // 此时前台是已关闭的 B，后台 A 正常收轮：A 的队列不被误清，且自动发出 A-queued
     core.finish(sidA);
     await _settle();
     expect(core.callLog.last, 'prompt:$sidA:A-queued');
-    expect(c.turn.queueFor(sidA).isEmpty, isTrue);
+  });
+
+  test('closeSession 与 deleteSession 清除会话队列', () async {
+    final core = _QueueTurnCore();
+    final c = _controller(core);
+    final sid = await _startRunning(c, 'm-1');
+
+    c.composer.editor.text = 'm-queued';
+    await c.turn.send();
+    expect(c.turn.queueFor(sid).length, 1);
+
+    await c.session.closeSession();
+    expect(c.turn.queueFor(sid).isEmpty, isTrue);
+  });
+
+  test('Paused 后空闲时再发新消息，会恢复队列自动出队', () async {
+    final core = _QueueTurnCore();
+    final c = _controller(core);
+    final sid = await _startRunning(c, 'turn-1');
+
+    c.composer.editor.text = 'queued-1';
+    await c.turn.send();
+
+    // 手动停止
+    await c.turn.cancel();
+    core.finish(sid, 'cancelled');
+    await _settle();
+    expect(c.turn.queueFor(sid).isPaused, isTrue);
+
+    // 空闲时主动再发一条新消息
+    c.composer.editor.text = 'new-active-msg';
+    unawaited(c.turn.send());
+    await _settle();
+    expect(core.prompts.length, 2);
+
+    // 新回合结束收轮：已恢复 autoProcess，自动弹出 queued-1 并发出
+    core.finish(sid);
+    await _settle();
+    expect(core.prompts.length, 3);
+    expect(core.callLog.last, 'prompt:$sid:queued-1');
+
+    core.finish(sid);
+    await _settle();
+  });
+
+  test('Finding 1 验证：endTurn 到 _onTurnStopped 空隙中按 Enter 仍作为入队处理，不双发 prompt', () async {
+    final core = _QueueTurnCore();
+    final c = _controller(core);
+    final sid = await _startRunning(c, 'turn-1');
+
+    // 挂住 sessionIndexUpsert
+    core.indexSaveGate = Completer<void>();
+
+    // 让 prompt 返回（触发 s.endTurn，此时 isRunning == false，但仍处于 _turnsInFlight）
+    core.finish(sid);
+    await _settle();
+    expect(c.session.isRunning, isFalse);
+
+    // 在此空隙中输入并发送：应作为入队处理，不能 startTurn 双发
+    c.composer.editor.text = 'gap-msg';
+    await c.turn.send();
+    expect(c.turn.queueFor(sid).length, 1);
+    expect(core.prompts.length, 1);
+
+    // 放行 indexSave，_onTurnStopped 在 finally 自动出队发送 gap-msg
+    core.indexSaveGate!.complete();
+    await _settle();
+
+    expect(core.prompts.length, 2);
+    expect(core.callLog.last, 'prompt:$sid:gap-msg');
   });
 }
