@@ -411,4 +411,29 @@ void main() {
     expect(core.prompts.length, 3);
     expect(core.callLog.last, 'prompt:$sid:m1');
   });
+
+  test('Round 5 P2 验证：Send Now 取消在途期间若会话被关闭，等待结束后清空不插回已关闭会话', () async {
+    final core = _QueueTurnCore();
+    final c = _controller(core);
+    final sid = await _startRunning(c, 'turn-1');
+
+    c.composer.editor.text = 'm1';
+    await c.turn.send();
+
+    final m1Id = c.turn.currentQueue!.entries[0].id;
+    // 触发 Send Now m1
+    unawaited(c.turn.sendNow(sid, m1Id));
+    await _settle();
+
+    // 在途期间点关闭会话
+    await c.session.closeSession();
+    expect(c.session.isSessionClosed(sid), isTrue);
+
+    // 放行 turn-1
+    core.finish(sid, 'cancelled');
+    await _settle();
+
+    // m1 没有被插回已关闭的会话，队列保持清空
+    expect(c.turn.queueFor(sid).isEmpty, isTrue);
+  });
 }
