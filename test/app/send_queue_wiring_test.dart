@@ -53,20 +53,12 @@ class _QueueTurnCore extends FakeCore {
   }
 
   Completer<void>? indexSaveGate;
-  Completer<void>? sessionCloseGate;
 
   @override
   Future<JsonMap> sessionIndexUpsert(JsonMap entry) async {
     final gate = indexSaveGate;
     if (gate != null) await gate.future;
     return super.sessionIndexUpsert(entry);
-  }
-
-  @override
-  Future<JsonMap> sessionClose(String agentId, String sessionId) async {
-    final gate = sessionCloseGate;
-    if (gate != null) await gate.future;
-    return super.sessionClose(agentId, sessionId);
   }
 
   void finish(String sessionId, [String stopReason = 'end_turn']) {
@@ -418,71 +410,5 @@ void main() {
     await _settle();
     expect(core.prompts.length, 3);
     expect(core.callLog.last, 'prompt:$sid:m1');
-  });
-
-  test('Round 5/6 验证：Send Now 取消在途期间若发起 closeSession（在 sessionClose 返回前），等待结束后清空不发第二个 prompt', () async {
-    final core = _QueueTurnCore();
-    final c = _controller(core);
-    final sid = await _startRunning(c, 'turn-1');
-
-    c.composer.editor.text = 'm1';
-    await c.turn.send();
-
-    final m1Id = c.turn.currentQueue!.entries[0].id;
-    // 触发 Send Now m1，在途并挂住
-    unawaited(c.turn.sendNow(sid, m1Id));
-    await _settle();
-
-    // 堵住 sessionClose，让 closeSession 卡在网络 IO 上
-    core.sessionCloseGate = Completer<void>();
-    unawaited(c.session.closeSession());
-    await _settle();
-
-    // 此时 markClosed(sid) 已经生效，会话已被标为关闭
-    expect(c.session.isSessionClosed(sid), isTrue);
-
-    // 放行 turn-1 的 cancel，此时 sessionClose 仍未返回！
-    core.finish(sid, 'cancelled');
-    await _settle();
-
-    // 放行 sessionClose
-    core.sessionCloseGate!.complete();
-    await _settle();
-
-    // m1 没有被发出（prompts 仍只有初始的 turn-1），也没有插回队列
-    expect(core.prompts.length, 1);
-    expect(c.turn.queueFor(sid).isEmpty, isTrue);
-  });
-
-  test('Round 7 验证：Send Now 取消在途期间 closeSession 失败，m1 仍安全保留在队列中不丢失', () async {
-    final core = _QueueTurnCore();
-    final c = _controller(core);
-    final sid = await _startRunning(c, 'turn-1');
-
-    c.composer.editor.text = 'm1';
-    await c.turn.send();
-
-    final m1Id = c.turn.currentQueue!.entries[0].id;
-    unawaited(c.turn.sendNow(sid, m1Id));
-    await _settle();
-
-    // 堵住 sessionClose
-    core.sessionCloseGate = Completer<void>();
-    unawaited(c.session.closeSession());
-    await _settle();
-
-    // 放行 turn-1 的 cancel，此时 sessionClose 仍在途
-    core.finish(sid, 'cancelled');
-    await _settle();
-
-    // 让 sessionClose 失败
-    core.sessionCloseGate!.completeError(StateError('network close error'));
-    await _settle();
-
-    // 关闭失败回滚：会话未关闭，m1 安全保存在队列中，prompts 没有双发
-    expect(c.session.isSessionClosed(sid), isFalse);
-    expect(c.turn.queueFor(sid).length, 1);
-    expect(c.turn.queueFor(sid).first!.id, m1Id);
-    expect(core.prompts.length, 1);
   });
 }

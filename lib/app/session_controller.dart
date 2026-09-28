@@ -618,18 +618,11 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
     final id = sessionId;
     final agent = agentId;
     if (b == null || id == null || agent == null) return;
-    final wasClosed = isSessionClosed(id);
-    markClosing(id);
+    onClearQueue?.call(id);
     await guard(() async {
-      try {
-        await _releaseSessionRequests(b, agent, id);
-        await b.sessionClose(agent, id);
-        markClosed(id);
-        onClearQueue?.call(id);
-      } catch (e) {
-        if (!wasClosed) unmarkClosed(id);
-        rethrow;
-      }
+      await _releaseSessionRequests(b, agent, id);
+      await b.sessionClose(agent, id);
+      markClosed(id);
     });
     touch();
   }
