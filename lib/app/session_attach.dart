@@ -148,6 +148,12 @@ mixin SessionAttachment on ChangeNotifier, GuardedNotifier {
     _closedSessions.add(id);
   }
 
+  /// Close 失败时回滚关闭标记。
+  @protected
+  void unmarkClosed(String id) {
+    _closedSessions.remove(id);
+  }
+
   /// 会话删掉了：挂载相关的记录一并清掉。
   @protected
   void forgetAttachment(String id) {

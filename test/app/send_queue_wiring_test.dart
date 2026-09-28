@@ -53,12 +53,20 @@ class _QueueTurnCore extends FakeCore {
   }
 
   Completer<void>? indexSaveGate;
+  Completer<void>? sessionCloseGate;
 
   @override
   Future<JsonMap> sessionIndexUpsert(JsonMap entry) async {
     final gate = indexSaveGate;
     if (gate != null) await gate.future;
     return super.sessionIndexUpsert(entry);
+  }
+
+  @override
+  Future<JsonMap> sessionClose(String agentId, String sessionId) async {
+    final gate = sessionCloseGate;
+    if (gate != null) await gate.future;
+    return super.sessionClose(agentId, sessionId);
   }
 
   void finish(String sessionId, [String stopReason = 'end_turn']) {
@@ -412,7 +420,7 @@ void main() {
     expect(core.callLog.last, 'prompt:$sid:m1');
   });
 
-  test('Round 5 P2 验证：Send Now 取消在途期间若会话被关闭，等待结束后清空不插回已关闭会话', () async {
+  test('Round 5/6 验证：Send Now 取消在途期间若发起 closeSession（在 sessionClose 返回前），等待结束后清空不发第二个 prompt', () async {
     final core = _QueueTurnCore();
     final c = _controller(core);
     final sid = await _startRunning(c, 'turn-1');
@@ -421,19 +429,28 @@ void main() {
     await c.turn.send();
 
     final m1Id = c.turn.currentQueue!.entries[0].id;
-    // 触发 Send Now m1
+    // 触发 Send Now m1，在途并挂住
     unawaited(c.turn.sendNow(sid, m1Id));
     await _settle();
 
-    // 在途期间点关闭会话
-    await c.session.closeSession();
+    // 堵住 sessionClose，让 closeSession 卡在网络 IO 上
+    core.sessionCloseGate = Completer<void>();
+    unawaited(c.session.closeSession());
+    await _settle();
+
+    // 此时 markClosed(sid) 已经生效，会话已被标为关闭
     expect(c.session.isSessionClosed(sid), isTrue);
 
-    // 放行 turn-1
+    // 放行 turn-1 的 cancel，此时 sessionClose 仍未返回！
     core.finish(sid, 'cancelled');
     await _settle();
 
-    // m1 没有被插回已关闭的会话，队列保持清空
+    // 放行 sessionClose
+    core.sessionCloseGate!.complete();
+    await _settle();
+
+    // m1 没有被发出（prompts 仍只有初始的 turn-1），也没有插回队列
+    expect(core.prompts.length, 1);
     expect(c.turn.queueFor(sid).isEmpty, isTrue);
   });
 }
