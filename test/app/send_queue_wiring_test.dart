@@ -303,4 +303,42 @@ void main() {
     expect(core.prompts.length, 2);
     expect(core.callLog.last, 'prompt:$sid:gap-msg');
   });
+
+  test('Round 2 Finding 1 验证：Send Now 取消在途期间，重复 Send Now / fastTrack 直接被挡住，不双发', () async {
+    final core = _QueueTurnCore();
+    final c = _controller(core);
+    final sid = await _startRunning(c, 'turn-1');
+
+    c.composer.editor.text = 'm1';
+    await c.turn.send();
+    c.composer.editor.text = 'm2';
+    await c.turn.send();
+
+    final m1Id = c.turn.currentQueue!.entries[0].id;
+    final m2Id = c.turn.currentQueue!.entries[1].id;
+
+    // 触发 m1 Send Now
+    final f1 = c.turn.sendNow(sid, m1Id);
+    await _settle();
+    expect(c.turn.currentQueue!.isAbsorbingCancel, isTrue);
+
+    // 在途期间再次快速点 m2 Send Now 或触发 fastTrack
+    await c.turn.sendNow(sid, m2Id);
+    await c.turn.fastTrack(sid);
+    // m2 仍在队列中，未被取出
+    expect(c.turn.currentQueue!.length, 1);
+    expect(c.turn.currentQueue!.first!.id, m2Id);
+
+    // 放行 cancelled 的 turn-1
+    core.finish(sid, 'cancelled');
+    await _settle();
+    unawaited(f1);
+
+    // 只有 m1 发出
+    expect(core.callLog, <String>[
+      'prompt:$sid:turn-1',
+      'cancel:$sid',
+      'prompt:$sid:m1',
+    ]);
+  });
 }

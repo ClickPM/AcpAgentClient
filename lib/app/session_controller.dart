@@ -730,9 +730,9 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
   /// （审查 finding high，2026-09-15）。先后由 [SessionIndex] 本地记的发消息时间兜住：收轮那次 [saveIndex]
   /// 不靠这条命令回没回来，本地记的那份时间总在。写不动只记日志不挡发送——索引是可再生缓存
   /// （`rust/settings/src/index.rs`），发送才是正事。
-  Future<void> stampPromptSent() async {
+  Future<void> stampPromptSent({SessionStore? target}) async {
     try {
-      await saveIndex(promptSent: true);
+      await saveIndex(target: target, promptSent: true);
     } catch (e) {
       debugPrint('[workbench] session index: ${describeError(e)}');
     }

@@ -576,7 +576,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
             queue: c.turn.currentQueue!,
             onSendNow: (id) => c.turn.sendNow(c.session.sessionId!, id),
             onEdit: (id) => c.turn.editQueued(c.session.sessionId!, id),
-            onRemove: (id) => c.turn.currentQueue!.remove(id),
+            onRemove: (id) => c.turn.removeQueued(c.session.sessionId!, id),
             onClearAll: () => c.turn.clearQueue(c.session.sessionId!),
             onResume: () => c.turn.resumeQueue(c.session.sessionId!),
           ),

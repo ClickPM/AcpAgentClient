@@ -232,9 +232,10 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
       queueFor(sid).clear();
       return;
     }
+    if (_isTurnActive(s)) return;
     session.clearUnread(sid);
     final started = s.startTurn(<ContentBlockWire>[for (final x in entry.content) ContentBlockWire(x)]);
-    unawaited(session.stampPromptSent());
+    unawaited(session.stampPromptSent(target: s));
     await _runTurn(b, id, s, started, entry.content);
   }
 
@@ -246,6 +247,7 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     if (s == null || b == null || id == null) return;
     if (session.isSessionClosed(sid)) return;
     final queue = queueFor(sid);
+    if (queue.isAbsorbingCancel) return;
     final isGen = _isTurnActive(s);
     final entry = queue.tryFastTrack(isGenerating: isGen);
     if (entry == null) return;
@@ -264,6 +266,7 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     if (s == null || b == null || id == null) return;
     if (session.isSessionClosed(sid)) return;
     final queue = queueFor(sid);
+    if (queue.isAbsorbingCancel) return;
     final isGen = _isTurnActive(s);
     final entry = queue.sendNow(entryId, isGenerating: isGen);
     if (entry == null) return;
@@ -294,6 +297,12 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     final entry = queue.remove(id);
     if (entry == null) return;
     composer.restoreFromQueue(entry.content);
+    touch();
+  }
+
+  /// 移除某条排队消息（带通知，避免清空后 docks 残留空隙，审查 P3）。
+  void removeQueued(String sid, int id) {
+    queueFor(sid).remove(id);
     touch();
   }
 
@@ -398,9 +407,12 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     if (!await _ensureAttached() || !s.entries.contains(message)) return;
     // 先把本会话在途的那一轮收干净（发 cancel 并等它的 session/prompt 真正返回），再截断重发。
     // 只等本会话的：别的会话并跑着的长任务与这里无关。
-    if (s.isRunning) {
-      await cancel();
+    final inFlight = _isTurnActive(s);
+    if (inFlight) {
+      queueFor(s.sessionId).pause();
+      if (s.isRunning) await cancel(userInitiated: false);
       await _turnsInFlight[s.sessionId];
+      queueFor(s.sessionId).resume();
     }
     final result = s.restoreTo(message.id);
     if (result == null) return;

@@ -237,8 +237,9 @@ class SendQueueDock extends StatelessWidget {
                 kind: ButtonKind.primary,
                 icon: AcpIcons.play,
                 kbd: '⏎',
+                enabled: !queue.isAbsorbingCancel,
                 height: t.Controls.compact,
-                onTap: onSendNow == null ? null : () => onSendNow!(entry.id),
+                onTap: (onSendNow == null || queue.isAbsorbingCancel) ? null : () => onSendNow!(entry.id),
               ),
               const SizedBox(width: t.Spacing.s4),
               IconButtonGhost(
