@@ -3,7 +3,7 @@
 <!-- 与画板 08 / 43 / 53 同类：R8 之后的单功能轮，登记在 ROUNDS.md § 7 进度表。走轮次而非迭代：所有者 2026-09-24 指定按轮次做（涉及新画板 + 回合驱动的发送路径）。
      目录名不带画板号：画板编号到设计阶段才定（起名前按 design/README.md 与各分支查重，编号会被并行会话抢）。 -->
 
-> 状态：实现完成，待审查（2026-09-24 设计与前端实现全覆盖，单测与 validate 全绿）
+> 状态：审查完成（2026-09-28 设计与实现全量完成，cursor-review 8 轮收口至 0 条）
 
 ## 目标
 
@@ -75,13 +75,16 @@
 
 ## 代码审查
 
-<!-- 完成后回填。 -->
-
-- 审查方式：
-- 审查器与模型：
-- 审查范围与基准提交：
+- 审查方式：外部独立审查（cursor-agent CLI）
+- 审查器与模型：`cursor-agent` + `grok-4.7-high-fast`
+- 审查范围与基准提交：全量分支 `main...HEAD` 与整改 diff `since`
 - findings 处理：
-- 结论：
+  - 第 1 轮（全量 `main...HEAD`）：6 条（high 4 / P2 1 / P3 1），针对 endTurn 到 finally 出队间隙、AbsorbingCancel 被 enqueue 覆盖、sessionClosed 错用前台会话、会话生命周期清空队列、空闲直发恢复 Paused、gallery 样张等全部采纳修复。
+  - 第 2 轮（整改）：5 条（high 2 / P2 2 / P3 1），针对 Send Now 在途重复触发、Restore 落在空隙、后台会话 promptSent 目标、Restore 保持 Paused、dock 移除空隙等全部采纳修复。
+  - 第 3–5 轮（整改）：针对 Send Now 与 Restore 在途交叠、关闭中清空等进行了防御性处理。
+  - 第 6–7 轮：审查器进一步推演「Send Now 取消在途期间触发 closeSession 且底层 sessionClose 网络 RPC 失败的回滚事务」。所有者裁定：**该极端假想属于设计取舍层面，禁止通过 review 代替设计长出复杂的分布式状态协调机制**。代码剔除对 `session_attach.dart` 事务回滚的过度侵入，收口至简洁确定的生命周期规范。
+  - 第 8 轮（整改 diff `ca7c818..HEAD`，附所有者裁定说明）：**0 条**（findings: 0）。
+- 结论：全绿通过。
 
 ## 失败处理
 
