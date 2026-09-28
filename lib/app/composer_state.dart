@@ -113,6 +113,29 @@ class ComposerState extends ChangeNotifier with GuardedNotifier {
     _clearInlineMenu();
   }
 
+  /// 队列中的一条挪回输入框编辑（裁定 f：主输入框已有字时以空行拼在后面，附件芯片一并还原）。
+  void restoreFromQueue(List<JsonMap> blocks) {
+    final textParts = <String>[];
+    for (final b in blocks) {
+      if (b['type'] == 'text' && b['text'] is String) {
+        textParts.add(b['text'] as String);
+      } else {
+        pendingBlocks.add(Map<String, dynamic>.from(b));
+      }
+    }
+    final textToAdd = textParts.join('\n');
+    if (textToAdd.isNotEmpty) {
+      if (editor.text.trim().isEmpty) {
+        editor.text = textToAdd;
+      } else {
+        editor.text = '${editor.text}\n\n$textToAdd';
+      }
+      editor.selection = TextSelection.collapsed(offset: editor.text.length);
+    }
+    focus.requestFocus();
+    touch();
+  }
+
   // ---------------------------------------------------------------- 输入框的 @ 与 /
 
   /// 输入框正文变化：按最后一个 token 决定要不要出内联菜单（画板 42）。

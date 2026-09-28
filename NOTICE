@@ -31,6 +31,7 @@ commit; the reuse is by copy-then-rewrite or by transcription, not by linking.
   rust/registry/src/download.rs       <- crates/http_client/src/github_download.rs
   rust/registry/src/node.rs           <- crates/node_runtime/src/node_runtime.rs
   rust/acp-core/assets/zed-icon.svg   <- assets/icons/ai_zed.svg
+  lib/app/send_queue.dart             <- crates/agent_ui/src/conversation_view/message_queue.rs
 
   sidecar/zed-agent-acp/.cargo/config.toml <- .cargo/config.toml
   sidecar/zed-agent-acp/build.rs           <- crates/eval_cli/build.rs

@@ -14,6 +14,7 @@ import '../projection/wire.dart';
 import 'composer_state.dart';
 import 'core_bridge.dart';
 import 'guarded.dart';
+import 'send_queue.dart';
 import 'session_attach.dart';
 import 'session_controller.dart';
 
@@ -42,11 +43,17 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
   /// 当前会话还没挂在连接上时（现开一条 / 挂回来），在途期间挡住重复点发送。
   bool _startingSession = false;
 
+  /// 各会话的本地发送队列（画板 44；对齐 Zed message_queue.rs 三态机）。
+  final Map<String, SendQueue> _queues = <String, SendQueue>{};
+
+  SendQueue queueFor(String sessionId) => _queues.putIfAbsent(sessionId, SendQueue.new);
+
+  SendQueue? get currentQueue => session.sessionId == null ? null : queueFor(session.sessionId!);
+
   Future<void> send() async {
     final b = bridge;
     final id = session.agentId;
     if (b == null || id == null) return;
-    if (composer.editor.text.trim().isEmpty && composer.pendingBlocks.isEmpty) return; // 空输入不开会话
     if (_blockedByClose()) return;
     // 按当前会话相对它 agent 当前那条连接的状态分流（iteration-09，BACKLOG P0「会话身份与生命周期」）。
     // 以前只看有没有转录（`store`）：载不回转录的会话被另开一条静默顶掉，换过进程的会话直接发、撞 `-32602`。
@@ -86,7 +93,24 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     // 快照要取在开会话之后：拉起进程 + `initialize` + `session/new` 要几百毫秒到数秒，
     // 这期间新打的字与新加的附件也得发出去，否则下面的 clear 会把它们静默抹掉（审查 finding P2，2026-09-18）。
     final blocks = _promptBlocks(composer.editor.text);
-    if (blocks.isEmpty) return;
+    if (blocks.isEmpty) {
+      // 空输入框按 Enter：尝试 fast-track 插队队首（Zed Send Now Enter，裁定 g）。
+      final sid = session.sessionId;
+      if (sid != null) {
+        final q = queueFor(sid);
+        if (q.canFastTrack) {
+          await fastTrack(sid);
+        }
+      }
+      return;
+    }
+    // 回合进行中：将内容块收进当前会话的本地发送队列（裁定 1 / e / h），线上不重叠发第二个 prompt。
+    if (s.isRunning) {
+      composer.clearForSend();
+      queueFor(s.sessionId).enqueue(blocks);
+      touch();
+      return;
+    }
     composer.clearForSend();
     // 又开了一轮：上一轮留下的绿点立即撤（画板 06 D「运行中 · 绿点：无（有则立即撤）」）。
     session.clearUnread(s.sessionId);
@@ -134,6 +158,7 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
   /// [started] 是 `startTurn` 开出来的那一轮：收轮只落在它身上（[SessionStore.endTurn] 的 `turn`）。
   Future<void> _runTurn(CoreCommands b, String id, SessionStore s, TurnEntry started, List<JsonMap> blocks) async {
     final sid = s.sessionId;
+    var turnFailed = false;
     final turn = () async {
       try {
         final result = await b.sessionPrompt(id, sid, blocks);
@@ -149,6 +174,7 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
         // 写的是**刚跑完这一轮的那条**（`s`）而不是当前选中的：会话可以并跑，后台那条跑完时前台往往是另一条。
         await session.saveIndex(target: s);
       } catch (e) {
+        turnFailed = true;
         // 失败也必须收轮：不收的话 `currentTurn` 一直挂着，会话头永远转 spinner、发送位永远是停止键，
         // 之后的 Restore 还会拿新连接去操作一个 agent 侧已不存在的 sessionId（审查第 2 轮 finding P2，2026-09-15）。
         // `stopReason` 留空：连接断了本来就没有协议给的结束值，不编一个（规则 2）；原因走 `TurnEntry.error`，
@@ -165,7 +191,112 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
       await turn;
     } finally {
       _turnsInFlight.removeWhere((key, inFlight) => key == sid && identical(inFlight, turn));
+      await _onTurnStopped(sid, failed: turnFailed);
     }
+    touch();
+  }
+
+  /// 一轮结束（正常结束、被取消、或报错）：收束队列状态机（裁定 a / d）。
+  Future<void> _onTurnStopped(String sid, {required bool failed}) async {
+    final queue = queueFor(sid);
+    if (failed) {
+      // 裁定 d：回合以错误结束按 Paused 处理：不自动发，等用户再次操作
+      queue.pause();
+      return;
+    }
+    final next = queue.onTurnStopped();
+    if (next != null) {
+      unawaited(_sendQueuedEntry(sid, next));
+    }
+  }
+
+  /// 自动发送队列中的下一条消息（裁定 a：后台会话回合结束照样自动出队）。
+  Future<void> _sendQueuedEntry(String sid, QueueEntry entry) async {
+    final s = session.sessions.maybe(sid) ?? session.store;
+    final b = bridge;
+    final id = session.registeredOwner(sid) ?? session.agentId;
+    if (s == null || b == null || id == null) return;
+    if (session.sessionClosed) {
+      queueFor(sid).clear();
+      return;
+    }
+    session.clearUnread(sid);
+    final started = s.startTurn(<ContentBlockWire>[for (final x in entry.content) ContentBlockWire(x)]);
+    unawaited(session.stampPromptSent());
+    await _runTurn(b, id, s, started, entry.content);
+  }
+
+  /// fast-track 插队（Zed Send Now Enter，裁定 g）：空输入框按 Enter 时发出队首。
+  Future<void> fastTrack(String sid) async {
+    final s = session.sessions.maybe(sid) ?? session.store;
+    final b = bridge;
+    final id = session.registeredOwner(sid) ?? session.agentId;
+    if (s == null || b == null || id == null) return;
+    if (_blockedByClose()) return;
+    final queue = queueFor(sid);
+    final isGen = s.isRunning;
+    final entry = queue.tryFastTrack(isGenerating: isGen);
+    if (entry == null) return;
+    if (isGen) {
+      await cancel(userInitiated: false);
+      await _turnsInFlight[sid];
+    }
+    await _sendQueuedEntry(sid, entry);
+  }
+
+  /// Send Now（裁定 e）：打断当前回合立即发出这一条。
+  Future<void> sendNow(String sid, int entryId) async {
+    final s = session.sessions.maybe(sid) ?? session.store;
+    final b = bridge;
+    final id = session.registeredOwner(sid) ?? session.agentId;
+    if (s == null || b == null || id == null) return;
+    if (_blockedByClose()) return;
+    final queue = queueFor(sid);
+    final isGen = s.isRunning;
+    final entry = queue.sendNow(entryId, isGenerating: isGen);
+    if (entry == null) return;
+    if (isGen) {
+      await cancel(userInitiated: false);
+      await _turnsInFlight[sid];
+    }
+    await _sendQueuedEntry(sid, entry);
+  }
+
+  /// 恢复出队（裁定 d）：从 Paused 恢复为 AutoProcess，若当前空闲则立即发送队首。
+  void resumeQueue(String sid) {
+    final queue = queueFor(sid);
+    queue.resume();
+    final s = session.sessions.maybe(sid) ?? session.store;
+    if (s != null && !s.isRunning) {
+      final next = queue.onTurnStopped();
+      if (next != null) {
+        unawaited(_sendQueuedEntry(sid, next));
+      }
+    }
+    touch();
+  }
+
+  /// 编辑排队消息（裁定 f）：挪回主输入框编辑，附件一并还原。
+  void editQueued(String sid, int id) {
+    final queue = queueFor(sid);
+    final entry = queue.remove(id);
+    if (entry == null) return;
+    composer.restoreFromQueue(entry.content);
+    touch();
+  }
+
+  /// 空框按 ↑：把队尾挪回输入框（裁定 g）。
+  void restoreLastQueued(String sid) {
+    final queue = queueFor(sid);
+    final entry = queue.popBack();
+    if (entry == null) return;
+    composer.restoreFromQueue(entry.content);
+    touch();
+  }
+
+  /// 清空本会话的发送队列。
+  void clearQueue(String sid) {
+    _queues[sid]?.clear();
     touch();
   }
 
@@ -178,7 +309,7 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     ];
   }
 
-  Future<void> cancel() async {
+  Future<void> cancel({bool userInitiated = true}) async {
     final s = session.store;
     final b = bridge;
     final id = session.agentId;
@@ -186,6 +317,9 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     // 停止方块也是往会话发命令的入口：`closeSession` 里的 `s.cancel()` 不收轮（`isRunning` 还是 true），
     // 作曲器禁用态下 Stop 仍会渲染，点下去就把 `session/cancel` 打到已经释放掉的会话上（审查第 3 轮 P2）。
     if (_blockedByClose()) return;
+    if (userInitiated) {
+      queueFor(s.sessionId).pause();
+    }
     await guard(() async {
       // 权限请求由核心自动回 cancelled（api.rs 的契约），前端再回会撞 unknown_request；
       // **elicitation 核心不管**，不回 agent 会一直等（审查 finding high，2026-09-15）。

@@ -7,6 +7,7 @@ import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
 
+import '../../app/send_queue.dart';
 import '../../app/transcript_folds.dart';
 import '../../projection/entries.dart';
 import '../../projection/fixture_line.dart';
@@ -26,6 +27,7 @@ import '../../ui/shell/app_shell.dart';
 import '../../ui/shell/composer.dart';
 import '../../ui/shell/right_panel.dart';
 import '../../ui/shell/running_badge.dart';
+import '../../ui/shell/send_queue_dock.dart';
 import '../../ui/shell/shell_common.dart';
 import '../../ui/shell/sidebar.dart';
 import '../../ui/shell/session_header.dart';
@@ -220,6 +222,12 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
           usage: s.usage,
           options: boardComposerOptions(s),
           docks: <Widget>[
+            SendQueueDock(
+              queue: SendQueue()
+                ..enqueue(<JsonMap>[
+                  <String, dynamic>{'type': 'text', 'text': '测试排队消息 1'},
+                ]),
+            ),
             ?AwaitingDock.forPending(
               first,
               toolCall: permission?.toolCallId == null ? null : s.toolCalls[permission!.toolCallId!],
@@ -631,6 +639,60 @@ final List<GalleryBoard> shellBoards = <GalleryBoard>[
       footnote: '轮按顶层用户消息切（不按 TurnEntry —— session/load 重放回来的历史里一条边界都没有）；'
           'A 行取该轮最后一条 agent 文本的首行，去掉行首 Markdown 标记；没有 A 行的轮只画编号行。'
           '点一行转录区 0ms 跳到该条，目标块顶边对齐转录区顶部内边距 16。',
+    );
+  }),
+  pageBoard('44-send-queue', '本地发送队列', () {
+    final qAuto = SendQueue()
+      ..enqueue(<JsonMap>[
+        <String, dynamic>{'type': 'text', 'text': '请继续实现 lib/app/send_queue.dart'},
+        <String, dynamic>{'type': 'text', 'text': '写完单测后跑一下 scripts/validate.ps1'},
+      ]);
+    final qPaused = SendQueue()
+      ..enqueue(<JsonMap>[
+        <String, dynamic>{'type': 'text', 'text': '测试消息 1'},
+        <String, dynamic>{'type': 'text', 'text': '测试消息 2'},
+      ])
+      ..pause();
+    final qAbsorbing = SendQueue()
+      ..enqueue(<JsonMap>[
+        <String, dynamic>{'type': 'text', 'text': '测试消息 1'},
+      ])
+      ..sendNow(0, isGenerating: true);
+    final qExpanded = SendQueue()
+      ..enqueue(<JsonMap>[
+        <String, dynamic>{
+          'type': 'text',
+          'text': '请继续实现 lib/app/send_queue.dart，确保三态迁移与 Zed 原版 message_queue.rs 完全对齐。'
+        },
+        <String, dynamic>{'type': 'resource_link', 'uri': 'send_queue.dart', 'name': 'send_queue.dart'},
+        <String, dynamic>{'type': 'image', 'uri': 'state-machine.png'},
+      ])
+      ..enqueue(<JsonMap>[
+        <String, dynamic>{'type': 'text', 'text': '写完单测后跑一下 scripts/validate.ps1 检查 NOTICE 与派生头注释。'},
+      ]);
+    qExpanded.isExpanded = true;
+
+    return BoardPage(
+      number: '44',
+      title: 'Send Queue',
+      source: '客户端本地内存态（对齐 Zed message_queue.rs）',
+      sections: <BoardSection>[
+        BoardSection('A · 输入框上方的停靠条 · 三种运行态',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                SendQueueDock(queue: qAuto),
+                const SizedBox(height: t.Spacing.s8),
+                SendQueueDock(queue: qPaused),
+                const SizedBox(height: t.Spacing.s8),
+                SendQueueDock(queue: qAbsorbing),
+              ],
+            )),
+        BoardSection('B · 停靠条展开态 · 排队消息列表与单条操作',
+            child: SendQueueDock(queue: qExpanded)),
+      ],
+      footnote: '回合进行中按 Enter 入队，回合结束后自动按序发出；支持 Send Now 插队、编辑回退与清空。'
+          '只用 ACP 标准 session/prompt 与 session/cancel，不接任何私有扩展；投影层与 Rust 桥零改动。',
     );
   }),
   windowBoard('80-traffic', 'ACP 流量调试', (_) {

@@ -44,6 +44,7 @@ class Composer extends StatelessWidget {
     this.onUsage,
     this.onSend,
     this.onStop,
+    this.onRestoreLastQueued,
     this.plusAnchor,
     this.followAnchor,
     this.usageAnchor,
@@ -90,6 +91,9 @@ class Composer extends StatelessWidget {
   final VoidCallback? onUsage;
   final VoidCallback? onSend;
   final VoidCallback? onStop;
+
+  /// 主输入框为空时按 ↑：把队尾排队消息挪回输入框编辑（裁定 g）。
+  final VoidCallback? onRestoreLastQueued;
 
   /// 画板 40 里固定那三个弹层的锚点（配置格各自的锚点在 [ComposerOption.anchor]；gallery 里为 null）。
   final PopoverHandle? plusAnchor;
@@ -147,6 +151,16 @@ class Composer extends StatelessWidget {
         return KeyEventResult.handled;
       }
     }
+    if (key == LogicalKeyboardKey.arrowUp &&
+        !HardwareKeyboard.instance.isShiftPressed &&
+        !HardwareKeyboard.instance.isControlPressed &&
+        !HardwareKeyboard.instance.isMetaPressed &&
+        !HardwareKeyboard.instance.isAltPressed) {
+      if (inlineMenu == null && controller.text.isEmpty && attachments.isEmpty) {
+        onRestoreLastQueued?.call();
+        return KeyEventResult.handled;
+      }
+    }
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     // Ctrl/Cmd+V：顺带看一眼剪贴板里有没有复制的文件 / 目录或图（截图 / 图片文件），有就加成附件块。
     // 一律 `ignored`：这一下是不是文本粘贴要读完剪贴板才知道，而按键回调必须同步返回，
@@ -168,8 +182,8 @@ class Composer extends StatelessWidget {
       onInlineMenuPick?.call();
       return KeyEventResult.handled;
     }
-    // 禁用态与回合进行中都不发（发送位此时是停止方块），但也不落回换行：Enter 的含义保持唯一。
-    if (enabled && !running) onSend?.call();
+    // 回合进行中 Enter 不再被吞（发给 onSend 处理直接发送、入队或 fast-track；发送位停止按钮保留）。
+    if (enabled) onSend?.call();
     return KeyEventResult.handled;
   }
 

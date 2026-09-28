@@ -31,6 +31,7 @@ import '../ui/shell/app_shell.dart';
 import '../ui/shell/composer.dart';
 import '../ui/shell/motion.dart';
 import '../ui/shell/right_panel.dart';
+import '../ui/shell/send_queue_dock.dart';
 import '../ui/shell/shell_common.dart';
 import '../ui/shell/sidebar.dart';
 import '../ui/shell/session_header.dart';
@@ -550,18 +551,9 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       options: <ComposerOption>[
         for (final o in c.turn.composerOptions)
           if (o.type == 'boolean')
-            ComposerOption(
-              label: o.name ?? o.id ?? '',
-              on: o.currentValue == true,
-              onToggle: () => c.turn.toggleConfigBoolean(o.id ?? '', o.currentValue != true),
-            )
+            ComposerOption(label: o.name ?? o.id ?? '', on: o.currentValue == true, onToggle: () => c.turn.toggleConfigBoolean(o.id ?? '', o.currentValue != true))
           else
-            ComposerOption(
-              label: configCurrentName(o),
-              anchor: c.composer.configAnchor(o.id ?? ''),
-              onTap: () => _openSelectPopover(o.id ?? ''),
-              maxWidth: o.category == 'model' ? t.Geometry.composerModelMaxWidth : null,
-            ),
+            ComposerOption(label: configCurrentName(o), anchor: c.composer.configAnchor(o.id ?? ''), onTap: () => _openSelectPopover(o.id ?? ''), maxWidth: o.category == 'model' ? t.Geometry.composerModelMaxWidth : null),
       ],
       attachments: c.composer.pendingImages,
       onRemoveAttachment: c.composer.removePendingBlock,
@@ -579,10 +571,20 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
           agentName: c.session.agentDisplayName,
           onScroll: _scrollToBottom,
         ),
+        if (c.turn.currentQueue != null && c.turn.currentQueue!.isNotEmpty)
+          SendQueueDock(
+            queue: c.turn.currentQueue!,
+            onSendNow: (id) => c.turn.sendNow(c.session.sessionId!, id),
+            onEdit: (id) => c.turn.editQueued(c.session.sessionId!, id),
+            onRemove: (id) => c.turn.currentQueue!.remove(id),
+            onClearAll: () => c.turn.clearQueue(c.session.sessionId!),
+            onResume: () => c.turn.resumeQueue(c.session.sessionId!),
+          ),
       ],
       onChanged: c.composer.onChanged,
       onSend: _send,
       onStop: c.turn.cancel,
+      onRestoreLastQueued: () => c.session.sessionId == null ? null : c.turn.restoreLastQueued(c.session.sessionId!),
       onPlus: _openPlusPopover,
       onFollow: _toggleFollow,
       followOn: c.shell.follow,

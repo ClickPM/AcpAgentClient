@@ -267,7 +267,7 @@ try {
             "agents_state.dart"      = @("guarded.dart", "core_bridge.dart")
             "auth_state.dart"        = @("guarded.dart", "core_bridge.dart")
             "composer_state.dart"    = @("guarded.dart", "core_bridge.dart", "clipboard_image.dart")
-            "turn_controller.dart"   = @("session_controller.dart", "session_attach.dart", "composer_state.dart", "guarded.dart", "core_bridge.dart")
+            "turn_controller.dart"   = @("session_controller.dart", "session_attach.dart", "composer_state.dart", "guarded.dart", "core_bridge.dart", "send_queue.dart")
             "session_controller.dart" = @("session_index.dart", "session_attach.dart", "agents_state.dart", "workspace_state.dart", "guarded.dart", "core_bridge.dart")
         }
         $appDir = Join-Path $root "lib\app"
