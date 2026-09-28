@@ -257,6 +257,10 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     if (isGen) {
       if (s.isRunning) await cancel(userInitiated: false);
       await _turnsInFlight[sid];
+      if (queue.isPaused || _isTurnActive(s)) {
+        queue.prepend(entry);
+        return;
+      }
     }
     await _sendQueuedEntry(sid, entry);
   }
@@ -276,6 +280,10 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     if (isGen) {
       if (s.isRunning) await cancel(userInitiated: false);
       await _turnsInFlight[sid];
+      if (queue.isPaused || _isTurnActive(s)) {
+        queue.prepend(entry);
+        return;
+      }
     }
     await _sendQueuedEntry(sid, entry);
   }

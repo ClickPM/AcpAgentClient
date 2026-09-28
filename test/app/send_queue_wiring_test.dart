@@ -343,7 +343,7 @@ void main() {
     ]);
   });
 
-  test('Round 3 P2 验证：手动停止后 Paused，再点 Restore，Restore 结束后队列仍保持 Paused', () async {
+  test('Round 3 P2 验证：手动停止后 Paused，在途期间再点 Restore，Restore 结束后队列仍保持 Paused', () async {
     final core = _QueueTurnCore();
     final c = _controller(core);
     final sid = await _startRunning(c, 'turn-1');
@@ -351,25 +351,64 @@ void main() {
     c.composer.editor.text = 'm1';
     await c.turn.send();
 
-    // 手动停止
+    // 手动停止：发出 cancel
     await c.turn.cancel();
-    core.finish(sid, 'cancelled');
-    await _settle();
     expect(c.turn.queueFor(sid).isPaused, isTrue);
 
-    // 点 Restore（第一条消息）
+    // 在 turn-1 仍在途时，用户点 Restore
     final s = c.session.store!;
     final msg = s.entries.whereType<MessageEntry>().first;
     unawaited(c.turn.restore(msg));
     await _settle();
 
-    // 放行 Restore 的 prompt
+    // 放行被 cancel 的 turn-1
+    core.finish(sid, 'cancelled');
+    await _settle();
+
+    // 放行 restore 发起的 prompt
     core.finish(sid);
     await _settle();
 
     // Restore 结束后，队列仍保持 Paused，m1 没有被自动发出
     expect(c.turn.queueFor(sid).isPaused, isTrue);
     expect(c.turn.queueFor(sid).length, 1);
-    expect(core.prompts.length, 2); // 只有初始 prompt 与 restore prompt
+    expect(c.turn.queueFor(sid).first!.plainText, 'm1');
+  });
+
+  test('Round 4 Finding 1 验证：Send Now 取消在途期间若触发 Restore，Send Now 放弃发送并将 entry 插回队首', () async {
+    final core = _QueueTurnCore();
+    final c = _controller(core);
+    final sid = await _startRunning(c, 'turn-1');
+
+    c.composer.editor.text = 'm1';
+    await c.turn.send();
+
+    final m1Id = c.turn.currentQueue!.entries[0].id;
+    // 触发 Send Now m1
+    unawaited(c.turn.sendNow(sid, m1Id));
+    await _settle();
+    expect(c.turn.currentQueue!.isEmpty, isTrue);
+
+    // 在途期间点 Restore
+    final s = c.session.store!;
+    final msg = s.entries.whereType<MessageEntry>().first;
+    unawaited(c.turn.restore(msg));
+    await _settle();
+
+    // 放行被 cancel 的 turn-1
+    core.finish(sid, 'cancelled');
+    await _settle();
+
+    // 此时只有 Restore 的 prompt 在途（prompts 总数 2），m1 没有重叠发出，而是被安全 prepend 插回队首
+    expect(core.prompts.length, 2);
+    expect(c.turn.queueFor(sid).length, 1);
+    expect(c.turn.queueFor(sid).first!.id, m1Id);
+    expect(c.turn.queueFor(sid).first!.plainText, 'm1');
+
+    // 放行 Restore 的 prompt 后，m1 随后正常按序自动出队
+    core.finish(sid);
+    await _settle();
+    expect(core.prompts.length, 3);
+    expect(core.callLog.last, 'prompt:$sid:m1');
   });
 }
