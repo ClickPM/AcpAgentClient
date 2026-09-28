@@ -64,6 +64,7 @@
 | 41 | 顶栏与侧栏弹层合集 | 会话工作台 | round-design | `design/round-design/41-topbar-popovers.dc.html` | `design/round-design/41-topbar-popovers.png` | — | 已实现（R3） | — |
 | 42 | 输入框内联菜单 | 会话工作台 | round-design | `design/round-design/42-inline-menus.dc.html` | `design/round-design/42-inline-menus.png` | — | 已实现（R3） | — |
 | 43 | 会话时间线弹层 | 会话工作台 | round-design | `design/round-design/43-session-timeline.dc.html` | `design/round-design/43-session-timeline.png` | — | 已实现（2026-09-20，`session-timeline` 分支） | 新增 `Timeline` 一组（maxHeightFactor / width / rail / railWidth / railColumn / node / nodeColor / label / turnGap）；`TextStyles` 补 `labelTabular`（`label` 加等宽数字，标题行用） |
+| 44 | 本地发送队列 | 输入框上方 | round-design | `design/round-design/44-send-queue.dc.html` | `design/round-design/44-send-queue.png` | — | 待实现（round-send-queue） | — |
 | 50 | Agents 面板（ACP Registry） | agent 管理 | round-design | `design/round-design/50-registry.dc.html` | `design/round-design/50-registry.png` | — | 已实现（R5）· 2026-09-23 标题行加检查时间与刷新、Codex 行换成可升级态（已实现，随画板 53，`registry-upgrade` 分支） | — |
 | 51 | Registry 条目状态 | agent 管理 | round-design | `design/round-design/51-registry-states.dc.html` | `design/round-design/51-registry-states.png` | — | 已实现（R5） | — |
 | 52 | agent 认证 | agent 管理 | round-design | `design/round-design/52-auth.dc.html` | `design/round-design/52-auth.png` | — | 已实现（R5） | — |
@@ -76,6 +77,8 @@
 状态取值：`待实现` / `已实现（R<N>）` / `已废弃`。
 
 ## 变更记录（入库后对 `.dc.html` 的改动，PNG 已用 `scripts/render-design.ps1` 重渲染）
+
+- 2026-09-24 新增画板 44「本地发送队列」（880 × 1040，page-3 放在画板 43 右边 `x 5120`），并改画板 02：在输入框上方 docks 区域加入一行发送队列停靠条（1 条排队消息，展开/清空）。起因是用户在 Agent 回合运行中无法输入或排队消息；裁定照 Zed `message_queue.rs` 三态机（AutoProcess / Paused / AbsorbingCancel 与 fast-track 插队）在客户端本地内存排队，只用标准 ACP `session/prompt` 与 `session/cancel`，核心与桥零改动，不进投影层。无新 token、无新图标。简报 `design/round-design/input/revision-08.md`。
 
 - 2026-09-23 新增画板 09「等你处理」（1440 × 1713，page-1 第四行 `x 0, y 6356`），并改画板 06 D 表一行与其下一句、画板 08 C 段口径表一行。起因是 BACKLOG 两条「挂着请求、界面上没痕迹」：当前工作区里的后台会话卡在权限 / 表单请求上时，侧栏只有扫掠线（把「等你」说成了「在跑」）；换走的工作区里的会话连侧栏都不列，切换器上的在跑数也把它算成在跑。裁定：「等你处理」= 该会话至少有一条挂起的 permission / elicitation，与「运行中」互斥（不扫掠、不计入在跑数）；A 段侧栏条目在「N 条消息」后出 `▲ 待授权` / `ⓘ 待输入`（warning 色，行高仍 58、亮点撤掉只留底线，当前会话也显示）；B 段切换器在跑数徽标左边并排一枚 warning 色的等你数徽标（按会话计数，当前工作区也挂，触发钮 tooltip 整句为 0 的那段省略）；只提示不代劳（不自动切会话 / 工作区、不弹窗，画板 26 的停靠条仍只管当前会话）。无新 token、无新图标。画布交回的 09 的 `$preview` 只写了宽，高度按画布 `delivery/canvas.json` 里的 frame（1713）补进 `$preview`。**画板 06 / 08 没有整份拉回**：只按简报改了那三处文字（06 那一格的亮点线随「停」由 accent 改为 muted），PNG 尺寸不变。简报 `design/round-design/input/revision-07.md`。
 

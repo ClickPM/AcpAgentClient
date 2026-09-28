@@ -370,6 +370,15 @@
       "h": 2400
     },
     {
+      "file": "44-send-queue.dc.html",
+      "title": "本地发送队列",
+      "page": "page-3",
+      "x": 5120,
+      "y": 0,
+      "w": 880,
+      "h": 1040
+    },
+    {
       "file": "50-registry.dc.html",
       "title": "Agents 面板（ACP Registry）",
       "page": "page-4",

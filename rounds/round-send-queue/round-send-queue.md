@@ -3,7 +3,7 @@
 <!-- 与画板 08 / 43 / 53 同类：R8 之后的单功能轮，登记在 ROUNDS.md § 7 进度表。走轮次而非迭代：所有者 2026-09-24 指定按轮次做（涉及新画板 + 回合驱动的发送路径）。
      目录名不带画板号：画板编号到设计阶段才定（起名前按 design/README.md 与各分支查重，编号会被并行会话抢）。 -->
 
-> 状态：未开始（2026-09-24 立项，文档先行；设计阶段与实现都还没开工）
+> 状态：进行中（2026-09-24 立项，设计阶段已完成入库；实现中）
 
 ## 目标
 
@@ -36,8 +36,8 @@
 ## 前置
 
 - `scripts/fetch-upstream.ps1 -Check` 全绿（规则 4）。
-- **设计阶段先行（规则 3）**：简报 `design/round-design/input/revision-08.md`（编号起名前查重）→ Claude Design 出新画板（编号在设计阶段按 `design/README.md` 查重后定，拟放 40 段「输入框」一组的下一个空号）+ 需要改动的既有画板（至少 02「进行中的一轮」要出现队列条）→ `.dc.html` 与 PNG 入库、`design/README.md` 更新 → 再开工实现。
-- 上表 a–h 裁定完成（或按推荐项开工并标「待确认」）。
+- **设计阶段先行（规则 3）**：简报 `design/round-design/input/revision-08.md`、新画板 `44-send-queue.dc.html` + PNG、改动画板 `02-workbench-running.dc.html` + PNG、`canvas.json`、`design/README.md` 已入库并渲染。
+- 上表 a–h 裁定完成（按推荐项开工）。
 
 ## 交付物（拟，设计阶段后细化）
 

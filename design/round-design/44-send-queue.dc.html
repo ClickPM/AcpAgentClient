@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { margin: 0; background: #fbfbfc; font-family: Geist, 'Noto Sans SC', system-ui, -apple-system, sans-serif; font-size: 13px; color: #33333d; }
+  .artboard {
+    width: 880px;
+    min-width: 880px;
+    background: #fbfbfc;
+    padding: 24px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  .header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    border-bottom: 1px solid #e2e2e7;
+    padding-bottom: 12px;
+  }
+  .title { font-size: 15px; font-weight: 500; color: #1e1e26; display: flex; align-items: center; gap: 8px; }
+  .badge { font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #eeeffc; color: #5566d8; font-weight: 500; }
+  .subtitle { font-size: 11px; color: #8b8b96; font-family: 'Geist Mono', ui-monospace, monospace; white-space: nowrap; }
+  
+  .section-title {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .06em;
+    color: #62626e;
+    margin-bottom: 8px;
+  }
+
+  /* Dock 停靠条 (对齐 26-awaiting) */
+  .dock-bar {
+    height: 32px;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    border-radius: 6px;
+    border: 1px solid #e2e2e7;
+    background: #eeeef1;
+    font-size: 12px;
+    gap: 8px;
+  }
+  .dock-bar.paused {
+    background: #fefcf3;
+    border-color: #f1e4b8;
+  }
+  .dock-bar.absorbing {
+    background: #f5f6fe;
+    border-color: #d7dbf9;
+  }
+  .dock-icon { display: inline-flex; align-items: center; color: #5566d8; }
+  .dock-icon.warn { color: #8a6f12; }
+  .dock-title { font-weight: 500; color: #33333d; }
+  .dock-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+  
+  .btn-ghost {
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 4px;
+    border: none;
+    background: rgba(30,30,38,.06);
+    color: #33333d;
+    font-size: 12px;
+    font-weight: 400;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .btn-danger { color: #c43c35; }
+  .btn-primary-sm {
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 4px;
+    border: none;
+    background: #5566d8;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* 展开面板 */
+  .panel-card {
+    border: 1px solid #e2e2e7;
+    border-radius: 6px;
+    background: #ffffff;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .panel-header {
+    height: 32px;
+    background: #eeeef1;
+    border-bottom: 1px solid #e2e2e7;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    font-size: 12px;
+    gap: 8px;
+  }
+  .queue-list {
+    display: flex;
+    flex-direction: column;
+  }
+  .queue-item {
+    display: flex;
+    align-items: flex-start;
+    padding: 10px 12px;
+    border-bottom: 1px solid #e2e2e7;
+    gap: 10px;
+  }
+  .queue-item:last-child { border-bottom: none; }
+  .item-idx {
+    font-size: 11px;
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-weight: 500;
+    color: #8b8b96;
+    padding-top: 2px;
+    width: 20px;
+  }
+  .item-content { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .item-text { font-size: 13px; color: #33333d; line-height: 1.45; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 4px;
+    background: #f4f4f6;
+    border: 1px solid #e2e2e7;
+    font-size: 11px;
+    color: #4a59c9;
+    font-family: 'Geist Mono', ui-monospace, monospace;
+  }
+  .item-actions { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+  
+  .btn-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    border: none;
+    background: transparent;
+    color: #62626e;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* 现有输入框真实样式（100% 还原 02 画板） */
+  .existing-composer {
+    background: #f4f4f6;
+    border: 1px solid #e2e2e7;
+    border-radius: 6px;
+    padding: 10px 12px 8px;
+  }
+  .composer-placeholder {
+    min-height: 40px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #8b8b96;
+  }
+  .composer-bottom {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-top: 6px;
+  }
+
+  /* 规格表格 */
+  .spec-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .spec-table th {
+    text-align: left;
+    padding: 6px 8px;
+    border-bottom: 1px solid #d3d3da;
+    color: #62626e;
+    font-weight: 500;
+  }
+  .spec-table td {
+    padding: 7px 8px;
+    border-bottom: 1px solid #e2e2e7;
+    color: #33333d;
+    line-height: 1.45;
+  }
+  .keycap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1px 5px;
+    border: 1px solid #d3d3da;
+    border-radius: 3px;
+    background: #ffffff;
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 11px;
+    color: #1e1e26;
+    box-shadow: 0 1px 0 rgba(0,0,0,.06);
+  }
+  code {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 11px;
+    background: #eeeef1;
+    padding: 1px 4px;
+    border-radius: 3px;
+    color: #1e1e26;
+  }
+</style></helmet>
+
+<div data-screen-label="44" class="artboard">
+  <!-- 头部信息 -->
+  <div class="header">
+    <div>
+      <div class="title">
+        <span>44 · Send Queue</span>
+        <span class="badge">本地发送队列</span>
+      </div>
+      <div style="font-size:12px;color:#62626e;margin-top:4px">
+        回合进行中按 Enter 入队，回合结束后自动按序发出；支持 Send Now 插队、编辑回退与清空
+      </div>
+    </div>
+    <div class="subtitle">协议来源：客户端本地内存态（对齐 Zed message_queue.rs）</div>
+  </div>
+
+  <!-- A 部分：Dock 停靠条在输入框上方 -->
+  <div>
+    <div class="section-title">输入框上方的停靠条 · 运行状态</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <!-- A1: 正常自动处理 -->
+      <div class="dock-bar">
+        <span class="dock-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+        </span>
+        <span class="dock-title">2 条排队消息</span>
+        <div class="dock-actions">
+          <span class="btn-ghost">
+            <span>展开</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
+          <span class="btn-ghost btn-danger">全部清空</span>
+        </div>
+      </div>
+
+      <!-- A2: Paused 暂停 -->
+      <div class="dock-bar paused">
+        <span class="dock-icon warn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        </span>
+        <span class="dock-title" style="color:#8a6f12">队列已暂停 · 2 条排队消息</span>
+        <div class="dock-actions">
+          <span class="btn-primary-sm" style="background:#8a6f12">恢复出队</span>
+          <span class="btn-ghost btn-danger">清空</span>
+        </div>
+      </div>
+
+      <!-- A3: AbsorbingCancel -->
+      <div class="dock-bar absorbing">
+        <span class="dock-icon" style="color:#5566d8">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.55"></path></svg>
+        </span>
+        <span class="dock-title" style="color:#5566d8">正在打断当前回合并发送...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- B 部分：队列展开面板 -->
+  <div>
+    <div class="section-title">输入框上方的停靠条 · 展开态</div>
+    <div class="panel-card">
+      <div class="panel-header">
+        <span class="dock-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+        </span>
+        <span style="font-weight:500;color:#1e1e26">2 条排队消息</span>
+        <div style="margin-left:auto;display:flex;gap:6px">
+          <span class="btn-ghost btn-danger">全部清空</span>
+          <span class="btn-ghost">
+            <span>收起</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><polyline points="18 15 12 9 6 15"/></svg>
+          </span>
+        </div>
+      </div>
+      <div class="queue-list">
+        <!-- Item 1: 带附件 -->
+        <div class="queue-item">
+          <div class="item-idx">#1</div>
+          <div class="item-content">
+            <div class="item-text">请继续实现 lib/app/send_queue.dart，确保三态迁移与 Zed 原版 message_queue.rs 完全对齐。</div>
+            <div class="chip-row">
+              <span class="chip">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                send_queue.dart
+              </span>
+              <span class="chip">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"></polyline></svg>
+                state-machine.png
+              </span>
+            </div>
+          </div>
+          <div class="item-actions">
+            <span class="btn-primary-sm">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <span>Send Now</span>
+              <span style="opacity:.75;font-size:10px">⏎</span>
+            </span>
+            <span class="btn-icon">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+            </span>
+            <span class="btn-icon" style="color:#c43c35">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            </span>
+          </div>
+        </div>
+
+        <!-- Item 2: 纯文本 -->
+        <div class="queue-item">
+          <div class="item-idx">#2</div>
+          <div class="item-content">
+            <div class="item-text">写完单测后跑一下 scripts/validate.ps1 检查 NOTICE 与派生头注释。</div>
+          </div>
+          <div class="item-actions">
+            <span class="btn-ghost">Send Now</span>
+            <span class="btn-icon">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+            </span>
+            <span class="btn-icon" style="color:#c43c35">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- C 部分：工作台实景组合（完全复用 02 画板的真实输入框，零额外修改） -->
+  <div>
+    <div class="section-title">工作台底部实景 · 停靠条与现有输入框结合态</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <!-- 停靠在输入框上方的 Dock -->
+      <div class="dock-bar">
+        <span class="dock-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+        </span>
+        <span class="dock-title">1 条排队消息</span>
+        <div class="dock-actions">
+          <span class="btn-ghost">展开</span>
+          <span class="btn-ghost btn-danger">清空</span>
+        </div>
+      </div>
+
+      <!-- 现有输入框（完全原样保留 02 画板定义，不做任何额外改动） -->
+      <div class="existing-composer">
+        <div class="composer-placeholder">Message to Claude Agent , @ to include context , / for commands</div>
+        <div class="composer-bottom">
+          <span style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></span>
+          <span style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#62626e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><line x1="21" y1="12" x2="17" y2="12"></line><line x1="7" y1="12" x2="3" y2="12"></line><line x1="12" y1="7" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="17"></line></svg></span>
+          <span style="height:24px;display:flex;align-items:center;gap:5px;padding:0 6px;border-radius:4px">
+            <svg width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="#e2e2e7" stroke-width="2.5"></circle><circle cx="12" cy="12" r="8" fill="none" stroke="#5566d8" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="50.3" stroke-dashoffset="49.8" transform="rotate(-90 12 12)"></circle></svg>
+            <span style="font-size:11px;color:#62626e;font-variant-numeric:tabular-nums">1%</span>
+          </span>
+          <span style="margin-left:auto;display:flex;align-items:center;gap:4px">
+            <span style="height:24px;display:flex;align-items:center;gap:4px;padding:0 7px;border-radius:4px;font-size:12px;color:#33333d">Gemini 3.8 Flash High(CLIproxy)<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+            <span style="height:24px;display:flex;align-items:center;gap:4px;padding:0 7px;border-radius:4px;font-size:12px;color:#33333d">High<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+            <span style="height:24px;display:flex;align-items:center;gap:4px;padding:0 7px;border-radius:4px;font-size:12px;color:#33333d">Write<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+            <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;background:rgba(30,30,38,.06)" title="session/cancel"><span style="width:10px;height:10px;border-radius:3px;background:#bc4e39"></span></span>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- D 部分：交互规则与按键映射表 -->
+  <div>
+    <div class="section-title">状态机与键位口径（对齐 round-send-queue 裁定 a–h）</div>
+    <table class="spec-table">
+      <thead>
+        <tr>
+          <th style="width:140px">交互 / 场景</th>
+          <th style="width:145px">触发方式</th>
+          <th>状态迁移与行为规范</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>回合中追加消息</strong></td>
+          <td>输入框非空 + <span class="keycap">Enter ↵</span></td>
+          <td>立即锁定当前输入框的 <code>ContentBlock</code> 列表（文字 + 附件芯片）入队尾，输入框清空，线上不发第二个 <code>session/prompt</code>。</td>
+        </tr>
+        <tr>
+          <td><strong>Fast-track 插队</strong></td>
+          <td>输入框为空 + <span class="keycap">Enter ↵</span> 或点 <code>Send Now</code></td>
+          <td>状态转入 <code>AbsorbingCancel</code>：先发 <code>session/cancel</code>，吞掉在途回合的结束事件后立即发出目标条目。</td>
+        </tr>
+        <tr>
+          <td><strong>回退编辑</strong></td>
+          <td>输入框为空 + <span class="keycap">↑</span> 或点编辑图标</td>
+          <td>从队列移除该条并挪回主输入框（主输入框已有文字时以空行拼在后面，附件芯片一并还原）；不做行内编辑。</td>
+        </tr>
+        <tr>
+          <td><strong>错误 / 停止保护</strong></td>
+          <td>回合报错返回 / 手动点停止</td>
+          <td>状态转入 <code>Paused</code>：不自动出队，防止错误级联放大；用户点击「恢复出队」或再次主动发送/入队时恢复 <code>AutoProcess</code>。</td>
+        </tr>
+        <tr>
+          <td><strong>会话归属与清理</strong></td>
+          <td>切换会话 / 断开 / 关闭</td>
+          <td>每个会话独立维护内存队列：切走会话时后台回合结束照常自动出队；agent 断开、会话关闭或删除时清空该会话队列，重启不持久化。</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;line-height:1.6">
+    只用 ACP 标准 session/prompt 与 session/cancel，不接任何 _session/steering 私有扩展；投影层（lib/projection/）与 Rust 桥零改动。
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:880,&quot;height&quot;:1040}}"></script>
+</body>
+</html>
