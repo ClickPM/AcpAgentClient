@@ -453,4 +453,36 @@ void main() {
     expect(core.prompts.length, 1);
     expect(c.turn.queueFor(sid).isEmpty, isTrue);
   });
+
+  test('Round 7 验证：Send Now 取消在途期间 closeSession 失败，m1 仍安全保留在队列中不丢失', () async {
+    final core = _QueueTurnCore();
+    final c = _controller(core);
+    final sid = await _startRunning(c, 'turn-1');
+
+    c.composer.editor.text = 'm1';
+    await c.turn.send();
+
+    final m1Id = c.turn.currentQueue!.entries[0].id;
+    unawaited(c.turn.sendNow(sid, m1Id));
+    await _settle();
+
+    // 堵住 sessionClose
+    core.sessionCloseGate = Completer<void>();
+    unawaited(c.session.closeSession());
+    await _settle();
+
+    // 放行 turn-1 的 cancel，此时 sessionClose 仍在途
+    core.finish(sid, 'cancelled');
+    await _settle();
+
+    // 让 sessionClose 失败
+    core.sessionCloseGate!.completeError(StateError('network close error'));
+    await _settle();
+
+    // 关闭失败回滚：会话未关闭，m1 安全保存在队列中，prompts 没有双发
+    expect(c.session.isSessionClosed(sid), isFalse);
+    expect(c.turn.queueFor(sid).length, 1);
+    expect(c.turn.queueFor(sid).first!.id, m1Id);
+    expect(core.prompts.length, 1);
+  });
 }

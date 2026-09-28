@@ -141,6 +141,12 @@ mixin SessionAttachment on ChangeNotifier, GuardedNotifier {
     _attached(id, agent, generation);
   }
 
+  /// Close 进行中：先放进 _closedSessions 挡住发送，不提前抬高 _closeEpoch。
+  @protected
+  void markClosing(String id) {
+    _closedSessions.add(id);
+  }
+
   /// ≡ 菜单 Close 成功：本地转录留着只读。
   @protected
   void markClosed(String id) {

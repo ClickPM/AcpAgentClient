@@ -207,7 +207,6 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
   Future<void> _onTurnStopped(String sid, {required bool failed}) async {
     final queue = queueFor(sid);
     if (session.isSessionClosed(sid) || session.attachOf(sid) != SessionAttach.attached) {
-      queue.clear();
       return;
     }
     if (failed) {
@@ -228,11 +227,7 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     final id = session.registeredOwner(sid) ?? session.agentId;
     if (s == null || b == null || id == null) return;
     // 审查 high：按正在出队的这条会话自身的关闭态判断，不要读前台当前选中的 sessionClosed。
-    if (session.isSessionClosed(sid) || session.attachOf(sid) != SessionAttach.attached) {
-      queueFor(sid).clear();
-      return;
-    }
-    if (_isTurnActive(s)) {
+    if (session.isSessionClosed(sid) || session.attachOf(sid) != SessionAttach.attached || _isTurnActive(s)) {
       queueFor(sid).prepend(entry);
       return;
     }
@@ -257,11 +252,7 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     if (isGen) {
       if (s.isRunning) await cancel(userInitiated: false);
       await _turnsInFlight[sid];
-      if (session.isSessionClosed(sid) || session.attachOf(sid) != SessionAttach.attached) {
-        queue.clear();
-        return;
-      }
-      if (queue.isPaused || _isTurnActive(s)) {
+      if (session.isSessionClosed(sid) || session.attachOf(sid) != SessionAttach.attached || queue.isPaused || _isTurnActive(s)) {
         queue.prepend(entry);
         return;
       }
@@ -284,11 +275,7 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     if (isGen) {
       if (s.isRunning) await cancel(userInitiated: false);
       await _turnsInFlight[sid];
-      if (session.isSessionClosed(sid) || session.attachOf(sid) != SessionAttach.attached) {
-        queue.clear();
-        return;
-      }
-      if (queue.isPaused || _isTurnActive(s)) {
+      if (session.isSessionClosed(sid) || session.attachOf(sid) != SessionAttach.attached || queue.isPaused || _isTurnActive(s)) {
         queue.prepend(entry);
         return;
       }
