@@ -232,7 +232,10 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
       queueFor(sid).clear();
       return;
     }
-    if (_isTurnActive(s)) return;
+    if (_isTurnActive(s)) {
+      queueFor(sid).prepend(entry);
+      return;
+    }
     session.clearUnread(sid);
     final started = s.startTurn(<ContentBlockWire>[for (final x in entry.content) ContentBlockWire(x)]);
     unawaited(session.stampPromptSent(target: s));
@@ -247,8 +250,8 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     if (s == null || b == null || id == null) return;
     if (session.isSessionClosed(sid)) return;
     final queue = queueFor(sid);
-    if (queue.isAbsorbingCancel) return;
     final isGen = _isTurnActive(s);
+    if (queue.isAbsorbingCancel || (isGen && queue.isPaused)) return;
     final entry = queue.tryFastTrack(isGenerating: isGen);
     if (entry == null) return;
     if (isGen) {
@@ -266,8 +269,8 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     if (s == null || b == null || id == null) return;
     if (session.isSessionClosed(sid)) return;
     final queue = queueFor(sid);
-    if (queue.isAbsorbingCancel) return;
     final isGen = _isTurnActive(s);
+    if (queue.isAbsorbingCancel || (isGen && queue.isPaused)) return;
     final entry = queue.sendNow(entryId, isGenerating: isGen);
     if (entry == null) return;
     if (isGen) {
@@ -409,10 +412,11 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     // 只等本会话的：别的会话并跑着的长任务与这里无关。
     final inFlight = _isTurnActive(s);
     if (inFlight) {
-      queueFor(s.sessionId).pause();
+      final wasPaused = queueFor(s.sessionId).isPaused;
+      if (!wasPaused) queueFor(s.sessionId).pause();
       if (s.isRunning) await cancel(userInitiated: false);
       await _turnsInFlight[s.sessionId];
-      queueFor(s.sessionId).resume();
+      if (!wasPaused) queueFor(s.sessionId).resume();
     }
     final result = s.restoreTo(message.id);
     if (result == null) return;

@@ -111,6 +111,12 @@ class SendQueue extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 将一条消息插回队首（用于发送冲突时安全回滚，不丢消息）。
+  void prepend(QueueEntry entry) {
+    _entries.insert(0, entry);
+    notifyListeners();
+  }
+
   /// 移除并返回队尾元素（空框按 ↑ 挪回输入框编辑用）。
   QueueEntry? popBack() {
     if (_entries.isEmpty) return null;

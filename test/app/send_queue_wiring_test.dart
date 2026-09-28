@@ -3,6 +3,7 @@
 import 'dart:async';
 
 import 'package:acp_agent_client/app/workbench_controller.dart';
+import 'package:acp_agent_client/projection/entries.dart';
 import 'package:acp_agent_client/projection/wire.dart';
 import 'package:acp_agent_client/ui/popovers/topbar_popovers.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -340,5 +341,35 @@ void main() {
       'cancel:$sid',
       'prompt:$sid:m1',
     ]);
+  });
+
+  test('Round 3 P2 验证：手动停止后 Paused，再点 Restore，Restore 结束后队列仍保持 Paused', () async {
+    final core = _QueueTurnCore();
+    final c = _controller(core);
+    final sid = await _startRunning(c, 'turn-1');
+
+    c.composer.editor.text = 'm1';
+    await c.turn.send();
+
+    // 手动停止
+    await c.turn.cancel();
+    core.finish(sid, 'cancelled');
+    await _settle();
+    expect(c.turn.queueFor(sid).isPaused, isTrue);
+
+    // 点 Restore（第一条消息）
+    final s = c.session.store!;
+    final msg = s.entries.whereType<MessageEntry>().first;
+    unawaited(c.turn.restore(msg));
+    await _settle();
+
+    // 放行 Restore 的 prompt
+    core.finish(sid);
+    await _settle();
+
+    // Restore 结束后，队列仍保持 Paused，m1 没有被自动发出
+    expect(c.turn.queueFor(sid).isPaused, isTrue);
+    expect(c.turn.queueFor(sid).length, 1);
+    expect(core.prompts.length, 2); // 只有初始 prompt 与 restore prompt
   });
 }
