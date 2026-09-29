@@ -37,7 +37,11 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     if (!session.sessionClosed) return false;
     // 挂起的会话在侧栏的 History 区，点它那一行就挂回来（iteration-19）——以前这里指的 ≡ 菜单 Resume
     // 在产品里没有入口，用户照这句话找不到路（BACKLOG P1「Resume / Close 没有入口」的结论）。
-    lastError = '这个会话已经挂起；在侧栏 History 里点它挂回来，或新建一个会话';
+    // 挂不回的（agent 既没有 `loadSession` 也没有 `resume`，或 `session/list` 校对出 agent 侧已经没有这条了）
+    // 那句话不成立：点 History 那一行 `ensureLoaded` 直接返回、不会有反应，所以只提新建会话（审查 P2，iteration-19）。
+    lastError = session.attachOf(session.sessionId) == SessionAttach.unattachable
+        ? '这个会话已经挂起，agent 不支持把它挂回来；新建一个会话继续'
+        : '这个会话已经挂起；在侧栏 History 里点它挂回来，或新建一个会话';
     touch();
     return true;
   }

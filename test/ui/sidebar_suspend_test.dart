@@ -28,18 +28,19 @@ const String _cwd = 'D:/repo';
 final DateTime _now = DateTime(2026, 9, 30, 12, 0);
 
 /// 画板 45 + `session/close`：声明 `loadSession`（挂回来走重放）与可选的 `sessionCapabilities.close`
-/// （挂起按钮的能力门）。
+/// （挂起按钮的能力门）。`declareLoad = false` 造「只有 close、挂不回来」的 agent（挂起入口也不该出）。
 class _SuspendCore extends FakeCore {
-  _SuspendCore({this.declareClose = true});
+  _SuspendCore({this.declareClose = true, this.declareLoad = true});
 
   final bool declareClose;
+  final bool declareLoad;
 
   @override
   Future<Map<String, dynamic>> agentConnect(String agentId, {String? cwd}) async => <String, dynamic>{
         'agentId': agentId,
         'initialize': <String, dynamic>{
           'agentCapabilities': <String, dynamic>{
-            'loadSession': true,
+            'loadSession': declareLoad,
             if (declareClose) 'sessionCapabilities': <String, dynamic>{'close': <String, dynamic>{}},
           },
         },
@@ -69,13 +70,17 @@ Future<TestGesture> _hoverRow(WidgetTester tester, String id) async {
 }
 
 /// 起壳：本地索引里一条会话，agent 尚未连过（第一次点选才连 + `session/load`）。
-Future<(WorkbenchController, _SuspendCore)> _pumpShell(WidgetTester tester, {bool declareClose = true}) async {
+Future<(WorkbenchController, _SuspendCore)> _pumpShell(
+  WidgetTester tester, {
+  bool declareClose = true,
+  bool declareLoad = true,
+}) async {
   tester.view.physicalSize = const Size(1440, 900);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.runAsync(loadGalleryFonts);
 
-  final core = _SuspendCore(declareClose: declareClose);
+  final core = _SuspendCore(declareClose: declareClose, declareLoad: declareLoad);
   await core.sessionIndexUpsert(<String, dynamic>{
     'agentId': _agent,
     'sessionId': _session,
@@ -226,6 +231,20 @@ void main() {
       await _hoverRow(tester, _session);
       expect(_pauseIcon, findsNothing);
       expect(core.closedSessions, isEmpty, reason: '没有入口就不该有 session/close 出去');
+    });
+
+    testWidgets('只声明了 close、挂不回来的 agent：入口也不存在（挂起之后点 History 不会有反应）', (tester) async {
+      final (c, core) = await _pumpShell(tester, declareLoad: false);
+
+      await _tapRow(tester);
+      // 连上了，但既没有 loadSession 也没有 resume：这条会话挂不上（attachOf 落到 unattachable）
+      expect(c.session.attachOf(_session), SessionAttach.unattachable);
+      expect(c.session.canSuspendSession(_session), isFalse, reason: '挂不回来的不给「挂起」这个名字');
+      expect(c.session.suspendableSessionIds, isEmpty);
+
+      await _hoverRow(tester, _session);
+      expect(_pauseIcon, findsNothing);
+      expect(core.closedSessions, isEmpty);
     });
   });
 }

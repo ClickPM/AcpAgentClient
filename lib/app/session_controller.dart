@@ -201,7 +201,8 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
       };
 
   /// 其中能挂起的那些（iteration-19：侧栏 Active 行的行内动作，画板 45 没画，见 DIVERGENCE A-37）：
-  /// 挂在活着的连接上、且它自己的 agent 声明了 `sessionCapabilities.close`。是 [attachedSessionIds] 的子集。
+  /// 挂在活着的连接上、它自己的 agent 声明了 `sessionCapabilities.close` 且挂得回来（[canSuspendSession]）。
+  /// 是 [attachedSessionIds] 的子集。
   Set<String> get suspendableSessionIds => <String>{
         for (final s in sidebarSessions)
           if (canSuspendSession(s.id)) s.id,

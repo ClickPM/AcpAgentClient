@@ -87,8 +87,9 @@ class Sidebar extends StatelessWidget {
   /// 画板 45：属于当前存活连接的会话 id 集合（Active 分组）。
   final Set<String> activeIds;
 
-  /// 其中能「挂起」的那些（iteration-19）：挂在活着的连接上、且它自己的 agent 声明了 `sessionCapabilities.close`。
-  /// 是 [activeIds] 的子集，所以挂起按钮只出现在 Active 区；点击后这条会话交还 agent，随即沉到 History。
+  /// 其中能「挂起」的那些（iteration-19）：挂在活着的连接上、它自己的 agent 声明了 `sessionCapabilities.close`、
+  /// 且挂得回来（`loadSession` 或 `resume`）。是 [activeIds] 的子集，所以挂起按钮只出现在 Active 区；
+  /// 点击后这条会话交还 agent，随即沉到 History，再点那一行由组合根挂回来。
   final Set<String> suspendableIds;
 
   /// 画板 45：历史会话分组是否折叠（折叠状态无需展示“已折叠”字样）。

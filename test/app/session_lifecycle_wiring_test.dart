@@ -10,6 +10,7 @@
 // - 新建会话：agent 已经连着就不重连（重连会把它上面所有会话连着在途那轮一起杀掉），进程死了才重连。
 
 import 'package:acp_agent_client/app/core_bridge.dart';
+import 'package:acp_agent_client/app/session_attach.dart';
 import 'package:acp_agent_client/app/workbench_controller.dart';
 import 'package:acp_agent_client/projection/entries.dart';
 import 'package:acp_agent_client/projection/session_store.dart';
@@ -293,6 +294,23 @@ void main() {
     expect(core.cancels, 0, reason: '停止方块不该把 session/cancel 打到已释放的会话上');
     expect(store.entries, hasLength(entriesBefore), reason: 'Restore 不能把本地转录截断了却发不出去');
     expect(c.turn.lastError, contains('已经挂起'));
+    c.dispose();
+  });
+
+  // 审查 P2（iteration-19）：挂起之后那句提示只在「点 History 那一行真能挂回来」时成立。
+  // 只有 close、既没有 loadSession 也没有 resume 的 agent，`ensureLoaded` 在 unattachable 上直接返回、
+  // 点那一行什么都不会发生，所以那句话不能出现。
+  test('挂不回的会话（agent 只有 close）：提示让新建一个会话，不指侧栏 History', () async {
+    final (c, _) = await _connected(initialize: _initialize(loadSession: false, caps: <String>['close']));
+    c.session.sessionId = _session;
+    c.sessions.session(_session, agentId: _agent).cwd = _cwd;
+    await c.session.closeSession();
+
+    expect(c.session.attachOf(_session), SessionAttach.unattachable);
+    c.composer.editor.text = '还想说点什么';
+    await c.turn.send();
+    expect(c.turn.lastError, contains('新建一个会话'));
+    expect(c.turn.lastError, isNot(contains('History')), reason: '点那一行不会有反应，别让用户去点');
     c.dispose();
   });
 
