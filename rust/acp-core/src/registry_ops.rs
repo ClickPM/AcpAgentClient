@@ -1,6 +1,6 @@
 //! registry 面板 / 认证状态 / 设置页背后的编排（docs/design.md § 5 / § 6，R5）：把 `rust/registry` 的安装步骤、
 //! settings.json 的写入与首次 `initialize` 握手串成画板 51 的三步，进度经 `registry/progress` 推出；Remove、受管 Node、
-//! 从 Zed 导入、registry 型的拉起也在这里。安装任务在核心的 runtime 上后台跑，命令立即返回，取消经 [`CancelToken`]。
+//! registry 型的拉起也在这里。安装任务在核心的 runtime 上后台跑，命令立即返回，取消经 [`CancelToken`]。
 //! 画板 53 的升级（`registry_update`）也在这里：新版本装在旧版旁边，通过了才切换安装记录，旧目录在不被占用时清掉。
 
 use std::collections::BTreeMap;
@@ -75,11 +75,11 @@ impl Core {
     // ---- 列表与刷新
 
     /// `registry_list`：registry 条目（带本地安装 / 认证状态）+ settings 里的 custom 条目，已安装的排前面；
-    /// 另带拉取状态、Node 状态与几个路径（数据目录、日志、Zed settings）。
+    /// 另带拉取状态、Node 状态与几个路径（数据目录、日志）。
     pub async fn registry_list(&self) -> Result<Value> {
         let snap = self.registry_index().snapshot();
         let mut settings = self.settings().load()?;
-        // 内置 sidecar（R7）与 custom 型条目一起列，只是多带一个 `builtin` 标记让前端关掉 Remove。
+        // 内置 agent 与 custom 型条目一起列，只是多带一个 `builtin` 标记让前端关掉 Remove。
         crate::builtin::merge_into(&mut settings, self.data_dir());
         let platform = current_platform_key();
         let installing: Vec<String> = lock(self.installs()).keys().cloned().collect();
@@ -122,10 +122,10 @@ impl Core {
         }
         for (id, server) in &settings.agent_servers {
             if let AgentServer::Custom { path, args, env, extra } = server {
-                // `extra` 是 Zed 同形字段的原样保留处；内置条目在这里放 `builtin` / `name`（crate::builtin）。
+                // `extra` 是配置中的额外字段的原样保留处；内置条目在这里放 `builtin` / `name`（crate::builtin）。
                 let builtin = extra.get("builtin").and_then(Value::as_bool).unwrap_or(false);
                 let name = extra.get("name").and_then(Value::as_str).unwrap_or(id.as_str());
-                // custom 型没有 registry 缓存的 `icon.svg`，条目自带时就用它（内置 sidecar 随包带了 Zed 的标志）。
+                // custom 型没有 registry 缓存的 `icon.svg`，条目自带时就用它（如内置 agent 随包带的标志）。
                 let icon = extra.get("iconSvg").and_then(Value::as_str);
                 agents.push((
                     true,
@@ -148,7 +148,6 @@ impl Core {
         // 已安装 / custom 排前面，其余保持 registry 顺序（画板 50）。
         agents.sort_by_key(|(installed, _)| !installed);
         let node = registry::node::status(dirs).await;
-        let zed_path = settings::zed_import::zed_settings_path().filter(|p| p.is_file());
         Ok(json!({
             "agents": agents.into_iter().map(|(_, v)| v).collect::<Vec<_>>(),
             "fetching": snap.fetching,
@@ -158,7 +157,6 @@ impl Core {
             "paths": {
                 "dataDir": self.data_dir().to_string_lossy(),
                 "logPath": self.log_path().to_string_lossy(),
-                "zedSettingsPath": zed_path.map(|p| p.to_string_lossy().into_owned()),
             },
         }))
     }
@@ -426,7 +424,7 @@ impl Core {
         });
     }
 
-    /// settings.json 写 `{type: "registry"}`（已有 registry 条目时保留它的 env 与 Zed 字段；同名 custom 条目不覆盖）。
+    /// settings.json 写 `{type: "registry"}`（已有 registry 条目时保留它的 env；同名 custom 条目不覆盖）。
     /// 返回该条目的 `env`（拉起时最后覆盖）与「这条是本次新建的」（回滚时只删自己建的）。
     fn write_registry_settings(&self, agent_id: &str) -> Result<(BTreeMap<String, String>, bool)> {
         match self.settings().get(agent_id)? {
@@ -530,29 +528,17 @@ impl Core {
 
     /// `agent_settings_remove`：只删 settings.json 的条目（custom 型从设置页删除；registry 型请走 `registry_remove`）。
     pub async fn agent_settings_remove(&self, agent_id: &str) -> Result<Value> {
-        // 内置 sidecar 不在 settings.json 里，删了也只会在下次 `agent_settings_get` 又冒出来；
+        // 内置 agent 不在 settings.json 里，删了也只会在下次 `agent_settings_get` 又冒出来；
         // 与其装作删掉了，不如明确拒绝（画板 70「可见、不可删」）。用户自己在 settings 里写过同名条目时
         // 那条是可删的 —— 删完剩下的就是内置条目。
         if self.settings().get(agent_id)?.is_none() && crate::builtin::is_builtin(agent_id) {
-            return Err(CoreError::InvalidArgument(format!("`{agent_id}` 是随包分发的内置 agent，不能删除")));
+            return Err(CoreError::InvalidArgument(format!("`{agent_id}` 是内置 agent，不能删除")));
         }
         let connection = lock(self.agents()).remove(agent_id);
         if let Some(connection) = connection {
             connection.disconnect().await;
         }
         Ok(serde_json::to_value(self.settings().remove(agent_id)?)?)
-    }
-
-    /// `agent_settings_import_zed`：读 `%APPDATA%/Zed/settings.json` 的 `agent_servers`，同名不覆盖。返回导入报告 + 全量设置。
-    pub fn agent_settings_import_zed(&self) -> Result<Value> {
-        let path = settings::zed_import::zed_settings_path()
-            .filter(|p| p.is_file())
-            .ok_or_else(|| CoreError::Settings("找不到 Zed 的 settings.json".into()))?;
-        let report = self.settings().import_zed(&path)?;
-        Ok(json!({
-            "report": serde_json::to_value(report)?,
-            "settings": serde_json::to_value(self.settings().load()?)?,
-        }))
     }
 
     // ---- registry 型的拉起与认证状态

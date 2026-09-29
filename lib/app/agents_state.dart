@@ -34,7 +34,7 @@ class AgentsState extends ChangeNotifier with GuardedNotifier {
   /// registry 列表刷新完：侧栏的 agent logo 是从 registry 查出来烘进侧栏项的，会话控制器重投影一次。
   final void Function() _onRegistryChanged;
 
-  /// `registry_list` 回的 `paths`（dataDir / logPath / zedSettingsPath，画板 70）：组合根记着。
+  /// `registry_list` 回的 `paths`（dataDir / logPath，画板 70）：组合根记着。
   final void Function(Map<Object?, Object?> paths) _onPaths;
 
   List<AgentRef> installed = const <AgentRef>[];
@@ -52,7 +52,6 @@ class AgentsState extends ChangeNotifier with GuardedNotifier {
   // ---- 设置面板（画板 70，R5；右栏标签）
   String? expandedId;
   String? editingId;
-  String? zedImportResult;
   late final CustomEditFields edit = CustomEditFields(
     command: TextEditingController(),
     args: TextEditingController(),
@@ -82,7 +81,7 @@ class AgentsState extends ChangeNotifier with GuardedNotifier {
     installed = <AgentRef>[
       if (servers is Map)
         for (final entry in servers.entries)
-          // 名字：条目自带的 `name` 优先（R7 的内置 sidecar 用它显示 "Zed Agent"），其次 registry.json 的
+          // 名字：条目自带的 `name` 优先（内置条目用它显示名称），其次 registry.json 的
           // 展示名（R5），最后退回 settings 里的键；连上之后会话头再从 agentInfo 取（规则 2）。
           AgentRef(
             id: entry.key as String,
@@ -322,23 +321,4 @@ class AgentsState extends ChangeNotifier with GuardedNotifier {
     return out;
   }
 
-  /// 「从 Zed 导入」：结果文案留在行下（画板 70 的注释位）。
-  Future<void> importZed() async {
-    final b = bridge;
-    if (b == null) return;
-    await guard(() async {
-      final result = await b.agentSettingsImportZed();
-      final report = result['report'];
-      if (report is Map) {
-        List<String> ids(Object? v) => v is List ? v.map((e) => e.toString()).toList() : const <String>[];
-        final imported = ids(report['imported']);
-        final skipped = ids(report['skipped']);
-        final invalid = ids(report['invalid']);
-        zedImportResult = '已导入 ${imported.length} 条${imported.isEmpty ? '' : '（${imported.join('、')}）'}，'
-            '跳过同名 ${skipped.length} 条${invalid.isEmpty ? '' : '，解不开 ${invalid.length} 条（${invalid.join('、')}）'}。';
-      }
-      await refreshRegistry();
-    });
-    touch();
-  }
 }

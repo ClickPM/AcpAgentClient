@@ -385,7 +385,6 @@ String? r5ReportPathFromEnvironment() {
 ///   ACP_R5_AUTH_INPUT_DELAY  写入前等待秒数（缺省 5）
 ///   ACP_R5_AUTH_TIMEOUT  等认证完成的秒数（缺省 300；agent 型的浏览器登录要人来点）
 ///   ACP_R5_PROMPT        一轮提示词
-///   ACP_R5_IMPORT_ZED    `1` = 从 Zed 导入（验收 4）
 ///   ACP_R5_REMOVE        `1` = 末尾 Remove 安装的 agent（验收 5）
 ///   ACP_R5_UPGRADE       要升级的 registry id（画板 53，round-board-53 验收 7）：在一轮之后、Remove 之前升级，等 done / failed / cancelled
 ///   ACP_R5_UPGRADE_CANCEL_AT  看到升级的某个步骤就取消（同 ACP_R5_CANCEL_AT）
@@ -538,19 +537,6 @@ Future<void> runR5({required String reportPath}) async {
       steps['upgrade'] = result;
     }
 
-    // ---- 从 Zed 导入（验收 4）
-    if (_env('ACP_R5_IMPORT_ZED') == '1') {
-      final before = c.agents.registry.entries.where((e) => e.installed).map((e) => e.id).toList();
-      await c.agents.importZed().timeout(timeout);
-      steps['importZed'] = <String, dynamic>{
-        'zedSettingsPath': c.zedSettingsPath,
-        'result': c.agents.zedImportResult,
-        'installedBefore': before,
-        'installedAfter': c.agents.registry.entries.where((e) => e.installed).map((e) => e.id).toList(),
-        'error': c.agents.lastError,
-      };
-    }
-
     // ---- Remove（验收 5）
     if (_env('ACP_R5_REMOVE') == '1' && install != null) {
       final dir = '${c.dataDir}${Platform.pathSeparator}agents${Platform.pathSeparator}$install';
@@ -586,7 +572,7 @@ Map<String, dynamic> _registrySummary(WorkbenchController c) => <String, dynamic
       'fetchError': c.agents.registry.fetchError,
       'fetchedAt': c.agents.registry.fetchedAt?.toIso8601String(),
       'node': <String, dynamic>{'system': c.agents.registry.node.system?.version, 'managed': c.agents.registry.node.managed?.version, 'systemError': c.agents.registry.node.systemError},
-      'paths': <String, dynamic>{'dataDir': c.dataDir, 'logPath': c.logPath, 'zed': c.zedSettingsPath},
+      'paths': <String, dynamic>{'dataDir': c.dataDir, 'logPath': c.logPath},
       'sample': <String>[for (final e in c.agents.registry.entries.take(6)) '${e.id} v${e.version} ${e.kind.wire}${e.supported ? '' : ' unsupported'}'],
     };
 

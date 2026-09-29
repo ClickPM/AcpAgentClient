@@ -76,7 +76,6 @@ abstract interface class CoreCommands {
   Future<JsonMap> agentSettingsGet();
   Future<JsonMap> agentSettingsSet(String agentId, JsonMap server);
   Future<JsonMap> agentSettingsRemove(String agentId);
-  Future<JsonMap> agentSettingsImportZed();
   Future<JsonMap> registryList();
   Future<JsonMap> registryRefresh({bool force});
   Future<JsonMap> registryInstall(String agentId);
@@ -249,9 +248,6 @@ class CoreBridge implements CoreCommands {
 
   @override
   Future<JsonMap> agentSettingsRemove(String agentId) => _run(() => api.agentSettingsRemove(agentId: agentId));
-
-  @override
-  Future<JsonMap> agentSettingsImportZed() => _run(api.agentSettingsImportZed);
 
   @override
   Future<JsonMap> registryList() => _run(api.registryList);

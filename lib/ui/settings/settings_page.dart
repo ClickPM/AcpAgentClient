@@ -1,6 +1,6 @@
 // 画板 70 · 设置：外观（四个字体轴）、agent 配置（registry 型只读展开；custom 型行内编辑 cmd / args / env）、
-// 从 Zed 导入、Node 运行时、数据目录与日志路径的打开 / 复制。走 agent_settings_get / set / remove、
-// agent_settings_import_zed 与 appearance_get / set（接线阶段）。数据源 lib/projection/registry.dart 里已安装的条目。
+// Node 运行时、数据目录与日志路径的打开 / 复制。走 agent_settings_get / set / remove
+// 与 appearance_get / set（接线阶段）。数据源 lib/projection/registry.dart 里已安装的条目。
 // 样式只取 tokens。
 //
 // 「外观」小节是实现先行、设计稿待补（画板 70 尚未画这一小节，见 design/README.md 变更记录与 rounds/BACKLOG.md）。
@@ -34,8 +34,6 @@ class SettingsPage extends StatelessWidget {
     required this.agents,
     required this.dataDir,
     this.logPath,
-    this.zedSettingsPath,
-    this.zedImportResult,
     this.node = const NodeStatus(),
     this.nodeProgress,
     this.expandedId,
@@ -45,7 +43,6 @@ class SettingsPage extends StatelessWidget {
     this.onCollapse,
     this.onSave,
     this.onRemove,
-    this.onImportZed,
     this.onDownloadNode,
     this.onOpenPath,
     this.onCopyPath,
@@ -58,10 +55,6 @@ class SettingsPage extends StatelessWidget {
   final List<RegistryEntryData> agents;
   final String dataDir;
   final String? logPath;
-  final String? zedSettingsPath;
-
-  /// 上次导入的结果文案（「已导入 2 条，跳过同名 3 条」）。
-  final String? zedImportResult;
   final NodeStatus node;
   final InstallProgress? nodeProgress;
 
@@ -75,7 +68,6 @@ class SettingsPage extends StatelessWidget {
   final VoidCallback? onCollapse;
   final ValueChanged<String>? onSave;
   final ValueChanged<String>? onRemove;
-  final VoidCallback? onImportZed;
   final VoidCallback? onDownloadNode;
   final ValueChanged<String>? onOpenPath;
   final ValueChanged<String>? onCopyPath;
@@ -116,8 +108,6 @@ class SettingsPage extends StatelessWidget {
               ],
               _section('agent 配置', note: 'registry 型只读；custom 型可编辑 cmd / args / env', child: _agentsCard()),
               const SizedBox(height: t.Spacing.s16),
-              _section('从 Zed 导入', child: _zedCard()),
-              const SizedBox(height: t.Spacing.s16),
               _section('Node 运行时', child: _nodeCard()),
               const SizedBox(height: t.Spacing.s16),
               _section('数据目录与日志', child: _pathsCard()),
@@ -140,7 +130,7 @@ class SettingsPage extends StatelessWidget {
             const SizedBox(width: t.Spacing.s8),
             Expanded(
               child: Text(
-                '转录 · 外观 · agent 配置 · 从 Zed 导入 · Node 运行时 · 数据目录',
+                '转录 · 外观 · agent 配置 · Node 运行时 · 数据目录',
                 style: t.TextStyles.secondary.copyWith(color: t.Neutral.placeholder),
               ),
             ),
@@ -208,7 +198,7 @@ class SettingsPage extends StatelessWidget {
             if (agents.isEmpty)
               Padding(
                 padding: const EdgeInsets.all(t.Spacing.s12),
-                child: Text('还没有已安装或手填的 agent；到 Agents 面板安装，或从 Zed 导入。', style: t.TextStyles.secondary),
+                child: Text('还没有已安装或手填的 agent；到 Agents 面板安装。', style: t.TextStyles.secondary),
               ),
             for (var i = 0; i < agents.length; i++) ...<Widget>[
               if (agents[i].id == editingId && editFields != null)
@@ -261,19 +251,6 @@ class SettingsPage extends StatelessWidget {
       ),
     );
   }
-
-  // ---------------------------------------------------------------- 从 Zed 导入
-
-  Widget _zedCard() => TranscriptCard(
-        child: SettingsRow(
-          label: 'Zed settings.json',
-          value: zedSettingsPath ?? '—',
-          note: zedImportResult ?? '读取 agent_servers 段，导入为 custom 型配置；不覆盖同名项。',
-          trailing: <Widget>[
-            AcpButton(label: '从 Zed 导入', kind: ButtonKind.primary, icon: AcpIcons.download, enabled: zedSettingsPath != null, onTap: onImportZed),
-          ],
-        ),
-      );
 
   // ---------------------------------------------------------------- Node 运行时
 

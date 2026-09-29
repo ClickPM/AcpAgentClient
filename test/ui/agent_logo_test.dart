@@ -34,13 +34,13 @@ JsonMap _entry(String id, {String? icon}) => <String, dynamic>{
 
 JsonMap _registry(List<Object?> agents) => <String, dynamic>{'agents': agents, 'fetching': false, 'node': <String, dynamic>{}};
 
-/// settings.json 里装着两个 agent：一个 registry 型、一个内置 sidecar（`zed`）。
+/// settings.json 里装着两个 agent：一个 registry 型、一个内置 agent（`dsh-acp-interactive`）。
 class _TwoAgentsCore extends FakeCore {
   @override
   Future<JsonMap> agentSettingsGet() async => <String, dynamic>{
         'agent_servers': <String, dynamic>{
           _agent: <String, dynamic>{'command': 'node'},
-          'zed': <String, dynamic>{'command': 'zed-agent-acp.exe', 'name': 'Zed Agent'},
+          'dsh-acp-interactive': <String, dynamic>{'command': 'dsh-acp-interactive.cmd', 'name': 'DeepSeek Harness'},
         },
       };
 }
@@ -83,25 +83,14 @@ void main() {
     c.dispose();
   });
 
-  test('「新建会话 · 选 agent」弹层的每条也带 logo（内置 zed 用随包带的那份）', () async {
+  test('「新建会话 · 选 agent」弹层的每条也带 logo（内置 dsh 用随包带的那份）', () async {
     final core = _TwoAgentsCore()
-      ..registry = _registry(<Object?>[_entry(_agent, icon: _svg), _entry('zed', icon: '<svg viewBox="0 0 16 16"/>')]);
+      ..registry = _registry(<Object?>[_entry(_agent, icon: _svg), _entry('dsh-acp-interactive', icon: '<svg viewBox="0 0 16 16"/>')]);
     final c = await _start(core);
     final byId = <String, AgentRef>{for (final a in c.agents.installed) a.id: a};
     expect(byId[_agent]!.iconSvg, _svg);
-    expect(byId['zed']!.iconSvg, '<svg viewBox="0 0 16 16"/>', reason: '内置条目的 iconSvg 由 builtin.rs 放进 registry_list');
+    expect(byId['dsh-acp-interactive']!.iconSvg, '<svg viewBox="0 0 16 16"/>', reason: '内置条目的 iconSvg 由 builtin.rs 放进 registry_list');
     c.dispose();
-  });
-
-  // 内置 sidecar（agent id `zed`）不在官方 registry 里、没有可缓存的图标，随包带一份 Zed 的标志，
-  // 由 `rust/acp-core/src/builtin.rs` 放进条目的 `iconSvg`（走的还是同一条投影路）。这里只守「这份 SVG
-  // 真能被 flutter_svg 解析」：文件头有一段来源声明的 XML 注释，解析不了的话前端会静默退回占位菱形。
-  test('随包带的 Zed logo 能被 flutter_svg 解析', () async {
-    final file = File('rust/acp-core/assets/zed-icon.svg');
-    expect(file.existsSync(), isTrue, reason: 'include_str! 进 builtin.rs 的就是这个文件');
-    final svg = file.readAsStringSync();
-    expect(svg, contains('zed-industries/zed'), reason: '复用要标来源（CLAUDE.md 规则 5）');
-    await SvgStringLoader(svg).loadBytes(null);
   });
 
   // 内置的第二条（agent id `dsh-acp-interactive`）同理：官方 registry 里没有它，图标随包带
