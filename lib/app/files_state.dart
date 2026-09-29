@@ -1,5 +1,5 @@
 // 文件面板的接线状态（R4 接线阶段）：把画板 60 的 widget（lib/ui/files/）接到桥命令——树走 `fs_list_dir`、内容走 `fs_read`、
-// 搜索走 `fs_search`、徽章走 `git_status`、刷新走 `fs_watch` 流。widget 只拿数据与回调，不知道桥的存在（CLAUDE.md 规则 3）。
+// 搜索走 `fs_search`、徽章走 `git_status`、刷新走 `fs_watch` 流。widget 只拿数据与回调，不知道桥的存在（AGENTS.md 规则 3）。
 // 「Go to File」/ diff 行 / `@` 芯片 / Follow 都落到 [openPath]。
 
 import 'dart:async';

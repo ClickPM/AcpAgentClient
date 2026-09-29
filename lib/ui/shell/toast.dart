@@ -2,7 +2,7 @@
 //   正在做、要等 —— spinner + 一句话，跟着状态出现与消失，不计时、不能关；
 //   出错了 —— 红色图标 + 原因，[t.Toast.errorDuration] 后自己收起，鼠标停在上面时不计时，也可以点 × 关掉。
 // 这里只管画与计时；谁在什么时候出哪一条由 lib/app/toasts.dart 决定。
-// 样式只取 tokens（CLAUDE.md 规则 3）：底色 / 边框 / 阴影借弹层（[Popover]），几何与时长在 `t.Toast`。
+// 样式只取 tokens（AGENTS.md 规则 3）：底色 / 边框 / 阴影借弹层（[Popover]），几何与时长在 `t.Toast`。
 
 import 'dart:async';
 

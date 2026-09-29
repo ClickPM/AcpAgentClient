@@ -1,6 +1,6 @@
 // 终端面板的接线状态（R4 接线阶段）：每个标签一个本地 shell（`terminal_open`），键盘输入 → `terminal_write`、
 // 视口变化 → `terminal_resize`、停止 → `terminal_kill`、关闭 → `terminal_close`；输出从 `acp/terminal_output`（source = local）
-// 按 terminalId 分发到各自的 [LocalTerminal]。widget 只拿模型与回调（CLAUDE.md 规则 3）。
+// 按 terminalId 分发到各自的 [LocalTerminal]。widget 只拿模型与回调（AGENTS.md 规则 3）。
 
 import 'dart:async';
 import 'dart:convert';

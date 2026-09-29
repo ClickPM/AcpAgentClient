@@ -154,7 +154,7 @@ void main() {
   });
 
   test('仓库文档（长文、表格、嵌套列表、围栏）', () {
-    for (final path in <String>['README.md', 'docs/background.md', 'docs/requirements.md', 'docs/review-workflow.md', 'CLAUDE.md']) {
+    for (final path in <String>['README.md', 'docs/background.md', 'docs/requirements.md', 'docs/review-workflow.md', 'AGENTS.md']) {
       _stream(File(path).readAsStringSync(), math.Random(path.length), maxChunk: 64, every: 16);
     }
   });

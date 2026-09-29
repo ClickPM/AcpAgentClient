@@ -4,7 +4,7 @@
 //!   官方 registry 里没有它，不内建就只能让用户手改 `settings.json`（所有者裁定 2026-09-17）。
 //!
 //! 对核心的其余部分**没有任何特殊待遇**：都只是一条 `type: custom` 的 `agent_servers` 条目，
-//! 拉起、initialize、会话、权限全走和其他 agent 一样的路（CLAUDE.md 规则 2）。唯一的区别是
+//! 拉起、initialize、会话、权限全走和其他 agent 一样的路（AGENTS.md 规则 2）。唯一的区别是
 //! 这条条目**不落 `settings.json`**：
 //! - 拉起参数是**按本机现状合成**的（看 PATH 上有没有全局安装或本地环境变量覆盖），
 //!   换台机器就变，写进用户的设置文件只会留下一条过期的绝对路径；
@@ -31,7 +31,7 @@ const DSH_AGENT_NAME: &str = "DeepSeek Harness";
 const DSH_BIN: &str = "dsh-acp-interactive";
 
 /// 本机没有全局安装时的退路：`npx -y <包名>@<版本>`。
-/// **版本跟着 `pins/upstream.json` 的 `dsh-acp-interactive` 走（CLAUDE.md 规则 4：改版本先改 pins）。**
+/// **版本跟着 `pins/upstream.json` 的 `dsh-acp-interactive` 走（AGENTS.md 规则 4：改版本先改 pins）。**
 const DSH_PACKAGE: &str = "deepseekharness-acp-interactive@1.3.2";
 
 /// 覆盖 dsh 可执行文件的环境变量：开发时指向本地 checkout 里的 `lib/bin.js` 包装或另一个版本。

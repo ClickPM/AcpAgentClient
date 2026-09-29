@@ -1,5 +1,5 @@
 //! 开发用 CLI（ROUNDS.md § 0 第 2 条）：绕过 frb 直接调 acp-core，事件按 JSON 行打到 stdout。不发布。
-//! 参数手工解析，不引 clap（CLAUDE.md 规则 1 通用库清单之外不加库）。
+//! 参数手工解析，不引 clap（AGENTS.md 规则 1 通用库清单之外不加库）。
 //!
 //! ```text
 //! acp-smoke ping [--data-dir <abs>] [--echo <text>]

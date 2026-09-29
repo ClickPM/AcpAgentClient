@@ -14,7 +14,7 @@
 
 ## 交付物
 
-文件级清单，写到路径。复用自 Zed 的文件注明来源路径与 commit（CLAUDE.md 规则 5）。
+文件级清单，写到路径。复用自 Zed 的文件注明来源路径与 commit（AGENTS.md 规则 5）。
 
 ## 验收
 
@@ -25,19 +25,20 @@
 
 ## 禁止
 
-本轮明确不许碰的东西（防范围蔓延）。默认继承三条：不改前端页面样式（CLAUDE.md 规则 3）；不加设计稿没有的功能（规则 3）；不在 `vendor/upstream/` 里改代码（规则 4）。
+本轮明确不许碰的东西（防范围蔓延）。默认继承三条：不改前端页面样式（AGENTS.md 规则 3）；不加设计稿没有的功能（规则 3）；不在 `vendor/upstream/` 里改代码（规则 4）。
 
 ## 代码审查
 
-<!-- 完成后回填。审查路由见 CLAUDE.md「开发模式」与 docs/review-workflow.md：
-     ① cursor CLI + grok 4.7 high fast → ② 硬失败回落主会话委派的 Claude Code 只读子代理（同一份任务书）。
+<!-- 完成后回填。审查路由见 AGENTS.md「开发模式」与 docs/review-workflow.md：
+     ① cursor CLI + grok 4.7 high fast 是唯一默认执行器 → ② 硬失败就**停下喊人**（不自动回落子代理）；
+        只有所有者点名换执行器时才换（只读子代理 + 模型独立于主会话），并把「执行器由所有者指定」写在这里。
      范围：前两轮全量（-Scope branch，即 main...HEAD），第 3 轮起只审上一轮整改 diff（-Scope since -Base <上一轮已审提交>）。 -->
 
-- 审查方式：<cursor-review.ps1（默认档）| cursor-review.ps1 -Kind adversarial | Claude Code 子代理（写明 cursor 失败原因）>
-- 审查器与模型：<cursor CLI grok-4.7-high-fast | Claude Code 子代理（写明模型）>
+- 审查方式：<cursor-review.ps1（默认档）| cursor-review.ps1 -Kind adversarial | 所有者指定的只读子代理（写明 cursor 硬失败的现象与证据）>
+- 审查器与模型：<cursor CLI grok-4.7-high-fast | 所有者指定的只读子代理（写明模型，且必须独立于主会话）>
 - 审查范围与基准提交：<branch main...HEAD | since <sha>..HEAD>
 - findings 处理：<逐条：采纳整改 / 不采纳及理由；或链接同目录记录文件>
-- 结论：<PASS | 整改后 PASS>
+- 结论：<PASS | 整改后 PASS | 阻塞：cursor 硬失败，已停下等所有者指示>
 
 ## 失败处理
 

@@ -2,8 +2,8 @@
 
 > **2026-09-22 起的日常开发模式**（R0–R8 主体完成、v1.4.1 发布之后）。与 `rounds/` 的轮次流程**并列、不替代**：
 > 轮次留给核心大迭代（新子系统 / 新页面 / 契约与钉版本变更 / 结构性重构 / 新平台），其余——BACKLOG 收尾、交互优化、缺陷修复、单画板功能——走本文。
-> 硬性规则（CLAUDE.md 规则 1–11）、审查边界与复审收口标准两边**一字不差**；本文只改「单位、任务卡、审查轮数、进度登记」四件事的粒度。
-> 本文是迭代流程的正本；CLAUDE.md「开发模式」段只作摘要并指向这里。
+> 硬性规则（AGENTS.md 规则 1–11）、审查边界与复审收口标准两边**一字不差**；本文只改「单位、任务卡、审查轮数、进度登记」四件事的粒度。
+> 本文是迭代流程的正本；AGENTS.md「开发模式」段只作摘要并指向这里。
 
 ## 0. 走哪条（一句话判据）
 
@@ -36,16 +36,16 @@
 ## 2. 每个工作项的流程
 
 1. **圈定**：所有者点名，或从 BACKLOG 挑；写进迭代文件的表（类型 / 来源 / 分支）。`board` 与新功能类须先有所有者裁定与入库的设计稿；`fix` / `tidy` 不需要。
-2. **分支**：默认在独立 worktree 分支上做（Claude Code 的 `claude/<slug>-<hash>`，或自取名如 `session-timeline`），迭代表记分支名；`tidy` 与一行改动可直接提交 `main`，提交说明写明「未构建 / 未审查（所有者指定）」——沿用 2026-09-17 起的 main 直改惯例，只是登记处从 ROUNDS.md § 7 改到迭代文件。
+2. **分支**：默认在独立 worktree 分支上做（`main` 之外的任意名字，例如 `session-timeline` 或 agent 自己起的 `claude/<slug>-<hash>`），迭代表记分支名；`tidy` 与一行改动可直接提交 `main`，提交说明写明「未构建 / 未审查（所有者指定）」——沿用 2026-09-17 起的 main 直改惯例，只是登记处从 ROUNDS.md § 7 改到迭代文件。
 3. **实现 + 自检**：`powershell -File scripts/validate.ps1`。只动文档、脚本注释、设计稿时可 `-Quick`；动 Rust / Dart 逻辑必须全量。子进程相关改动附 Windows 实测命令与输出（规则 9）。
 4. **审查（轻量档）**：
    - 默认**一轮**：`powershell -File .claude\cursor-review.ps1 -Scope since -Base <分支基线提交>`；小 diff 加 `-Wait` 前台直接看结果；未提交、零基线时 `-Scope worktree`。
    - 有采纳整改 → 再一轮，只审整改 diff（`-Scope since -Base <上一轮已审提交>`）；循环到 **0 条 high** 才允许合并（与轮次同一收口标准）。
    - 三条不变：不带 high 收口；审查是缺陷门禁、不代替设计；非严重 finding 不许机制类修复（只许改判断 / 改文案 / 删代码，或记 BACKLOG）。
-   - 执行器与回落条件照 `docs/review-workflow.md`（cursor CLI 首选，硬失败回落 Claude Code 子代理 `opus`）。
+   - 执行器与失败处置照 `docs/review-workflow.md`：**cursor CLI 是唯一默认执行器**；硬失败就**停下喊人**，不自动回落子代理，只有所有者点名换执行器时才换（且必须模型独立于主会话）。
    - **免审只认所有者逐项指定**（通常是纯文档、设计稿入库、脚本注释），提交说明与迭代表都写明「未审查（所有者指定）」。
 5. **合并**：所有者定时机，含「把 `main` 合进分支」的时机；合并前后各跑一次 validate（合并冲突面记备注）。合并后 BACKLOG 对应条目打 `[x]` 并写 `→ iteration-NN`。
-6. **回填**：迭代表那一行改状态与提交号；实现先行的设计偏离记 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)（CLAUDE.md 规则 3，所有者裁定 2026-09-20 **不要求补稿**，那几处以实现为准），不进 BACKLOG。
+6. **回填**：迭代表那一行改状态与提交号；实现先行的设计偏离记 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)（AGENTS.md 规则 3，所有者裁定 2026-09-20 **不要求补稿**，那几处以实现为准），不进 BACKLOG。
 
 ## 3. 迭代收口
 
@@ -92,5 +92,6 @@
 | 17 | 2026-09-29 起 | 侧栏会话区 Active（已连接）与 History（历史会话）分组展示及折叠收纳（画板 45） | 进行中 | [`iteration-17.md`](iteration-17.md) |
 | 18 | 2026-09-29 起 | 内存冲到 100% 的两处按帧重算：工具卡内容里的 `image` 块不再每帧重解 base64（`Image.memory` 的缓存键跟着 `bytes` 的同一性走）、流量面板的缩进 JSON 改按需算 + 记忆化 | 已合并（未构建；连同已完成的 iter-17 一起落 main） | [`iteration-18.md`](iteration-18.md) |
 | 19 | 2026-09-29 起 | 侧栏 Active 行的「挂起」：把会话交给 agent 的 `session/close`（转录留着只读、不删），它从 Active 沉到 History，再点 History 那一行挂回来（BACKLOG P1「会话菜单的 Resume / Close 没有入口」收尾） | 待合并（审查 0 high，所有者定时机） | [`iteration-19.md`](iteration-19.md) |
+| 20 | 2026-09-29 起 | 去 Claude Code 绑定：规范正本 `CLAUDE.md` → `AGENTS.md`（`CLAUDE.md` 退成指针）、审查执行器改「cursor 硬失败就停下喊人」、上一代 agent 的项目记忆整批内联到 `docs/agent-notes/` | 已合并（未构建；`f752859`；免审—所有者指定：纯文档与注释） | [`iteration-20.md`](iteration-20.md) |
 
 **在本流程之前开工的那一批仍按轮次走完**：`rounds/round-1.4.1`（v1.4.0 之后六批 `main` 改动的复审与整改，2026-09-22 发 v1.4.1）在本流程建立之前就已立项并写好任务卡，按原样以轮次收口、登记在 `ROUNDS.md` § 7 的进度表里，不回改编号。按本文 § 0 的判据，这种「一批缺陷的集中复审与整改」以后属于迭代（类型 `fix`）；`ROUNDS.md` § 7 里被封存的是「main 直改」那一行，轮次自己的行照旧。

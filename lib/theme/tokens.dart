@@ -1,4 +1,4 @@
-// 样式唯一来源（CLAUDE.md 规则 3）。逐值提炼自 design/round-design/00-tokens.dc.html，
+// 样式唯一来源（AGENTS.md 规则 3）。逐值提炼自 design/round-design/00-tokens.dc.html，
 // 「token 名 → 00 画板位置 → 值」对照表在 rounds/round-00/round-00.md。
 // 画板 widget 文件里不得出现颜色 / 字号 / 间距 / 圆角 / 时长字面量（scripts/validate.ps1 Assert-NoStyleLiteral）。
 // 用法：import 'package:acp_agent_client/theme/tokens.dart' as t;  →  t.Accent.base、t.TextStyles.body。

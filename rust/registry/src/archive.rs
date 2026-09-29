@@ -1,4 +1,4 @@
-//! 压缩包：按 URL 后缀判类型，用系统 `tar` 解压（不引 zip / tar / flate2 —— CLAUDE.md 规则 1 清单之外；
+//! 压缩包：按 URL 后缀判类型，用系统 `tar` 解压（不引 zip / tar / flate2 —— AGENTS.md 规则 1 清单之外；
 //! Windows 10 1803+ 自带 `C:\Windows\System32\tar.exe`（bsdtar，zip / tar.gz / tar.bz2 都认），macOS 的 tar 也是 bsdtar，
 //! Linux 的 GNU tar 不认 zip 时回落 `unzip`）。
 //! Derived from zed-industries/zed crates/project/src/agent_server_store.rs @ d9e1c024f393832765a03f4de204d6c8cd9abcb2 (GPL-3.0-or-later)

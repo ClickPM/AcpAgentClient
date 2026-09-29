@@ -1,6 +1,6 @@
 // 弹层锚点：把触发控件（顶栏的项目名 / 分支名、会话头的 ≡、输入框的 + 与三个下拉…）与画板 40 / 41 / 42 的弹层连起来。
 // 壳的 widget 只负责「把自己包进锚点」并在点击时回调；弹层内容由组合根给（`PopoverHandle.show`），
-// 这样接线阶段不需要改任何 widget 的布局与 token（CLAUDE.md 规则 3）。
+// 这样接线阶段不需要改任何 widget 的布局与 token（AGENTS.md 规则 3）。
 //
 // 用 `OverlayPortal` + `CompositedTransformFollower`：弹层浮在 Overlay 上，位置跟着触发控件走，
 // 点弹层之外的任何地方关闭（画板上弹层都是点外即关的临时表面）。

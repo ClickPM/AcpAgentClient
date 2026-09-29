@@ -32,4 +32,4 @@ rounds/
 - 源码、脚本、测试放各自标准位置（`rust/`、`lib/`、`test/`、`sidecar/`、`scripts/`），不复制进轮次目录；大日志放 gitignored 位置，任务卡只记结论与路径。
 - 跨轮次发现的问题写进 `BACKLOG.md`，不当场顺手改；`BACKLOG.md` **只留未关闭条目**，按「谁会撞上、撞上有多疼」分 P0–P5 档（P3 已整体释放到 `design/DIVERGENCE.md`，X「卡在上游 / 协议」已撤档），每条三行（标题 / **产品** 用户撞上什么 / **技术** 在哪、为什么、最小修法）。**只收本项目自己的问题**：出在上游（agent、zed、xterm 等依赖）或协议本身的不进（所有者裁定 2026-09-23）。内置 Zed agent（sidecar）的问题记 `BACKLOG-ZED.md`，**当前不修**（所有者裁定 2026-09-23）。新增条目挑一档追在该档末尾，不新开档位、一条只进一档。
 - 条目处理完成（已落地 / 已裁定 / 已实测出结论）时，把它的**技术行连同结论压成一行** `- [x]` 剪到 `BACKLOG-CLOSED.md` 末尾（那份是平铺存档，不分档）；已关闭那份只作台账查阅。
-- **实现与画板不一致的不进 BACKLOG**：记 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)，按所有者裁定 2026-09-20 不要求补设计稿（CLAUDE.md 规则 3）。
+- **实现与画板不一致的不进 BACKLOG**：记 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)，按所有者裁定 2026-09-20 不要求补设计稿（AGENTS.md 规则 3）。

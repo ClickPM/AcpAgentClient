@@ -26,7 +26,7 @@ function(apply_cargokit target manifest_dir lib_name any_symbol_name)
         set(OUTPUT_LIB "${CMAKE_CURRENT_BINARY_DIR}/${CARGOKIT_LIB_FULL_NAME}")
     endif()
     # AcpAgentClient patch: honour CARGO_TARGET_DIR so cargo's target dir stays on a pure-ASCII path
-    # (CLAUDE.md 本地开发 / docs/research.md § 9.3). Upstream cargokit always builds under the CMake binary dir.
+    # (AGENTS.md 本地开发 / docs/research.md § 9.3). Upstream cargokit always builds under the CMake binary dir.
     if(DEFINED ENV{CARGO_TARGET_DIR} AND NOT "$ENV{CARGO_TARGET_DIR}" STREQUAL "")
         file(TO_CMAKE_PATH "$ENV{CARGO_TARGET_DIR}" _acp_cargo_target_dir)
         set(CARGOKIT_TEMP_DIR "${_acp_cargo_target_dir}/cargokit")

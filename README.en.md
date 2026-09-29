@@ -81,7 +81,7 @@ powershell -File scripts/package.ps1           # zip and installer → dist/
 
 Output goes to `build/windows/x64/runner/Release/`.
 
-If the project path contains non-ASCII characters or spaces, use `scripts/build.ps1` only: a bare `flutter build windows` mangles such paths. More prerequisites and local pitfalls are under "本地开发" (local development) in [`CLAUDE.md`](CLAUDE.md). There is a one-line index of the scripts in [`scripts/README.md`](scripts/README.md) and a test layout guide in [`test/README.md`](test/README.md).
+If the project path contains non-ASCII characters or spaces, use `scripts/build.ps1` only: a bare `flutter build windows` mangles such paths. More prerequisites and local pitfalls are under "本地开发" (local development) in [`AGENTS.md`](AGENTS.md) and in [`docs/agent-notes/`](docs/agent-notes/README.md). There is a one-line index of the scripts in [`scripts/README.md`](scripts/README.md) and a test layout guide in [`test/README.md`](test/README.md).
 
 ## Status
 
@@ -165,7 +165,8 @@ The documents below are written in Chinese.
 | [`docs/research.md`](docs/research.md) | Source-level research: Zed's ACP code, rust-sdk, registry, the five agents, rejected approaches |
 | [`design/README.md`](design/README.md) | Board index: each board's `.dc.html` source, PNG baseline and implementation status |
 | [`iterations/README.md`](iterations/README.md) | The agile iteration process (day-to-day mode since 2026-09-22) and the list of iterations; rounds are reserved for major core work |
-| [`CLAUDE.md`](CLAUDE.md) | Development conventions, the round and iteration processes, hard rules (`AGENTS.md` is a pointer for reviewers) |
+| [`AGENTS.md`](AGENTS.md) | The single source of truth: development conventions, the round and iteration processes, hard rules (`CLAUDE.md` is only a pointer for Claude Code) |
+| [`docs/agent-notes/`](docs/agent-notes/README.md) | Engineering notes and pitfalls: build caches, worktrees and parallel sessions, release pipeline, review runbook, runtime debugging |
 
 ## License
 

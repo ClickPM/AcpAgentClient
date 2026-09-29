@@ -1,5 +1,5 @@
 // 组合根（R3 接线阶段起；R7.5 拆成组合根 + 8 个对象）：把 `lib/projection/` 的投影层、`lib/app/core_bridge.dart` 的桥命令
-// 与 `lib/ui/` 的画板 widget 串起来。widget 只拿数据与回调，不知道桥的存在（CLAUDE.md 规则 3）。
+// 与 `lib/ui/` 的画板 widget 串起来。widget 只拿数据与回调，不知道桥的存在（AGENTS.md 规则 3）。
 //
 // 本文件只剩接线与生命周期：投影层三件（sessions / batcher / traffic）、文件与终端面板、八个子对象的构造与回调接线、
 // `start()` 的启动顺序、六路核心事件的订阅与分发、批量刷新的调度、dispose / shutdown。状态与动作按画板分组在同目录的

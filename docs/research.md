@@ -208,4 +208,4 @@ Zed 界面上**没有**手动 Resume / Close。一条会话在 agent 侧占的�
 - **两个入口**：claude.ai/design 的完整产品，或 Claude Code 内的 `/design`（把 `.dc.html` 画板发布成一个可编辑的画布 Artifact；早期预览，不与网页版对齐）。两者产物相同。画布上 Save 过的改动要先读回仓库覆盖源文件，再重导 PNG，不在两边各改一份。
 - **Figma MCP 与 Code Connect 随 Make 一起退出**：`get_screenshot` / `get_design_context` / `get_variable_defs` 不再用于对照与提炼，直接读 `.dc.html`。
 - **token 提炼**：首个设计轮先出 `00-tokens` 画板，页面画板从它取值；从它的 `<helmet><style>` 与内联样式提炼颜色、字号、间距、圆角、动效时长到 `lib/theme/tokens.dart`，作为样式唯一来源，不从页面画板反推。规则 3 的「样式零改动」在 Flutter 下的判据就是接线轮里 `tokens.dart` 与画板 widget 文件零 diff。
-- **组件仍全部从画板手写**：`.dc.html` 里的 HTML 与 CSS 不翻译成 Dart，只作结构与数值参照（CLAUDE.md 规则 1 / 3）。
+- **组件仍全部从画板手写**：`.dc.html` 里的 HTML 与 CSS 不翻译成 Dart，只作结构与数值参照（AGENTS.md 规则 1 / 3）。

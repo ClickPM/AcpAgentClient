@@ -1,4 +1,4 @@
-//! `acp/traffic` 与日志的脱敏（CLAUDE.md 规则 8；docs/design.md § 10）：
+//! `acp/traffic` 与日志的脱敏（AGENTS.md 规则 8；docs/design.md § 10）：
 //! `Authorization`、`api_key`、`token` 类字段一律打成 `***`。判定按键名（大小写无关的子串），
 //! 另覆盖 `{name, value}` 形式的 header 条目（`mcpServers[].headers`）与 stderr 里的 `Bearer <token>` / `KEY=value`。
 

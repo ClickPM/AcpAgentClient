@@ -22,7 +22,7 @@
 | `kind` / `terminalId` / `chunk` / `exitStatus` | `local` 行：`terminal_output` 的字节或 `terminal_exit` 的退出状态 |
 | `line` | `stderr` 行 |
 
-密钥字段只放明显的假值（`FAKE-TOKEN-FOR-REDACTION-TEST`），用于 R1 的脱敏验收（CLAUDE.md 规则 8）。
+密钥字段只放明显的假值（`FAKE-TOKEN-FOR-REDACTION-TEST`），用于 R1 的脱敏验收（AGENTS.md 规则 8）。
 
 ## 文件
 

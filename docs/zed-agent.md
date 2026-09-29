@@ -12,11 +12,11 @@
 |---|---|---|
 | zed 钉版本 | commit `d9e1c024f393832765a03f4de204d6c8cd9abcb2`，该版本 zed 自称 **`1.21.0`**（2026-09-11 钉） | [`pins/upstream.json`](../pins/upstream.json) zed 条目的 `commit` / `version`；`vendor/upstream/zed/crates/zed/Cargo.toml` |
 | 复用的 zed 部分 | `crates/agent`（`NativeAgent` / `Thread` / `ThreadStore`）+ `crates/eval_cli` 的无头引导，依赖清单照 `crates/eval_cli/Cargo.toml` | [`sidecar/zed-agent-acp/Cargo.toml`](../sidecar/zed-agent-acp/Cargo.toml) |
-| sidecar 版本 | `1.21.0`，**跟 zed 钉版本走，不跟应用版本走** | `sidecar/zed-agent-acp/Cargo.toml` 的 `version`；CLAUDE.md 规则 11 |
+| sidecar 版本 | `1.21.0`，**跟 zed 钉版本走，不跟应用版本走** | `sidecar/zed-agent-acp/Cargo.toml` 的 `version`；AGENTS.md 规则 11 |
 | 自报版本 | `zed-agent-acp --version` → `zed-agent-acp 1.21.0 (zed @ d9e1c02…)`（commit 由 `build.rs` 从 pins 读出）；`initialize` 回的 `agentInfo` 是 `zed-agent-acp` + 同一个版本号 | `src/main.rs`、`build.rs`、`src/session.rs` 的 `initialize_response` |
 | ACP crate | crates.io **`agent-client-protocol =2.0.0` + `unstable`**，与 zed 钉版本声明的一致（规则 10）；主进程 `rust/` 用的是 git rev 2.1.0，两边编译期无交集，线上都说 ACP v1 | [`research.md`](research.md) § 2 |
 | Rust | 1.98.1（`rust-version = "1.98"`，edition 2024） | `rust-toolchain.toml` |
-| 许可证 | GPL-3.0-or-later（复制 / 转写的文件逐个带 `Derived from zed-industries/zed … @ d9e1c02…` 头，`NOTICE` 双向核对） | CLAUDE.md 规则 5；`scripts/validate.ps1` |
+| 许可证 | GPL-3.0-or-later（复制 / 转写的文件逐个带 `Derived from zed-industries/zed … @ d9e1c02…` 头，`NOTICE` 双向核对） | AGENTS.md 规则 5；`scripts/validate.ps1` |
 
 **版本门**：`scripts/validate.ps1` 核对 sidecar `version` = pins 里 zed 的 `version` = `vendor/upstream/zed/crates/zed/Cargo.toml` 的 version（外加应用侧 `pubspec.yaml` = `rust/Cargo.toml`）。发应用版本**不动** sidecar：改 sidecar 的 `version` 一行就是 176 MB 二进制全量重链（R8 实测 14 分 16 秒），不改时 cargo 判 fresh（8.2 秒）；改 `Cargo.toml` 里的注释不触发重编（9.5 秒，fingerprint 认的是 manifest 的解析结果）。
 
@@ -39,7 +39,7 @@
 
 ### 2.1 为什么只能是独立进程
 
-- **gpui 进不了主进程**（CLAUDE.md 规则 5）：gpui 的无头 `run()` 在 Windows 上仍自己跑 Win32 `GetMessageW` 循环（macOS 上是 `CFRunLoopRun()`），与 Flutter runner 抢同一个线程；而 `crates/agent` 的每个状态都是 `gpui::Entity`、每个异步都是 `gpui::Task`，耦合是结构性的，拆不出无 gpui 的子集（[`research.md`](research.md) § 1.2 / § 1.3）。
+- **gpui 进不了主进程**（AGENTS.md 规则 5）：gpui 的无头 `run()` 在 Windows 上仍自己跑 Win32 `GetMessageW` 循环（macOS 上是 `CFRunLoopRun()`），与 Flutter runner 抢同一个线程；而 `crates/agent` 的每个状态都是 `gpui::Entity`、每个异步都是 `gpui::Task`，耦合是结构性的，拆不出无 gpui 的子集（[`research.md`](research.md) § 1.2 / § 1.3）。
 - **Zed 内置 agent 没有 ACP 服务端**：全仓库没有 `AgentSideConnection`，`NativeAgentConnection` 只是进程内 `acp_thread::AgentConnection` trait 的实现。所以「agent 那一侧的 ACP」要我们自己写，这就是 sidecar 的主体。
 - 结果：主程序把它当成普通的 `custom` 型 agent 经 stdio 拉起，走和其他五个 agent **完全相同**的路；主进程依赖闭包里没有 gpui（`validate.ps1` 用 `cargo tree -p acp_bridge` 守着）。
 

@@ -3,12 +3,12 @@ description: "AcpAgent Client: Flutter desktop shell over a Rust ACP core (flutt
 publish_to: "none"
 version: 1.4.7+1
 
-# Flutter stable 3.47.4 / Dart 3.13.3（R0 钉，CLAUDE.md「本地开发」）。
+# Flutter stable 3.47.4 / Dart 3.13.3（R0 钉，AGENTS.md「本地开发」）。
 environment:
   sdk: ^3.13.3
   flutter: ">=3.47.4"
 
-# 依赖只允许 CLAUDE.md 规则 1 的通用库清单（scripts/validate.ps1 核对直接依赖；传递依赖不算引入，
+# 依赖只允许 AGENTS.md 规则 1 的通用库清单（scripts/validate.ps1 核对直接依赖；传递依赖不算引入，
 # flutter_math_fork 带进来的 provider 不得在我们的代码里 import）。
 # Rust 核心不是 pub 插件：cargokit 直接挂在 windows/CMakeLists.txt，产物 acp_bridge.dll 随 runner 安装。
 dependencies:
@@ -42,7 +42,7 @@ dependencies:
 
 # audioplayers → path_provider → path_provider_foundation 2.6.0 → objective_c ^9.2.1 解析到 9.6.1，
 # 其 hook/build.dart 在 Dart 3.13.3 上编不过（Architecture.arm64e 不存在），flutter test / build 在
-# 「Building native assets」阶段整体失败（R1.5 实测，CLAUDE.md「本地开发」）。钉回 9.4.1 绕过。
+# 「Building native assets」阶段整体失败（R1.5 实测，AGENTS.md「本地开发」）。钉回 9.4.1 绕过。
 # 解除条件：按规则 4 升 Flutter / Dart 到 objective_c 9.6+ 的构建钩子能编过的版本后删掉本段。
 dependency_overrides:
   objective_c: 9.4.1

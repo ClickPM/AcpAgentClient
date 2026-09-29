@@ -7,7 +7,7 @@
 ; 直接双击编译也行（用下面的默认值，需要先跑过 scripts/package.ps1 -NoInstaller）。
 ;
 ; 卸载**不动** %APPDATA%\AcpAgentClient（设置、会话索引、日志、受管 Node、sidecar 的 zed-agent 数据目录）：
-; 那是用户数据，CLAUDE.md 规则 7。重装或升级直接覆盖安装即可。
+; 那是用户数据，AGENTS.md 规则 7。重装或升级直接覆盖安装即可。
 ;
 ; 界面语言只有英文：Inno Setup 6 自带的 Languages\ 里没有简体中文（ChineseSimplified.isl 要另外下载，
 ; 入库它等于再分发第三方文件）。装完之后应用自己的界面照常是中文。

@@ -2,7 +2,7 @@
 // 名字 · git 徽章），右侧查看器（头行：文件名 · 路径 · Source / Preview 分段 · 复制；正文：标题 + 「language · N lines · size」元信息 +
 // Preview（Markdown，R1.5 裁定的 package:markdown 自写渲染）或 Source（re_highlight 高亮 + 行号，可高亮并滚到某一行）；空态）。
 // 查看器头行取画板 03（2026-09-16 改稿后）的 36 高，树列宽取画板 60 的 240；数据全部由调用方给（树模型 file_tree.dart、
-// 内容 [FileViewerData]），接线阶段只换数据源（CLAUDE.md 规则 3）。
+// 内容 [FileViewerData]），接线阶段只换数据源（AGENTS.md 规则 3）。
 // 树列宽可拖（复用画板 04 的分栏把手 [ColumnSplitter]），头行那个「缩小」按钮收起整列、只留查看器——收起后由查看器头行
 // 左侧的按钮放回来（所有者裁定 2026-09-17；原先那个按钮是「全部折叠」，换成收起列后 [FileTree.collapseAll] 不再有入口）。
 

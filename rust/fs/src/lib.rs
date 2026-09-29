@@ -1,7 +1,7 @@
 //! `fs/read_text_file`、`fs/write_text_file`（docs/design.md § 7），工作区文件树 / 搜索 / 查看器读文件 / 目录监视（[`watch`]），
 //! 以及 git CLI 子进程薄封装（分支 / 切换 / 新建 / Branch Diff / 状态徽章，见 [`git`]）。
 //! R3 落 `list_dir` / `search` 与 git；R4 落 `fs/*` 回调、`read_file`、`notify` 与 `git status`。
-//! 写文件一律「临时文件 + rename」（CLAUDE.md 规则 7）。
+//! 写文件一律「临时文件 + rename」（AGENTS.md 规则 7）。
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -630,7 +630,7 @@ mod tests {
                 std::os::unix::fs::symlink(outside.join("secret.txt"), &link).is_ok()
             }
         };
-        // 文件符号链接在 Windows 上要开发者模式或管理员（本地开发前置已要求开发者模式，见 CLAUDE.md「本地开发」）。
+        // 文件符号链接在 Windows 上要开发者模式或管理员（本地开发前置已要求开发者模式，见 AGENTS.md「本地开发」）。
         assert!(linked, "cannot create a file symlink here (Windows 要开开发者模式)");
         assert!(matches!(resolve_inside(&dir, &link), Err(FsError::OutsideWorkspace(_))));
         assert!(matches!(read_text_file(&dir, &link, None, None), Err(FsError::OutsideWorkspace(_))));

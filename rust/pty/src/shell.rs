@@ -5,7 +5,7 @@
 //! crates/gpui_util/src/lib.rs 的 `get_powershell` / `get_windows_system_shell`。去掉了 nushell / fish 等我们不接的 shell，
 //! 也去掉了 Zed 的沙箱包装。）
 //!
-//! Windows（CLAUDE.md 规则 9）：首选 PowerShell（pwsh 7 → Windows PowerShell 5.1），`-C "$null | & {<command> <args>}"`；
+//! Windows（AGENTS.md 规则 9）：首选 PowerShell（pwsh 7 → Windows PowerShell 5.1），`-C "$null | & {<command> <args>}"`；
 //! `.cmd` / `.bat` 包装（npx、npm 全局 bin）由 PowerShell 自己经 cmd 拉起，引号按 PowerShell 的规则转义；
 //! 找不到 PowerShell 才退到 `cmd.exe /S /C`。其他平台 `sh -c "exec </dev/null\n<command> <args>"`。
 

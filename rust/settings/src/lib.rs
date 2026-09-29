@@ -2,7 +2,7 @@
 //! `%APPDATA%/AcpAgentClient/settings.json`，`type: registry | custom`。
 //! R1 最小实现：读 / 写 / 按 agent 覆盖；只 `custom` 型会被拉起，`registry` 型 R5 填实。
 //! R3 另加本地索引（`sessions.json` / `projects.json`，见 [`index`]）。
-//! 写文件一律「临时文件 + rename」（CLAUDE.md 规则 7）；文件不存在视为空设置，不自动创建。
+//! 写文件一律「临时文件 + rename」（AGENTS.md 规则 7）；文件不存在视为空设置，不自动创建。
 
 use std::collections::BTreeMap;
 use std::fmt;

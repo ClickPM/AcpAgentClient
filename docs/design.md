@@ -151,7 +151,7 @@ Flutter 宿主进程（Dart）
   但以 `--user-data-dir <本应用数据目录>/zed-agent` 把 `threads.db` / `db/` / `prompts/` 与本机 Zed 隔开。
   依据：与运行中的 Zed 共用 `threads.db` 时，两边同时写会让 **Zed 那边**保存线程失败 —— Zed 日志里出现
   `Sqlite call failed with code 5 … database is locked`（`crates/agent/src/agent.rs` 的保存路径），
-  本 sidecar 侧没报错，即代价由用户的编辑器承担（CLAUDE.md 规则 7：不拿用户数据冒险）。
+  本 sidecar 侧没报错，即代价由用户的编辑器承担（AGENTS.md 规则 7：不拿用户数据冒险）。
   代价要认：**两边的会话列表不互通**（Zed 里建的线程在本客户端看不到，反之亦然）。要共用的话把
   `--user-data-dir` 参数去掉即可（`rust/acp-core/src/builtin.rs`），行为回到「全共用」。
 - 打包：在 `windows/CMakeLists.txt`（macOS / Linux 对应 runner）加 install 规则，把 `build/sidecar/zed-agent-acp(.exe)` 放到应用目录旁随主程序分发（缺了不报错）；核心按可执行文件相对路径定位它，开发期可用 `ACP_ZED_SIDECAR` 环境变量覆盖路径（`rounds/round-07/round-07.md` 偏离 4）。构建用 `scripts/build-sidecar.ps1`。
@@ -162,7 +162,7 @@ Flutter 宿主进程（Dart）
 - **Flutter stable（Dart）+ flutter_rust_bridge v2**（所有者裁定 2026-09-12，替代 2026-09-11 裁定的 Tauri + React 19）。改的原因：设计稿只作视觉基准（`.dc.html` 源与 PNG 入库）、不复用其代码，前端框架不再被「设计稿是 HTML」绑定；Flutter 不依赖 WebView2，渲染与列表虚拟化是原生能力；Rust 核心以 cdylib 进程内加载，契约不变。2026-09-14 设计工具由 Figma Make 改回 Claude Design，此裁定不变。代价与风险见 § 12。
 - 流式更新的性能靠三件事：投影状态层是纯 Dart 类（不依赖 widget 树），widget 用 `ListenableBuilder` / `StreamBuilder` 选择性订阅；`session/update` 按帧批量合并；转录列表用 `ListView.builder` 惰性构建。
 - 组合根分层（R7.5，2026-09-20）：`lib/app/workbench_controller.dart` 只接线与管生命周期（投影层三件、文件 / 终端面板、六路核心事件的订阅与分发、`start()` 顺序、dispose / shutdown）；状态按画板分组成 `*State`（`ShellState` 壳 / `WorkspaceState` 项目与分支 / `AgentsState` 已装 agent 与 registry 与设置 / `AuthState` 认证页 / `ComposerState` 输入框），协议驱动的两个 `*Controller`（`SessionController` 当前线程与会话生命周期、`TurnController` 一轮对话与会话配置），`SessionIndex` 是 `sessions.json` 的内存镜像（不是 notifier）；共用的通知与错误边界是 `GuardedNotifier` mixin（`lastError` 谁的命令谁记，组合根不聚合）。依赖只允许单向（`turn → session`、`session → index / agents / workspace`、`shell / workspace → files`），反向一律走组合根在构造时接的回调，没有子对象 import 组合根；screen / headless / 单测直接访问子对象（`c.session.send()`），组合根不留转发门面。通知仍是阶段 A：子对象全部转发到组合根，screen 用一个 `ListenableBuilder` 包整个壳；按区域订阅先量后动（任务卡第 9 步）。边与阈值由 `scripts/validate.ps1` 的两道门守着（组合根 ≤ 450 行、其余 ≤ 900 行、附录 B 之外的 import 不许）。
-- 通用库允许清单见 CLAUDE.md 规则 1；**不引第三方 UI 组件库与状态管理库**，组件全部从画板手写，状态用 SDK 自带的 `ChangeNotifier` / `Stream`；样式的唯一来源是从画板提炼的 `lib/theme/tokens.dart`（颜色、字号、间距、圆角、动效时长），widget 文件里不出现字面量。
+- 通用库允许清单见 AGENTS.md 规则 1；**不引第三方 UI 组件库与状态管理库**，组件全部从画板手写，状态用 SDK 自带的 `ChangeNotifier` / `Stream`；样式的唯一来源是从画板提炼的 `lib/theme/tokens.dart`（颜色、字号、间距、圆角、动效时长），widget 文件里不出现字面量。
 - Markdown 渲染：官方 `flutter_markdown` 已停止维护，社区替代对**流式追加**与代码高亮的支持参差。R1.5 spike（`rounds/round-1.5/spike.md`）比较了 `package:markdown` 自写渲染、`markdown_widget`、`gpt_markdown`、`flutter_markdown_plus`、`streamdown` 五个候选，所有者裁定 2026-09-15：**`package:markdown` 只用解析器，渲染层按画板自写**（每个顶层块带 key，样式全从 `tokens.dart` 来）；代码高亮 `re_highlight`，公式 `flutter_math_fork`（`$…$` / `$$…$$` 的识别在 Markdown 层做），Mermaid `mermaid_flutter` + `mermaid_core`（解析失败经 `errorBuilder` 回落源码态），音频块 `audioplayers`（内存 `BytesSource`），diff `diffutil_dart`；画板 15 / 32 不改。
 - 终端渲染用 `xterm`（pub.dev）；PTY 仍在 Rust 侧 portable-pty，`acp/terminal_output` 推字节，Dart 只渲染。文件对话框与打开 URL 用 Flutter 官方 `file_selector` / `url_launcher`，其余系统交互一律走 Rust。
 - ACP 投影的状态层自己写（`lib/projection/`；立项时估约五百行，2026-09-22 约 4,100 行，含时间线 / 回合折叠等纯派生层与 fixtures 回放器），是唯一不允许第三方替代的部分；规则来自 `prototype/assets/projection.js`。
@@ -172,7 +172,7 @@ Flutter 宿主进程（Dart）
   - **项目** = 一个本地目录，作为 `session/new` 的 cwd；顶栏可在已打开项目、最近项目（本地列表）与 `file_selector` 选目录之间切换；不做 Zed 的 worktree 模型。侧栏只列当前项目目录下的会话，换项目时别的目录的会话不露出、正开着的那条放下回空态（2026-09-18，规则在 § 3）。
   - **分支**：顶栏显示当前分支，弹层列本地分支、可搜索、可切换与新建（`git switch` / `git switch -c`）；非 git 目录整块隐藏。
   - **窗口控制**（— ☐ ✕ 画在应用顶栏，即无边框窗口）：Windows runner 自写平台通道（`WM_NCHITTEST` 拖拽区 + 最小化 / 最大化 / 关闭三个方法），不引 `window_manager` 类库；macOS 用原生 traffic lights。2026-09-17 / 18 补齐：缩放热区按 DPI 换算、四边四角都可拉（给 FLUTTERVIEW 子类化，缩放带上回 `HTTRANSPARENT`）、双击顶栏最大化 / 还原（`windows/runner/acp_window.cpp`）。
-  - **`Rules` 行**（画板 30 / 40 的用量弹层）：当前项目根目录下规则文件的计数（AGENTS.md、CLAUDE.md、`.rules`；清单在 R3 任务卡定），点击在文件面板打开。
+  - **`Rules` 行**（画板 30 / 40 的用量弹层）：当前项目根目录下规则文件的计数（AGENTS.md、AGENTS.md、`.rules`；清单在 R3 任务卡定），点击在文件面板打开。
   - **文件树 git 状态徽章**（画板 60）：保留，由 `git status --porcelain` 得出。
   - **`+` 弹层**只有 Files & Directories / Sessions / Image / Branch Diff 四项；原稿的 Symbols 与 Selection 需要 LSP 与编辑器选区，与 `requirements.md`「不做」冲突，已从画板 40 删除。
   - **图片粘贴与附件芯片条**（所有者 2026-09-18 直接要求，对齐 Zed）：输入框里 Ctrl/Cmd+V，剪贴板里是截图或图片文件就加成 ACP `image` 块（同样受 `promptCapabilities.image` 门，与 `+` 的 Image 一项共用），待发的 `image` 块以芯片显示在输入行之上、悬浮浮出原图预览、芯片上的 × 去掉它。Flutter 的 `Clipboard` 只给 text/plain，位图与文件列表读不到，第三方剪贴板包又在规则 1 的清单之外，所以 Windows（规则 9 首发）由 runner 直接走 Win32 读一次剪贴板（`acp/window` 通道的 `readClipboardImages`，`windows/runner/acp_clipboard.cpp`：文件列表给路径、位图给 BGRA 像素，PNG 编码在 Dart 侧用 dart:ui 做；2026-09-20 之前是拉 `powershell.exe` 读 `System.Windows.Forms.Clipboard` 再经临时 PNG 中转）；其他平台暂时读不到图，Ctrl+V 照旧只贴文本。**设计稿还没有这一条**，补稿记在 `rounds/BACKLOG.md`。

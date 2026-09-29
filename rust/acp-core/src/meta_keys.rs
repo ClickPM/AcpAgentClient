@@ -1,4 +1,4 @@
-//! `_meta` 键的唯一出处（CLAUDE.md 规则 2；清单在 docs/design.md § 4）。
+//! `_meta` 键的唯一出处（AGENTS.md 规则 2；清单在 docs/design.md § 4）。
 //! `rust/` 里任何 `_meta` 键都必须引用这里的常量，`scripts/validate.ps1` 会核对：
 //! 本文件的常量 ⊆ § 4 清单，且其他文件的 `_meta` 行不得携带字符串字面量。
 
