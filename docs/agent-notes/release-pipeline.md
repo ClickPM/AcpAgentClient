@@ -132,3 +132,4 @@ gh release create v<x> --title "AcpAgent Client <x>" --notes-file <文件> --ver
 | v1.4.5 | `f006300` | 2026-09-24 | iteration-10 ～ 13 + round dsh-1.3.2 |
 | v1.4.6 | `e08bffd` | 2026-09-24 | iteration-14 / 15 + README.en；validate 154 s（17 门）、flutter test 575 项 |
 | v1.4.7 | `1421394` | 2026-09-29 | 发版记录与打扫脚本 |
+| v1.4.8 | `f4e5e57` | 2026-09-29 | iteration-19（侧栏 Active 行的「挂起」）/ 20（规范正本迁 `AGENTS.md`）；主会话 review（iter-19 已 cursor 三轮 0 条、iter-20 免审）；validate 17 门 + flutter test 622 项 |
