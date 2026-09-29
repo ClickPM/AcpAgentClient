@@ -62,23 +62,55 @@ class ContentBlockView extends StatelessWidget {
 }
 
 /// image：surface 底的预览区 + 元信息行（mimeType · 大小 · uri）。
-class _ImageBlock extends StatelessWidget {
+///
+/// base64 只解一次（iteration-18）：agent 回来的图就落在工具卡内容里的 `image` 块上（`tool_call` 与随后的
+/// `tool_call_update` 各带一份同图，实测一份 155–275 KB base64），而转录区在流式期间按帧重建。
+/// 每帧重解一次不只是白烧 CPU——`Image.memory` 的缓存键就是那个字节对象本身（`MemoryImage` 比的是
+/// `bytes` 的同一性），每帧换一个新 `Uint8List` 等于每帧缓存不命中，同一张图被反复解成位图再经 GPU 上传
+/// （核显上那块显存就是系统内存）。所以在 `didUpdateWidget` 里只在内容真变了时重解；
+/// `composer_attachments.dart` 的附件芯片是同一条理由。
+class _ImageBlock extends StatefulWidget {
   const _ImageBlock({required this.block, this.onOpen});
 
   final ContentBlockWire block;
   final void Function(String uri)? onOpen;
 
   @override
-  Widget build(BuildContext context) {
-    Uint8List? bytes;
+  State<_ImageBlock> createState() => _ImageBlockState();
+}
+
+class _ImageBlockState extends State<_ImageBlock> {
+  Uint8List? _bytes;
+
+  @override
+  void initState() {
+    super.initState();
+    _decode();
+  }
+
+  @override
+  void didUpdateWidget(_ImageBlock old) {
+    super.didUpdateWidget(old);
+    // 同一个块的 `data` 值没变就不重解（`tool_call_update` 会带着同一份 base64 再来几次）。
+    if (old.block.data != widget.block.data) _decode();
+  }
+
+  /// 解不出字节就是 null（[build] 显示「无法解码」）。
+  void _decode() {
+    final data = widget.block.data;
     try {
-      bytes = block.data == null ? null : base64Decode(block.data!);
+      _bytes = data == null ? null : base64Decode(data);
     } on FormatException {
-      bytes = null;
+      _bytes = null;
     }
-    final mime = block.mimeType ?? 'image';
-    final size = formatBytes(bytes?.length ?? _base64Length(block.data));
-    final uri = block.uri;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bytes = _bytes;
+    final mime = widget.block.mimeType ?? 'image';
+    final size = formatBytes(bytes?.length ?? _base64Length(widget.block.data));
+    final uri = widget.block.uri;
     return TranscriptCard(
       child: Padding(
         padding: const EdgeInsets.all(t.Spacing.s12),
@@ -87,7 +119,7 @@ class _ImageBlock extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             GestureDetector(
-              onTap: uri == null ? null : () => onOpen?.call(uri),
+              onTap: uri == null ? null : () => widget.onOpen?.call(uri),
               child: Container(
                 height: t.Geometry.imagePreviewHeight,
                 decoration: BoxDecoration(color: t.Neutral.surface, borderRadius: t.Radii.control),

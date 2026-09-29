@@ -45,7 +45,6 @@ class TrafficLine {
     required this.method,
     required this.label,
     required this.dropped,
-    this.pretty,
   });
 
   /// 到达序（列表 key 与「复制行」用）。
@@ -67,7 +66,21 @@ class TrafficLine {
   final bool dropped;
 
   /// 展开时显示的缩进 JSON（不是 JSON 的行为 null，展开直接显示 [raw]）。
-  final String? pretty;
+  ///
+  /// **按需算 + 记忆化**（iteration-18）：一条线里最大的一份数据就是这个缩进串（带图 prompt 一行 900 KB，
+  /// 缩进后 1 MB 出头），而它只有流量面板把这一行展开时才用得到。[TrafficStore] 却保 2000 行，
+  /// 收一条算一条＝把整段会话的流量按一倍多的体积常驻在堆里。这里改成第一次访问时算一次、算过记住；
+  /// 也不留下解析出来的那个 Map——那同样让 2000 行的解码结果常驻，等于没省。
+  String? get pretty {
+    if (!_prettyResolved) {
+      _prettyResolved = true;
+      _pretty = _indentJson(raw);
+    }
+    return _pretty;
+  }
+
+  String? _pretty;
+  bool _prettyResolved = false;
 
   String get displayMethod => method ?? (direction == TrafficDirection.stderr ? 'stderr' : '?');
 
@@ -76,6 +89,18 @@ class TrafficLine {
     String two(int v) => v.toString().padLeft(2, '0');
     return '${two(ts.hour)}:${two(ts.minute)}:${two(ts.second)}.${ts.millisecond.toString().padLeft(3, '0')}';
   }
+}
+
+/// 把一条原始行缩进成多行 JSON；不是 JSON（或解析不出）时 null，调用方退回 [TrafficLine.raw]。
+/// `_parse` 那一次解析是必须的（要认出 `id` / `method` / 变体），缩进这一步只有展开时才补。
+String? _indentJson(String raw) {
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is Map) return const JsonEncoder.withIndent('  ').convert(decoded);
+  } on FormatException {
+    // 不是 JSON：退回 raw。
+  }
+  return null;
 }
 
 class TrafficStore extends ChangeNotifier {
@@ -166,7 +191,6 @@ class TrafficStore extends ChangeNotifier {
         method: null, label: 'raw', dropped: false,
       );
     }
-    final pretty = const JsonEncoder.withIndent('  ').convert(json);
     final id = json['id'];
     final method = json['method'];
     if (method is String) {
@@ -186,7 +210,7 @@ class TrafficStore extends ChangeNotifier {
       }
       return TrafficLine(
         seq: seq, agentId: agentId, direction: direction, raw: raw, ts: ts,
-        method: method, label: label, dropped: dropped, pretty: pretty,
+        method: method, label: label, dropped: dropped,
       );
     }
     // 响应：只有 id，方法名回填自先前的请求。
@@ -196,7 +220,7 @@ class TrafficStore extends ChangeNotifier {
     if (stopReason is String) label = 'response · stopReason $stopReason';
     return TrafficLine(
       seq: seq, agentId: agentId, direction: direction, raw: raw, ts: ts,
-      method: resolved, label: label, dropped: false, pretty: pretty,
+      method: resolved, label: label, dropped: false,
     );
   }
 
