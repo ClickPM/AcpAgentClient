@@ -3,7 +3,7 @@
 #   powershell -File scripts/validate.ps1 -Quick     # 跳过 cargo / flutter 的编译与测试，只跑静态检查
 # 检查项：cargo build / test / clippy -D warnings、unsafe 字面扫描（规则 6）、cargo tree 无 gpui（规则 5）、
 # flutter analyze / test、pubspec 依赖 ⊆ 白名单（规则 1）、Assert-NoStyleLiteral（规则 3）、
-# rust/ 的 _meta 键 ⊆ docs/design.md § 4（规则 2）、Zed 派生文件头注释（规则 5）、fetch-upstream -Check（规则 4）。
+# rust/ 的 _meta 键 ⊆ docs/design.md § 4（规则 2）、派生文件头注释（规则 5）、fetch-upstream -Check（规则 4）。
 # R7.5 起另有两道门：lib/app 行数门（组合根 ≤ 450、其余 ≤ 900）与 lib/app 依赖方向门（任务卡附录 B 的边）。
 # iteration-14 起：lib/ 里不许 AnimationController.repeat()，常驻动画走 lib/ui/shell/motion.dart 的 AmbientClock。
 param(
@@ -42,10 +42,7 @@ try {
     New-Item -ItemType Directory -Force $CargoTargetDir | Out-Null
     $env:CARGO_TARGET_DIR = $CargoTargetDir
     $rust = Join-Path $root "rust"
-    # sidecar/ 是另一个 cargo workspace（R7），但规则 2 / 6 对它一样生效，下面几步一并扫。
-    $sidecar = Join-Path $root "sidecar"
     $rustRoots = @($rust)
-    if (Test-Path $sidecar) { $rustRoots += $sidecar }
 
     Step "fetch-upstream -Check (规则 4)" {
         & powershell -NoProfile -File (Join-Path $root "scripts\fetch-upstream.ps1") -Check
@@ -77,10 +74,7 @@ try {
         foreach ($k in $allowed) {
             if ($design -notmatch [regex]::Escape($k)) { throw "allowed key '$k' is not mentioned in docs/design.md" }
         }
-        # 两份 meta_keys.rs：核心一份，sidecar 一份（独立 workspace，依赖不到 acp-core）。
         $keyFiles = @(Join-Path $rust "acp-core\src\meta_keys.rs")
-        $sidecarKeys = Join-Path $sidecar "zed-agent-acp\src\meta_keys.rs"
-        if (Test-Path $sidecarKeys) { $keyFiles += $sidecarKeys }
         foreach ($keysFile in $keyFiles) {
             $consts = Select-String -Path $keysFile -Pattern 'pub const \w+: &str = "([^"]+)";' | ForEach-Object { $_.Matches[0].Groups[1].Value }
             foreach ($k in $consts) {
@@ -98,13 +92,13 @@ try {
         if ($bad) { throw ("_meta lines with literal keys (use acp_core::meta_keys):`n" + (($bad | ForEach-Object { "$($_.Path):$($_.LineNumber): $($_.Line.Trim())" }) -join "`n")) }
     }
 
-    Step "Zed 派生文件头注释与 NOTICE 一致 (规则 5)" {
+    Step "派生文件头注释与 NOTICE 一致 (规则 5)" {
         # 头注释扫描（规则 5）+ R8 验收 4：扫出来的每个派生文件都要在 NOTICE 第 1 节里列着，
         # NOTICE 里列的源码文件也都要真的存在且带头注释 —— 两边任一方向漏掉都算过期。
         $pins = Get-Content (Join-Path $root "pins/upstream.json") -Raw -Encoding UTF8 | ConvertFrom-Json
         $zed = ($pins.upstream | Where-Object { $_.name -eq "zed" }).commit
         $files = @()
-        foreach ($d in @("rust", "lib", "sidecar")) {
+        foreach ($d in @("rust", "lib")) {
             $p = Join-Path $root $d
             if (Test-Path $p) { $files += Get-SourceFiles $p @("*.rs", "*.dart") }
         }
@@ -138,37 +132,15 @@ try {
         Write-Host ("derived files: " + $derived.Count + "; NOTICE entries: " + $listed.Count)
     }
 
-    Step "版本门：应用两处一致、sidecar 跟 zed 钉版本 (R8)" {
+    Step "版本门：应用两处一致 (R8)" {
         # 发版要改的**应用**版本只有两处：pubspec.yaml 与 rust/Cargo.toml 的 [workspace.package]。
-        # sidecar 不在其列（所有者裁定 2026-09-20）：它的版本跟 pins 里的 zed 走，改一次要全量重链约 15 分钟，
-        # 而发应用版本根本不动 sidecar 的源码。三方（pins / vendor 里的 zed manifest / sidecar manifest）必须一致。
         $pubspec = Get-Content (Join-Path $root "pubspec.yaml") -Raw -Encoding UTF8
         if ($pubspec -notmatch '(?m)^version:\s*(\d+\.\d+\.\d+)\+(\d+)\s*$') { throw 'pubspec.yaml has no version: X.Y.Z+N line' }
         $appVersion = $Matches[1]
         $rustToml = Get-Content (Join-Path $root "rust/Cargo.toml") -Raw -Encoding UTF8
         if ($rustToml -notmatch '(?ms)\[workspace\.package\].*?^version\s*=\s*"([^"]+)"') { throw "rust/Cargo.toml has no [workspace.package] version" }
         if ($Matches[1] -ne $appVersion) { throw "app version mismatch: pubspec.yaml $appVersion vs rust/Cargo.toml $($Matches[1])" }
-
-        $pins = Get-Content (Join-Path $root "pins/upstream.json") -Raw -Encoding UTF8 | ConvertFrom-Json
-        $zedPin = $pins.upstream | Where-Object { $_.name -eq "zed" }
-        if (-not $zedPin.version) { throw 'pins/upstream.json: the zed entry has no version field' }
-        $sidecarVersion = "(no sidecar)"
-        $sidecarToml = Join-Path $root "sidecar/zed-agent-acp/Cargo.toml"
-        if (Test-Path $sidecarToml) {
-            $sidecar = Get-Content $sidecarToml -Raw -Encoding UTF8
-            if ($sidecar -notmatch '(?ms)^\[package\].*?^version\s*=\s*"([^"]+)"') { throw "sidecar Cargo.toml has no [package] version" }
-            $sidecarVersion = $Matches[1]
-            # 只核对「== pins 的 zed 版本」：那一条成立时 sidecar 就不可能是跟着应用抬上来的。
-            # 不再另判「!= 应用版本」——应用哪天正好升到和 zed 钉版本同号（1.21.0）时，那一判会与这一条互相死锁。
-            if ($sidecarVersion -ne $zedPin.version) { throw "sidecar version $sidecarVersion != pinned zed version $($zedPin.version) (改 zed 钉版本时一起改；发应用版本时别动它)" }
-            $zedManifest = Join-Path $root "vendor/upstream/zed/crates/zed/Cargo.toml"
-            if (Test-Path $zedManifest) {
-                $zedToml = Get-Content $zedManifest -Raw -Encoding UTF8
-                if ($zedToml -notmatch '(?m)^version\s*=\s*"([^"]+)"') { throw "vendor zed manifest has no version" }
-                if ($Matches[1] -ne $zedPin.version) { throw "pins zed version $($zedPin.version) != vendor/upstream/zed $($Matches[1])" }
-            }
-        }
-        Write-Host ("app " + $appVersion + "; sidecar " + $sidecarVersion + " (zed pin)")
+        Write-Host ("app " + $appVersion)
     }
 
     Step "pubspec.yaml 依赖 ⊆ 白名单 (规则 1)" {

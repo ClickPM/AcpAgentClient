@@ -347,7 +347,6 @@ final List<GalleryBoard> agentBoards = <GalleryBoard>[
                 agents: agents,
                 dataDir: r'C:\Users\Click\AppData\Roaming\AcpAgentClient',
                 logPath: r'C:\Users\Click\AppData\Roaming\AcpAgentClient\logs\acp-2026-09-14.log',
-                zedSettingsPath: r'C:\Users\Click\AppData\Roaming\Zed\settings.json',
                 node: const NodeStatus(system: NodeInfo(version: 'v22.14.0', path: r'C:\Program Files\nodejs\node.exe')),
                 editingId: 'dsh-acp-interactive',
                 editFields: CustomEditFields(

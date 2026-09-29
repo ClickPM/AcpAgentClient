@@ -1,5 +1,5 @@
-//! Zed 兼容的 `agent_servers` 设置（docs/design.md § 6 第 5 条、§ 10）：
-//! `%APPDATA%/AcpAgentClient/settings.json`，`type: registry | custom`，从 Zed `settings.json` 导入（R5）。
+//! `agent_servers` 设置（docs/design.md § 6 第 5 条、§ 10）：
+//! `%APPDATA%/AcpAgentClient/settings.json`，`type: registry | custom`。
 //! R1 最小实现：读 / 写 / 按 agent 覆盖；只 `custom` 型会被拉起，`registry` 型 R5 填实。
 //! R3 另加本地索引（`sessions.json` / `projects.json`，见 [`index`]）。
 //! 写文件一律「临时文件 + rename」（CLAUDE.md 规则 7）；文件不存在视为空设置，不自动创建。
@@ -14,7 +14,6 @@ use serde_json::{Map, Value};
 
 pub mod index;
 pub mod ui_state;
-pub mod zed_import;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]

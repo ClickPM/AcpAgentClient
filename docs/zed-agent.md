@@ -1,8 +1,9 @@
-# Zed agent 开发文档
+# Zed agent 开发文档（已归档）
 
-> 内置 Zed agent（`zed-agent-acp` sidecar）的开发入口：版本、sidecar 化方案、与本客户端的集成、已知上游限制、相关待办，集中在这一份。
-> 本文是**汇总与导航**，不是新的决策源：架构决策仍以 [`design.md`](design.md) § 8 为准，研究依据在 [`research.md`](research.md) § 1 / § 2 / § 6，
-> R7 的实测与审查记录在 [`rounds/round-07/round-07.md`](../rounds/round-07/round-07.md)，待办记在 Zed agent 专属的 [`rounds/BACKLOG-ZED.md`](../rounds/BACKLOG-ZED.md)（所有者裁定 2026-09-23 从 `BACKLOG.md` 移出，当前不修；本文 § 5 只是指针）。
+> **本文已归档（Iteration 16，2026-09-29）。** 内置 Zed agent（`zed-agent-acp` sidecar）已从产品中完全移除。
+> `sidecar/zed-agent-acp/` 目录、构建脚本、内置条目、「从 Zed 导入」设置功能、及 `pins/upstream.json` 中的 zed 钉版本均已删除。
+> 底层通用技术代码（agent.rs、shell.rs、archive.rs、send_queue.dart 等）均保留，许可证继续为 GPL-3.0-or-later。
+> 以下内容仅供历史参考。
 > 几处事实与那几份对不上时，以它们为准，并回头改本文。建立于 2026-09-23。
 
 ## 1. 当前使用的 Zed agent 版本

@@ -187,7 +187,6 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   /// 核心给的几个路径（画板 70）：`core_init` / `registry_list` 的 `paths`。
   String? dataDir;
   String? logPath;
-  String? zedSettingsPath;
 
   final List<StreamSubscription<CoreEventRecord>> _subs = <StreamSubscription<CoreEventRecord>>[];
 
@@ -355,7 +354,6 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   void _applyPaths(Map<Object?, Object?> paths) {
     dataDir = paths['dataDir'] as String? ?? dataDir;
     logPath = paths['logPath'] as String? ?? logPath;
-    zedSettingsPath = paths['zedSettingsPath'] as String?;
   }
 
   // ---------------------------------------------------------------- 退出收尾

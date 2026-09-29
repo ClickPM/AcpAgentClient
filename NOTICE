@@ -30,19 +30,9 @@ commit; the reuse is by copy-then-rewrite or by transcription, not by linking.
   rust/registry/src/index.rs          <- crates/project/src/agent_registry_store.rs
   rust/registry/src/download.rs       <- crates/http_client/src/github_download.rs
   rust/registry/src/node.rs           <- crates/node_runtime/src/node_runtime.rs
-  rust/acp-core/assets/zed-icon.svg   <- assets/icons/ai_zed.svg
   lib/app/send_queue.dart             <- crates/agent_ui/src/conversation_view/message_queue.rs
 
-  sidecar/zed-agent-acp/.cargo/config.toml <- .cargo/config.toml
-  sidecar/zed-agent-acp/build.rs           <- crates/eval_cli/build.rs
-  sidecar/zed-agent-acp/src/headless.rs    <- crates/eval_cli/src/headless.rs
-  sidecar/zed-agent-acp/src/session.rs     <- crates/eval_cli/src/main.rs
-  sidecar/zed-agent-acp/src/translate.rs   <- crates/agent/src/agent.rs
-
-The sidecar (sidecar/zed-agent-acp) is a separate cargo workspace that builds
-against Zed crates by path dependency. Binary distributions of it are covered by
-the same GPL-3.0-or-later terms; the corresponding source is this repository
-plus the pinned Zed revision above.
+The reuse is by copy-then-rewrite or by transcription, not by linking.
 
 Note: Zed's gpui, util and collections crates are Apache-2.0 upstream; the
 crates this project reuses from are GPL-3.0-or-later.
@@ -54,8 +44,7 @@ crates this project reuses from are GPL-3.0-or-later.
   agentclientprotocol/agent-client-protocol @ 1ce24ea67a6f0598b0f5aff637993d9836306a28
       specification and schema/v1 JSON Schema
   agentclientprotocol/rust-sdk @ 3a6d0ae88dbaa09fcb74e26761e3643a75b2015e
-      agent-client-protocol crate (client role in the Rust core, agent role in
-      the sidecar)
+      agent-client-protocol crate (client role in the Rust core)
   agentclientprotocol/registry @ 26773d16ae9237aef9906e6df1fab98c946d0e28
       official agent registry schemas and entries
 
@@ -74,8 +63,6 @@ Icons:
   rust/acp-core/assets/dsh-icon.svg
       derived from deepseek-ai/deepseek-harness apps/web/public/favicon.svg
       @ 47f943859bef60e4160492346772ded9b24f765a (MIT)
-  rust/acp-core/assets/zed-icon.svg
-      see section 1 (GPL-3.0-or-later)
 
 Agent icons fetched at runtime from the official ACP registry are not part of
 this repository and keep their own upstream licenses.

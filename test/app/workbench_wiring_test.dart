@@ -71,12 +71,12 @@ class _GatedShutdownCore extends FakeCore {
   }
 }
 
-/// 「装了两个 agent、本地索引里最近一条属于 zed、有一个最近项目」的现场（首次启动的常见样子）。
+/// 「装了两个 agent、本地索引里最近一条属于 dsh、有一个最近项目」的现场（首次启动的常见样子）。
 class _InstalledCore extends FakeCore {
   _InstalledCore() {
     sessionIndex.addAll(<JsonMap>[
       <String, dynamic>{'agentId': 'codex', 'sessionId': 'older', 'title': '旧的', 'updatedAt': 1000, 'cwd': r'D:\proj'},
-      <String, dynamic>{'agentId': 'zed', 'sessionId': 'recent', 'title': '最近的', 'updatedAt': 2000, 'cwd': r'D:\proj'},
+      <String, dynamic>{'agentId': 'dsh', 'sessionId': 'recent', 'title': '最近的', 'updatedAt': 2000, 'cwd': r'D:\proj'},
     ]);
   }
 
@@ -89,7 +89,7 @@ class _InstalledCore extends FakeCore {
   Future<JsonMap> agentSettingsGet() async => <String, dynamic>{
         'agent_servers': <String, dynamic>{
           'codex': <String, dynamic>{'type': 'custom', 'command': 'codex-acp'},
-          'zed': <String, dynamic>{'type': 'custom', 'command': 'zed-agent-acp', 'name': 'Zed Agent'},
+          'dsh': <String, dynamic>{'type': 'custom', 'command': 'dsh-acp'},
         },
       };
 
@@ -436,11 +436,11 @@ void main() {
     await c.start();
 
     expect(c.session.hasAgent, isTrue, reason: '状态 2 只在一个 agent 都没装时出现');
-    expect(c.session.agentId, 'zed', reason: '本地索引里最近用过、且还装着的那个');
+    expect(c.session.agentId, 'dsh', reason: '本地索引里最近用过、且还装着的那个');
     expect(c.session.hasSession, isFalse, reason: '启动不拉 agent 进程');
-    expect(c.session.sessionTitle, 'New Zed Agent Session', reason: '展示名从已安装列表来，不是裸 id');
+    expect(c.session.sessionTitle, 'New dsh Session', reason: '展示名从已安装列表来，不是裸 id');
     expect(c.session.canCompose, isTrue);
-    expect(c.session.composerPlaceholder, 'Message to Zed Agent , @ to include context , / for commands');
+    expect(c.session.composerPlaceholder, 'Message to dsh , @ to include context , / for commands');
 
     c.composer.editor.text = '第一条';
     await c.turn.send();
@@ -577,7 +577,7 @@ void main() {
     final core = _GatedNewCore();
     final c = WorkbenchController(source: DataSource.bridge, bridge: core);
     await c.start();
-    final creating = c.session.newSession(const AgentRef(id: 'zed', name: 'Zed Agent'));
+    final creating = c.session.newSession(const AgentRef(id: 'dsh', name: 'dsh'));
     expect(c.session.waitingForAgent, isTrue);
     await c.workspace.openProject(const ProjectRef(path: r'D:\other', name: 'other'));
     expect(c.workspace.project?.path, r'D:\proj', reason: '等待期里不换项目：不然回来的会话挂在旧目录、侧栏里找不到');
@@ -674,7 +674,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('还没有已安装的 agent'), findsNothing, reason: '所有者 2026-09-17 报的：装了 agent 还画状态 2');
-    expect(find.text('New Zed Agent Session'), findsWidgets, reason: '会话头与空态标题都是它');
+    expect(find.text('New dsh Session'), findsWidgets, reason: '会话头与空态标题都是它');
   });
 
   // 「跟随系统」这一档靠组合根把系统的深浅喂给外观控制器：开局给一次，之后每次系统切换转一次。

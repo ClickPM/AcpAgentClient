@@ -232,18 +232,13 @@ Future<String> agentSettingsSet({
 Future<String> agentSettingsRemove({required String agentId}) =>
     RustLib.instance.api.crateApiAgentSettingsRemove(agentId: agentId);
 
-/// 从 Zed 的 `settings.json` 导入 `agent_servers`（JSONC，同名不覆盖）。返回 `{report: {path, imported, skipped, invalid}, settings}`；
-/// 找不到 Zed 的文件时抛 `settings`。
-Future<String> agentSettingsImportZed() =>
-    RustLib.instance.api.crateApiAgentSettingsImportZed();
-
 /// 开发期排查：每个已连接 agent 的 droppedUpdates / 退出状态 / 挂起请求。
 Future<String> agentsStatus() => RustLib.instance.api.crateApiAgentsStatus();
 
 /// registry 列表：`{agents: [{id, name, version, description, repository?, website?, iconSvg?, distribution, supported, package?,
 /// installed: {kind, version, installedVersion?, command, args, env, authStatus, agentInfo?, installedAt, previousVersion?} | null, installing,
 /// updateAvailable?（registry 当前版本，≠ 安装记录的 version 时才有）, reloadPending?（升级后仍在运行的旧连接的版本）, custom: {command, args, env} | null}],
-/// fetching, fetchError?, fetchedAt?, node: {system?, systemError?, managed?, minVersion}, paths: {dataDir, logPath, zedSettingsPath?}}`。
+/// fetching, fetchError?, fetchedAt?, node: {system?, systemError?, managed?, minVersion}, paths: {dataDir, logPath}}`。
 /// 只读缓存，不联网（联网是 `registry_refresh`）；已安装 / custom 条目排前面。
 Future<String> registryList() => RustLib.instance.api.crateApiRegistryList();
 

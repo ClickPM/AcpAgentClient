@@ -194,9 +194,6 @@ class FakeCore implements CoreCommands {
   @override
   Future<JsonMap> agentSettingsRemove(String agentId) async => <String, dynamic>{'agent_servers': <String, dynamic>{}};
 
-  @override
-  Future<JsonMap> agentSettingsImportZed() async => <String, dynamic>{'report': <String, dynamic>{}, 'settings': <String, dynamic>{}};
-
   /// registry 面板（R5）：默认空列表；用例按需覆盖。
   JsonMap registry = <String, dynamic>{'agents': <Object?>[], 'fetching': false, 'node': <String, dynamic>{}};
 

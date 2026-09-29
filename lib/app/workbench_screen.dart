@@ -886,8 +886,6 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         agents: c.agents.installedEntries,
         dataDir: c.dataDir ?? '',
         logPath: c.logPath,
-        zedSettingsPath: c.zedSettingsPath,
-        zedImportResult: c.agents.zedImportResult,
         node: c.agents.registry.node,
         nodeProgress: c.agents.registry.nodeProgress,
         expandedId: c.agents.expandedId,
@@ -897,7 +895,6 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         onCollapse: c.agents.collapseEdit,
         onSave: c.agents.saveCustomAgent,
         onRemove: c.agents.remove,
-        onImportZed: c.agents.importZed,
         onDownloadNode: c.agents.downloadNode,
         // 「打开」：目录在资源管理器里开，日志文件用系统默认程序开（都经 url_launcher 的 file: URI）。
         onOpenPath: (path) => launchUrl(Uri.file(path, windows: true)),

@@ -378,32 +378,32 @@ void main() {
 
     // `agent_settings_get` 里内置条目自带 `name`，列表按它显示；普通 custom 条目仍退回 id。
     await c.agents.refreshAgents();
-    expect(c.agents.installed.map((AgentRef a) => '${a.id}|${a.name}').toList(), <String>['dsh|dsh', 'zed|Zed Agent']);
+    expect(c.agents.installed.map((AgentRef a) => '${a.id}|${a.name}').toList(), <String>['codex|codex', 'dsh-acp-interactive|DeepSeek']);
 
     // `registry_list` 的 `builtin` 透到投影层：设置页 / registry 卡据此不画「编辑」与 Remove。
     await c.agents.refreshRegistry();
-    final RegistryEntryData? zed = c.agents.registry.byId('zed');
-    expect(zed, isNotNull);
-    expect(zed!.builtin, isTrue);
-    expect(zed.isCustom, isTrue);
-    expect(c.agents.registry.byId('dsh')!.builtin, isFalse, reason: '普通 custom 条目照常可删');
+    final RegistryEntryData? dsh = c.agents.registry.byId('dsh-acp-interactive');
+    expect(dsh, isNotNull);
+    expect(dsh!.builtin, isTrue);
+    expect(dsh.isCustom, isTrue);
+    expect(c.agents.registry.byId('codex')!.builtin, isFalse, reason: '普通 custom 条目照常可删');
 
     c.dispose();
   });
 }
 
-/// R7：`agent_settings_get` / `registry_list` 里带一条内置 sidecar 条目的假核心。
+/// 内置 agent 条目的假核心（`agent_settings_get` / `registry_list` 里带一条内置条目）。
 class _BuiltinCore extends FakeCore {
   @override
   Future<JsonMap> agentSettingsGet() async => <String, dynamic>{
         'agent_servers': <String, dynamic>{
-          'dsh': <String, dynamic>{'type': 'custom', 'command': 'dsh-acp'},
-          'zed': <String, dynamic>{
+          'codex': <String, dynamic>{'type': 'custom', 'command': 'codex-acp'},
+          'dsh-acp-interactive': <String, dynamic>{
             'type': 'custom',
-            'command': 'C:/app/zed-agent-acp.exe',
-            'args': <String>['--user-data-dir', 'C:/data/zed-agent'],
+            'command': 'C:/tools/dsh-acp-interactive.cmd',
+            'args': <String>[],
             'builtin': true,
-            'name': 'Zed Agent',
+            'name': 'DeepSeek',
           },
         },
       };
@@ -412,22 +412,22 @@ class _BuiltinCore extends FakeCore {
   Future<JsonMap> registryList() async => <String, dynamic>{
         'agents': <JsonMap>[
           <String, dynamic>{
-            'id': 'dsh',
-            'name': 'dsh',
+            'id': 'codex',
+            'name': 'codex',
             'distribution': 'custom',
             'supported': true,
             'installing': false,
             'builtin': false,
-            'custom': <String, dynamic>{'command': 'dsh-acp', 'args': <String>[], 'env': <String, String>{}},
+            'custom': <String, dynamic>{'command': 'codex-acp', 'args': <String>[], 'env': <String, String>{}},
           },
           <String, dynamic>{
-            'id': 'zed',
-            'name': 'Zed Agent',
+            'id': 'dsh-acp-interactive',
+            'name': 'DeepSeek',
             'distribution': 'custom',
             'supported': true,
             'installing': false,
             'builtin': true,
-            'custom': <String, dynamic>{'command': 'C:/app/zed-agent-acp.exe', 'args': <String>[], 'env': <String, String>{}},
+            'custom': <String, dynamic>{'command': 'C:/tools/dsh-acp-interactive.cmd', 'args': <String>[], 'env': <String, String>{}},
           },
         ],
         'fetching': false,
