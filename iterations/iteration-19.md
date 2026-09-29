@@ -2,7 +2,7 @@
 
 <!-- 保存为 iterations/iteration-NN.md。一个迭代一个文件、一项一行；流程正本见 iterations/README.md，不在这里复述。 -->
 
-> 状态：待合并（审查 0 high，合并时机由所有者定）　起止：2026-09-29 –　基线：`main` = `1421394`
+> 状态：已合并（未构建）　起止：2026-09-29 – 2026-09-29　基线：`main` = `1421394`（合并时 main 已到 `a543ff3`，iter-20 的规范正本迁移）
 
 所有者指示（2026-09-29）：「增加一个挂起按钮，点击后支持将 active 的会话关闭，之后可以从 history 区通过点击重新启动。做完这个可以关闭 backlog 里那个 session close 和 resume 的记录了。走正常迭代需要经过 cursor review」。
 
@@ -17,14 +17,15 @@
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | ux | 侧栏 Active 行加「挂起」行内动作：新图标 `AcpIcons.pause`、`SidebarSessionRow.onSuspend`（只在 Active、**这条会话自己的** agent 声明了 `sessionCapabilities.close`、且挂得回来（`loadSession` 或 `resume`）时出，`SessionController.canSuspendSession` / `suspendableSessionIds`）；`closeSession` 泛化到指定会话（`closeSession({String? id})`，目标 agent 按 `ownerOf` 取，≡ 菜单那条缺省路径不变）；挂起后这条会话沉到 History，点它那一行走既有的 `ensureLoaded` 挂回来；关闭态提示按 `attachOf` 分开说（挂得回 / agent 侧已没有 / 能力上挂不回） | BACKLOG P1「会话菜单的 Resume / Close 没有入口」（所有者 2026-09-29 指示） | `claude/iter-19-session-suspend`（`55d0d37` + `5eefbb3` + `bf2f268`）→ 待合并（所有者定时机） | validate 全绿（622 项） | R1: high 0 / P2 1；R2: high 0 / P2 2；R3: 0 条（均已整改） | 待合并 |
-| 2 | tidy | 补测试：`test/ui/sidebar_suspend_test.dart` 6 条（渲染与点击、两个能力门、只给 Active 行、挂起 → History → 点击挂回完整往返、只有 close 时入口不存在）+ `test/app/session_lifecycle_wiring_test.dart` 的关闭态提示三条（照旧 / 能力上挂不回 / agent 侧已没有） | 同上 | 同上 | validate 全绿（622 项） | 同上 | 待合并 |
-| 3 | tidy | BACKLOG 收尾：P1「会话菜单的 Resume / Close 没有入口」剪到 `BACKLOG-CLOSED.md`（`→ iteration-19`）、P1 计数 3 → 2、总计数 8 → 7 | 同上 | 同上 | 纯文档，随同一分支 validate | 同上 | 待合并 |
-| 4 | board | 回补画板（所有者 2026-09-29 指示）：画板 45 § ② 的 Active 悬浮态画上「挂起」这枚图标、规格表 B 新增「挂起（Active 行内动作）」一行、C 新增「挂起图标（行内动作）」一行；画板 04 的注记补一句（它的悬浮样例是未连接的历史会话，仍是两枚）；`render-design.ps1 -Only 45,04` 重渲染 PNG、更新 `design/README.md`（画板行 + 变更记录）、删 `design/DIVERGENCE.md` A-37 并同步引用它的注释 / 文档 | 所有者 2026-09-29 指示（iteration-19 实现先行的那一处回补） | 同上 | 画板已重渲染并逐张目视对照 | 未审查（所有者指定：只动设计稿与文档，未改 Dart / Rust 逻辑；见备注「第四轮免审」） | 待合并 |
+| 1 | ux | 侧栏 Active 行加「挂起」行内动作：新图标 `AcpIcons.pause`、`SidebarSessionRow.onSuspend`（只在 Active、**这条会话自己的** agent 声明了 `sessionCapabilities.close`、且挂得回来（`loadSession` 或 `resume`）时出，`SessionController.canSuspendSession` / `suspendableSessionIds`）；`closeSession` 泛化到指定会话（`closeSession({String? id})`，目标 agent 按 `ownerOf` 取，≡ 菜单那条缺省路径不变）；挂起后这条会话沉到 History，点它那一行走既有的 `ensureLoaded` 挂回来；关闭态提示按 `attachOf` 分开说（挂得回 / agent 侧已没有 / 能力上挂不回） | BACKLOG P1「会话菜单的 Resume / Close 没有入口」（所有者 2026-09-29 指示） | `claude/iter-19-session-suspend`（`55d0d37` + `5eefbb3` + `bf2f268` + `265ca4e` + `0c23286` + merge `0c80bec`）→ `main`（快进） | validate 全绿（622 项，合并前后各一次） | R1: high 0 / P2 1；R2: high 0 / P2 2；R3: 0 条（均已整改） | 已合并 |
+| 2 | tidy | 补测试：`test/ui/sidebar_suspend_test.dart` 6 条（渲染与点击、两个能力门、只给 Active 行、挂起 → History → 点击挂回完整往返、只有 close 时入口不存在）+ `test/app/session_lifecycle_wiring_test.dart` 的关闭态提示三条（照旧 / 能力上挂不回 / agent 侧已没有） | 同上 | 同上 | validate 全绿（622 项） | 同上 | 已合并 |
+| 3 | tidy | BACKLOG 收尾：P1「会话菜单的 Resume / Close 没有入口」剪到 `BACKLOG-CLOSED.md`（`→ iteration-19`）、P1 计数 3 → 2、总计数 8 → 7 | 同上 | 同上 | 纯文档，随同一分支 validate | 同上 | 已合并 |
+| 4 | board | 回补画板（所有者 2026-09-29 指示）：画板 45 § ② 的 Active 悬浮态画上「挂起」这枚图标、规格表 B 新增「挂起（Active 行内动作）」一行、C 新增「挂起图标（行内动作）」一行；画板 04 的注记补一句（它的悬浮样例是未连接的历史会话，仍是两枚）；`render-design.ps1 -Only 45,04` 重渲染 PNG、更新 `design/README.md`（画板行 + 变更记录）、删 `design/DIVERGENCE.md` A-37 并同步引用它的注释 / 文档 | 所有者 2026-09-29 指示（iteration-19 实现先行的那一处回补） | 同上 | 画板已重渲染并逐张目视对照 | 未审查（所有者指定：只动设计稿与文档，未改 Dart / Rust 逻辑；见备注「第四轮免审」） | 已合并 |
 
 ## 收口
 
-- 构建 / 手测：待所有者定时机。手测三项：① 对一条 Active（已连接）的会话悬浮点「挂起」，它立刻落到 HISTORY 区、转录仍在（只读），agent 侧这条会话已释放；② 在 HISTORY 里点它那一行，回到 ACTIVE 区、能继续发消息（声明 `loadSession` 的 agent 会重放历史）；③ 对没声明 `sessionCapabilities.close` 的 agent（如 pi-acp）、或只声明了 close 而挂不回来的 agent，Active 行只有改名 / 删除两个图标。
+- **合并（2026-09-29，所有者指示）**：main 侧此时已到 `a543ff3`（iter-20 的规范正本迁移：`CLAUDE.md` → `AGENTS.md`、审查执行器改「硬失败停下喊人」、上一代 agent 记忆内联到 `docs/agent-notes/`，71 个文件、纯文档与注释）。先把 main 合进本分支（merge `0c80bec`）：**只 conflicted `iterations/README.md` 一处**（两边各在迭代清单表尾加了一行）——按「编号只增」并排保留 19 / 20；其余 70 个文件自动合并，逐项核过本分支的改动都还在（`BACKLOG.md` 的 P1（2）/ 总计 7、`DIVERGENCE.md` 只剩 A-37 的删除注释、`design/README.md` 的 2026-09-29 变更记录、`workbench_screen.dart` 的 `suspendableIds` / `onSuspend`）。合并前后各跑一次 `validate.ps1`，两次都全绿（622 项）；合并后那次按新口径用独立 target 目录（`-CargoTargetDir D:\cargo-target\AcpAgentClient-iter19`）。随后把 `main` **快进**到本分支。**未 push**（推不推由所有者定）。
+- 构建 / 手测：**未构建**（所有者定时机）。手测三项：① 对一条 Active（已连接）的会话悬浮点「挂起」，它立刻落到 HISTORY 区、转录仍在（只读），agent 侧这条会话已释放；② 在 HISTORY 里点它那一行，回到 ACTIVE 区、能继续发消息（声明 `loadSession` 的 agent 会重放历史）；③ 对没声明 `sessionCapabilities.close` 的 agent（如 pi-acp）、或只声明了 close 而挂不回来的 agent，Active 行只有改名 / 删除两个图标。
 - 发版：不发（所有者定）。
 - 移出项去向：—（BACKLOG 那一条在本迭代关闭；Zed 的「切走自动 close、保活 5 条」是另一件事，仍留在 `docs/research.md` § 4.1，本迭代不动）
 - 设计稿补注记：挂起实现先行时记过 `design/DIVERGENCE.md` A-37；**所有者 2026-09-29 指示回补，已回补并删除该条**（画板 45 § ② + 规格表 B / C、画板 04 的注记，PNG 重渲染，见 `design/README.md` 变更记录）。画板 41 / 03 的 ≡ 语义冲突仍原样（本迭代不去动会话菜单）。
