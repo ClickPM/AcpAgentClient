@@ -85,7 +85,17 @@ If the project path contains non-ASCII characters or spaces, use `scripts/build.
 
 ## Status
 
-Current release: **v1.4.7**, Windows x64. Per-version changes are on [Releases](https://github.com/ClickPM/AcpAgentClient/releases), and development rounds and the progress table are in [`ROUNDS.md`](ROUNDS.md). As of 2026-09-22 the R0–R8 core is done and the project is in agile iterations. Day-to-day bug fixes, UX polish and single-board features follow the iteration process in [`iterations/`](iterations/README.md): one file per iteration, one line per item, one review round. The round process is reserved for major core work.
+Current release: **v1.4.8**, Windows x64. Per-version changes are on [Releases](https://github.com/ClickPM/AcpAgentClient/releases), and development rounds and the progress table are in [`ROUNDS.md`](ROUNDS.md). As of 2026-09-22 the R0–R8 core is done and the project is in agile iterations. Day-to-day bug fixes, UX polish and single-board features follow the iteration process in [`iterations/`](iterations/README.md): one file per iteration, one line per item, one review round. The round process is reserved for major core work.
+
+v1.4.8 adds a "Suspend" action to the sidebar's Active session rows:
+
+- One click hands the session back to the agent (`session/close`, after dropping the requests still queued for it). The transcript stays as a read-only copy, the row sinks from Active to History, and clicking that row in History attaches it again via `session/load` (falling back to `resume`). `session/close` was already wired up in code but had no entry point in the product.
+- The button only shows on Active rows whose own agent declares `session/close` **and** can attach the session back (`loadSession` or `resume`). The decision is made from session capabilities, never from the agent's name.
+- Suspending passes that row's id; the target agent is resolved from that session's own registration, so a background session can be suspended without touching the current selection or the composer.
+- The message shown when you press send on a suspended session used to always point at the ≡ menu's Resume, which the product never had; it now distinguishes the two reasons a session cannot come back (the agent no longer has it / the agent cannot attach it back).
+- This release also moves the development conventions from `CLAUDE.md` to the agent-neutral [`AGENTS.md`](AGENTS.md) (`CLAUDE.md` is now a pointer), inlines the previous generation's engineering notes into [`docs/agent-notes/`](docs/agent-notes/README.md), and narrows the review executor to "stop and ask when cursor hard-fails, never fall back to another subagent on your own".
+
+Suspend (iteration-19) was reviewed to 0 findings in three cursor rounds before merge; the conventions migration (iteration-20) only touched docs and comments and was waived from review by the owner ([`iterations/`](iterations/README.md), iteration-19 and 20).
 
 v1.4.7 removes Zed from the product for good:
 
