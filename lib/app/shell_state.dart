@@ -167,6 +167,14 @@ class ShellState extends ChangeNotifier with GuardedNotifier {
     touch();
   }
 
+  /// 画板 45：侧栏 History 会话分组是否收起（折叠态无需展示“已折叠”字样）。
+  bool historyCollapsed = false;
+
+  void toggleHistoryCollapsed() {
+    historyCollapsed = !historyCollapsed;
+    touch();
+  }
+
   // ---------------------------------------------------------------- 右栏（画板 03 / 50 / 60 / 61）
 
   /// 标签条：面板标签在前、每个本地终端一个标签在后（画板 60 / 61）。侧栏的「终端」入口不作面板标签，它开的是终端实例。

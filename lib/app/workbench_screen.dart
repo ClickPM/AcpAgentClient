@@ -248,6 +248,9 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     final activity = c.session.activity;
     return Sidebar(
       sessions: c.session.visibleSessions,
+      activeIds: c.session.attachedSessionIds,
+      historyCollapsed: c.shell.historyCollapsed,
+      onToggleHistoryCollapsed: c.shell.toggleHistoryCollapsed,
       now: DateTime.now(),
       query: c.session.search,
       selectedId: c.session.sessionId,
