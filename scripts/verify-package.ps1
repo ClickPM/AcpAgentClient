@@ -1,4 +1,4 @@
-﻿﻿# 打包产物的自动化验收（R8 验收 1 的可自动化部分）。
+﻿# 打包产物的自动化验收（R8 验收 1 的可自动化部分）。
 #   powershell -File scripts/verify-package.ps1            # zip + 安装器都验
 #   powershell -File scripts/verify-package.ps1 -ZipOnly   # 只验免安装 zip（跳过装 / 卸）
 #

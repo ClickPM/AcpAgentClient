@@ -1,4 +1,4 @@
-﻿﻿# Windows 打包（R8）：免安装 zip 与 Inno Setup 安装器（per-user、不签名）。
+﻿# Windows 打包（R8）：免安装 zip 与 Inno Setup 安装器（per-user、不签名）。
 #   powershell -File scripts/package.ps1                 # 构建 + 两件产物
 #   powershell -File scripts/package.ps1 -SkipBuild      # 直接用现有 build/windows/x64/runner/Release
 #   powershell -File scripts/package.ps1 -NoInstaller    # 只出 zip（跳过 ISCC）
@@ -51,6 +51,9 @@ try {
     New-Item -ItemType Directory -Force $payload | Out-Null
 
     Copy-Item (Join-Path $releaseDir "*") $payload -Recurse -Force
+    # 增量构建可能残留旧版 sidecar；不再随包。
+    $stale = Join-Path $payload "zed-agent-acp.exe"
+    if (Test-Path $stale) { Remove-Item $stale -Force }
     # GPL-3.0-or-later：分发二进制要带许可证与派生文件清单（README「许可证」、NOTICE）。
     foreach ($f in @("LICENSE", "NOTICE")) { Copy-Item (Join-Path $root $f) (Join-Path $payload $f) -Force }
 

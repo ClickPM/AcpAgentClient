@@ -95,8 +95,13 @@ try {
     Step "派生文件头注释与 NOTICE 一致 (规则 5)" {
         # 头注释扫描（规则 5）+ R8 验收 4：扫出来的每个派生文件都要在 NOTICE 第 1 节里列着，
         # NOTICE 里列的源码文件也都要真的存在且带头注释 —— 两边任一方向漏掉都算过期。
-        $pins = Get-Content (Join-Path $root "pins/upstream.json") -Raw -Encoding UTF8 | ConvertFrom-Json
-        $zed = ($pins.upstream | Where-Object { $_.name -eq "zed" }).commit
+        # zed pin 已从 pins/upstream.json 移除（iter-16），但派生文件保留；改为从 NOTICE 里读 commit。
+        $noticePath = Join-Path $root "NOTICE"
+        if (-not (Test-Path $noticePath)) { throw "NOTICE is missing (GPL redistribution)" }
+        $notice = Get-Content $noticePath -Raw -Encoding UTF8
+        # NOTICE 第 1 节的 "Pinned at commit <hex>" 行。
+        if ($notice -notmatch 'Pinned at commit ([0-9a-f]{7,40})') { throw "NOTICE has no 'Pinned at commit' line" }
+        $zed = $Matches[1]
         $files = @()
         foreach ($d in @("rust", "lib")) {
             $p = Join-Path $root $d
@@ -108,17 +113,14 @@ try {
             $body = Get-Content $f.FullName -Raw -Encoding UTF8
             $mentions = $body -match 'zed-industries/zed' -or $body -match 'Derived from'
             if ($head -match 'Derived from zed-industries/zed (\S+) @ ([0-9a-f]{7,40})') {
-                if ($zed -notlike ($Matches[2] + "*")) { throw "$($f.FullName): derived-from commit $($Matches[2]) != pinned zed $zed" }
+                if ($zed -notlike ($Matches[2] + "*")) { throw "$($f.FullName): derived-from commit $($Matches[2]) != NOTICE zed commit $zed" }
                 $rel = $f.FullName.Substring($root.Length).TrimStart('\', '/') -replace '\\', '/'
                 $derived += $rel
             } elseif ($mentions) {
                 throw "$($f.FullName) mentions Zed sources but lacks the 'Derived from zed-industries/zed <path> @ <commit>' header"
             }
         }
-        $noticePath = Join-Path $root "NOTICE"
-        if (-not (Test-Path $noticePath)) { throw "NOTICE is missing (GPL redistribution: 见 README「许可证」)" }
-        $notice = Get-Content $noticePath -Raw -Encoding UTF8
-        if ($notice -notmatch [regex]::Escape($zed)) { throw "NOTICE does not name the pinned zed commit $zed" }
+        if ($notice -notmatch [regex]::Escape($zed)) { throw "NOTICE does not name the zed commit $zed" }
         $missing = $derived | Where-Object { $notice -notmatch [regex]::Escape($_) }
         if ($missing) { throw ("derived files missing from NOTICE:`n" + ($missing -join "`n")) }
         # NOTICE 第 1 节的「<本仓库路径> <- <zed 路径>」行反向核对。
