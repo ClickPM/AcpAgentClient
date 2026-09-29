@@ -2,7 +2,7 @@
 
 发版轮（不走轮次流程，无审查轮）：把 v1.4.7 之后合入 `main` 的 iteration-19、20 出包、镜像到日用安装目录、推 github 与 origin 并建 GitHub release。
 
-**审查门禁**：iteration-19 合并前经 cursor（`grok-4.7-high-fast`）三轮审到 **0 条**（R1 high 0 / P2 1，R2 high 0 / P2 2，R3 0 条，整改全部落地）；iteration-20 只动文档与代码注释、**无 Dart / Rust 逻辑变更**，经所有者裁定免审（原话「本轮以该文档和代码中的注释为核心，没有 dart 和 rust 代码变更的话无需进行 cursor review」）。本轮按发版口径只做**主会话 review**：`git diff v1.4.7..main -- . ':(exclude)*.md' ':(exclude)design/**'` 逐处核过，45 个文件里 38 个是 `CLAUDE.md` → `AGENTS.md` 的注释改名（零逻辑），Dart 的真改动只有 iteration-19 那 5 个文件 + 1 个新测试文件，**无新问题** → 不开新审查轮。
+**审查门禁**：iteration-19 合并前经 cursor（`grok-4.7-high-fast`）三轮审到 **0 条**（R1 high 0 / P2 1，R2 high 0 / P2 2，R3 0 条，整改全部落地）；iteration-20 只动文档与代码注释、**无 Dart / Rust 逻辑变更**，经所有者裁定免审（原话「本轮以该文档和代码中的注释为核心，没有 dart 和 rust 代码变更的话无需进行 cursor review」）。本轮按发版口径只做**主会话 review**：`git diff v1.4.7..main -- . ':(exclude)*.md' ':(exclude)design/**'` 逐处核过 —— 非文档改动里 **32 个文件是 `CLAUDE.md` → `AGENTS.md` 的纯注释改名**（diff 里只有注释行，零逻辑），Dart 的真改动只有 iteration-19 那 5 个文件（`session_attach` / `session_controller` / `turn_controller` / `sidebar` / `workbench_screen`）+ 1 个新测试文件与 1 个改动的测试，其余是 round-1.4.7 入库的打扫脚本与注释性改动，**无新问题** → 不开新审查轮。
 
 ## 内容
 
