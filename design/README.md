@@ -65,6 +65,7 @@
 | 42 | 输入框内联菜单 | 会话工作台 | round-design | `design/round-design/42-inline-menus.dc.html` | `design/round-design/42-inline-menus.png` | — | 已实现（R3） | — |
 | 43 | 会话时间线弹层 | 会话工作台 | round-design | `design/round-design/43-session-timeline.dc.html` | `design/round-design/43-session-timeline.png` | — | 已实现（2026-09-20，`session-timeline` 分支） | 新增 `Timeline` 一组（maxHeightFactor / width / rail / railWidth / railColumn / node / nodeColor / label / turnGap）；`TextStyles` 补 `labelTabular`（`label` 加等宽数字，标题行用） |
 | 44 | 本地发送队列 | 输入框上方 | round-design | `design/round-design/44-send-queue.dc.html` | `design/round-design/44-send-queue.png` | — | 已实现（round-send-queue） | — |
+| 45 | 侧栏会话区分组规范 | 会话工作台 / 侧栏 | round-design | `design/round-design/45-sidebar-active-history.dc.html` | `design/round-design/45-sidebar-active-history.png` | — | 已实现（iteration-17） | 新增 `SidebarSection` 一组（headerHeight / headerPadding / labelGap / dotSize / onlineGlow / chipPadding / chipRadius / dividerMargin / emptyHintPadding / chevronSize / markBorderWidth / markOffset / offlineOpacity） |
 | 50 | Agents 面板（ACP Registry） | agent 管理 | round-design | `design/round-design/50-registry.dc.html` | `design/round-design/50-registry.png` | — | 已实现（R5）· 2026-09-23 标题行加检查时间与刷新、Codex 行换成可升级态（已实现，随画板 53，`registry-upgrade` 分支） | — |
 | 51 | Registry 条目状态 | agent 管理 | round-design | `design/round-design/51-registry-states.dc.html` | `design/round-design/51-registry-states.png` | — | 已实现（R5） | — |
 | 52 | agent 认证 | agent 管理 | round-design | `design/round-design/52-auth.dc.html` | `design/round-design/52-auth.png` | — | 已实现（R5） | — |
@@ -77,6 +78,8 @@
 状态取值：`待实现` / `已实现（R<N>）` / `已废弃`。
 
 ## 变更记录（入库后对 `.dc.html` 的改动，PNG 已用 `scripts/render-design.ps1` 重渲染）
+
+- 2026-09-29 新增画板 45「侧栏会话区分组规范」（1440 × 960，page-3 放在画板 44 右边 `x 6080`）。起因是所有者指示：侧栏会话区分组展示为 Active（已连接）与 History（历史归档），已连接会话常驻 Active 区，支持一键折叠收纳历史会话（折叠状态无需展示“已折叠”3字），搜索保持分区上下文。无新 token、无新图标，严格对位 `00-tokens` 与 `07-dark-tokens`。
 
 - 2026-09-24 新增画板 44「本地发送队列」（880 × 1040，page-3 放在画板 43 右边 `x 5120`），并改画板 02：在输入框上方 docks 区域加入一行发送队列停靠条（1 条排队消息，展开/清空）。起因是用户在 Agent 回合运行中无法输入或排队消息；裁定照 Zed `message_queue.rs` 三态机（AutoProcess / Paused / AbsorbingCancel 与 fast-track 插队）在客户端本地内存排队，只用标准 ACP `session/prompt` 与 `session/cancel`，核心与桥零改动，不进投影层。无新 token、无新图标。简报 `design/round-design/input/revision-08.md`。
 

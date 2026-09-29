@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>45 · 会话区 Active / History 分组规范 — AcpAgentClient Design</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet"><style>
+  @font-face {
+    font-family: 'Geist';
+    src: url('../../assets/fonts/Geist-Variable.ttf') format('truetype');
+    font-weight: 100 900;
+  }
+  @font-face {
+    font-family: 'Geist Mono';
+    src: url('../../assets/fonts/GeistMono-Variable.ttf') format('truetype');
+    font-weight: 100 900;
+  }
+  @font-face {
+    font-family: 'Noto Sans SC';
+    src: url('../../assets/fonts/NotoSansSC-Regular.otf') format('opentype');
+    font-weight: 400 500;
+  }
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  body {
+    margin: 0;
+    background: #17171C;
+    color: #D5D5DC;
+    font-family: 'Geist', 'Noto Sans SC', 'Microsoft YaHei UI', system-ui, sans-serif;
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono {
+    font-family: 'Geist Mono', 'Noto Sans SC', ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .section-header {
+    height: 28px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px;
+    user-select: none;
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    color: #9B9BA6;
+    text-transform: uppercase;
+  }
+  .chip-active {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: rgba(111, 191, 99, 0.16);
+    color: #6FBF63;
+    font-size: 10px;
+    font-weight: 500;
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    line-height: 14px;
+  }
+  .chip-history {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #7E7E8A;
+    font-size: 10px;
+    font-weight: 500;
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    line-height: 14px;
+  }
+  .dot-online {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #6FBF63;
+    box-shadow: 0 0 6px rgba(111, 191, 99, 0.45);
+    flex: none;
+  }
+  .dot-online-sm {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #6FBF63;
+    flex: none;
+  }
+  .session-row {
+    height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    position: relative;
+    cursor: default;
+    border-radius: 4px;
+    margin: 1px 4px;
+  }
+  .session-row.running {
+    height: 58px;
+  }
+  .session-row.selected {
+    background: rgba(255, 255, 255, 0.09);
+  }
+  .session-row:hover:not(.selected) {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .sweep-line {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 4px;
+    height: 8px;
+    background-image:
+      linear-gradient(90deg, rgba(139, 150, 236, 0) 0%, #8B96EC 50%, rgba(139, 150, 236, 0) 100%),
+      linear-gradient(#303039, #303039);
+    background-repeat: no-repeat, no-repeat;
+    background-size: 96px 1px, 100% 1px;
+    background-position: 45% 50%, 0 50%;
+  }
+  .spec-grid {
+    display: grid;
+    grid-template-columns: 140px 180px 1fr;
+    border-top: 1px solid #303039;
+    font-size: 12px;
+  }
+  .spec-cell {
+    padding: 6px 10px;
+    border-bottom: 1px solid #23232B;
+    line-height: 1.45;
+  }
+</style>
+</helmet>
+
+<div data-screen-label="45" style="width:1440px;min-width:1440px;box-sizing:border-box;padding:24px 28px;background:#17171C;color:#D5D5DC;display:flex;flex-direction:column;gap:18px">
+
+  <!-- 标题与状态说明 -->
+  <div style="display:flex;align-items:baseline;justify-content:space-between;border-bottom:1px solid #303039;padding-bottom:12px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:15px;font-weight:600;color:#F0F0F4">45 · 侧栏会话区分组规范（Active &amp; History Sessions）</span>
+      <span style="font-size:11px;color:#7E7E8A;margin-left:8px">协议与状态来源：SessionAttach（attached / detached / unattachable）· agent_connect · session/load · session/close · 本地索引 sessions.json</span>
+    </div>
+    <div style="font-size:11px;color:#7E7E8A" class="mono">
+      Token 体系：00-tokens / 07-dark-tokens 严格对位
+    </div>
+  </div>
+
+  <!-- 第一部分：侧栏状态矩阵 (6组典型状态与对照) -->
+  <div>
+    <div style="font-size:12px;font-weight:500;color:#F0F0F4;margin-bottom:12px;display:flex;justify-content:space-between">
+      <span>A · 侧栏分组状态矩阵（Active 已连接区 vs History 历史归档区）</span>
+      <span style="font-size:11px;color:#9B9BA6;font-weight:400">已挂载到存活 Agent 进程的会话归入 Active 区（置顶常驻）；未连接或已断开的历史会话归入 History 区（支持一键折叠与按需重载）。</span>
+    </div>
+
+    <!-- 6 列状态横排 -->
+    <div style="display:grid;grid-template-columns:repeat(6, 1fr);gap:14px">
+      
+      <!-- ① 标准常态 -->
+      <div>
+        <div style="font-size:11px;color:#9B9BA6;margin-bottom:6px" class="mono">① 标准常态 · 分组展开 <span style="color:#7E7E8A;float:right">width: 280px</span></div>
+        <div style="width:220px;height:420px;background:#1D1D23;border:1px solid #303039;border-radius:6px;display:flex;flex-direction:column;overflow:hidden">
+          <!-- 侧栏顶栏 -->
+          <div style="height:38px;padding:0 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #23232B">
+            <span style="font-weight:600;font-size:12.5px;color:#F0F0F4;display:flex;align-items:center;gap:6px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8B96EC" stroke-width="2.2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+              Agent ACP Client
+            </span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7E7E8A" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </div>
+          <!-- 搜索框 -->
+          <div style="padding:8px 10px 4px">
+            <div style="height:26px;background:#23232B;border:1px solid #383845;border-radius:4px;padding:0 8px;display:flex;align-items:center;gap:6px;color:#7E7E8A;font-size:11px">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <span>搜索会话</span>
+            </div>
+          </div>
+          <!-- 会话列表 -->
+          <div style="flex:1;overflow:hidden;padding:4px 0">
+            <!-- ACTIVE 分组头 -->
+            <div class="section-header">
+              <span class="dot-online"></span>
+              <span class="section-label" style="color:#D5D5DC">ACTIVE</span>
+              <span class="chip-active">2</span>
+              <span style="margin-left:auto;font-size:11px;color:#6FBF63" class="mono">Connected</span>
+            </div>
+            <!-- Active 项 1 (Selected) -->
+            <div class="session-row selected">
+              <div style="width:18px;height:18px;border-radius:4px;background:#262638;border:1px solid #5566D8;display:flex;align-items:center;justify-content:center;position:relative;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8B96EC" stroke-width="2.2"><path d="M7 8h10M10 8v8M14 8v8"/></svg>
+                <span style="position:absolute;right:-2px;bottom:-2px;width:6px;height:6px;border-radius:50%;background:#6FBF63;border:1.5px solid #1D1D23"></span>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;font-weight:500;color:#9AA5F0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">New pi ACP adapter Session</div>
+                <div style="font-size:10px;color:#7E7E8A" class="tabular">1 分钟前 · 0 条消息 · <span style="color:#6FBF63">已连接</span></div>
+              </div>
+            </div>
+            <!-- Active 项 2 -->
+            <div class="session-row">
+              <div style="width:18px;height:18px;border-radius:4px;background:#23232B;border:1px solid #383845;display:flex;align-items:center;justify-content:center;position:relative;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#D5D5DC" stroke-width="2"><circle cx="12" cy="12" r="6"/></svg>
+                <span style="position:absolute;right:-2px;bottom:-2px;width:6px;height:6px;border-radius:50%;background:#6FBF63;border:1.5px solid #1D1D23"></span>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:#D5D5DC;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">检查当前在aac客户端中运行的</div>
+                <div style="font-size:10px;color:#7E7E8A" class="tabular">32 分钟前 · 4 条消息 · <span style="color:#6FBF63">已连接</span></div>
+              </div>
+            </div>
+
+            <!-- 分割线 -->
+            <div style="height:1px;background:#303039;margin:6px 12px"></div>
+
+            <!-- HISTORY 分组头 -->
+            <div class="section-header">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7E7E8A" stroke-width="1.8"><polyline points="6 9 12 15 18 9"/></svg>
+              <span class="section-label">HISTORY</span>
+              <span class="chip-history">11</span>
+            </div>
+            <!-- History 项 1 -->
+            <div class="session-row">
+              <div style="width:18px;height:18px;border-radius:4px;background:#23232B;border:1px solid #383845;display:flex;align-items:center;justify-content:center;opacity:0.75;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9B9BA6" stroke-width="2"><path d="M7 8h10M10 8v8M14 8v8"/></svg>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:#9B9BA6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">New pi ACP adapter Session</div>
+                <div style="font-size:10px;color:#62626E" class="tabular">17 分钟前 · 86 条消息</div>
+              </div>
+            </div>
+            <!-- History 项 2 -->
+            <div class="session-row">
+              <div style="width:18px;height:18px;border-radius:4px;background:#23232B;border:1px solid #383845;display:flex;align-items:center;justify-content:center;opacity:0.75;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9B9BA6" stroke-width="2"><circle cx="12" cy="12" r="6"/></svg>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:#9B9BA6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">按七条原则重新审计项目代码</div>
+                <div style="font-size:10px;color:#62626E" class="tabular">5 天前 · 11 条消息</div>
+              </div>
+            </div>
+          </div>
+          <!-- 底部工具栏 -->
+          <div style="height:36px;border-top:1px solid #23232B;padding:0 10px;display:flex;align-items:center;justify-content:space-between;font-size:11px;color:#7E7E8A">
+            <span style="display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>设置</span>
+            <span style="display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>文件</span>
+            <span style="display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>Agents</span>
+            <span style="display:flex;align-items:center;gap:4px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>终端</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ② Active 运行态与悬浮交互 -->
+      <div>
+        <div style="font-size:11px;color:#9B9BA6;margin-bottom:6px" class="mono">② Active 运行态与悬浮交互 <span style="color:#7E7E8A;float:right">running / hover</span></div>
+        <div style="width:220px;height:420px;background:#1D1D23;border:1px solid #303039;border-radius:6px;display:flex;flex-direction:column;overflow:hidden">
+          <!-- 搜索框 -->
+          <div style="padding:10px 10px 4px">
+            <div style="height:26px;background:#23232B;border:1px solid #383845;border-radius:4px;padding:0 8px;display:flex;align-items:center;gap:6px;color:#7E7E8A;font-size:11px">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <span>搜索会话</span>
+            </div>
+          </div>
+          <!-- 会话列表 -->
+          <div style="flex:1;overflow:hidden;padding:4px 0">
+            <!-- ACTIVE 分组头 -->
+            <div class="section-header">
+              <span class="dot-online"></span>
+              <span class="section-label" style="color:#D5D5DC">ACTIVE</span>
+              <span class="chip-active">3</span>
+              <span style="margin-left:auto;font-size:10px;color:#8B96EC" class="mono">1 running</span>
+            </div>
+            <!-- Active 正在运行项 (58px, 扫掠底线) -->
+            <div class="session-row running selected">
+              <div style="width:18px;height:18px;border-radius:4px;background:#262638;border:1px solid #5566D8;display:flex;align-items:center;justify-content:center;position:relative;flex:none;align-self:flex-start;margin-top:10px">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8B96EC" stroke-width="2.2"><path d="M7 8h10M10 8v8M14 8v8"/></svg>
+                <span style="position:absolute;right:-2px;bottom:-2px;width:6px;height:6px;border-radius:50%;background:#6FBF63;border:1.5px solid #1D1D23"></span>
+              </div>
+              <div style="flex:1;min-width:0;align-self:flex-start;margin-top:8px">
+                <div style="font-size:12px;font-weight:500;color:#9AA5F0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">New pi ACP adapter Session</div>
+                <div style="font-size:10px;color:#7E7E8A" class="tabular">刚刚 · 5 条消息 · <span style="color:#8B96EC">生成中</span></div>
+              </div>
+              <div class="sweep-line"></div>
+            </div>
+            <!-- Active 待授权项 (画板 09 规范) -->
+            <div class="session-row">
+              <div style="width:18px;height:18px;border-radius:4px;background:#23232B;border:1px solid #383845;display:flex;align-items:center;justify-content:center;position:relative;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#D5D5DC" stroke-width="2"><circle cx="12" cy="12" r="6"/></svg>
+                <span style="position:absolute;right:-2px;bottom:-2px;width:6px;height:6px;border-radius:50%;background:#6FBF63;border:1.5px solid #1D1D23"></span>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:#D5D5DC;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">检查当前在aac客户端中运行的</div>
+                <div style="font-size:10px;color:#7E7E8A" class="tabular">3 分钟前 · 4 条消息 · <span style="color:#D8A83C">▲ 待授权</span></div>
+              </div>
+            </div>
+            <!-- Active 普通项 (Hover 出操作按钮) -->
+            <div class="session-row" style="background:rgba(255,255,255,0.04)">
+              <div style="width:18px;height:18px;border-radius:4px;background:#23232B;border:1px solid #383845;display:flex;align-items:center;justify-content:center;position:relative;flex:none">
+                <span style="font-size:10px;font-weight:600;color:#D5D5DC">A</span>
+                <span style="position:absolute;right:-2px;bottom:-2px;width:6px;height:6px;border-radius:50%;background:#6FBF63;border:1.5px solid #1D1D23"></span>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:#D5D5DC;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Code Audit Principles</div>
+                <div style="font-size:10px;color:#7E7E8A" class="tabular">12 分钟前 · 9 条消息</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:4px">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7E7E8A" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7E7E8A" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </div>
+            </div>
+
+            <!-- 分割线 -->
+            <div style="height:1px;background:#303039;margin:6px 12px"></div>
+
+            <!-- HISTORY 分组头 (Hover 态) -->
+            <div class="section-header" style="background:rgba(255,255,255,0.04)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#D5D5DC" stroke-width="1.8"><polyline points="6 9 12 15 18 9"/></svg>
+              <span class="section-label" style="color:#D5D5DC">HISTORY</span>
+              <span class="chip-history">10</span>
+            </div>
+            <!-- History 项 (Hover 态) -->
+            <div class="session-row" style="background:rgba(255,255,255,0.03)">
+              <div style="width:18px;height:18px;border-radius:4px;background:#23232B;border:1px solid #383845;display:flex;align-items:center;justify-content:center;opacity:0.75;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9B9BA6" stroke-width="2"><path d="M7 8h10M10 8v8M14 8v8"/></svg>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:#9B9BA6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">New pi ACP adapter Session</div>
+                <div style="font-size:10px;color:#62626E" class="tabular">17 分钟前 · 86 条消息</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:4px">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7E7E8A" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7E7E8A" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ③ History 折叠收起态 (所有者指示：折叠状态无需展示“已折叠”3字) -->
+      <div>
+        <div style="font-size:11px;color:#9B9BA6;margin-bottom:6px" class="mono">③ History 折叠收起态 <span style="color:#7E7E8A;float:right">collapsed</span></div>
+        <div style="width:220px;height:420px;background:#1D1D23;border:1px solid #303039;border-radius:6px;display:flex;flex-direction:column;overflow:hidden">
+          <!-- 搜索框 -->
+          <div style="padding:10px 10px 4px">
+            <div style="height:26px;background:#23232B;border:1px solid #383845;border-radius:4px;padding:0 8px;display:flex;align-items:center;gap:6px;color:#7E7E8A;font-size:11px">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <span>搜索会话</span>
+            </div>
+          </div>
+          <!-- 会话列表 -->
+          <div style="flex:1;overflow:hidden;padding:4px 0">
+            <!-- ACTIVE 分组头 -->
+            <div class="section-header">
+              <span class="dot-online"></span>
+              <span class="section-label" style="color:#D5D5DC">ACTIVE</span>
+              <span class="chip-active">2</span>
+            </div>
+            <!-- Active 项 1 -->
+            <div class="session-row selected">
+              <div style="width:18px;height:18px;border-radius:4px;background:#262638;border:1px solid #5566D8;display:flex;align-items:center;justify-content:center;position:relative;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8B96EC" stroke-width="2.2"><path d="M7 8h10M10 8v8M14 8v8"/></svg>
+                <span style="position:absolute;right:-2px;bottom:-2px;width:6px;height:6px;border-radius:50%;background:#6FBF63;border:1.5px solid #1D1D23"></span>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;font-weight:500;color:#9AA5F0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">New pi ACP adapter Session</div>
+                <div style="font-size:10px;color:#7E7E8A" class="tabular">1 分钟前 · 0 条消息 · <span style="color:#6FBF63">已连接</span></div>
+              </div>
+            </div>
+            <!-- Active 项 2 -->
+            <div class="session-row">
+              <div style="width:18px;height:18px;border-radius:4px;background:#23232B;border:1px solid #383845;display:flex;align-items:center;justify-content:center;position:relative;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#D5D5DC" stroke-width="2"><circle cx="12" cy="12" r="6"/></svg>
+                <span style="position:absolute;right:-2px;bottom:-2px;width:6px;height:6px;border-radius:50%;background:#6FBF63;border:1.5px solid #1D1D23"></span>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:#D5D5DC;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">检查当前在aac客户端中运行的</div>
+                <div style="font-size:10px;color:#7E7E8A" class="tabular">32 分钟前 · 4 条消息 · <span style="color:#6FBF63">已连接</span></div>
+              </div>
+            </div>
+
+            <!-- 分割线 -->
+            <div style="height:1px;background:#303039;margin:6px 12px"></div>
+
+            <!-- 折叠后的 History 头 (Chevron 向右，数量胶囊，无“已折叠”多余文字) -->
+            <div class="section-header">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7E7E8A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              <span class="section-label">HISTORY</span>
+              <span class="chip-history">11</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ④ Active 空态 (冷启动尚未连接) -->
+      <div>
+        <div style="font-size:11px;color:#9B9BA6;margin-bottom:6px" class="mono">④ Active 空态 (冷启动未连接) <span style="color:#7E7E8A;float:right">active = 0</span></div>
+        <div style="width:220px;height:420px;background:#1D1D23;border:1px solid #303039;border-radius:6px;display:flex;flex-direction:column;overflow:hidden">
+          <div style="padding:10px 10px 4px">
+            <div style="height:26px;background:#23232B;border:1px solid #383845;border-radius:4px;padding:0 8px;display:flex;align-items:center;gap:6px;color:#7E7E8A;font-size:11px">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <span>搜索会话</span>
+            </div>
+          </div>
+          <div style="flex:1;overflow:hidden;padding:4px 0">
+            <!-- ACTIVE 分组头 (0 项) -->
+            <div class="section-header">
+              <span style="width:6px;height:6px;border-radius:50%;background:#7E7E8A;flex:none"></span>
+              <span class="section-label" style="color:#7E7E8A">ACTIVE</span>
+              <span class="chip-history">0</span>
+            </div>
+            <!-- 空态轻量提示行 -->
+            <div style="padding:6px 14px 10px;font-size:11px;color:#62626E;line-height:1.4">
+              暂无已连接会话 · 点选下方历史自动载入
+            </div>
+
+            <div style="height:1px;background:#303039;margin:4px 12px"></div>
+
+            <!-- HISTORY 列表 -->
+            <div class="section-header">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7E7E8A" stroke-width="1.8"><polyline points="6 9 12 15 18 9"/></svg>
+              <span class="section-label">HISTORY</span>
+              <span class="chip-history">13</span>
+            </div>
+            <div class="session-row">
+              <div style="width:18px;height:18px;border-radius:4px;background:#23232B;border:1px solid #383845;display:flex;align-items:center;justify-content:center;opacity:0.75;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9B9BA6" stroke-width="2"><path d="M7 8h10M10 8v8M14 8v8"/></svg>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:#9B9BA6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">New pi ACP adapter Session</div>
+                <div style="font-size:10px;color:#62626E" class="tabular">17 分钟前 · 86 条消息</div>
+              </div>
+            </div>
+            <div class="session-row">
+              <div style="width:18px;height:18px;border-radius:4px;background:#23232B;border:1px solid #383845;display:flex;align-items:center;justify-content:center;opacity:0.75;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9B9BA6" stroke-width="2"><circle cx="12" cy="12" r="6"/></svg>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:#9B9BA6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">检查当前在aac客户端中运行的</div>
+                <div style="font-size:10px;color:#62626E" class="tabular">32 分钟前 · 4 条消息</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ⑤ 搜索过滤态 (保持分组上下文) -->
+      <div>
+        <div style="font-size:11px;color:#9B9BA6;margin-bottom:6px" class="mono">⑤ 搜索过滤态 (保持分组上下文) <span style="color:#7E7E8A;float:right">query = &quot;pi&quot;</span></div>
+        <div style="width:220px;height:420px;background:#1D1D23;border:1px solid #303039;border-radius:6px;display:flex;flex-direction:column;overflow:hidden">
+          <div style="padding:10px 10px 4px">
+            <div style="height:26px;background:#23232B;border:1px solid #5566D8;border-radius:4px;padding:0 8px;display:flex;align-items:center;gap:6px;color:#F0F0F4;font-size:11px">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8B96EC" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <span style="font-weight:500">pi</span>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#7E7E8A" stroke-width="2" style="margin-left:auto"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </div>
+          </div>
+          <div style="flex:1;overflow:hidden;padding:4px 0">
+            <!-- ACTIVE 分组头 (1 匹配) -->
+            <div class="section-header">
+              <span class="dot-online"></span>
+              <span class="section-label" style="color:#D5D5DC">ACTIVE</span>
+              <span class="chip-active">1</span>
+            </div>
+            <div class="session-row selected">
+              <div style="width:18px;height:18px;border-radius:4px;background:#262638;border:1px solid #5566D8;display:flex;align-items:center;justify-content:center;position:relative;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8B96EC" stroke-width="2.2"><path d="M7 8h10M10 8v8M14 8v8"/></svg>
+                <span style="position:absolute;right:-2px;bottom:-2px;width:6px;height:6px;border-radius:50%;background:#6FBF63;border:1.5px solid #1D1D23"></span>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;font-weight:500;color:#9AA5F0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">New <span style="color:#8B96EC;background:rgba(139,150,236,0.18);border-radius:2px;padding:0 2px">pi</span> ACP adapter Session</div>
+                <div style="font-size:10px;color:#7E7E8A" class="tabular">1 分钟前 · 0 条消息 · 已连接</div>
+              </div>
+            </div>
+
+            <div style="height:1px;background:#303039;margin:6px 12px"></div>
+
+            <!-- HISTORY 分组头 (5 匹配) -->
+            <div class="section-header">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7E7E8A" stroke-width="1.8"><polyline points="6 9 12 15 18 9"/></svg>
+              <span class="section-label">HISTORY</span>
+              <span class="chip-history">5</span>
+            </div>
+            <div class="session-row">
+              <div style="width:18px;height:18px;border-radius:4px;background:#23232B;border:1px solid #383845;display:flex;align-items:center;justify-content:center;opacity:0.75;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9B9BA6" stroke-width="2"><path d="M7 8h10M10 8v8M14 8v8"/></svg>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:#9B9BA6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">New <span style="color:#D5D5DC;background:rgba(255,255,255,0.12);border-radius:2px;padding:0 2px">pi</span> ACP adapter Session</div>
+                <div style="font-size:10px;color:#62626E" class="tabular">17 分钟前 · 86 条消息</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ⑥ 浅色主题对位 (00-tokens) -->
+      <div>
+        <div style="font-size:11px;color:#9B9BA6;margin-bottom:6px" class="mono">⑥ 浅色主题对位 (00-tokens) <span style="color:#7E7E8A;float:right">AppTheme.light</span></div>
+        <div style="width:220px;height:420px;background:#F4F4F6;border:1px solid #E2E2E7;border-radius:6px;display:flex;flex-direction:column;overflow:hidden;color:#33333D">
+          <!-- 搜索框 -->
+          <div style="padding:10px 10px 4px">
+            <div style="height:26px;background:#FFFFFF;border:1px solid #D3D3DA;border-radius:4px;padding:0 8px;display:flex;align-items:center;gap:6px;color:#8B8B96;font-size:11px">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <span>搜索会话</span>
+            </div>
+          </div>
+          <!-- 会话列表 -->
+          <div style="flex:1;overflow:hidden;padding:4px 0">
+            <!-- ACTIVE 分组头 -->
+            <div class="section-header">
+              <span style="width:6px;height:6px;border-radius:50%;background:#477F40;flex:none"></span>
+              <span class="section-label" style="color:#33333D">ACTIVE</span>
+              <span style="padding:1px 5px;border-radius:3px;background:#ECF3EA;color:#477F40;font-size:10px;font-weight:500" class="mono">2</span>
+              <span style="margin-left:auto;font-size:11px;color:#477F40" class="mono">Connected</span>
+            </div>
+            <!-- Active 项 1 (Selected) -->
+            <div class="session-row" style="background:rgba(30,30,38,0.10)">
+              <div style="width:18px;height:18px;border-radius:4px;background:#ECEDFA;border:1px solid #5566D8;display:flex;align-items:center;justify-content:center;position:relative;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4A59C9" stroke-width="2.2"><path d="M7 8h10M10 8v8M14 8v8"/></svg>
+                <span style="position:absolute;right:-2px;bottom:-2px;width:6px;height:6px;border-radius:50%;background:#477F40;border:1.5px solid #F4F4F6"></span>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;font-weight:500;color:#4A59C9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">New pi ACP adapter Session</div>
+                <div style="font-size:10px;color:#62626E" class="tabular">1 分钟前 · 0 条消息 · <span style="color:#477F40">已连接</span></div>
+              </div>
+            </div>
+            <!-- Active 项 2 -->
+            <div class="session-row">
+              <div style="width:18px;height:18px;border-radius:4px;background:#EEEEF1;border:1px solid #D3D3DA;display:flex;align-items:center;justify-content:center;position:relative;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#33333D" stroke-width="2"><circle cx="12" cy="12" r="6"/></svg>
+                <span style="position:absolute;right:-2px;bottom:-2px;width:6px;height:6px;border-radius:50%;background:#477F40;border:1.5px solid #F4F4F6"></span>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:#33333D;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">检查当前在aac客户端中运行的</div>
+                <div style="font-size:10px;color:#8B8B96" class="tabular">32 分钟前 · 4 条消息 · <span style="color:#477F40">已连接</span></div>
+              </div>
+            </div>
+
+            <!-- 分割线 -->
+            <div style="height:1px;background:#E2E2E7;margin:6px 12px"></div>
+
+            <!-- HISTORY 分组头 -->
+            <div class="section-header">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8B8B96" stroke-width="1.8"><polyline points="6 9 12 15 18 9"/></svg>
+              <span class="section-label" style="color:#62626E">HISTORY</span>
+              <span style="padding:1px 5px;border-radius:3px;background:#E7E7EB;color:#62626E;font-size:10px;font-weight:500" class="mono">11</span>
+            </div>
+            <!-- History 项 1 -->
+            <div class="session-row">
+              <div style="width:18px;height:18px;border-radius:4px;background:#EEEEF1;border:1px solid #D3D3DA;display:flex;align-items:center;justify-content:center;opacity:0.75;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#62626E" stroke-width="2"><path d="M7 8h10M10 8v8M14 8v8"/></svg>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:#33333D;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">New pi ACP adapter Session</div>
+                <div style="font-size:10px;color:#8B8B96" class="tabular">17 分钟前 · 86 条消息</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 第二部分：规范明细表（几何、Token 与状态机规则） -->
+  <div style="display:flex;gap:24px;align-items:flex-start;margin-top:4px">
+    <div style="flex:1">
+      <div style="font-size:12px;font-weight:500;color:#F0F0F4;margin-bottom:8px">B · 分组判定与状态流转规格（Protocol &amp; Lifecycle Rules）</div>
+      <div class="spec-grid">
+        <div class="spec-cell" style="color:#7E7E8A;font-weight:500">维度 / 场景</div>
+        <div class="spec-cell" style="color:#7E7E8A;font-weight:500">判定条件与数据源</div>
+        <div class="spec-cell" style="color:#7E7E8A;font-weight:500">UI 表现与交互行为</div>
+
+        <div class="spec-cell" style="color:#D5D5DC">Active 区（已连接）</div>
+        <div class="spec-cell mono" style="color:#6FBF63">SessionAttach.attached</div>
+        <div class="spec-cell" style="color:#9B9BA6">当前已挂载在存活 Agent 连接上的会话（含新建 session/new、已载入 session/load、后台运行中会话）。图标右下角带 6px 在线绿点，副标题追加「· 已连接」。</div>
+
+        <div class="spec-cell" style="color:#D5D5DC">History 区（历史会话）</div>
+        <div class="spec-cell mono" style="color:#9B9BA6">detached / unattachable</div>
+        <div class="spec-cell" style="color:#9B9BA6">本地索引 sessions.json 中未挂载到当前连接的归档会话。图标 opacity 0.75、无在线绿点；按 updatedAt 降序排列，分区支持整体折叠/展开。</div>
+
+        <div class="spec-cell" style="color:#D5D5DC">History → Active 升格</div>
+        <div class="spec-cell mono" style="color:#9AA5F0">onSelect → ensureLoaded</div>
+        <div class="spec-cell" style="color:#9B9BA6">点击 History 中的会话触发 agent_connect + session/load（或 resume），挂载成功后条目平滑升入 Active 区并置为选中态。</div>
+
+        <div class="spec-cell" style="color:#D5D5DC">Active → History 降格</div>
+        <div class="spec-cell mono" style="color:#D8A83C">session/close / 进程断开</div>
+        <div class="spec-cell" style="color:#9B9BA6">主动关闭会话、重载 Agent 连接或子进程退出时，原 attached 会话解除挂载，自动沉降回 History 区并按时间戳归位。</div>
+      </div>
+    </div>
+
+    <div style="width:460px;flex:none">
+      <div style="font-size:12px;font-weight:500;color:#F0F0F4;margin-bottom:8px">C · 组件几何与 Token 对照（零新增硬编码）</div>
+      <div style="display:grid;grid-template-columns:150px 1fr;border-top:1px solid #303039;font-size:11.5px">
+        <div class="spec-cell" style="color:#7E7E8A">分区标题行高</div>
+        <div class="spec-cell mono" style="color:#D5D5DC">Controls.standard (28px) · padding: 0 12px</div>
+
+        <div class="spec-cell" style="color:#7E7E8A">分区标题字阶</div>
+        <div class="spec-cell mono" style="color:#D5D5DC">TextStyles.label (11px / 500 / letter-spacing .06em)</div>
+
+        <div class="spec-cell" style="color:#7E7E8A">Active 徽章 / 绿点</div>
+        <div class="spec-cell mono" style="color:#6FBF63">Semantic.success (#6FBF63 / #477F40) + successSoft</div>
+
+        <div class="spec-cell" style="color:#7E7E8A">History 数量徽章</div>
+        <div class="spec-cell mono" style="color:#9B9BA6">Spacing.chip (1px 5px) · Radii.chip (3px) · Overlays.hover</div>
+
+        <div class="spec-cell" style="color:#7E7E8A">分区间隔分割线</div>
+        <div class="spec-cell mono" style="color:#D5D5DC">Borders.subtle (#303039 / #E2E2E7) · margin: 4px 12px</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:960}}"></script>
+</x-dc>
+</body>
+</html>

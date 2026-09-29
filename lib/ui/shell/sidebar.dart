@@ -47,6 +47,9 @@ class Sidebar extends StatelessWidget {
     required this.now,
     required this.searchController,
     required this.searchFocusNode,
+    this.activeIds = const <String>{},
+    this.historyCollapsed = false,
+    this.onToggleHistoryCollapsed,
     this.query = '',
     this.selectedId,
     this.renamingId,
@@ -76,6 +79,15 @@ class Sidebar extends StatelessWidget {
   final DateTime now;
   final TextEditingController searchController;
   final FocusNode searchFocusNode;
+
+  /// 画板 45：属于当前存活连接的会话 id 集合（Active 分组）。
+  final Set<String> activeIds;
+
+  /// 画板 45：历史会话分组是否折叠（折叠状态无需展示“已折叠”字样）。
+  final bool historyCollapsed;
+
+  /// 切换历史会话分组折叠。
+  final VoidCallback? onToggleHistoryCollapsed;
   final String query;
   final String? selectedId;
   final String? renamingId;
@@ -139,40 +151,106 @@ class Sidebar extends StatelessWidget {
   }
 
   Widget _list() {
-    if (sessions.isEmpty) return SidebarEmpty(searching: query.isNotEmpty);
-    return ListView.builder(
+    if (sessions.isEmpty && query.isEmpty) return const SidebarEmpty(searching: false);
+
+    // 画板 45：按 activeIds 分流为 Active（已连接）与 History（历史归档）
+    final active = <SidebarSession>[];
+    final history = <SidebarSession>[];
+    for (final s in sessions) {
+      if (activeIds.contains(s.id)) {
+        active.add(s);
+      } else {
+        history.add(s);
+      }
+    }
+
+    if (query.isNotEmpty && active.isEmpty && history.isEmpty) {
+      return const SidebarEmpty(searching: true);
+    }
+
+    // 画板 45 ⑤ 态：搜索时展开历史以展示匹配结果
+    final isHistoryCollapsed = historyCollapsed && query.isEmpty;
+
+    final runningCount = active.where((s) => runningIds.contains(s.id)).length;
+    final activeTrailing = runningCount > 0
+        ? '$runningCount running'
+        : (active.isNotEmpty ? 'Connected' : null);
+
+    final items = <Widget>[
+      // 1. ACTIVE 分区头
+      _SidebarSectionHeader(
+        title: 'ACTIVE',
+        count: active.length,
+        isActive: true,
+        trailingText: activeTrailing,
+      ),
+      // 2. ACTIVE 内容
+      if (active.isEmpty && query.isEmpty)
+        _activeEmptyHint(),
+      for (final s in active)
+        _buildRow(s, attached: true),
+
+      // 3. 分割线
+      _sectionDivider(),
+
+      // 4. HISTORY 分区头
+      _SidebarSectionHeader(
+        title: 'HISTORY',
+        count: history.length,
+        isActive: false,
+        collapsed: isHistoryCollapsed,
+        onTap: query.isEmpty ? onToggleHistoryCollapsed : null,
+      ),
+      // 5. HISTORY 内容 (未折叠时)
+      if (!isHistoryCollapsed)
+        for (final s in history)
+          _buildRow(s, attached: false),
+    ];
+
+    return ListView(
       padding: const EdgeInsets.symmetric(vertical: t.Spacing.s4),
-      itemCount: sessions.length,
-      itemBuilder: (context, i) {
-        final s = sessions[i];
-        return SidebarSessionRow(
-          s,
-          // 扫掠的相位与绿点的淡入淡出都是行内状态：列表按 updatedAt 重排时不给 key，
-          // 这些状态会留在原来那个位置上、落到别条会话头上。
-          key: ValueKey<String>(s.id),
-          now: now,
-          running: runningIds.contains(s.id),
-          unread: unreadIds.contains(s.id),
-          awaiting: switch (awaiting[s.id]) {
-            PermissionEntry() => AwaitingKind.permission,
-            ElicitationEntry() => AwaitingKind.input,
-            _ => null,
-          },
-          query: query,
-          selected: s.id == selectedId,
-          renaming: s.id == renamingId,
-          renameController: renameController,
-          renameFocusNode: renameFocusNode,
-          onTap: onSelect == null ? null : () => onSelect!(s.id),
-          onRename: onStartRename == null ? null : () => onStartRename!(s.id),
-          onDelete: onDelete == null ? null : () => onDelete!(s.id),
-          onCommitRename: onCommitRename == null ? null : (text) => onCommitRename!(text),
-          onCancelRename: onCancelRename,
-          deleteAnchor: s.id == confirmingDeleteId ? deleteAnchor : null,
-        );
-      },
+      children: items,
     );
   }
+
+  Widget _activeEmptyHint() => Padding(
+        padding: t.SidebarSection.emptyHintPadding,
+        child: Text(
+          '暂无已连接会话 · 点选下方历史自动载入',
+          style: t.TextStyles.meta.copyWith(color: t.Neutral.placeholder),
+        ),
+      );
+
+  Widget _sectionDivider() => Container(
+        height: t.Borders.width,
+        color: t.Borders.subtle,
+        margin: t.SidebarSection.dividerMargin,
+      );
+
+  Widget _buildRow(SidebarSession s, {required bool attached}) => SidebarSessionRow(
+        s,
+        key: ValueKey<String>(s.id),
+        now: now,
+        attached: attached,
+        running: runningIds.contains(s.id),
+        unread: unreadIds.contains(s.id),
+        awaiting: switch (awaiting[s.id]) {
+          PermissionEntry() => AwaitingKind.permission,
+          ElicitationEntry() => AwaitingKind.input,
+          _ => null,
+        },
+        query: query,
+        selected: s.id == selectedId,
+        renaming: s.id == renamingId,
+        renameController: renameController,
+        renameFocusNode: renameFocusNode,
+        onTap: onSelect == null ? null : () => onSelect!(s.id),
+        onRename: onStartRename == null ? null : () => onStartRename!(s.id),
+        onDelete: onDelete == null ? null : () => onDelete!(s.id),
+        onCommitRename: onCommitRename == null ? null : (text) => onCommitRename!(text),
+        onCancelRename: onCancelRename,
+        deleteAnchor: s.id == confirmingDeleteId ? deleteAnchor : null,
+      );
 }
 
 /// 列表空态：无会话（画板 01 状态 2）与搜索无结果（画板 04）。
@@ -187,6 +265,114 @@ class SidebarEmpty extends StatelessWidget {
         child: Align(
           alignment: searching ? Alignment.center : Alignment.topCenter,
           child: Text(searching ? '未找到匹配会话' : '还没有会话', style: t.TextStyles.secondary.copyWith(color: t.Neutral.placeholder)),
+        ),
+      );
+}
+
+/// 侧栏会话区分组标题头（画板 45：ACTIVE 与 HISTORY 分区）。
+class _SidebarSectionHeader extends StatelessWidget {
+  const _SidebarSectionHeader({
+    required this.title,
+    required this.count,
+    this.isActive = false,
+    this.collapsed = false,
+    this.trailingText,
+    this.onTap,
+  });
+
+  final String title;
+  final int count;
+  final bool isActive;
+  final bool collapsed;
+  final String? trailingText;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasCount = count > 0;
+    final row = Container(
+      height: t.SidebarSection.headerHeight,
+      padding: t.SidebarSection.headerPadding,
+      child: Row(
+        children: <Widget>[
+          if (isActive)
+            _activeDot(hasCount)
+          else
+            AcpIcon(
+              collapsed ? AcpIcons.chevronRight : AcpIcons.chevronDown,
+              size: t.SidebarSection.chevronSize,
+              color: t.Neutral.muted,
+            ),
+          const SizedBox(width: t.SidebarSection.labelGap),
+          Text(
+            title,
+            style: t.TextStyles.label.copyWith(
+              color: isActive && hasCount ? t.Neutral.strong : t.Neutral.muted,
+            ),
+          ),
+          const SizedBox(width: t.SidebarSection.labelGap),
+          _chip(hasCount),
+          const Spacer(),
+          // 注意：HISTORY 折叠态绝不展示“已折叠”3个字，此 trailingText 仅在 isActive 时展示
+          if (isActive && trailingText != null && trailingText!.isNotEmpty)
+            Text(
+              trailingText!,
+              style: t.TextStyles.meta.copyWith(
+                color: trailingText!.contains('running') ? t.Accent.base : t.Semantic.success,
+                fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+              ),
+            ),
+        ],
+      ),
+    );
+
+    if (onTap != null) {
+      return Hoverable(
+        onTap: onTap,
+        builder: (context, hovered) => Container(
+          color: hovered ? t.Overlays.hover : null,
+          child: row,
+        ),
+      );
+    }
+    return row;
+  }
+
+  Widget _activeDot(bool hasCount) {
+    if (!hasCount) {
+      return Container(
+        width: t.SidebarSection.dotSize,
+        height: t.SidebarSection.dotSize,
+        decoration: BoxDecoration(
+          color: t.Neutral.placeholder,
+          shape: BoxShape.circle,
+        ),
+      );
+    }
+    return Container(
+      width: t.SidebarSection.dotSize,
+      height: t.SidebarSection.dotSize,
+      decoration: BoxDecoration(
+        color: t.Semantic.success,
+        shape: BoxShape.circle,
+        boxShadow: t.SidebarSection.onlineGlow,
+      ),
+    );
+  }
+
+  Widget _chip(bool hasCount) => Container(
+        padding: t.SidebarSection.chipPadding,
+        decoration: BoxDecoration(
+          color: isActive && hasCount ? t.Semantic.successSoft : t.Neutral.hoverSolid,
+          borderRadius: t.SidebarSection.chipRadius,
+        ),
+        child: Text(
+          count.toString(),
+          style: t.TextStyles.meta.copyWith(
+            color: isActive && hasCount ? t.Semantic.success : t.Neutral.muted,
+            fontWeight: t.Weights.medium,
+            fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+          ),
         ),
       );
 }
@@ -320,6 +506,7 @@ class SidebarSessionRow extends StatelessWidget {
     this.session, {
     super.key,
     required this.now,
+    this.attached = false,
     this.query = '',
     this.selected = false,
     this.forceHover = false,
@@ -339,6 +526,10 @@ class SidebarSessionRow extends StatelessWidget {
 
   final SidebarSession session;
   final DateTime now;
+
+  /// 画板 45：会话是否已挂载到存活 Agent 连接上（图标带在线绿点，副标题带「· 已连接」）。
+  final bool attached;
+
   final String query;
   final bool selected;
   final bool forceHover;
@@ -372,7 +563,6 @@ class SidebarSessionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final meta = '${relativeTime(session.updatedAt, now: now)} · ${session.messageCount} 条消息';
     return Hoverable(
       onTap: renaming ? null : onTap,
       forceHover: forceHover,
@@ -401,9 +591,9 @@ class SidebarSessionRow extends StatelessWidget {
                     : inset,
                 child: Row(
                   children: <Widget>[
-                    AgentMark(active: selected, svg: session.iconSvg),
+                    _mark(),
                     const SizedBox(width: t.Spacing.s8),
-                    Expanded(child: inlineEdit ? _renameField() : _titleAndMeta(meta)),
+                    Expanded(child: inlineEdit ? _renameField() : _titleAndMeta()),
                     if (showActions) ...<Widget>[
                       AcpTooltip(
                         message: 'Edit session title',
@@ -438,7 +628,33 @@ class SidebarSessionRow extends StatelessWidget {
     );
   }
 
-  Widget _titleAndMeta(String meta) => Column(
+  Widget _mark() {
+    final mark = AgentMark(active: selected, svg: session.iconSvg);
+    if (!attached) {
+      return Opacity(opacity: t.SidebarSection.offlineOpacity, child: mark);
+    }
+    return Stack(
+      clipBehavior: Clip.none,
+      children: <Widget>[
+        mark,
+        Positioned(
+          right: t.SidebarSection.markOffset,
+          bottom: t.SidebarSection.markOffset,
+          child: Container(
+            width: t.SidebarSection.dotSize,
+            height: t.SidebarSection.dotSize,
+            decoration: BoxDecoration(
+              color: t.Semantic.success,
+              shape: BoxShape.circle,
+              border: Border.all(color: t.Neutral.panel, width: t.SidebarSection.markBorderWidth),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _titleAndMeta() => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
@@ -452,11 +668,19 @@ class SidebarSessionRow extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               Flexible(
-                child: Text(
-                  meta,
+                child: Text.rich(
+                  TextSpan(
+                    style: t.TextStyles.meta.copyWith(fontFeatures: const <FontFeature>[FontFeature.tabularFigures()]),
+                    children: <InlineSpan>[
+                      TextSpan(text: '${relativeTime(session.updatedAt, now: now)} · ${session.messageCount} 条消息'),
+                      if (attached) ...<InlineSpan>[
+                        const TextSpan(text: ' · '),
+                        TextSpan(text: '已连接', style: TextStyle(color: t.Semantic.success)),
+                      ],
+                    ],
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: t.TextStyles.meta.copyWith(fontFeatures: const <FontFeature>[FontFeature.tabularFigures()]),
                 ),
               ),
               // 画板 06 D / 09「亮点线、绿点、等你标记三者严格互斥」——

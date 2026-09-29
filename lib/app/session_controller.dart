@@ -194,6 +194,12 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
     return sidebarSessions.where((s) => s.title.toLowerCase().contains(q)).toList();
   }
 
+  /// 当前已挂载到存活 agent 连接上的会话 id 集合（画板 45：侧栏 Active 分组判定）。
+  Set<String> get attachedSessionIds => <String>{
+        for (final s in sidebarSessions)
+          if (attachOf(s.id) == SessionAttach.attached) s.id,
+      };
+
   /// 会话头的 agent 标记。
   String? get agentIconSvg => agents.iconSvgOf(agentId);
 

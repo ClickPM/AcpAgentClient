@@ -1068,3 +1068,48 @@ abstract final class Toast {
   /// 错误提示自动收起的时长；鼠标停在提示条上时不计时，移开后重新计。
   static const Duration errorDuration = Duration(seconds: 6);
 }
+
+/// 画板 45「侧栏会话区分组规范」的 token 与几何收纳。
+abstract final class SidebarSection {
+  /// 分区标题行高（Controls.standard 28px）。
+  static const double headerHeight = Controls.standard;
+
+  /// 分区内边距。
+  static const EdgeInsets headerPadding = EdgeInsets.symmetric(horizontal: Spacing.s12);
+
+  /// 分区头内元素间距（6px）。
+  static const double labelGap = 6;
+
+  /// 在线绿点与离线灰点直径（6px）。
+  static const double dotSize = UnreadDot.size;
+
+  /// 在线绿点的辉光阴影（画板 45：深色下带 0 0 6px 辉光，浅色下无光晕；动态随当前主题走）。
+  static List<BoxShadow>? get onlineGlow => Theming.isDark
+      ? <BoxShadow>[BoxShadow(color: Semantic.success.withValues(alpha: 0.45), blurRadius: 6)]
+      : null;
+
+  /// 数量胶囊内边距（Spacing.chip 1px 5px）。
+  static const EdgeInsets chipPadding = Spacing.chip;
+
+  /// 数量胶囊圆角（Radii.chip 3px）。
+  static const BorderRadius chipRadius = Radii.chip;
+
+  /// 分割线外边距。
+  static const EdgeInsets dividerMargin = EdgeInsets.symmetric(horizontal: Spacing.s12, vertical: Spacing.s4);
+
+  /// Active 空态提示文字外边距。
+  static const EdgeInsets emptyHintPadding = EdgeInsets.only(left: Spacing.s12, right: Spacing.s12, top: Spacing.s4, bottom: Spacing.s8);
+
+  /// Chevron 图标尺寸（12px）。
+  static const double chevronSize = 12;
+
+  /// 在线指示绿点在 AgentMark 上的外框描边粗细（1.5px）。
+  static const double markBorderWidth = 1.5;
+
+  /// 在线指示绿点相对图标的偏移（-2px）。
+  static const double markOffset = -2;
+
+  /// 会话项图标离线时的不透明度。
+  static const double offlineOpacity = 0.75;
+}
+
