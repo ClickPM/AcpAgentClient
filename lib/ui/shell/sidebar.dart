@@ -199,7 +199,7 @@ class Sidebar extends StatelessWidget {
         count: history.length,
         isActive: false,
         collapsed: isHistoryCollapsed,
-        onTap: onToggleHistoryCollapsed,
+        onTap: query.isEmpty ? onToggleHistoryCollapsed : null,
       ),
       // 5. HISTORY 内容 (未折叠时)
       if (!isHistoryCollapsed)

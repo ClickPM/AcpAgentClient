@@ -1083,10 +1083,10 @@ abstract final class SidebarSection {
   /// 在线绿点与离线灰点直径（6px）。
   static const double dotSize = UnreadDot.size;
 
-  /// 在线绿点的辉光阴影（画板 45：box-shadow: 0 0 6px rgba(111,191,99,0.45)）。
-  static const List<BoxShadow> onlineGlow = <BoxShadow>[
-    BoxShadow(color: Color(0x736FBF63), blurRadius: 6),
-  ];
+  /// 在线绿点的辉光阴影（画板 45：深色下带 0 0 6px 辉光，浅色下无光晕；动态随当前主题走）。
+  static List<BoxShadow>? get onlineGlow => Theming.isDark
+      ? <BoxShadow>[BoxShadow(color: Semantic.success.withValues(alpha: 0.45), blurRadius: 6)]
+      : null;
 
   /// 数量胶囊内边距（Spacing.chip 1px 5px）。
   static const EdgeInsets chipPadding = Spacing.chip;

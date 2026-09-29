@@ -9,6 +9,7 @@
 import 'package:acp_agent_client/app/session_attach.dart';
 import 'package:acp_agent_client/app/workbench_controller.dart';
 import 'package:acp_agent_client/app/workbench_screen.dart';
+import 'package:acp_agent_client/theme/tokens.dart' as t;
 import 'package:acp_agent_client/ui/popovers/topbar_popovers.dart';
 import 'package:acp_agent_client/ui/shell/sidebar.dart';
 import 'package:flutter/material.dart';
@@ -165,6 +166,7 @@ void main() {
       final s1 = _makeSession('s1', 'pi active session');
       final s3 = _makeSession('s3', 'pi history session');
 
+      var toggleCount = 0;
       final searchCtrl = TextEditingController(text: 'pi');
       await tester.pumpWidget(
         MaterialApp(
@@ -174,6 +176,7 @@ void main() {
               activeIds: const <String>{'s1'},
               query: 'pi',
               historyCollapsed: true, // 搜索时即便之前折叠也临时展开
+              onToggleHistoryCollapsed: () => toggleCount++,
               now: _now,
               searchController: searchCtrl,
               searchFocusNode: FocusNode(),
@@ -189,6 +192,11 @@ void main() {
       expect(find.text('pi history session'), findsOneWidget);
       // 搜索状态下不出现“暂无已连接”空态占位
       expect(find.text('暂无已连接会话 · 点选下方历史自动载入'), findsNothing);
+
+      // 搜索期间点击 HISTORY 头不触发折叠切换（避免清空搜索后意外折叠）
+      await tester.tap(find.text('HISTORY'));
+      await tester.pump();
+      expect(toggleCount, 0);
     });
 
     testWidgets('全部为空态时展示占位', (tester) async {
@@ -207,6 +215,19 @@ void main() {
       await tester.pump();
 
       expect(find.text('还没有会话'), findsOneWidget);
+    });
+
+    test('onlineGlow 随主题动态取色且浅色无阴影', () {
+      t.Theming.apply(t.AppTheme.light);
+      expect(t.SidebarSection.onlineGlow, isNull);
+
+      t.Theming.apply(t.AppTheme.dark);
+      final glow = t.SidebarSection.onlineGlow;
+      expect(glow, isNotNull);
+      expect(glow!.first.color, t.Semantic.success.withValues(alpha: 0.45));
+
+      // 恢复缺省
+      t.Theming.reset();
     });
   });
 
