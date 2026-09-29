@@ -1,8 +1,8 @@
 // iteration-19 · 侧栏 Active 行的「挂起」（BACKLOG P1「会话菜单的 Resume / Close 没有入口」的收尾）：
 // 挂起 = 把这一行那条会话交给 agent 的 `session/close`（核心侧就是先 cancel 再释放），本地转录留着只读，
 // 它随即从 Active 区沉到 History；在 History 里点它那一行由 `selectSession` → `ensureLoaded` 挂回来
-// （agent 声明了 `loadSession` 就 `session/load` 重放）。画板 45 的行内动作只画了改名与删除，
-// 挂起是本迭代加上去的（design/DIVERGENCE.md A-37）。
+// （agent 声明了 `loadSession` 就 `session/load` 重放）。挂起是画板 45 § ② 悬浮态里的第一枚行内动作
+// （规格表 B / C 同步，iteration-19 回补）。
 //
 // 守住四件事：给了「这条 agent 声明了 close」才出图标、只出在 Active 行上、点了打的是这条会话
 // （不是当前会话）、挂起与挂回是同一条会话的同一条命令面。

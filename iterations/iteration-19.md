@@ -19,20 +19,22 @@
 |---|---|---|---|---|---|---|---|
 | 1 | ux | 侧栏 Active 行加「挂起」行内动作：新图标 `AcpIcons.pause`、`SidebarSessionRow.onSuspend`（只在 Active、**这条会话自己的** agent 声明了 `sessionCapabilities.close`、且挂得回来（`loadSession` 或 `resume`）时出，`SessionController.canSuspendSession` / `suspendableSessionIds`）；`closeSession` 泛化到指定会话（`closeSession({String? id})`，目标 agent 按 `ownerOf` 取，≡ 菜单那条缺省路径不变）；挂起后这条会话沉到 History，点它那一行走既有的 `ensureLoaded` 挂回来；关闭态提示按 `attachOf` 分开说（挂得回 / agent 侧已没有 / 能力上挂不回） | BACKLOG P1「会话菜单的 Resume / Close 没有入口」（所有者 2026-09-29 指示） | `claude/iter-19-session-suspend`（`55d0d37` + `5eefbb3` + `bf2f268`）→ 待合并（所有者定时机） | validate 全绿（622 项） | R1: high 0 / P2 1；R2: high 0 / P2 2；R3: 0 条（均已整改） | 待合并 |
 | 2 | tidy | 补测试：`test/ui/sidebar_suspend_test.dart` 6 条（渲染与点击、两个能力门、只给 Active 行、挂起 → History → 点击挂回完整往返、只有 close 时入口不存在）+ `test/app/session_lifecycle_wiring_test.dart` 的关闭态提示三条（照旧 / 能力上挂不回 / agent 侧已没有） | 同上 | 同上 | validate 全绿（622 项） | 同上 | 待合并 |
-| 3 | tidy | BACKLOG 收尾：P1「会话菜单的 Resume / Close 没有入口」剪到 `BACKLOG-CLOSED.md`（`→ iteration-19`）、P1 计数 3 → 2、总计数 8 → 7；实现先行的偏离记 `design/DIVERGENCE.md` A-37 | 同上 | 同上 | 纯文档，随同一分支 validate | 同上 | 待合并 |
+| 3 | tidy | BACKLOG 收尾：P1「会话菜单的 Resume / Close 没有入口」剪到 `BACKLOG-CLOSED.md`（`→ iteration-19`）、P1 计数 3 → 2、总计数 8 → 7 | 同上 | 同上 | 纯文档，随同一分支 validate | 同上 | 待合并 |
+| 4 | board | 回补画板（所有者 2026-09-29 指示）：画板 45 § ② 的 Active 悬浮态画上「挂起」这枚图标、规格表 B 新增「挂起（Active 行内动作）」一行、C 新增「挂起图标（行内动作）」一行；画板 04 的注记补一句（它的悬浮样例是未连接的历史会话，仍是两枚）；`render-design.ps1 -Only 45,04` 重渲染 PNG、更新 `design/README.md`（画板行 + 变更记录）、删 `design/DIVERGENCE.md` A-37 并同步引用它的注释 / 文档 | 所有者 2026-09-29 指示（iteration-19 实现先行的那一处回补） | 同上 | 画板已重渲染并逐张目视对照 | 待审查 | 待合并 |
 
 ## 收口
 
 - 构建 / 手测：待所有者定时机。手测三项：① 对一条 Active（已连接）的会话悬浮点「挂起」，它立刻落到 HISTORY 区、转录仍在（只读），agent 侧这条会话已释放；② 在 HISTORY 里点它那一行，回到 ACTIVE 区、能继续发消息（声明 `loadSession` 的 agent 会重放历史）；③ 对没声明 `sessionCapabilities.close` 的 agent（如 pi-acp）、或只声明了 close 而挂不回来的 agent，Active 行只有改名 / 删除两个图标。
 - 发版：不发（所有者定）。
 - 移出项去向：—（BACKLOG 那一条在本迭代关闭；Zed 的「切走自动 close、保活 5 条」是另一件事，仍留在 `docs/research.md` § 4.1，本迭代不动）
-- 设计稿补注记：挂起是画板 45 / 04 / 41 都没有的行内动作，按所有者当场指示实现先行，记 `design/DIVERGENCE.md` A-37，不补画板。
+- 设计稿补注记：挂起实现先行时记过 `design/DIVERGENCE.md` A-37；**所有者 2026-09-29 指示回补，已回补并删除该条**（画板 45 § ② + 规格表 B / C、画板 04 的注记，PNG 重渲染，见 `design/README.md` 变更记录）。画板 41 / 03 的 ≡ 语义冲突仍原样（本迭代不去动会话菜单）。
 
 ## 备注
 
 ### 为什么是「挂起」而不是把 Close 摆进会话菜单
 
 - 画板 03（右栏展开的选中态）与画板 41（会话菜单）对会话头 ≡ 的语义冲突，所有者 2026-09-16 裁定「≡ 保持右栏开关，会话菜单要入口先改设计稿」；本迭代不再去动 ≡ 与 `SessionMenuPopover`（它至今只在 gallery 与单测里出图）。
+- 入口落在**画板 45 § ②** 的 Active 行悬浮动作里（原稿只画了改名 / 删除两枚，回补后是三枚：挂起 / 改名 / 删除），规格表 B / C 同步；**画板 04** 的悬浮样例是未连接的历史会话，仍画两枚，只在注记里指向 45（第三枚只属于 Active 行，画到 04 的样例上就与实现不符）。
 - `session/close` 的语义正好是「先 cancel 再释放、不删记录」：本地转录留着只读、索引不动、agent 侧放掉资源。挂起之后 `attachOf(id)` 不再是 `attached`，画板 45 的分组判定（`attachedSessionIds`）当场就把它分到 History —— 前端不需要另记一个「挂起中」的状态，一个协议动作同时完成了 UI 分组的搬家。
 - 挂回走的是已有的一条路：`selectSession` → `ensureLoaded` → `_attach`（声明 `loadSession` 就重放、否则 `session/resume`），iteration-17 的 History 点击升格已经把它测过；本迭代只补「挂起之后这条路仍然通」的往返用例。
 

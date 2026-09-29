@@ -3,8 +3,9 @@
 // 会话列表以本地索引为准（docs/design.md § 3 末条）：时间戳是客户端本地态，「N 条消息」由投影层分组计数得出（画板 04 注）。
 // 删除图标一律渲染（确认弹层在画板 41）：它删的首先是本地索引这条记录，agent 侧删不删由组合根判——
 // 按 `sessionCapabilities.delete` 裁剪过一版，结果是没声明 delete 的 agent 的会话在侧栏里永远清不掉。
-// 「挂起」（画板 45 的行内动作扩展，iteration-19）只给 Active 区、且这条会话的 agent 声明了 `session/close` 的行：
-// 点了它这条会话交还 agent（转录留着只读、从 Active 沉到 History），再点 History 里那一行由组合根挂回来。
+// 「挂起」（画板 45 § ② 悬浮态里的第一枚行内动作，iteration-19）只给 Active 区、且这条会话的 agent 声明了
+// `session/close` 与 `loadSession` / `resume` 的行：点了它这条会话交还 agent（转录留着只读、从 Active 沉到
+// History），再点 History 里那一行由组合根挂回来。
 
 import 'package:flutter/widgets.dart';
 
