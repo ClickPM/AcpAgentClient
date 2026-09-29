@@ -12,16 +12,17 @@
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | board | 画板 45「侧栏会话区分组规范」入库：Active 区与 History 区规格、在线绿标、折叠展开态（无多余“已折叠”字样）、搜索过滤态、浅色对位；更新 `design/README.md` 与 `canvas.json`，导出同名 PNG | 所有者需求 2026-09-29 | `claude/iter-17-active-history-sessions` | validate 全绿 | 待审查 | 进行中 |
-| 2 | ux | 侧栏 `Sidebar` 与 `SessionController` 支持 Active 与 History 分组呈现与折叠：按 `SessionAttachment` 挂载状态（`SessionAttach.attached`）分流；Active 区常驻显示在线绿标与连接态；History 区支持一键折叠/展开；搜索保持分组；点击 History 触发 `ensureLoaded` 挂载升格；断开/关闭自动沉降 | 所有者需求 2026-09-29 | `claude/iter-17-active-history-sessions` | validate 全绿 | 待审查 | 进行中 |
-| 3 | fix | 补齐 Active / History 侧栏分组渲染、折叠切换、搜索过滤与生命周期流转的单元测试 | 同上 | `claude/iter-17-active-history-sessions` | 单元测试全绿 | 待审查 | 进行中 |
+| 1 | board | 画板 45「侧栏会话区分组规范」入库：Active 区与 History 区规格、在线绿标、折叠展开态（无多余“已折叠”字样）、搜索过滤态、浅色对位；更新 `design/README.md` 与 `canvas.json`，导出同名 PNG | 所有者需求 2026-09-29 | `claude/iter-17-active-history-sessions` | validate 全绿 | cursor R1: 0 high / R2: 0 条 | 完成 |
+| 2 | ux | 侧栏 `Sidebar` 与 `SessionController` 支持 Active 与 History 分组呈现与折叠：按 `SessionAttachment` 挂载状态（`SessionAttach.attached`）分流；Active 区常驻显示在线绿标与连接态；History 区支持一键折叠/展开；搜索保持分组；点击 History 触发 `ensureLoaded` 挂载升格；断开/关闭自动沉降 | 所有者需求 2026-09-29 | `claude/iter-17-active-history-sessions` | validate 全绿 | cursor R1: 0 high / R2: 0 条 | 完成 |
+| 3 | fix | 补齐 Active / History 侧栏分组渲染、折叠切换、搜索过滤与生命周期流转的单元测试（8 条用例全过） | 同上 | `claude/iter-17-active-history-sessions` | 单元测试全绿 (604/604) | cursor R1: 0 high / R2: 0 条 | 完成 |
 
 ## 收口
 
-- 构建 / 手测：待完成
+- 构建 / 手测：flutter test ✓ (604/604)、validate.ps1 ✓ (16 项全绿)、flutter analyze ✓ (0 error, 0 warning, 19 preexisting infos)
 - 发版：—
 - 移出项去向：—
 - 设计稿补注记：画板 45 入库，已折叠状态下不展示文字。
+- 审查记录：cursor CLI (`grok-4.7-high-fast`)：R1 (`main..c40c64e`) 2 findings (high 0 / P2 2 / P3 0)；已全部整改；R2 (`c40c64e..5512f83`) 0 findings。
 
 ## 备注
 
