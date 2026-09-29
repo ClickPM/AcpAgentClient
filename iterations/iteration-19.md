@@ -2,7 +2,7 @@
 
 <!-- 保存为 iterations/iteration-NN.md。一个迭代一个文件、一项一行；流程正本见 iterations/README.md，不在这里复述。 -->
 
-> 状态：进行中　起止：2026-09-29 –　基线：`main` = `1421394`
+> 状态：待合并（审查 0 high，合并时机由所有者定）　起止：2026-09-29 –　基线：`main` = `1421394`
 
 所有者指示（2026-09-29）：「增加一个挂起按钮，点击后支持将 active 的会话关闭，之后可以从 history 区通过点击重新启动。做完这个可以关闭 backlog 里那个 session close 和 resume 的记录了。走正常迭代需要经过 cursor review」。
 
@@ -17,9 +17,9 @@
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | ux | 侧栏 Active 行加「挂起」行内动作：新图标 `AcpIcons.pause`、`SidebarSessionRow.onSuspend`（只在 Active、**这条会话自己的** agent 声明了 `sessionCapabilities.close`、且挂得回来（`loadSession` 或 `resume`）时出，`SessionController.canSuspendSession` / `suspendableSessionIds`）；`closeSession` 泛化到指定会话（`closeSession({String? id})`，目标 agent 按 `ownerOf` 取，≡ 菜单那条缺省路径不变）；挂起后这条会话沉到 History，点它那一行走既有的 `ensureLoaded` 挂回来；关闭态提示按挂得回 / 挂不回（能力 / agent 侧已没有）分开说 | BACKLOG P1「会话菜单的 Resume / Close 没有入口」（所有者 2026-09-29 指示） | `claude/iter-19-session-suspend`（`55d0d37` + 整改 `5eefbb3` + R2 整改）→ 待合并 | validate 全绿 | R1: high 0 / P2 1；R2: high 0 / P2 2（均已整改） | 待审查 |
-| 2 | tidy | 补测试：`test/ui/sidebar_suspend_test.dart` 6 条（渲染与点击、两个能力门、只给 Active 行、挂起 → History → 点击挂回完整往返、只有 close 时入口不存在）+ `test/app/session_lifecycle_wiring_test.dart` 的关闭态提示三条（照旧 / 能力上挂不回 / agent 侧已没有） | 同上 | 同上 | validate 全绿（`flutter test` 622 项） | 同上 | 待审查 |
-| 3 | tidy | BACKLOG 收尾：P1「会话菜单的 Resume / Close 没有入口」剪到 `BACKLOG-CLOSED.md`（`→ iteration-19`）、P1 计数 3 → 2、总计数 8 → 7；实现先行的偏离记 `design/DIVERGENCE.md` A-37 | 同上 | 同上 | 纯文档，随同一分支 validate | 同上一轮 | 待审查 |
+| 1 | ux | 侧栏 Active 行加「挂起」行内动作：新图标 `AcpIcons.pause`、`SidebarSessionRow.onSuspend`（只在 Active、**这条会话自己的** agent 声明了 `sessionCapabilities.close`、且挂得回来（`loadSession` 或 `resume`）时出，`SessionController.canSuspendSession` / `suspendableSessionIds`）；`closeSession` 泛化到指定会话（`closeSession({String? id})`，目标 agent 按 `ownerOf` 取，≡ 菜单那条缺省路径不变）；挂起后这条会话沉到 History，点它那一行走既有的 `ensureLoaded` 挂回来；关闭态提示按 `attachOf` 分开说（挂得回 / agent 侧已没有 / 能力上挂不回） | BACKLOG P1「会话菜单的 Resume / Close 没有入口」（所有者 2026-09-29 指示） | `claude/iter-19-session-suspend`（`55d0d37` + `5eefbb3` + `bf2f268`）→ 待合并（所有者定时机） | validate 全绿（622 项） | R1: high 0 / P2 1；R2: high 0 / P2 2；R3: 0 条（均已整改） | 待合并 |
+| 2 | tidy | 补测试：`test/ui/sidebar_suspend_test.dart` 6 条（渲染与点击、两个能力门、只给 Active 行、挂起 → History → 点击挂回完整往返、只有 close 时入口不存在）+ `test/app/session_lifecycle_wiring_test.dart` 的关闭态提示三条（照旧 / 能力上挂不回 / agent 侧已没有） | 同上 | 同上 | validate 全绿（622 项） | 同上 | 待合并 |
+| 3 | tidy | BACKLOG 收尾：P1「会话菜单的 Resume / Close 没有入口」剪到 `BACKLOG-CLOSED.md`（`→ iteration-19`）、P1 计数 3 → 2、总计数 8 → 7；实现先行的偏离记 `design/DIVERGENCE.md` A-37 | 同上 | 同上 | 纯文档，随同一分支 validate | 同上 | 待合并 |
 
 ## 收口
 
@@ -78,5 +78,10 @@
     `canSuspendSession` 第一项就已经是 false，「挂得回来」那一项从没被执行，删掉新条件这条用例照样绿。
     整改：用例先走 `session/new` 把它开成**真的 attached**（`_SuspendCore.sessionNew` 回同一个 id）再断言，
     并补了上面那条红 → 绿证据。
+- **R3**：`-Scope since -Base 5eefbb3 -Wait`，范围 `5eefbb3..HEAD`（`bf2f268`）、4 个文件，
+  `.claude/reviews/20260929-220831-review.out.md`。**0 条**（high / P2 / P3 全 0）；审查者逐条核了
+  `_blockedByClose` 的三支与 `attachOf` / `ensureLoaded` 的既有顺序一致、能力门用例的短路已不成立、
+  新文案用例的两条断言。⇒ 按收口标准（0 条 high）可以合并，**合并时机由所有者定**（本迭代文件与
+  `iterations/README.md` 的清单行都标「待合并」）。
 - findings 之外的既有行为不动：`ensureLoaded` 对能力上挂不回的会话是静默 return，那是 iteration-09 定的 R3 退路
   （输入框占位文案「这条会话在当前连接上无法继续，发送会新开一条」已经说明），不是本轮引入的问题。
