@@ -2,7 +2,7 @@
 
 <!-- 保存为 iterations/iteration-NN.md。一个迭代一个文件、一项一行；流程正本见 iterations/README.md，不在这里复述。 -->
 
-> 状态：进行中　起止：2026-09-29 –　基线：`main` = `9c73c50`
+> 状态：已合并（未构建）　起止：2026-09-29 – 2026-09-29　基线：`main` = `9c73c50`
 
 所有者 2026-09-29 报障：AAC 最近多次严重内存泄漏、占用接近 100%，当天 19:06 那次由所有者在任务管理器强杀。
 先查系统与应用侧证据，再按所有者圈定的两项（**1 图片解码**、**2 缩进 JSON**）开工；第 3 项（会话 LRU 淘汰）所有者当场裁定**暂不做**。
@@ -16,11 +16,12 @@
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | fix | 工具卡内容里的 `image` 块不再每帧重解 base64：`_ImageBlock` 改 `StatefulWidget`，只在 `data` 值变了时重解（`lib/ui/transcript/content_blocks.dart`）；新单测 `test/ui/content_blocks_image_test.dart`（改前红、改后绿） | 所有者报障 2026-09-29 | `claude/iter-18-transcript-memory` → `b6ab3a5` | validate 全绿（19 项；`flutter test` 606 项） | 1 轮：**0** 条（cursor `grok-4.7-high-fast`，`.claude/reviews/20260929-194416-review.out.md`） | 待合并 |
-| 2 | fix | 流量面板的缩进 JSON 从「收一条算一条」改成按需算 + 记忆化（`lib/projection/traffic.dart`）；新单测 `test/projection/traffic_test.dart` | 所有者报障 2026-09-29 | 同上 | 同上 | 同上（同一轮全范围覆盖） | 待合并 |
+| 1 | fix | 工具卡内容里的 `image` 块不再每帧重解 base64：`_ImageBlock` 改 `StatefulWidget`，只在 `data` 值变了时重解（`lib/ui/transcript/content_blocks.dart`）；新单测 `test/ui/content_blocks_image_test.dart`（改前红、改后绿） | 所有者报障 2026-09-29 | `claude/iter-18-transcript-memory` → `main`（快进） | validate 全绿（审查时 606 项；并入 iter-17 后 614 项） | 1 轮：**0** 条（cursor `grok-4.7-high-fast`，`.claude/reviews/20260929-194416-review.out.md`） | 已合并 |
+| 2 | fix | 流量面板的缩进 JSON 从「收一条算一条」改成按需算 + 记忆化（`lib/projection/traffic.dart`）；新单测 `test/projection/traffic_test.dart` | 所有者报障 2026-09-29 | 同上 | 同上 | 同上（同一轮全范围覆盖） | 已合并 |
 
 ## 收口
 
+- **合并（2026-09-29，所有者指示）**：先在本分支并进已完成的 iter-17（合并提交 `a3647da`，两个 parent = `a8f44f0` + `e7153e7`）——冲突只有 `iterations/README.md` 一处，逐文件核过：两边碰过的 18 个文件里 17 个（含全部 `lib/` `test/` `design/`）逐字节等于某一侧，只有 README 是解冲突时手写的 ⇒ **合并这一步代码零改动**，按所有者「仅文档冲突、无代码改动则不重发 review」的条件没有另发审查。随后 `validate.ps1` 在这棵合并后的树上全绿（17 项、`flutter test` 614 项），把 `main` **快进**到本分支。**未 push**：本地 `main` 现在领先 `origin/main` 9 笔、与 `github/main` 的关系见提交说明，推不推由所有者定。
 - 构建 / 手测：**未构建**（所有者定时机）。要手测的三项：① 让 agent 跑一个结果里带图的工具（本机 pi-acp 的设计稿类任务就会回 PNG），把那张工具卡展开、再让 agent 继续流式输出几分钟——任务管理器里本应用的内存应保持平稳（改前是台阶式上涨）；把卡卷出视口再滚回来，图片照常显示。② 打开流量面板（画板 80）跑一段带图 / 大 JSON 的会话：开关面板前后内存差别不大，展开某一条大行仍然看到缩进好的 JSON。③ 回归：工具卡里的图片预览、点图打开链接照常。
 - 发版：不发（所有者定）。
 - 移出项去向：第 3 项「会话转录无 LRU 淘汰」所有者当场裁定暂不做；它的机制与已有条目 [`rounds/BACKLOG.md`](../rounds/BACKLOG.md) P1「会话菜单的 Resume / Close 没有入口」同源（同一份 Zed 保活 5 条的调研笔记，`docs/research.md` § 4.1），不另开条目。
