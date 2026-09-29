@@ -6,10 +6,12 @@
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | tidy | **规范正本从 `CLAUDE.md` 迁到 `AGENTS.md`**（内容整份搬过去，`CLAUDE.md` 退成指针）：本仓库后续开发不绑定某一个 agent，`AGENTS.md` 是 Codex / Cursor / DSH / pi / Zed 原生就读的跨 agent 约定文件 | 所有者 2026-09-29 | 直接 `main` → `f752859` | validate -Quick 全绿 | 未审查（tidy，所有者未指定走审查） | 已合并 |
+| 1 | tidy | **规范正本从 `CLAUDE.md` 迁到 `AGENTS.md`**（内容整份搬过去，`CLAUDE.md` 退成指针）：本仓库后续开发不绑定某一个 agent，`AGENTS.md` 是 Codex / Cursor / DSH / pi / Zed 原生就读的跨 agent 约定文件 | 所有者 2026-09-29 | 直接 `main` → `f752859` | validate -Quick 全绿 | 未审查（所有者指定） | 已合并 |
 | 2 | tidy | **审查执行器收窄为「cursor 硬失败就停下喊人」**：不再自动回落子代理；只有所有者点名才换执行器，且必须只读 + 模型独立于主会话。同步改 `AGENTS.md`「开发模式」、`docs/review-workflow.md` § 0/§ 2/§ 3、`rounds/TEMPLATE.md`、`iterations/README.md` | 所有者 2026-09-29 | 同上 | 同上 | 同上 | 已合并 |
 | 3 | tidy | **把上一代 agent 的项目私有记忆整批内联入库**（原 `~/.claude/projects/D--variFlight-work-AcpAgentClient/memory/`，34 份 + 索引）→ 新建 `docs/agent-notes/`（README 索引 + 8 份主题册 + 1 份执行器专属坑），从此以仓库里这份为正本 | 所有者 2026-09-29（「对原先 Claude code 针对本项目生成的记忆文件进行挖掘，并以内联式方式引用到本项目中来」） | 同上 | 同上 | 同上 | 已合并 |
 | 4 | tidy | 引用改写：`CLAUDE.md` → `AGENTS.md` 的**活引用**（代码注释、脚本、现行文档，53 文件 / 83 处）；历史记录（已收口轮次卡、`BACKLOG-CLOSED`、迭代文件、`ROUNDS.md` § 2–§ 7 拆解与进度表、画板源、fixtures、gallery widget）**原样保留**，在 `AGENTS.md` / `CLAUDE.md` / `ROUNDS.md` 顶部加历史别名映射 | 所有者 2026-09-29 裁定「只改活引用 + 别名映射」 | 同上 | 同上 | 同上 | 已合并 |
+
+**审查裁定**（所有者 2026-09-29，原话）：「本轮以该文档和代码中的注释为核心，没有 dart 和 rust 代码变更的话无需进行 cursor review」→ 本迭代四项**免审**，提交说明写「未审查（所有者指定）」。逐行核过：34 个 Dart / Rust 文件的 diff 里 33 个是纯注释（`CLAUDE.md 规则 N` → `AGENTS.md 规则 N`），另两处是 `lib/app/workspace_state.dart` 的 2 行文档注释与 `test/ui/markdown_incremental_test.dart` 长文语料表里的一处路径字符串（`'CLAUDE.md'` → `'AGENTS.md'`）—— **无 Dart / Rust 逻辑变更**，后者已单跑该测试 8 项全过。
 
 ## 收口
 
