@@ -17,8 +17,8 @@
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | ux | 侧栏 Active 行加「挂起」行内动作：新图标 `AcpIcons.pause`、`SidebarSessionRow.onSuspend`（只在 Active、**这条会话自己的** agent 声明了 `sessionCapabilities.close`、且挂得回来（`loadSession` 或 `resume`）时出，`SessionController.canSuspendSession` / `suspendableSessionIds`）；`closeSession` 泛化到指定会话（`closeSession({String? id})`，目标 agent 按 `ownerOf` 取，≡ 菜单那条缺省路径不变）；挂起后这条会话沉到 History，点它那一行走既有的 `ensureLoaded` 挂回来；关闭态提示按挂得回 / 挂不回分两句 | BACKLOG P1「会话菜单的 Resume / Close 没有入口」（所有者 2026-09-29 指示） | `claude/iter-19-session-suspend` → `<sha>` | validate 全绿 | R1: high 0 / P2 1（已整改） | 待审查 |
-| 2 | tidy | 补测试：`test/ui/sidebar_suspend_test.dart` 6 条（渲染与点击、两个能力门、只给 Active 行、挂起 → History → 点击挂回完整往返、只有 close 时入口不存在）+ `test/app/session_lifecycle_wiring_test.dart` 的关闭态提示两条断言（挂得回 / 挂不回） | 同上 | 同上 | validate 全绿（`flutter test` 621 项） | 同上一轮 | 待审查 |
+| 1 | ux | 侧栏 Active 行加「挂起」行内动作：新图标 `AcpIcons.pause`、`SidebarSessionRow.onSuspend`（只在 Active、**这条会话自己的** agent 声明了 `sessionCapabilities.close`、且挂得回来（`loadSession` 或 `resume`）时出，`SessionController.canSuspendSession` / `suspendableSessionIds`）；`closeSession` 泛化到指定会话（`closeSession({String? id})`，目标 agent 按 `ownerOf` 取，≡ 菜单那条缺省路径不变）；挂起后这条会话沉到 History，点它那一行走既有的 `ensureLoaded` 挂回来；关闭态提示按挂得回 / 挂不回（能力 / agent 侧已没有）分开说 | BACKLOG P1「会话菜单的 Resume / Close 没有入口」（所有者 2026-09-29 指示） | `claude/iter-19-session-suspend`（`55d0d37` + 整改 `5eefbb3` + R2 整改）→ 待合并 | validate 全绿 | R1: high 0 / P2 1；R2: high 0 / P2 2（均已整改） | 待审查 |
+| 2 | tidy | 补测试：`test/ui/sidebar_suspend_test.dart` 6 条（渲染与点击、两个能力门、只给 Active 行、挂起 → History → 点击挂回完整往返、只有 close 时入口不存在）+ `test/app/session_lifecycle_wiring_test.dart` 的关闭态提示三条（照旧 / 能力上挂不回 / agent 侧已没有） | 同上 | 同上 | validate 全绿（`flutter test` 622 项） | 同上 | 待审查 |
 | 3 | tidy | BACKLOG 收尾：P1「会话菜单的 Resume / Close 没有入口」剪到 `BACKLOG-CLOSED.md`（`→ iteration-19`）、P1 计数 3 → 2、总计数 8 → 7；实现先行的偏离记 `design/DIVERGENCE.md` A-37 | 同上 | 同上 | 纯文档，随同一分支 validate | 同上一轮 | 待审查 |
 
 ## 收口
@@ -41,7 +41,7 @@
 - 判据是**这条会话自己的** agent（`ownerOf(id)`，索引里登记的，退当前连接），不是当前选中的会话，所以后台的 Active 会话也能挂起，规则 2 的「不按 agent 名判」照旧。
 - 只给 `attachOf(id) == attached` 的行：挂起过的会话不再是 Active，图标自然消失；History 行仍旧只有改名 / 删除。
 - 没声明 `sessionCapabilities.close` 的 agent（实测 pi-acp）不出这个按钮 —— 与 `canCloseSession`（≡ 菜单那条）同一口径；也不为它在客户端侧造一个「本地挂起」的假动作（那要断整条连接，会连坐这个 agent 上别的会话）。
-- **还要挂得回来**（`loadSession` 或 `resume`），这是审查 R1 的 P2 带出来的：只有 close 的 agent 一关，`attachOf` 就是 `unattachable`，点 History 那一行 `ensureLoaded` 直接返回、什么都不做——那不是「挂起」而是「让这条会话从此只读」。改动是 `canSuspendSession` 多一个条件（改判断，不是新机制），同一轮把 `TurnController._blockedByClose` 那句提示按 `attachOf` 分了两句：挂得回才指侧栏 History，挂不回只说新建一个会话（原来那句对这种情况是空头承诺）。
+- **还要挂得回来**（`loadSession` 或 `resume`），这是审查 R1 的 P2 带出来的：只有 close 的 agent 一关，`attachOf` 就是 `unattachable`，点 History 那一行 `ensureLoaded` 直接返回、什么都不做——那不是「挂起」而是「让这条会话从此只读」。改动是 `canSuspendSession` 多一个条件（改判断，不是新机制），同一轮把 `TurnController._blockedByClose` 那句提示按 `attachOf` 分了三种（R2 又拆了一次）：挂得回才指侧栏 History；`missingOnAgent`（agent 侧已经没有这条）说 agent 侧没有了；能力上挂不回的说 agent 不支持。
 
 ### 挂起一条正在跑的会话
 
@@ -50,20 +50,33 @@
 ### 实测（本机，Windows）
 
 - `flutter test test/ui/sidebar_suspend_test.dart`：6 条全过（渲染 3 条 + 联动 3 条）。
+- 红 → 绿（复审那条「用例假通过」的证据）：把 `canSuspendSession` 里「挂得回来」那一项临时去掉，跑
+  `flutter test test/ui/sidebar_suspend_test.dart --plain-name "只声明了 close"` → `Expected: false / Actual: <true>` 红；
+  恢复后 41 项（两个文件）全绿。
 - 未跑真实 agent 的实机手测：按钮点下去到 `session/close` 这一步在 `FakeCore` 上验（`closedSessions` 记到 `(agent, session)`），真机手测留给收口那一轮。
 
 ### 审查（迭代流程：一轮 `<基线>..HEAD`，有整改再审整改 diff）
 
-- 执行器 **cursor CLI**（`cursor-agent` + `grok-4.7-high-fast`，无回落），命令
-  `pwsh -File .claude\cursor-review.ps1 -Scope since -Base 1421394 -Wait`，范围 `1421394..HEAD`（`55d0d37`）、13 个文件；
-  2026-09-29 21:49 发起、约 4 分钟后结果落地（中途 cursor 自己重连过一次，见 `docs/review-workflow.md` 第 7 条），
-  `.claude/reviews/20260929-214905-review.out.md`。
-- R1：**1 条 findings（high 0 / P2 1 / P3 0）**，已采纳整改（见下）。审查者另外对照读了 `closeSession` / `deleteSession`、
-  `ensureLoaded`、`attachOf`、`send`、`canCompose`，并确认「没有改契约 / 没有新依赖」。
-- **R1 那一条（P2）**：`TurnController._blockedByClose` 的提示把「点 History 就能挂回来」说成总是成立——只有 close、
-  既没有 `loadSession` 也没有 `resume` 的 agent，挂起后 `attachOf` 是 `unattachable`，点 History 那一行不会发任何命令
-  （`ensureLoaded` 在 `session_attach.dart:210` 直接 return），会话继续只读。整改两处：① `canSuspendSession` 加上
-  「挂得回来」这个条件（这种 agent 干脆不给入口，与「挂起」这个名字的承诺一致）；② 提示按 `attachOf` 分两句。
-  新增用例两条守住（`sidebar_suspend_test.dart` 的能力门用例 + `session_lifecycle_wiring_test.dart` 的文案用例）。
-- 审查者提到的边界情况「只有 `close` 的 agent 会走到这里；钉版本里 claude / dsh 同时有 `loadSession`」不构成豁免——
-  照收口标准不拿「概率低」跳过整改。
+- 执行器 **cursor CLI**（`cursor-agent` + `grok-4.7-high-fast`，无回落），`-Wait` 前台跑；两轮各约 4 分钟。
+- **R1**：`pwsh -File .claude\cursor-review.ps1 -Scope since -Base 1421394 -Wait`，范围 `1421394..HEAD`（`55d0d37`）、
+  13 个文件；2026-09-29 21:49 发起（中途 cursor 自己重连过一次，见 `docs/review-workflow.md` 第 7 条），
+  `.claude/reviews/20260929-214905-review.out.md`。**1 条（high 0 / P2 1 / P3 0）**，已采纳。审查者另外对照读了
+  `closeSession` / `deleteSession`、`ensureLoaded`、`attachOf`、`send`、`canCompose`，确认「没有改契约 / 没有新依赖」。
+  - **P2**：`_blockedByClose` 的提示把「点 History 就能挂回来」说成总是成立——只有 close、既没有 `loadSession`
+    也没有 `resume` 的 agent，挂起后 `attachOf` 是 `unattachable`，点 History 那一行不会发任何命令
+    （`ensureLoaded` 直接 return），会话继续只读。整改：① `canSuspendSession` 加上「挂得回来」这个条件
+    （这种 agent 干脆不给入口，与「挂起」这个名字的承诺一致）；② 提示不指侧栏 History。
+  - 审查者提的「只有 close 的 agent 少见；钉版本里 claude / dsh 同时有 `loadSession`」不构成豁免——
+    照收口标准不拿「概率低」跳过整改。
+- **R2**：`-Scope since -Base 55d0d37 -Wait`，范围 `55d0d37..HEAD`（整改 diff）、9 个文件，
+  `.claude/reviews/20260929-220224-review.out.md`。**2 条（high 0 / P2 2 / P3 0）**，都已采纳。
+  - **P2-①**：R1 改出来的那句「agent 不支持把它挂回来」把 `unattachable` 的两种原因混成一种——`attachOf` 先看
+    `missingOnAgent`（`session/list` 校对出 agent 侧已经没有这条），这种会话点 History 是**有**反应的
+    （写「载不回历史」），赖不到能力上。整改：`_blockedByClose` 按 `missingOnAgent` 再分一句
+    （「agent 侧已经没有它了」）；加用例 `session_lifecycle_wiring_test.dart`「session/list 校对出 agent 侧已经没有这条」。
+  - **P2-②**：新加的能力门用例是**假通过**——它点的是索引里那一行、`attachOf` 停在 `unattachable`，
+    `canSuspendSession` 第一项就已经是 false，「挂得回来」那一项从没被执行，删掉新条件这条用例照样绿。
+    整改：用例先走 `session/new` 把它开成**真的 attached**（`_SuspendCore.sessionNew` 回同一个 id）再断言，
+    并补了上面那条红 → 绿证据。
+- findings 之外的既有行为不动：`ensureLoaded` 对能力上挂不回的会话是静默 return，那是 iteration-09 定的 R3 退路
+  （输入框占位文案「这条会话在当前连接上无法继续，发送会新开一条」已经说明），不是本轮引入的问题。

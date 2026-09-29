@@ -314,6 +314,24 @@ void main() {
     c.dispose();
   });
 
+  // 审查 R2 P2（iteration-19）：`unattachable` 有两种原因，别把「agent 侧已经没有这条」也说成「agent 不支持挂回」。
+  test('挂不回的会话（session/list 校对出 agent 侧已经没有这条）：原因说的是 agent 侧没有它', () async {
+    final (c, core) = await _connected();
+    core.sessionListResult = (_) => <String, dynamic>{'sessions': <Object?>[]};
+    c.session.sessionId = _session;
+    c.sessions.session(_session, agentId: _agent).cwd = _cwd;
+    await c.session.reconcileSessions();
+    expect(c.session.missingOnAgent, contains(_session));
+    await c.session.closeSession();
+
+    expect(c.session.attachOf(_session), SessionAttach.unattachable);
+    c.composer.editor.text = '还想说点什么';
+    await c.turn.send();
+    expect(c.turn.lastError, contains('agent 侧'));
+    expect(c.turn.lastError, isNot(contains('不支持')), reason: '这个 agent 是声明了 loadSession 的，别赖它');
+    c.dispose();
+  });
+
   test('没关闭的会话不受这道门影响：prompt / 下拉 / 停止都照常发', () async {
     final (c, core) = await _connected();
     c.session.sessionId = _session;

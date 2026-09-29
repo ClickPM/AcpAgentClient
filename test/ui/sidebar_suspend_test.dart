@@ -45,6 +45,11 @@ class _SuspendCore extends FakeCore {
           },
         },
       };
+
+  /// 索引里那条会话的 id：`session/new` 回同一个 id，用例可以先把它开成 Active 再验挂起的能力门
+  /// （点 History 那条路对「只有 close」的 agent 挂不上，会是 unattachable，验不到能力门）。
+  @override
+  Future<Map<String, dynamic>> sessionNew(String agentId, String cwd) async => <String, dynamic>{'sessionId': _session};
 }
 
 final Finder _pauseIcon = find.byWidgetPredicate((w) => w is IconButtonGhost && w.icon == AcpIcons.pause);
@@ -233,12 +238,19 @@ void main() {
       expect(core.closedSessions, isEmpty, reason: '没有入口就不该有 session/close 出去');
     });
 
-    testWidgets('只声明了 close、挂不回来的 agent：入口也不存在（挂起之后点 History 不会有反应）', (tester) async {
+    testWidgets('只声明了 close、挂不回来的 agent：会话真挂在 Active 上也不给挂起入口', (tester) async {
       final (c, core) = await _pumpShell(tester, declareLoad: false);
 
-      await _tapRow(tester);
-      // 连上了，但既没有 loadSession 也没有 resume：这条会话挂不上（attachOf 落到 unattachable）
-      expect(c.session.attachOf(_session), SessionAttach.unattachable);
+      // 先让它真的 attached：走 session/new 那条路。点 History 那一行对「只有 close」的 agent 挂不上
+      // （attachOf 会落到 unattachable），那样验的是「不在 Active」那一项，验不到「挂得回来」这个新条件
+      // （审查 R2 P2：旧写法把新条件删掉照样绿）。
+      await c.session.connectAgent(_agent, _cwd);
+      await c.session.createSession(_agent, _cwd);
+      await tester.pump();
+
+      expect(c.session.attachOf(_session), SessionAttach.attached, reason: '挂在活着的连接上、转录在内存里');
+      expect(c.session.attachedSessionIds, contains(_session));
+      // 去掉 canSuspendSession 里「挂得回来」那个条件，这一条就会红（attached + close 都满足）
       expect(c.session.canSuspendSession(_session), isFalse, reason: '挂不回来的不给「挂起」这个名字');
       expect(c.session.suspendableSessionIds, isEmpty);
 

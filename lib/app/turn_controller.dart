@@ -37,11 +37,19 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
     if (!session.sessionClosed) return false;
     // 挂起的会话在侧栏的 History 区，点它那一行就挂回来（iteration-19）——以前这里指的 ≡ 菜单 Resume
     // 在产品里没有入口，用户照这句话找不到路（BACKLOG P1「Resume / Close 没有入口」的结论）。
-    // 挂不回的（agent 既没有 `loadSession` 也没有 `resume`，或 `session/list` 校对出 agent 侧已经没有这条了）
-    // 那句话不成立：点 History 那一行 `ensureLoaded` 直接返回、不会有反应，所以只提新建会话（审查 P2，iteration-19）。
-    lastError = session.attachOf(session.sessionId) == SessionAttach.unattachable
-        ? '这个会话已经挂起，agent 不支持把它挂回来；新建一个会话继续'
-        : '这个会话已经挂起；在侧栏 History 里点它挂回来，或新建一个会话';
+    // 挂不回的两种原因要分开说（审查 R2 P2，iteration-19）：`session/list` 校对出 **agent 侧已经没有这条** 的，
+    // 点 History 会得到「载不回历史」；**能力上挂不回** 的（既没有 `loadSession` 也没有 `resume`），点那一行
+    // `ensureLoaded` 直接返回、不会有反应（输入框占位文案那句「发送会新开一条」已经先说明过）。
+    // 两种都别再说「点 History 就挂得回来」。
+    final id = session.sessionId;
+    final state = session.attachOf(id);
+    if (state != SessionAttach.unattachable) {
+      lastError = '这个会话已经挂起；在侧栏 History 里点它挂回来，或新建一个会话';
+    } else if (id != null && session.missingOnAgent.contains(id)) {
+      lastError = '这个会话已经挂起，agent 侧已经没有它了；新建一个会话继续';
+    } else {
+      lastError = '这个会话已经挂起，agent 不支持把它挂回来；新建一个会话继续';
+    }
     touch();
     return true;
   }
