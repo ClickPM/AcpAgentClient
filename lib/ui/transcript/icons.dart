@@ -188,6 +188,10 @@ abstract final class AcpIcons {
       '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>'
       '<line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>';
 
+  /// 侧栏 Active 行的「挂起」（iteration-19：画板 45 的行内动作只画了改名与删除，见 DIVERGENCE A-37）。
+  /// 两条竖线（pause）：与其余图标同路数（24 单位视口、单线、圆头），外廓撑到 5–19，并排看轻重一致。
+  static const String pause = '<line x1="9" y1="5" x2="9" y2="19"/><line x1="15" y1="5" x2="15" y2="19"/>';
+
   /// 全部图标（测试预热 svg 缓存用）。
   static const List<String> all = <String>[
     rotateCcw, pencil, copy, check, arrowDown, spinnerArc, chevronDown, chevronUp, lightbulb, file, checkCircle, search,
@@ -195,7 +199,7 @@ abstract final class AcpIcons {
     alertTriangle, info, plus, arrowUpRight, play, link, dot, lock, slashCircle, diamond,
     panelLeft, gitBranch, settings, folder, plusSquare, reload, rotateCw, menuLines, target, arrowUp,
     arrowRight, arrowLeft, messageSquare, image, command, windowMinimize, windowMaximize, download,
-    chevronRight, collapseAll, clearScreen, history, moon, sun, monitor, list,
+    chevronRight, collapseAll, clearScreen, history, moon, sun, monitor, list, pause,
   ];
 
   /// 完整 SVG 文档：stroke 固定为黑，真实颜色由 [AcpIcon] 的 colorFilter 给，这样同一图标只解析一次。

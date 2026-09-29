@@ -1,8 +1,10 @@
-// 画板 01 / 04 / 06 / 09 · 侧栏：应用标题条、会话搜索、会话项（默认 / 悬浮出重命名与删除 / 选中 / 行内重命名 /
+// 画板 01 / 04 / 06 / 09 · 侧栏：应用标题条、会话搜索、会话项（默认 / 悬浮出重命名、挂起与删除 / 选中 / 行内重命名 /
 // 运行中的扫掠亮点线 / 完成未读的绿点 / 等你处理的「待授权 · 待输入」标记）、空态与无结果态、底部四个导航入口。
 // 会话列表以本地索引为准（docs/design.md § 3 末条）：时间戳是客户端本地态，「N 条消息」由投影层分组计数得出（画板 04 注）。
 // 删除图标一律渲染（确认弹层在画板 41）：它删的首先是本地索引这条记录，agent 侧删不删由组合根判——
 // 按 `sessionCapabilities.delete` 裁剪过一版，结果是没声明 delete 的 agent 的会话在侧栏里永远清不掉。
+// 「挂起」（画板 45 的行内动作扩展，iteration-19）只给 Active 区、且这条会话的 agent 声明了 `session/close` 的行：
+// 点了它这条会话交还 agent（转录留着只读、从 Active 沉到 History），再点 History 里那一行由组合根挂回来。
 
 import 'package:flutter/widgets.dart';
 
@@ -48,6 +50,7 @@ class Sidebar extends StatelessWidget {
     required this.searchController,
     required this.searchFocusNode,
     this.activeIds = const <String>{},
+    this.suspendableIds = const <String>{},
     this.historyCollapsed = false,
     this.onToggleHistoryCollapsed,
     this.query = '',
@@ -57,6 +60,7 @@ class Sidebar extends StatelessWidget {
     this.renameFocusNode,
     this.activeTab,
     this.onSelect,
+    this.onSuspend,
     this.onStartRename,
     this.onCommitRename,
     this.onCancelRename,
@@ -83,6 +87,10 @@ class Sidebar extends StatelessWidget {
   /// 画板 45：属于当前存活连接的会话 id 集合（Active 分组）。
   final Set<String> activeIds;
 
+  /// 其中能「挂起」的那些（iteration-19）：挂在活着的连接上、且它自己的 agent 声明了 `sessionCapabilities.close`。
+  /// 是 [activeIds] 的子集，所以挂起按钮只出现在 Active 区；点击后这条会话交还 agent，随即沉到 History。
+  final Set<String> suspendableIds;
+
   /// 画板 45：历史会话分组是否折叠（折叠状态无需展示“已折叠”字样）。
   final bool historyCollapsed;
 
@@ -95,6 +103,9 @@ class Sidebar extends StatelessWidget {
   final FocusNode? renameFocusNode;
   final ShellTab? activeTab;
   final ValueChanged<String>? onSelect;
+
+  /// 画板 45 的行内动作扩展（iteration-19）：挂起这条 Active 会话（`session/close`）。
+  final ValueChanged<String>? onSuspend;
   final ValueChanged<String>? onStartRename;
   final ValueChanged<String>? onCommitRename;
   final VoidCallback? onCancelRename;
@@ -245,6 +256,8 @@ class Sidebar extends StatelessWidget {
         renameController: renameController,
         renameFocusNode: renameFocusNode,
         onTap: onSelect == null ? null : () => onSelect!(s.id),
+        // 挂起只在 Active 区的行上给（[suspendableIds] 已经是 Active 的子集），History 行的动作仍是改名 / 删除。
+        onSuspend: attached && suspendableIds.contains(s.id) && onSuspend != null ? () => onSuspend!(s.id) : null,
         onRename: onStartRename == null ? null : () => onStartRename!(s.id),
         onDelete: onDelete == null ? null : () => onDelete!(s.id),
         onCommitRename: onCommitRename == null ? null : (text) => onCommitRename!(text),
@@ -517,6 +530,7 @@ class SidebarSessionRow extends StatelessWidget {
     this.renameController,
     this.renameFocusNode,
     this.onTap,
+    this.onSuspend,
     this.onRename,
     this.onDelete,
     this.onCommitRename,
@@ -548,6 +562,10 @@ class SidebarSessionRow extends StatelessWidget {
   final TextEditingController? renameController;
   final FocusNode? renameFocusNode;
   final VoidCallback? onTap;
+
+  /// 画板 45 的行内动作扩展（iteration-19）：挂起这条会话（交给 agent 的 `session/close`，转录留着只读）。
+  /// 不给就不画这个按钮 —— 挂在活着的连接上、且这条会话的 agent 声明了 `close` 时才由 [Sidebar] 传进来。
+  final VoidCallback? onSuspend;
   final VoidCallback? onRename;
   final VoidCallback? onDelete;
   final ValueChanged<String>? onCommitRename;
@@ -595,6 +613,11 @@ class SidebarSessionRow extends StatelessWidget {
                     const SizedBox(width: t.Spacing.s8),
                     Expanded(child: inlineEdit ? _renameField() : _titleAndMeta()),
                     if (showActions) ...<Widget>[
+                      if (onSuspend != null)
+                        AcpTooltip(
+                          message: 'Suspend session',
+                          child: IconButtonGhost(icon: AcpIcons.pause, size: t.Controls.compact, onTap: onSuspend),
+                        ),
                       AcpTooltip(
                         message: 'Edit session title',
                         child: IconButtonGhost(icon: AcpIcons.pencil, size: t.Controls.compact, onTap: onRename),

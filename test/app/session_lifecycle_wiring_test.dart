@@ -292,7 +292,7 @@ void main() {
     expect(core.modeCalls, isEmpty, reason: '模式下拉不该发 session/set_mode');
     expect(core.cancels, 0, reason: '停止方块不该把 session/cancel 打到已释放的会话上');
     expect(store.entries, hasLength(entriesBefore), reason: 'Restore 不能把本地转录截断了却发不出去');
-    expect(c.turn.lastError, contains('已经关闭'));
+    expect(c.turn.lastError, contains('已经挂起'));
     c.dispose();
   });
 

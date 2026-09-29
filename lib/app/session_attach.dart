@@ -159,6 +159,13 @@ mixin SessionAttachment on ChangeNotifier, GuardedNotifier {
   bool isSessionClosed(String? id) => id != null && _closedSessions.contains(id);
   bool get sessionClosed => isSessionClosed(sessionId);
 
+  /// 这条会话能不能「挂起」（侧栏 Active 行的行内动作，iteration-19）：挂在活着的连接上（[attachOf] 是 attached，
+  /// 所以只能对 Active 区的行给），且**它自己的** agent 声明了 `sessionCapabilities.close`（不按 agent 名判，规则 2）。
+  /// 挂不回的（既没有 `loadSession` 也没有 `resume`）照样给——挂起本身就是关掉，能不能再挂回来由 History 点击时的
+  /// `ensureLoaded` 按同一套能力判。
+  bool canSuspendSession(String id) =>
+      attachOf(id) == SessionAttach.attached && sessionCapsOf(ownerOf(id)).containsKey('close');
+
   // ---------------------------------------------------------------- 四态
 
   /// 一条会话相对于它 agent 当前那条连接的状态。关掉的（`session/close`）与进程已经没了（`exited`、还没重连）的

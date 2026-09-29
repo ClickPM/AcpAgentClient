@@ -200,6 +200,13 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
           if (attachOf(s.id) == SessionAttach.attached) s.id,
       };
 
+  /// 其中能挂起的那些（iteration-19：侧栏 Active 行的行内动作，画板 45 没画，见 DIVERGENCE A-37）：
+  /// 挂在活着的连接上、且它自己的 agent 声明了 `sessionCapabilities.close`。是 [attachedSessionIds] 的子集。
+  Set<String> get suspendableSessionIds => <String>{
+        for (final s in sidebarSessions)
+          if (canSuspendSession(s.id)) s.id,
+      };
+
   /// 会话头的 agent 标记。
   String? get agentIconSvg => agents.iconSvgOf(agentId);
 
@@ -615,20 +622,25 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
     touch();
   }
 
-  /// ≡ 菜单 Close（画板 41）：`session/close` = 先 cancel 再释放。本地转录留着**只读**，会话仍是当前会话——
-  /// 这样 ≡ 菜单里紧接着就能 Resume（`session/resume` 只对没在本连接上活着的会话有效），
-  /// 从侧栏再点开它则走 `session/load` 重放。
-  Future<void> closeSession() async {
+  /// Close 菜单项与侧栏 Active 行的「挂起」（画板 41 / iteration-19）：`session/close` = 先 cancel 再释放。
+  /// 本地转录留着**只读**，会话仍是当前会话——这样紧接着就能 Resume（`session/resume` 只对没在本连接上活着的
+  /// 会话有效），从侧栏再点开它则走 `session/load` 重放。挂起后 [attachOf] 不再是 attached，它随即从侧栏的
+  /// Active 区沉到 History（前端不用另记一个「挂起中」的状态，画板 45 的分组判定直接就是它）。
+  ///
+  /// [id] 缺省是当前会话（≡ 菜单那条路的调用方都不传）；侧栏挂起传那一行的 id，可以是后台的会话——
+  /// 选中态、输入框都与它无关，所以目标 agent 一律按 [ownerOf] 取那条会话自己的登记，不读当前连接。
+  Future<void> closeSession({String? id}) async {
     hidePopover(sessionMenuAnchor);
     final b = bridge;
-    final id = sessionId;
-    final agent = agentId;
-    if (b == null || id == null || agent == null) return;
-    onClearQueue?.call(id);
+    final target = id ?? sessionId;
+    if (b == null || target == null) return;
+    final agent = ownerOf(target);
+    if (agent.isEmpty) return;
+    onClearQueue?.call(target);
     await guard(() async {
-      await _releaseSessionRequests(b, agent, id);
-      await b.sessionClose(agent, id);
-      markClosed(id);
+      await _releaseSessionRequests(b, agent, target);
+      await b.sessionClose(agent, target);
+      markClosed(target);
     });
     touch();
   }

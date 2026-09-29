@@ -17,13 +17,13 @@
 | 档 | 条数 | 这档是什么 |
 |---|---|---|
 | **P0 真缺陷** | 2 | 会丢内容、作用到错对象、吃光资源、静默失败。撞上就是事故，排进最近的轮次。 |
-| **P1 看得见的粗糙** | 3 | 用户看得见的不一致、缺等待态、行为不符直觉。能用，膈应；攒批做。 |
+| **P1 看得见的粗糙** | 2 | 用户看得见的不一致、缺等待态、行为不符直觉。能用，膈应；攒批做。 |
 | **P2 功能缺口** | 1 | 该有没有的能力。**全部需所有者裁定才能进轮次**，多数还要先改设计稿。 |
 | P3 设计稿欠账 | — | **已整体释放**到 `design/DIVERGENCE.md`，见下面的占位小节 |
 | **P4 平台与分发** | 1 | 安装、打包、跨平台、构建链这类问题（2026-09-23 曾整档清空：跨平台暂不做、构建链两条关闭、sidecar 两条移到 `BACKLOG-ZED.md`，见下面该节首段） |
 | **P5 内部工程与验收** | 1 | 测试、行数门、验收自动化这类用户无感的问题（2026-09-23 曾整档清空，16 条收在 iteration-04，见下面该节首段） |
 | X 卡在上游 / 协议 | — | **已撤档**：不是本项目的问题不进本表（所有者裁定 2026-09-23），见下面的占位小节 |
-| | **8** | |
+| | **7** | |
 
 **新增条目**：挑一档追在该档末尾，照同样的三行格式写。不新开档位；一条只进一档。
 **只收本项目自己的问题**：问题出在上游（agent、zed、xterm 等依赖）或协议本身的，不进本表（所有者裁定 2026-09-23，X 档因此撤掉）；其中实现因此与画板对不上的，照规则 3 记 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)。
@@ -43,13 +43,12 @@
   - **产品**：agent 在后台跑长任务、窗口最小化放一会儿，还原后内存峰值明显高于一直看着；任务久了整机内存吃紧。
   - **技术**：`lib/projection/batcher.dart` 的 `enqueue` 只在 `!_scheduled` 时排一次刷新，而 `_scheduled` 要等 `flush()` 才复位；`WorkbenchController._scheduleOnFrame` 走的是 `SchedulerBinding.scheduleFrameCallback` + `scheduleFrame()`。Windows 上最小化会报 `AppLifecycleState.hidden`（`windows_lifecycle_manager.cc` 把 `SIZE_MINIMIZED` / `WM_SHOWWINDOW(0)` 映射成 `hidden`，见 iteration-14 调研），那时 `framesEnabled` 为假、`scheduleFrame()` 直接返回，回调不跑——队列只进不出，每个闭包还攥着一条已解析的 `session/update`（含 chunk 正文与 base64 图）。最小修法：除了 `_scheduled` 再记一个「挂了多久」的上限，或在 `hidden` 期间改用微任务调度（`WorkbenchController.scheduleOnMicrotask` 已经有了，无头实跑在用），窗口还原后再切回按帧 (iteration-18 排查内存报障 2026-09-29)
 
-## P1 · 看得见的粗糙（3）
+## P1 · 看得见的粗糙（2）
 
-### 壳与交互（1）
-
-- [ ] **会话菜单的 Resume / Close 没有入口**（暂不处理）
-  - **产品**：两个动作已经接通也有单测，但产品界面上点不到（Delete 有入口）。实际缺的只有 Close：侧栏点开一条会话时已经自动 load（agent 不支持 load 时退回 resume），Resume 的用途被覆盖了；Close 是让 agent 放掉这条会话占的资源而不删它，现在打开过的会话在 agent 侧一直占着，直到 agent 断开。
-  - **技术**：R6 会话头 ≡ 的语义在画板 03（右栏展开的选中态）与画板 41（会话菜单）之间冲突。所有者裁定 2026-09-16：**≡ 保持右栏开关，会话菜单要入口先改设计稿**。R6 已把菜单的动作接通并做了单测（`resumeSession` / `closeSession` / `deleteSession` + 能力裁剪），产品 UI 里 **Delete 有入口（侧栏删除图标，画板 04）、Resume / Close 没有**。下个设计轮给会话菜单定一个入口（改画板 41 / 03），再接上 `SessionMenuPopover` (2026-09-16) → **所有者裁定 2026-09-23：暂不处理**。当天查过 Zed 的做法：它也**没有**手动 Resume / Close 入口，而是在切走会话时后台自动 close，只保活最近 5 条空闲且 agent 支持 `loadSession` 的会话，切回被回收的会话走 `session/load`。机制全文、源码行号和与我们的对照记在 [`docs/research.md`](../docs/research.md) § 4.1，以后做自动 close 从那里开工。当时评估的方案是 `selectSession` 切走时回收、保活上限 5，还差一个裁定点：切回时 resume 优先（内存里的转录还在、不重放），还是照 Zed 一律 load。本次不做 (2026-09-23)
+2026-09-29：「会话菜单的 Resume / Close 没有入口」按所有者当场指示由 iteration-19 收尾——Close 那一半做成侧栏
+Active 行的「挂起」（`session/close`，转录留着只读、不删），挂起后从 History 点它那一行挂回来；Resume 仍不做单独
+入口（侧栏点开一条会话本来就是 load / resume 自动选一条，用途被覆盖）。结论见 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md)
+末尾。原先的「壳与交互」小节随之清空，留空占位，不重排编号。
 
 ### 转录（2）
 

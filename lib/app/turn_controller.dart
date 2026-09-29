@@ -35,7 +35,9 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
   /// （prompt / Restore / Regenerate / 三个下拉；审查第 2 轮 P2：第 1 轮只挡住了 `send()`）。
   bool _blockedByClose() {
     if (!session.sessionClosed) return false;
-    lastError = '这个会话已经关闭；用 ≡ 菜单的 Resume 挂回来，或新建一个会话';
+    // 挂起的会话在侧栏的 History 区，点它那一行就挂回来（iteration-19）——以前这里指的 ≡ 菜单 Resume
+    // 在产品里没有入口，用户照这句话找不到路（BACKLOG P1「Resume / Close 没有入口」的结论）。
+    lastError = '这个会话已经挂起；在侧栏 History 里点它挂回来，或新建一个会话';
     touch();
     return true;
   }

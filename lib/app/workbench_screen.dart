@@ -249,6 +249,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     return Sidebar(
       sessions: c.session.visibleSessions,
       activeIds: c.session.attachedSessionIds,
+      suspendableIds: c.session.suspendableSessionIds,
       historyCollapsed: c.shell.historyCollapsed,
       onToggleHistoryCollapsed: c.shell.toggleHistoryCollapsed,
       now: DateTime.now(),
@@ -262,6 +263,9 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       searchFocusNode: c.session.sidebarSearchFocus,
       activeTab: c.shell.activeNavTab,
       onSelect: c.session.selectSession,
+      // 挂起（iteration-19）：把这一行那条会话交给 agent 的 `session/close`，它随即从 Active 沉到 History；
+      // 再点那一行由 `selectSession` → `ensureLoaded` 挂回来（load 优先，退 resume）。
+      onSuspend: (id) => c.session.closeSession(id: id),
       onSearchChanged: c.session.setSearch,
       onClearSearch: c.session.clearSearch,
       onStartRename: c.session.startRename,
@@ -726,8 +730,10 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   /// 会话头 ≡：右栏开关（画板 03 是右栏展开的选中态）。
   /// 画板 41 里同一个 ≡ 又是会话菜单，两张画板对它的语义冲突；**所有者裁定 2026-09-16：≡ 保持右栏开关，
   /// 会话菜单要另开入口得先改设计稿**。所以 R6 只接通菜单的动作（`resumeSession` / `closeSession` /
-  /// `deleteSession` 与能力裁剪都在组合根里、有单测覆盖），产品里的入口留到改完画板的那一轮。
-  /// 现有入口：删除走侧栏的删除图标（画板 04）；Resume / Close 本轮在产品 UI 上没有入口（见任务卡「已知限制」）。
+  /// `deleteSession` 与能力裁剪都在组合根里、有单测覆盖）。
+  /// 现有入口：删除走侧栏的删除图标（画板 04）；Close 走侧栏 Active 行的「挂起」（iteration-19，同一套
+  /// `closeSession`，传那一行的 id）；Resume 仍没有入口——侧栏点开一条会话本来就是 load / resume 自动选一条
+  /// （`ensureLoaded`，画板 45 的 History 区点击），它的用途被覆盖了（BACKLOG P1 结论）。
   void _openSessionMenu() {
     c.shell.toggleRightPanel();
   }
