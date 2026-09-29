@@ -16,13 +16,13 @@
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | fix | 工具卡内容里的 `image` 块不再每帧重解 base64：`_ImageBlock` 改 `StatefulWidget`，只在 `data` 值变了时重解（`lib/ui/transcript/content_blocks.dart`）；新单测 `test/ui/content_blocks_image_test.dart`（改前红、改后绿） | 所有者报障 2026-09-29 | `claude/iter-18-transcript-memory` → | validate 全绿（19 项；`flutter test` 606 项） | | 待审查 |
-| 2 | fix | 流量面板的缩进 JSON 从「收一条算一条」改成按需算 + 记忆化（`lib/projection/traffic.dart`）；新单测 `test/projection/traffic_test.dart` | 所有者报障 2026-09-29 | 同上 | 同上 | | 待审查 |
+| 1 | fix | 工具卡内容里的 `image` 块不再每帧重解 base64：`_ImageBlock` 改 `StatefulWidget`，只在 `data` 值变了时重解（`lib/ui/transcript/content_blocks.dart`）；新单测 `test/ui/content_blocks_image_test.dart`（改前红、改后绿） | 所有者报障 2026-09-29 | `claude/iter-18-transcript-memory` → `b6ab3a5` | validate 全绿（19 项；`flutter test` 606 项） | 1 轮：**0** 条（cursor `grok-4.7-high-fast`，`.claude/reviews/20260929-194416-review.out.md`） | 待合并 |
+| 2 | fix | 流量面板的缩进 JSON 从「收一条算一条」改成按需算 + 记忆化（`lib/projection/traffic.dart`）；新单测 `test/projection/traffic_test.dart` | 所有者报障 2026-09-29 | 同上 | 同上 | 同上（同一轮全范围覆盖） | 待合并 |
 
 ## 收口
 
-- 构建 / 手测：<日期、`build.ps1` 结果、手测项与结论>
-- 发版：<版本号 + 三件产物，或「不发」>
+- 构建 / 手测：**未构建**（所有者定时机）。要手测的三项：① 让 agent 跑一个结果里带图的工具（本机 pi-acp 的设计稿类任务就会回 PNG），把那张工具卡展开、再让 agent 继续流式输出几分钟——任务管理器里本应用的内存应保持平稳（改前是台阶式上涨）；把卡卷出视口再滚回来，图片照常显示。② 打开流量面板（画板 80）跑一段带图 / 大 JSON 的会话：开关面板前后内存差别不大，展开某一条大行仍然看到缩进好的 JSON。③ 回归：工具卡里的图片预览、点图打开链接照常。
+- 发版：不发（所有者定）。
 - 移出项去向：第 3 项「会话转录无 LRU 淘汰」所有者当场裁定暂不做；它的机制与已有条目 [`rounds/BACKLOG.md`](../rounds/BACKLOG.md) P1「会话菜单的 Resume / Close 没有入口」同源（同一份 Zed 保活 5 条的调研笔记，`docs/research.md` § 4.1），不另开条目。
 - 设计稿补注记：无（两项都不动 UI 结构、不动 token，画板零 diff）。
 
@@ -50,6 +50,12 @@
 ### 现场测量（只读）
 
 - 当前实例（PID 5640，19:08:50 起）：31 分钟时 WorkingSet 618 MB / Private 672 MB / Commit 5.97 GB / 句柄 1471 / 线程 113 / CPU 643.8 s。往前 22 分钟（19:17 → 19:39）三项基本平（607→618 MB、681→672 MB）——**这一段没有单调上涨**。也就是说这次报告的那次暴涨是短时间内的量级跳变（带图工具结果 + 每帧重解），不是一条稳定泄漏速率；复现要按「工具结果带图 / 带整份文件 + 卡片展开」的场景压，别按「放着不动」压。
+
+### 审查（迭代流程：一轮 `<基线>..HEAD`）
+
+- 执行器 **cursor CLI**（`cursor-agent` + `grok-4.7-high-fast`），命令 `powershell -File .claude\cursor-review.ps1 -Scope since -Base 9c73c50 -Wait`，范围 `9c73c50..HEAD`（`b6ab3a5`）、7 个文件；2026-09-29 19:44:16 发起、19:49:39 结果落地，`.claude/reviews/20260929-194416-review.out.md`。
+- **0 条 findings**（high / P2 / P3 全 0）⇒ 没有需要采纳的整改、也没有复审轮；按收口标准（0 条 high）可以直接合并，合并时机由所有者定。审查者另外对照读了 `traffic_page.dart`（`pretty` 只在展开时读）、`tool_call_card.dart` / `card_chrome.dart` / `assistant_text.dart` / `transcript_list.dart`（图片块的槽位在流式重建时保得住 State）、`wire.dart` 的 `ContentBlockWire.data`，以及 `composer_attachments.dart` 里同一套解码写法。
+- 发起时 Zed 没在跑（它占着会锁 `~/.cursor/cli-config.json`，`cursor-agent` 起不来，见 [`docs/review-workflow.md`](../docs/review-workflow.md) 第 6 条），`cursor-agent status` 显示已登录，所以没有回落子代理。
 
 ### 与流程有关的两条
 
