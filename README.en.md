@@ -4,7 +4,7 @@
 
 > A good-looking multi-agent desktop client. Every agent connects over the [Agent Client Protocol (ACP)](https://agentclientprotocol.com/), and any agent in the official registry works right after you install it.
 
-Claude Agent, Codex, Cursor, pi and DeepSeek Harness share one interface: the same transcript cards, the same file and terminal panels, the same permission and authentication flows. Zed's built-in agent works too, through a sidecar that ships with the app. The app is a Flutter shell on top of a Rust core (an in-process cdylib bridged with flutter_rust_bridge v2), and the UI is built board by board from Claude Design mockups.
+Claude Agent, Codex, Cursor, pi and DeepSeek Harness share one interface: the same transcript cards, the same file and terminal panels, the same permission and authentication flows. The app is a Flutter shell on top of a Rust core (an in-process cdylib bridged with flutter_rust_bridge v2), and the UI is built board by board from Claude Design mockups.
 
 ![Session workbench: session list on the left, transcript in the middle, settings on the right](docs/images/workbench.png)
 
@@ -19,7 +19,7 @@ Everything revolves around the session workbench. The design mockups set the fea
 - **Permissions and interaction**: permission cards with scope selection, both elicitation kinds (form and URL), and Awaiting Confirmation.
 - **Sessions**: the sidebar lists only the current project's sessions, newest user message first. Running sessions show a sweep indicator and finished ones an unread dot. A timeline popover jumps between turns, and user bubbles offer Restore and Regenerate.
 - **Four right-side tabs**: file browser (source / preview), terminal, Agents, settings.
-- **Agents**: pulls the official registry and supports both `npx` and `binary` distribution (binaries are checked against their sha256). If Node is missing, the app downloads a managed copy. Both auth methods are implemented: Agent Auth (the agent opens a browser) and Terminal Auth (the login command runs in the built-in terminal). Agent configs can be imported from Zed's `settings.json`.
+- **Agents**: pulls the official registry and supports both `npx` and `binary` distribution (binaries are checked against their sha256). If Node is missing, the app downloads a managed copy. Both auth methods are implemented: Agent Auth (the agent opens a browser) and Terminal Auth (the login command runs in the built-in terminal).
 - **Appearance**: light, dark or follow-system theme. UI and code fonts each have separate Latin and CJK choices, four independent axes in all.
 - **Debugging**: an ACP traffic panel that shows each redacted raw JSON-RPC line, also written to `logs/acp-<date>.log`.
 
@@ -31,7 +31,7 @@ Everything revolves around the session workbench. The design mockups set the fea
 
 ![Agents panel: the ACP Registry lists every entry with its install / sign-in state](docs/images/agents-registry.png)
 
-Every registry entry can be installed (43 at the time of the screenshot). These six are first-class and fully verified end to end: install, authenticate, new session, a turn with tool calls and permissions, terminal, cancel, reopen and load history.
+Every registry entry can be installed (43 at the time of the screenshot). These five are first-class and fully verified end to end: install, authenticate, new session, a turn with tool calls and permissions, terminal, cancel, reopen and load history.
 
 | Agent | Distribution | Authentication |
 |---|---|---|
@@ -40,7 +40,6 @@ Every registry entry can be installed (43 at the time of the screenshot). These 
 | Cursor (`agent acp`) | binary (archives for six platforms) | `agent login` (Terminal Auth) or `--api-key` |
 | pi (`pi-acp`) | npx | Terminal Auth `--terminal-login` |
 | DeepSeek Harness (`dsh-acp-interactive`) | built into the core, no setup needed | Terminal Auth `--setup` |
-| Zed Agent (`zed-agent-acp`) | sidecar shipped with the installer | reuses the local Zed model and key config, read-only |
 
 ## Installation
 
@@ -49,8 +48,7 @@ Every registry entry can be installed (43 at the time of the screenshot). These 
 | Artifact | Notes |
 |---|---|
 | `AcpAgentClient-<version>-setup.exe` | Per-user installer into `%LOCALAPPDATA%\Programs\AcpAgentClient`, no UAC prompt. **Unsigned**: SmartScreen blocks it the first time, so choose "More info → Run anyway" |
-| `AcpAgentClient-<version>-windows-x64.zip` | Portable, unzip and run. Includes the Zed Agent sidecar |
-| `AcpAgentClient-<version>-windows-x64-nosidecar.zip` | Same without the sidecar, over 60 MB smaller. The trade-off is no Zed Agent in the agent list |
+| `AcpAgentClient-<version>-windows-x64.zip` | Portable, unzip and run |
 
 npx-based agents need Node ≥ 22 on the system. Without it, the app downloads its own managed Node.
 
@@ -78,17 +76,24 @@ From Git Bash use `scripts/fetch-upstream.sh [--check]`. Then:
 ```powershell
 powershell -File scripts/validate.ps1          # build + tests + contract checks (-Quick runs static checks only)
 powershell -File scripts/build.ps1             # flutter build windows --release
-powershell -File scripts/build-sidecar.ps1     # Zed Agent sidecar (separate workspace, cold build about 50 minutes)
 powershell -File scripts/package.ps1           # zip and installer → dist/
 ```
 
-Output goes to `build/windows/x64/runner/Release/`. The sidecar lands in `build/sidecar/` first and a CMake install rule copies it next to the app. If it is missing the build still succeeds; there is just no Zed Agent in the agent list.
+Output goes to `build/windows/x64/runner/Release/`.
 
 If the project path contains non-ASCII characters or spaces, use `scripts/build.ps1` only: a bare `flutter build windows` mangles such paths. More prerequisites and local pitfalls are under "本地开发" (local development) in [`CLAUDE.md`](CLAUDE.md). There is a one-line index of the scripts in [`scripts/README.md`](scripts/README.md) and a test layout guide in [`test/README.md`](test/README.md).
 
 ## Status
 
-Current release: **v1.4.6**, Windows x64. Per-version changes are on [Releases](https://github.com/ClickPM/AcpAgentClient/releases), and development rounds and the progress table are in [`ROUNDS.md`](ROUNDS.md). As of 2026-09-22 the R0–R8 core is done and the project is in agile iterations. Day-to-day bug fixes, UX polish and single-board features follow the iteration process in [`iterations/`](iterations/README.md): one file per iteration, one line per item, one review round. The round process is reserved for major core work.
+Current release: **v1.4.7**, Windows x64. Per-version changes are on [Releases](https://github.com/ClickPM/AcpAgentClient/releases), and development rounds and the progress table are in [`ROUNDS.md`](ROUNDS.md). As of 2026-09-22 the R0–R8 core is done and the project is in agile iterations. Day-to-day bug fixes, UX polish and single-board features follow the iteration process in [`iterations/`](iterations/README.md): one file per iteration, one line per item, one review round. The round process is reserved for major core work.
+
+v1.4.7 removes Zed from the product for good:
+
+- The bundled `zed-agent-acp` sidecar, its built-in agent entry and the settings page's "Import from Zed" are gone. Zed's gpui build prerequisites are no longer needed (that saves a cold build of about 50 minutes) and the download is smaller. The transcribed technology (download, extract, Pty shell, send queue) stays, and the license stays GPL-3.0-or-later.
+- The sidebar's session area now splits sessions into Active and History groups, and they can be collapsed (board 45). Search and "click a history session to attach it" behave as before.
+- One memory fix: images inside tool cards are no longer base64-decoded on every frame, and the traffic panel's pretty JSON is computed on demand and memoized.
+
+Each of the three was reviewed to 0 findings before merge ([`iterations/`](iterations/README.md), iteration-16 through 18).
 
 v1.4.6 fixes two everyday problems:
 
@@ -138,13 +143,12 @@ Flutter host process (Dart frontend ⇄ frb v2 ⇄ Rust core cdylib)
    │ stdio · ACP JSON-RPC
    ├── claude-agent-acp / codex-acp / pi-acp     npx
    ├── cursor `agent acp`                        binary
-   ├── dsh-acp-interactive                       custom (built into the core, no setup needed)
-   └── zed-agent-acp                             sidecar (headless gpui + Zed's built-in agent, shipped with the app)
+   └── dsh-acp-interactive                       custom (built into the core, no setup needed)
 ```
 
 Three constraints hold throughout:
 
-- There is no gpui in the main process; anything that needs gpui goes into the sidecar.
+- There is no gpui in the main process.
 - The frontend consumes the raw JSON of ACP wire messages as-is and has no special cases for any agent.
 - The registry, installs, authentication, and terminal and fs callbacks all live in the Rust core.
 
@@ -167,4 +171,4 @@ The documents below are written in Chinese.
 
 **GPL-3.0-or-later**; see [`LICENSE`](LICENSE) for the full text. Open source; the project itself is non-commercial.
 
-The license follows from reusing Zed source code. Fifteen files under `rust/` and `sidecar/` are copied-and-adapted or transcribed from Zed, each with the upstream path and commit in its header. [`NOTICE`](NOTICE) lists them, together with the sources of the ACP spec, rust-sdk and registry (Apache-2.0), the bundled fonts (OFL-1.1) and the icons, plus trademark notices.
+The license follows from reusing Zed source code. Ten files under `rust/` and `lib/app/` are copied-and-adapted or transcribed from Zed, each with the upstream path and commit in its header. [`NOTICE`](NOTICE) lists them, together with the sources of the ACP spec, rust-sdk and registry (Apache-2.0), the bundled fonts (OFL-1.1) and the icons, plus trademark notices.
