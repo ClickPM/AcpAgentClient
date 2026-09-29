@@ -20,7 +20,7 @@
 | 1 | ux | 侧栏 Active 行加「挂起」行内动作：新图标 `AcpIcons.pause`、`SidebarSessionRow.onSuspend`（只在 Active、**这条会话自己的** agent 声明了 `sessionCapabilities.close`、且挂得回来（`loadSession` 或 `resume`）时出，`SessionController.canSuspendSession` / `suspendableSessionIds`）；`closeSession` 泛化到指定会话（`closeSession({String? id})`，目标 agent 按 `ownerOf` 取，≡ 菜单那条缺省路径不变）；挂起后这条会话沉到 History，点它那一行走既有的 `ensureLoaded` 挂回来；关闭态提示按 `attachOf` 分开说（挂得回 / agent 侧已没有 / 能力上挂不回） | BACKLOG P1「会话菜单的 Resume / Close 没有入口」（所有者 2026-09-29 指示） | `claude/iter-19-session-suspend`（`55d0d37` + `5eefbb3` + `bf2f268`）→ 待合并（所有者定时机） | validate 全绿（622 项） | R1: high 0 / P2 1；R2: high 0 / P2 2；R3: 0 条（均已整改） | 待合并 |
 | 2 | tidy | 补测试：`test/ui/sidebar_suspend_test.dart` 6 条（渲染与点击、两个能力门、只给 Active 行、挂起 → History → 点击挂回完整往返、只有 close 时入口不存在）+ `test/app/session_lifecycle_wiring_test.dart` 的关闭态提示三条（照旧 / 能力上挂不回 / agent 侧已没有） | 同上 | 同上 | validate 全绿（622 项） | 同上 | 待合并 |
 | 3 | tidy | BACKLOG 收尾：P1「会话菜单的 Resume / Close 没有入口」剪到 `BACKLOG-CLOSED.md`（`→ iteration-19`）、P1 计数 3 → 2、总计数 8 → 7 | 同上 | 同上 | 纯文档，随同一分支 validate | 同上 | 待合并 |
-| 4 | board | 回补画板（所有者 2026-09-29 指示）：画板 45 § ② 的 Active 悬浮态画上「挂起」这枚图标、规格表 B 新增「挂起（Active 行内动作）」一行、C 新增「挂起图标（行内动作）」一行；画板 04 的注记补一句（它的悬浮样例是未连接的历史会话，仍是两枚）；`render-design.ps1 -Only 45,04` 重渲染 PNG、更新 `design/README.md`（画板行 + 变更记录）、删 `design/DIVERGENCE.md` A-37 并同步引用它的注释 / 文档 | 所有者 2026-09-29 指示（iteration-19 实现先行的那一处回补） | 同上 | 画板已重渲染并逐张目视对照 | 待审查 | 待合并 |
+| 4 | board | 回补画板（所有者 2026-09-29 指示）：画板 45 § ② 的 Active 悬浮态画上「挂起」这枚图标、规格表 B 新增「挂起（Active 行内动作）」一行、C 新增「挂起图标（行内动作）」一行；画板 04 的注记补一句（它的悬浮样例是未连接的历史会话，仍是两枚）；`render-design.ps1 -Only 45,04` 重渲染 PNG、更新 `design/README.md`（画板行 + 变更记录）、删 `design/DIVERGENCE.md` A-37 并同步引用它的注释 / 文档 | 所有者 2026-09-29 指示（iteration-19 实现先行的那一处回补） | 同上 | 画板已重渲染并逐张目视对照 | 未审查（所有者指定：只动设计稿与文档，未改 Dart / Rust 逻辑；见备注「第四轮免审」） | 待合并 |
 
 ## 收口
 
@@ -87,3 +87,14 @@
   `iterations/README.md` 的清单行都标「待合并」）。
 - findings 之外的既有行为不动：`ensureLoaded` 对能力上挂不回的会话是静默 return，那是 iteration-09 定的 R3 退路
   （输入框占位文案「这条会话在当前连接上无法继续，发送会新开一条」已经说明），不是本轮引入的问题。
+
+### 第四轮免审（所有者指定，2026-09-29）
+
+- 回补画板的那个提交（`265ca4e`）**未发审查**：所有者 2026-09-29 指示「只改设计稿和文档的话，没有动 dart 和 rust 代码不需要 review」。
+  当轮已经起过一发 cursor 审查（`-Scope since -Base b40703b`、`-Wait`），收到指示后当场 `job_kill` 停掉，没有取回 findings；
+  进程侧核过一遍，没有残留的 `cursor-agent` / node 进程。**迭代的审查门仍是 R1–R3**（三轮、0 条 high）。
+- 一处要如实说明：`265ca4e` 除了设计稿（45 / 04 的 `.dc.html` 与重渲染的 PNG）与文档（`design/README.md`、`DIVERGENCE.md`、
+  `BACKLOG-CLOSED.md`、本迭代文件），还顺手改了 4 个 Dart 文件的**注释**（`lib/ui/transcript/icons.dart`、
+  `lib/app/session_controller.dart`、`lib/ui/shell/sidebar.dart`、`test/ui/sidebar_suspend_test.dart`）——
+  它们原本指着已删除的 DIVERGENCE A-37。这 4 处是注释文本、零逻辑改动（`git diff 265ca4e -- '*.dart'` 只有 `//` 行），
+  按所有者同一条口径算在免审范围内；如果要求「Dart 文件一律走审查」，说一声我补发一轮（范围 `b40703b..HEAD`）。
