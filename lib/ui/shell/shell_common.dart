@@ -1,5 +1,5 @@
 // 壳的共用小件（画板 01–04 / 40 / 41 / 42 / 80 共用；ROUNDS § 2 的文件表之外新增，任务卡已记）：
-// agent 标记方块、悬浮包装、文本输入、相对时间文案。样式只取 tokens（CLAUDE.md 规则 3）。
+// agent 标记方块、悬浮包装、文本输入、相对时间文案。样式只取 tokens（AGENTS.md 规则 3）。
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';

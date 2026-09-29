@@ -1,4 +1,4 @@
-﻿# 验证门（CLAUDE.md「本地开发」；R0 落地）。全绿才允许发起审查。
+﻿# 验证门（AGENTS.md「本地开发」；R0 落地）。全绿才允许发起审查。
 #   powershell -File scripts/validate.ps1            # 全部
 #   powershell -File scripts/validate.ps1 -Quick     # 跳过 cargo / flutter 的编译与测试，只跑静态检查
 # 检查项：cargo build / test / clippy -D warnings、unsafe 字面扫描（规则 6）、cargo tree 无 gpui（规则 5）、
@@ -146,7 +146,7 @@ try {
     }
 
     Step "pubspec.yaml 依赖 ⊆ 白名单 (规则 1)" {
-        # CLAUDE.md 规则 1 Dart 侧通用库清单（R1.5 裁定 2026-09-15 加入 markdown / re_highlight / flutter_math_fork / mermaid_flutter + mermaid_core / audioplayers / diffutil_dart）。
+        # AGENTS.md 规则 1 Dart 侧通用库清单（R1.5 裁定 2026-09-15 加入 markdown / re_highlight / flutter_math_fork / mermaid_flutter + mermaid_core / audioplayers / diffutil_dart）。
         # 只核对直接依赖，传递依赖不算引入；flutter_lints / flutter_test 是工具。
         $allowed = @("flutter", "flutter_rust_bridge", "xterm", "url_launcher", "file_selector", "flutter_svg",
                      "markdown", "re_highlight", "flutter_math_fork", "mermaid_flutter", "mermaid_core", "audioplayers", "diffutil_dart",

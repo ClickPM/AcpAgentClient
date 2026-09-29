@@ -11,7 +11,7 @@ analyzer:
 
 linter:
   rules:
-    # 样式字面量由 scripts/validate.ps1 的 Assert-NoStyleLiteral 管（CLAUDE.md 规则 3），lint 只管常规质量。
+    # 样式字面量由 scripts/validate.ps1 的 Assert-NoStyleLiteral 管（AGENTS.md 规则 3），lint 只管常规质量。
     prefer_const_constructors: true
     prefer_final_locals: true
     unawaited_futures: true

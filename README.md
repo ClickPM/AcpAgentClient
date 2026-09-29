@@ -81,7 +81,7 @@ powershell -File scripts/package.ps1           # 打包 zip 与安装器 → dis
 
 产物在 `build/windows/x64/runner/Release/`。
 
-项目路径含中文或空格时只能用 `scripts/build.ps1`（裸 `flutter build windows` 会把路径转码坏）。更多前置与本机坑见 [`CLAUDE.md`](CLAUDE.md)「本地开发」；各脚本的一句话索引在 [`scripts/README.md`](scripts/README.md)，测试布局在 [`test/README.md`](test/README.md)。
+项目路径含中文或空格时只能用 `scripts/build.ps1`（裸 `flutter build windows` 会把路径转码坏）。更多前置与本机坑见 [`AGENTS.md`](AGENTS.md)「本地开发」与 [`docs/agent-notes/`](docs/agent-notes/README.md)；各脚本的一句话索引在 [`scripts/README.md`](scripts/README.md)，测试布局在 [`test/README.md`](test/README.md)。
 
 ## 状态
 
@@ -122,7 +122,8 @@ Flutter 宿主进程（Dart 前端 ⇄ frb v2 ⇄ Rust 核心 cdylib）
 | [`docs/research.md`](docs/research.md) | 源码级研究结论：Zed 的 ACP 代码、rust-sdk、registry、五个 agent、被排除的路线 |
 | [`design/README.md`](design/README.md) | 画板索引：每张画板的 `.dc.html` 源、PNG 基准与实现状态 |
 | [`iterations/README.md`](iterations/README.md) | 敏捷迭代流程（2026-09-22 起的日常模式）与迭代清单；轮次流程保留给核心大迭代 |
-| [`CLAUDE.md`](CLAUDE.md) | 开发约定、轮次与迭代两条流程、硬性规则（`AGENTS.md` 是给审查者的指针） |
+| [`AGENTS.md`](AGENTS.md) | 开发规范正本：开发约定、轮次与迭代两条流程、硬性规则（`CLAUDE.md` 只是给 Claude Code 的指针） |
+| [`docs/agent-notes/`](docs/agent-notes/README.md) | 工程实践与踩坑索引：构建缓存、worktree 与并行会话、发版流水线、审查 runbook、真跑排障 |
 
 ## 许可证
 

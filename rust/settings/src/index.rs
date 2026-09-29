@@ -1,6 +1,6 @@
 //! 本地索引（docs/design.md § 10）：`%APPDATA%/AcpAgentClient/{sessions.json, projects.json}`。
 //! 会话数据归各 agent 自己，本客户端只存索引（agentId + sessionId + 标题 + cwd + 时间 + 消息计数）与最近项目列表。
-//! 两者都走「临时文件 + rename」（CLAUDE.md 规则 7），且只写自己的数据目录，不碰任何 agent 的存储。
+//! 两者都走「临时文件 + rename」（AGENTS.md 规则 7），且只写自己的数据目录，不碰任何 agent 的存储。
 //!
 //! 时间戳一律是 Unix 毫秒（数字）：省掉一个日期格式化依赖，Dart 侧 `DateTime.fromMillisecondsSinceEpoch` 直接吃。
 //! 文件读不动 / 不是合法 JSON 时视为空索引并在下一次写入时重建——索引是可再生的缓存，不该让它挡住启动。

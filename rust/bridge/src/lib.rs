@@ -3,6 +3,6 @@
 
 pub mod api;
 mod runtime;
-// frb 生成物是 CLAUDE.md 规则 6 的唯一例外（extern "C" 边界由生成器负责），按模块放行。
+// frb 生成物是 AGENTS.md 规则 6 的唯一例外（extern "C" 边界由生成器负责），按模块放行。
 #[allow(unsafe_code, clippy::all, clippy::unwrap_used, clippy::unimplemented, clippy::todo)]
 mod frb_generated;

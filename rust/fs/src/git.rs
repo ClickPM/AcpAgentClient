@@ -1,5 +1,5 @@
 //! git CLI 子进程薄封装（docs/design.md § 2 / § 9，所有者裁定 2026-09-15：不引 `git2` / `gix`）。
-//! 只读 + 两个写操作（`git switch` / `git switch -c`），都在用户自己的工作区里，不碰 `.git` 内部文件（CLAUDE.md 规则 7）。
+//! 只读 + 两个写操作（`git switch` / `git switch -c`），都在用户自己的工作区里，不碰 `.git` 内部文件（AGENTS.md 规则 7）。
 //! 找不到 `git` 可执行文件、或目录不是仓库时，返回的 [`BranchList`] 里 `available` / `is_repo` 为 false，
 //! 前端据此把顶栏的分支区整块隐藏。
 //!

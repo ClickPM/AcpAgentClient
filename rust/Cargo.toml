@@ -18,7 +18,7 @@ license = "GPL-3.0-or-later"
 publish = false
 
 [workspace.dependencies]
-# 官方 rust-sdk，钉 pins/upstream.json 的 rust-sdk commit（CLAUDE.md 规则 4）；feature 集与 Zed 对齐（规则 10）。
+# 官方 rust-sdk，钉 pins/upstream.json 的 rust-sdk commit（AGENTS.md 规则 4）；feature 集与 Zed 对齐（规则 10）。
 agent-client-protocol = { git = "https://github.com/agentclientprotocol/rust-sdk.git", rev = "3a6d0ae88dbaa09fcb74e26761e3643a75b2015e", features = ["unstable"] }
 tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "macros", "sync", "time", "io-util", "process"] }
 serde = { version = "1", features = ["derive"] }
@@ -26,9 +26,9 @@ serde_json = { version = "1", features = ["preserve_order"] }
 # rust-sdk 的公开 API 以 futures 的 Sink / Stream / AsyncRead 为底座（Lines 传输、AcpAgent 的 spawn_process 返回 futures 流），
 # 转写 Zed 的流量 tap 必须直接实现这些 trait；它已是 rust-sdk 的传递依赖，不引入新的依赖闭包（R1 任务卡记理由）。
 futures = { version = "0.3", default-features = false, features = ["std", "async-await"] }
-# CLAUDE.md 规则 1 通用库清单内：terminal auth 的可见终端与 terminal/* 回调（docs/design.md § 7）。
+# AGENTS.md 规则 1 通用库清单内：terminal auth 的可见终端与 terminal/* 回调（docs/design.md § 7）。
 portable-pty = "0.9"
-# CLAUDE.md 规则 1 通用库清单内：文件面板的目录监视（R4）。默认后端（Windows 用 ReadDirectoryChangesW）。
+# AGENTS.md 规则 1 通用库清单内：文件面板的目录监视（R4）。默认后端（Windows 用 ReadDirectoryChangesW）。
 notify = "8"
 # 规则 1 清单内（所有者裁定 2026-09-20）：`acp/terminal_output` 的字节编码。0.22 早已是 reqwest 那条线的传递依赖
 # （Cargo.lock 里本来就有），直接依赖它不新增编译单元；此前 acp-core 与 acp-smoke 各手写了一份编码 / 解码。
@@ -41,7 +41,7 @@ fs = { path = "fs" }
 settings = { path = "settings" }
 
 [workspace.lints.rust]
-# CLAUDE.md 规则 6：Rust 禁 unsafe。frb 生成物（bridge/src/frb_generated.rs）是唯一例外，在 lib.rs 上按模块 allow。
+# AGENTS.md 规则 6：Rust 禁 unsafe。frb 生成物（bridge/src/frb_generated.rs）是唯一例外，在 lib.rs 上按模块 allow。
 unsafe_code = "deny"
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
 # MSVC 每次链接 cdylib 都往 stdout 打「正在创建库 …dll.lib」，rustc 会当 linker_messages 警告转发；不是问题。

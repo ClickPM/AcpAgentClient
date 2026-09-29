@@ -1,4 +1,4 @@
-//! agent 子进程的拉起参数与 Windows 细节（CLAUDE.md 规则 9）：
+//! agent 子进程的拉起参数与 Windows 细节（AGENTS.md 规则 9）：
 //! - `settings.json` 的 `custom` 条目 → [`LaunchSpec`]；registry 型经 [`LaunchSpec::from_registry`]（安装记录 + Node，R5）；
 //! - 裸程序名按 PATH + PATHEXT 解析成带扩展名的路径（Rust std 只找 `.exe`，`npx` / `dsh-acp-interactive` 这类
 //!   `.cmd` 包装找不到）；解析到 `.cmd` / `.bat` 后由 std 经 `cmd.exe /c` 带引号拉起（Rust ≥ 1.77 的 BatBadBut 修复）；

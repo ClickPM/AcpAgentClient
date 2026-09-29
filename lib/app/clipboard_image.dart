@@ -1,5 +1,5 @@
 // 输入框的粘贴（Ctrl+V）：Flutter 的 `Clipboard` 只给 text/plain，位图与文件列表都取不到，
-// 第三方剪贴板包又在 CLAUDE.md 规则 1 的清单之外，所以 Windows（规则 9 首发）由 runner 直接走 Win32 读一次
+// 第三方剪贴板包又在 AGENTS.md 规则 1 的清单之外，所以 Windows（规则 9 首发）由 runner 直接走 Win32 读一次
 // 剪贴板（`acp/window` 通道的 `readClipboardImages`，windows/runner/acp_clipboard.cpp）：先看文件列表
 // （资源管理器里复制的文件与目录，`CF_HDROP`），再看位图（截图工具 / 企业微信截图）。文件列表在这里分成
 // 「读成图」与「按路径引用」两份；位图回来的是 BGRA 像素，PNG 编码在这里用 dart:ui 自带的编码器做，

@@ -1,5 +1,5 @@
 // 组合根的 widget 装配（R3 接线阶段）：只把 `lib/ui/` 的画板 widget 摆进壳、接上
-// [WorkbenchController] 的数据与回调，不改任何布局与 token（CLAUDE.md 规则 3）。
+// [WorkbenchController] 的数据与回调，不改任何布局与 token（AGENTS.md 规则 3）。
 //
 // 无边框窗口的拖拽（docs/design.md § 9）：顶栏叠一层在**底下**的 Listener，
 // 顶栏里的按钮与芯片在上层先吃掉点击，只有空白处才落到 Listener 上、去调 `startDragging`。

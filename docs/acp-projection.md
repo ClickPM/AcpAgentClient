@@ -17,7 +17,7 @@
 
 | 事实 | 值 | 出处 |
 |---|---|---|
-| 线上协议版本 | v1（`protocolVersion: 1` 协商）；v2 仍是草案，`unstable_protocol_v2` 不开 | `schema/v1/meta.json`、CLAUDE.md 规则 10 |
+| 线上协议版本 | v1（`protocolVersion: 1` 协商）；v2 仍是草案，`unstable_protocol_v2` 不开 | `schema/v1/meta.json`、AGENTS.md 规则 10 |
 | JSON Schema 发布版本 | v1 **1.21.0** | `schema/v1/Cargo.toml` |
 | Rust 类型 crate | `agent-client-protocol-schema` **1.7.0**（rust-sdk 2.1.0 依赖 `=1.7.0`） | `rust-sdk/Cargo.toml` |
 | 两者关系 | 同一 commit 生成，互为同源；`schema.json` 就是 Rust 类型 serde 出来的形状 | vendor 实测 |
@@ -101,7 +101,7 @@ unstable 的 `plan_update` / `plan_removed` 引入 `planId` 与三种载荷（�
 | 方法 | 参数 | 投影意义 |
 |---|---|---|
 | `fs/read_text_file` | `path`（绝对）、`line?`（1-based）、`limit?` | 通常不进转录，但「谁读了什么」可进流量面板 |
-| `fs/write_text_file` | `path`、`content`；文件不存在 MUST 创建 | 同上；写盘走临时文件 + rename（CLAUDE.md 规则 7） |
+| `fs/write_text_file` | `path`、`content`；文件不存在 MUST 创建 | 同上；写盘走临时文件 + rename（AGENTS.md 规则 7） |
 | `terminal/create` | `command`、`args?`、`env?`、`cwd?`、`outputByteLimit?` | 返回 `terminalId`，可被 `tool_call.content` 以 `{type:"terminal"}` 嵌入 |
 | `terminal/output` | `terminalId` | 返回 `output`、`truncated`、`exitStatus?` |
 | `terminal/wait_for_exit` | `terminalId` | 返回 `exitCode?` / `signal?` |
@@ -140,7 +140,7 @@ design.md § 4 定的声明集（照抄 Zed 的 `client_capabilities_for_agent`�
 
 ## 7. 协议不给、必须客户端自己造的 8 项
 
-这 8 项都是**呈现态**，存在前端 store 里，不进线上协议，也不构成「第二套协议」（CLAUDE.md 规则 2 的边界）。
+这 8 项都是**呈现态**，存在前端 store 里，不进线上协议，也不构成「第二套协议」（AGENTS.md 规则 2 的边界）。
 
 1. **工具调用的「已取消」态**。规范要求：客户端发出 `session/cancel` 后 SHOULD 先行把本轮未完成的工具调用标成 cancelled —— 但 `ToolCallStatus` 里**根本没有 cancelled**。只能在客户端侧记一个本地态。
 2. **消息边界与分组**。chunk 流里只有可选的 `messageId`（同 id 属同一条消息，id 变了就是新消息）。agent 不发 `messageId` 时（多数情况），把连续 chunk 合成一条气泡的规则由客户端定。

@@ -86,7 +86,7 @@ function serve() {
     try { return JSON.parse(readFileSync(storePath(cwd), 'utf8')) } catch { return {} }
   }
   const writeStore = (cwd, data) => {
-    // 临时文件 + rename（CLAUDE.md 规则 7 的写法，夹具也照做）。
+    // 临时文件 + rename（AGENTS.md 规则 7 的写法，夹具也照做）。
     const tmp = storePath(cwd) + '.tmp'
     writeFileSync(tmp, JSON.stringify(data, null, 2))
     renameSync(tmp, storePath(cwd))

@@ -1,5 +1,5 @@
 // 悬停提示（设计稿之外的增补，所有者 2026-09-18 直接要求）：壳上那些只有图标、或只有两个字标签的入口，
-// 鼠标停住 [t.Motion.tooltipDelay] 之后在旁边出一行英文说明。样式只取 tokens（CLAUDE.md 规则 3）。
+// 鼠标停住 [t.Motion.tooltipDelay] 之后在旁边出一行英文说明。样式只取 tokens（AGENTS.md 规则 3）。
 //
 // 自写而不用 Material 的 `Tooltip`：壳里一个 Material widget 都不用（见 lib/app/app.dart 的注释），
 // 它那套底色与字样也不在 tokens 里。浮层机制和 [PopoverAnchor] 一样是 `OverlayPortal`，但位置是按目标控件

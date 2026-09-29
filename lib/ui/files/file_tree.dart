@@ -1,5 +1,5 @@
 // 画板 60 · 文件树的模型（纯 Dart，无 widget 依赖）：懒加载的目录节点、展开 / 折叠、按名过滤、按路径定位（展开祖先）、
-// git 状态徽章。目录内容由注入的 [DirLoader] 给：gallery 用本地假数据，接线阶段换 `fs_list_dir`，widget 不动（CLAUDE.md 规则 3）。
+// git 状态徽章。目录内容由注入的 [DirLoader] 给：gallery 用本地假数据，接线阶段换 `fs_list_dir`，widget 不动（AGENTS.md 规则 3）。
 
 import 'dart:io' show Platform;
 

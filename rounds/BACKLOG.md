@@ -4,7 +4,7 @@
 
 **本文只留未关闭条目。** 已处理的连同结论原样移到 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md)；
 实现与画板不一致的地方（实现先行 / 画板画错 / 实现有意少做）收在 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)，
-按所有者裁定 2026-09-20 **不要求补设计稿**，本文不再重备一份（CLAUDE.md 规则 3）。
+按所有者裁定 2026-09-20 **不要求补设计稿**，本文不再重备一份（AGENTS.md 规则 3）。
 
 ## 怎么读这份表
 

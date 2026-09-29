@@ -1,18 +1,19 @@
 # ROUNDS — 轮次总览与 roadmap
 
 > 设计稿已于 2026-09-14 收口（40 张画板；2026-09-17 增画板 05「转场规格」、2026-09-18 增画板 06「侧栏会话活动指示」、2026-09-20 增画板 43「会话时间线」与 07「深色 Token 对位表」、2026-09-22 增画板 08「交互增强」、2026-09-23 增画板 53「Registry 升级态」与 09「等你处理」，现 47 张（含已废弃的 10）。清单与计数以 [`design/README.md`](design/README.md) 为准），本文据此把实现拆成 **R0–R8（含 R1.5 spike）**，取代 `docs/design.md` § 11 的草案（2026-09-15）。
-> 本文只管三件事：**哪一轮做什么画板与协议面、验收什么、开工前要所有者裁定什么**。流程、审查与硬性规则在 [`CLAUDE.md`](CLAUDE.md)，任务卡模板在 [`rounds/TEMPLATE.md`](rounds/TEMPLATE.md)，每轮开工 `cp rounds/TEMPLATE.md rounds/round-NN/round-NN.md` 后按本文对应节填。
-> 轮次编号只增不改；R1.5 沿用 CLAUDE.md 规则 1 的写法（Markdown 库 spike）。R7 = sidecar、R8 = 打包，与 CLAUDE.md 仓库结构里的标注一致。R7.5 = 组合根拆分（纯代码结构轮，无画板；已完成，2026-09-20 合入 main）、R7.6 = 字体切换（已完成，见 § 7）；原拟的缺陷轮 R7.7 **不再开**——R0–R8 主体完成后（2026-09-22 起）缺陷修复、交互优化、工程收尾与单画板功能改走 [`iterations/`](iterations/README.md) 的迭代流程，本文只管核心大迭代的轮次（判据见那里 § 0）。
+> 本文只管三件事：**哪一轮做什么画板与协议面、验收什么、开工前要所有者裁定什么**。流程、审查与硬性规则在 [`AGENTS.md`](AGENTS.md)，任务卡模板在 [`rounds/TEMPLATE.md`](rounds/TEMPLATE.md)，每轮开工 `cp rounds/TEMPLATE.md rounds/round-NN/round-NN.md` 后按本文对应节填。
+> 轮次编号只增不改；R1.5 沿用 AGENTS.md 规则 1 的写法（Markdown 库 spike）。R7 = sidecar、R8 = 打包，与 AGENTS.md 仓库结构里的标注一致。R7.5 = 组合根拆分（纯代码结构轮，无画板；已完成，2026-09-20 合入 main）、R7.6 = 字体切换（已完成，见 § 7）；原拟的缺陷轮 R7.7 **不再开**——R0–R8 主体完成后（2026-09-22 起）缺陷修复、交互优化、工程收尾与单画板功能改走 [`iterations/`](iterations/README.md) 的迭代流程，本文只管核心大迭代的轮次（判据见那里 § 0）。
+> **历史别名**：本文 § 2–§ 7 的轮次拆解与进度表里写的「CLAUDE.md 规则 N」= `AGENTS.md` 的「规则 N」（规范正本 2026-09-29 从 `CLAUDE.md` 改名而来）；那些是历史记录，不回改。
 
 ## 0. 拆解原则
 
 1. **画板是功能边界，每张画板归属恰好一轮**（§ 2 的表）。轮次收口时把 `design/README.md` 对应行的状态改成 `已实现（R<N>）`。设计稿没有的功能不做；画板里有、文档里没有的功能（§ 6 列了 9 项）先裁定再做。
 2. **先核心后壳。** R1 的 Rust 核心不带 UI，用一个开发用 CLI（`rust/tools/acp-smoke`）对真实 agent 做验收；壳与卡片先用 fixtures 驱动，最后接线。这样 Windows 子进程、`.cmd` 包装、terminal auth 这些最大的不确定性在 R1 就暴露，而不是等到 UI 做完。
 3. **fixtures 是契约锚。** `prototype/assets/fixtures.js` 在 R0 移植为 `test/fixtures/`（ACP 线上行，JSON Lines），三处共用：Rust 侧用 rust-sdk 类型逐行反序列化（保证样例合规、且落在我们编译出的 15 变体面内）；Dart 投影层单测；gallery 画板对照。任何轮新增的投影场景都先加 fixtures。
-4. **每个有 UI 的轮次分两段提交：画板阶段与接线阶段。** 画板阶段只用 fixtures，收口提交号记进任务卡；接线阶段只换数据源，判据是 `git diff <画板阶段收口提交>..HEAD -- lib/theme lib/ui` 为空（CLAUDE.md 规则 3）。R2 只有画板阶段，它的接线在 R3 完成并按同一判据验。
+4. **每个有 UI 的轮次分两段提交：画板阶段与接线阶段。** 画板阶段只用 fixtures，收口提交号记进任务卡；接线阶段只换数据源，判据是 `git diff <画板阶段收口提交>..HEAD -- lib/theme lib/ui` 为空（AGENTS.md 规则 3）。R2 只有画板阶段，它的接线在 R3 完成并按同一判据验。
 5. **画板对照走 gallery，不做像素比对。** R0 建 `lib/gallery/`：把每张画板的每个状态以画板 frame 尺寸、fixtures 数据渲染成 `build/gallery/NN-<状态>.png`（gitignored），与 `design/round-design/NN-*.png` 并排看。对照记录进任务卡「本轮实测」：文案、状态、层级、控件不得缺；像素级差异不作 finding。
 6. **参照 agent 逐轮递进，五 agent 全通矩阵在 R6 一次收口**（§ 4）。每轮只对参照 agent 做真跑验收，避免每轮都要五套凭据。
-7. **裁定门。** 每轮「裁定」段列的事项在开工前要所有者拍板；有推荐项的可按推荐项开工并在任务卡标「待确认」，无推荐项的（涉及范围或白名单）不裁定不开工。裁定结果写回对应文档（`docs/design.md`、CLAUDE.md 规则 1、`rounds/BACKLOG.md`），本文不保存裁定原文。
+7. **裁定门。** 每轮「裁定」段列的事项在开工前要所有者拍板；有推荐项的可按推荐项开工并在任务卡标「待确认」，无推荐项的（涉及范围或白名单）不裁定不开工。裁定结果写回对应文档（`docs/design.md`、`AGENTS.md` 规则 1、`rounds/BACKLOG.md`），本文不保存裁定原文。
 8. **契约变更走文档。** 画板要求的、`docs/design.md` § 3 没有的桥命令与事件（§ 5 列出），在对应轮次先改 § 3 再实现；`_meta` 键增减一律走 § 4 与所有者裁定（规则 2）。
 
 ## 1. 轮次总览

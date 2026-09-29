@@ -14,6 +14,8 @@ import 'files_state.dart';
 import 'guarded.dart';
 
 /// 项目根下算作「规则文件」的名字（docs/design.md § 9 的 Rules 行，清单在 R3 任务卡定）。
+/// 三个名字都留着：CLAUDE.md 自 2026-09-29 起只是指向 `AGENTS.md` 的指针，但它仍然是一个规则文件，
+/// 把它从这张表里摘掉会让画板 30 / 40 的计数从 2 变成 1（规则 3）。
 const List<String> ruleFileNames = <String>['AGENTS.md', 'CLAUDE.md', '.rules'];
 
 class WorkspaceState extends ChangeNotifier with GuardedNotifier {
