@@ -17,13 +17,13 @@
 | 档 | 条数 | 这档是什么 |
 |---|---|---|
 | **P0 真缺陷** | 2 | 会丢内容、作用到错对象、吃光资源、静默失败。撞上就是事故，排进最近的轮次。 |
-| **P1 看得见的粗糙** | 2 | 用户看得见的不一致、缺等待态、行为不符直觉。能用，膈应；攒批做。 |
+| **P1 看得见的粗糙** | 3 | 用户看得见的不一致、缺等待态、行为不符直觉。能用，膈应；攒批做。 |
 | **P2 功能缺口** | 1 | 该有没有的能力。**全部需所有者裁定才能进轮次**，多数还要先改设计稿。 |
 | P3 设计稿欠账 | — | **已整体释放**到 `design/DIVERGENCE.md`，见下面的占位小节 |
 | **P4 平台与分发** | 1 | 安装、打包、跨平台、构建链这类问题（2026-09-23 曾整档清空：跨平台暂不做、构建链两条关闭、sidecar 两条移到 `BACKLOG-ZED.md`，见下面该节首段） |
 | **P5 内部工程与验收** | 1 | 测试、行数门、验收自动化这类用户无感的问题（2026-09-23 曾整档清空，16 条收在 iteration-04，见下面该节首段） |
 | X 卡在上游 / 协议 | — | **已撤档**：不是本项目的问题不进本表（所有者裁定 2026-09-23），见下面的占位小节 |
-| | **7** | |
+| | **8** | |
 
 **新增条目**：挑一档追在该档末尾，照同样的三行格式写。不新开档位；一条只进一档。
 **只收本项目自己的问题**：问题出在上游（agent、zed、xterm 等依赖）或协议本身的，不进本表（所有者裁定 2026-09-23，X 档因此撤掉）；其中实现因此与画板对不上的，照规则 3 记 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)。
@@ -43,7 +43,7 @@
   - **产品**：agent 在后台跑长任务、窗口最小化放一会儿，还原后内存峰值明显高于一直看着；任务久了整机内存吃紧。
   - **技术**：`lib/projection/batcher.dart` 的 `enqueue` 只在 `!_scheduled` 时排一次刷新，而 `_scheduled` 要等 `flush()` 才复位；`WorkbenchController._scheduleOnFrame` 走的是 `SchedulerBinding.scheduleFrameCallback` + `scheduleFrame()`。Windows 上最小化会报 `AppLifecycleState.hidden`（`windows_lifecycle_manager.cc` 把 `SIZE_MINIMIZED` / `WM_SHOWWINDOW(0)` 映射成 `hidden`，见 iteration-14 调研），那时 `framesEnabled` 为假、`scheduleFrame()` 直接返回，回调不跑——队列只进不出，每个闭包还攥着一条已解析的 `session/update`（含 chunk 正文与 base64 图）。最小修法：除了 `_scheduled` 再记一个「挂了多久」的上限，或在 `hidden` 期间改用微任务调度（`WorkbenchController.scheduleOnMicrotask` 已经有了，无头实跑在用），窗口还原后再切回按帧 (iteration-18 排查内存报障 2026-09-29)
 
-## P1 · 看得见的粗糙（2）
+## P1 · 看得见的粗糙（3）
 
 2026-09-29：「会话菜单的 Resume / Close 没有入口」按所有者当场指示由 iteration-19 收尾——Close 那一半做成侧栏
 Active 行的「挂起」（`session/close`，转录留着只读、不删），挂起后从 History 点它那一行挂回来；Resume 仍不做单独
@@ -58,6 +58,12 @@ Active 行的「挂起」（`session/close`，转录留着只读、不删），�
 - [ ] **转录里用鼠标选中文字后 Ctrl+C 有时复制不上**（未复现，待查）
   - **产品**：在转录里拖选一段文字按 Ctrl+C，有时剪贴板里就是选中的内容，有时什么都没进去；复制不上的那次，闪烁光标还停在底部输入框里。时好时坏，用户只能反复试或改用右键。
   - **技术**：转录的跨消息选择是 `lib/ui/transcript/transcript_list.dart` 的 `SelectableRegion`（没传 `focusNode`，用它自带的）。Flutter 3.47.4 里它的 Ctrl+C（`CopySelectionTextIntent` → `_CopySelectionAction`）只在**它自己拿着键盘焦点**时生效，要焦点只在三个地方：鼠标单击 / 拖选按下（`_startNewMouseSelectionGesture` 的单击分支）、触屏长按、右键按下；失焦就 `clearSelection`。所以复制不上说明按键时主焦点不在选区里，而选区还显示着（没走到失焦清空）。待验证的两个方向：① 拖选起点落在转录里自带手势的子 widget 上（链接 recognizer、可点的卡片头、气泡上的按钮等），手势竞技场被子 widget 赢走、选区靠拖动建起来却没走那条单击分支，焦点留在输入框；② 选完之后有别的路径把焦点拉回了输入框（`lib/app/composer_state.dart` 里的 `focus.requestFocus()` 都是用户操作触发的，不太像，但其他面板的 autofocus / 焦点恢复也要排除）。先按「从哪里开始拖」实机复现锁定是哪一种，再定最小修法（比如在转录区的 pointer down 上显式给选区要焦点）（所有者 2026-09-24 实机报障）
+
+### 发送队列（1）
+
+- [ ] **Send Now 打断当前回合的那几秒里关掉会话，排队的那条仍会发出去**（测试复现，极限场景，所有者 2026-09-30 裁定先不修）
+  - **产品**：会话在跑，点队列里某条的 Send Now，紧接着在 agent 响应取消的那几秒内从 ≡ 菜单 Close 或侧栏「挂起」这条会话——那条消息照样发给了正在关闭的会话，agent 可能还会执行它；若关闭失败，那条消息则从队列里消失。
+  - **技术**：`SessionController.closeSession`（`lib/app/session_controller.dart:640-644`）先 `onClearQueue` 清队列，但要等 `session/close` 返回才 `markClosed`；`TurnController.sendNow` / `fastTrack`（`lib/app/turn_controller.dart:298-311` / `271-284`）已把那条从队列取出，`await _turnsInFlight[sid]` 之后只查 `isSessionClosed`，查不到「正在关闭」，于是经 `_sendQueuedEntry` 发出第二个 `session/prompt`。`4b7e00b` 回退了 `b4daab3` / `1e831ed` 的 `markClosing` / `unmarkClosed` 方案并删掉两个测试（`1e831ed:test/app/send_queue_wiring_test.dart:423,457`），当时的裁定针对的是「关闭失败的回滚」（`round-send-queue.md:85`）；2026-09-30 把两个测试放回 `458cff0` 上跑：关闭成功那条 `prompts` 期望 1 实得 2，关闭失败那条队列期望 1 实得 0。最小修法（不动 `session_attach.dart`）：`onClearQueue` 时给该会话的队列记一个递增纪元，`sendNow` / `fastTrack` 在 await 前记下、await 后纪元变了就放弃这一条，并恢复关闭成功那条测试（issue #13 第一条，2026-09-30）
 
 ## P2 · 功能缺口（1）
 
