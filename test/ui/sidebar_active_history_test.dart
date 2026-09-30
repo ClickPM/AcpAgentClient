@@ -1,6 +1,6 @@
 // 画板 45 · 侧栏 Active（已连接）与 History（历史会话）分组展示及折叠收纳测试。
 // 守住核心契约：
-// 1. 明确区分 ACTIVE 与 HISTORY 两大分组，连接状态在线绿标与「已连接」文字；
+// 1. 明确区分 ACTIVE 与 HISTORY 两大分组，连接状态由在线绿标表达，行内不重复「已连接」文字；
 // 2. HISTORY 支持点击一键折叠/展开；折叠状态下绝无“已折叠”多余文字；
 // 3. 搜索过滤保持分组拓扑上下文；
 // 4. 冷启动/未连接空态轻量提示；
@@ -74,8 +74,9 @@ void main() {
 
       // ACTIVE 数量为 1，HISTORY 数量为 1
       expect(find.text('1'), findsNWidgets(2));
-      // 活跃项副标题包含「已连接」
-      expect(find.textContaining('已连接'), findsOneWidget);
+      // 活跃项副标题不重复「已连接」，保留时间与消息数
+      expect(find.textContaining('已连接'), findsNothing);
+      expect(find.text('5 分钟前 · 2 条消息'), findsNWidgets(2));
       // 分组头包含 Connected 提示
       expect(find.text('Connected'), findsOneWidget);
     });
@@ -278,8 +279,9 @@ void main() {
         matching: find.byWidgetPredicate((w) => w is RichText && w.text.toPlainText().contains('已连接')),
       );
 
-      // 列表中显示已连接
-      expect(rowConnectedText, findsOneWidget);
+      // 挂载后行内不重复显示已连接，在线标识仍由 attached 驱动
+      expect(rowConnectedText, findsNothing);
+      expect(tester.widgetList<SidebarSessionRow>(find.byType(SidebarSessionRow)).single.attached, isTrue);
 
       // 关闭会话后，解除挂载，沉降回 History 区，Active 区变为 0 态
       await c.session.closeSession();
