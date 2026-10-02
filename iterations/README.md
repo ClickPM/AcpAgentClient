@@ -95,4 +95,6 @@
 | 20 | 2026-09-29 起 | 去 Claude Code 绑定：规范正本 `CLAUDE.md` → `AGENTS.md`（`CLAUDE.md` 退成指针）、审查执行器改「cursor 硬失败就停下喊人」、上一代 agent 的项目记忆整批内联到 `docs/agent-notes/` | 已合并（未构建；`f752859`；免审—所有者指定：纯文档与注释） | [`iteration-20.md`](iteration-20.md) |
 | 21 | 2026-09-30 起 | Active 会话行移除重复的「已连接」文案，画板 45 同时移除「生成中」 | 已合并（未构建；`1033907`；2 轮审查均 0 findings；暂不发 release） | [`iteration-21.md`](iteration-21.md) |
 
+| 22 | 2026-09-30 起 | 会话头 tooltip 改为 Reload Agent；保留行为、不加提示，ACP / agent / Zed 源码研究与 backlog 闭项 | 已完成（main 直改；未构建 / 未审查—所有者指定，仅本次有效；只推 GitHub） | [`iteration-22.md`](iteration-22.md) |
+
 **在本流程之前开工的那一批仍按轮次走完**：`rounds/round-1.4.1`（v1.4.0 之后六批 `main` 改动的复审与整改，2026-09-22 发 v1.4.1）在本流程建立之前就已立项并写好任务卡，按原样以轮次收口、登记在 `ROUNDS.md` § 7 的进度表里，不回改编号。按本文 § 0 的判据，这种「一批缺陷的集中复审与整改」以后属于迭代（类型 `fix`）；`ROUNDS.md` § 7 里被封存的是「main 直改」那一行，轮次自己的行照旧。

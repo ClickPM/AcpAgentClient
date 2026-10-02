@@ -121,6 +121,52 @@ Zed 界面上**没有**手动 Resume / Close。一条会话在 agent 侧占的�
   2. 标准解在 ACP v2 草案里：`docs/announcements/acp-v2-draft.mdx` 明说为了 queueing 与 steering，prompt 响应改为「已收到」而非回合结束、agent 在实际插入处重放用户消息、新增 `idle` 状态。本项目按规则 10 不开 `unstable_protocol_v2`，要等 v2 定稿、官方 rust-sdk 跟进。
   3. 对我们还有规则 2（`_meta` 只许 `docs/design.md` § 4 的键）与 `docs/requirements.md` 第 1 条（不给任何 agent 做私有通道）。
 
+### 4.4 Reload Agent：协议、agent 能力与 Zed 实现
+
+> 2026-09-30 只读研究；iteration-22 收口。**所有者裁定：只将会话头 tooltip 改为 `Reload Agent`，保留当前行为，与 Zed 的操作命名和新连接上恢复当前会话的流程对齐；不增加「会中断其他会话」提示或确认框，不实现 session 级重建。** 本次不构建、不 review；豁免仅本次有效。
+
+#### ACP v1 的边界
+
+本项目线上使用 ACP v1；SDK 2.x 不等于协议 v2。钉版本规范 `1ce24ea67a6f0598b0f5aff637993d9836306a28` 的 [session-setup](https://github.com/agentclientprotocol/agent-client-protocol/blob/1ce24ea67a6f0598b0f5aff637993d9836306a28/docs/protocol/v1/session-setup.mdx) 与钉版本 Rust SDK 支持下列操作，**没有 `session/reload` 或 session restart 原语**：
+
+| 方法 | 能力门 | 语义 |
+|---|---|---|
+| `session/cancel` | 基线能力 | 取消目标会话当前回合；不是销毁或重建运行时 |
+| `session/close` | `sessionCapabilities.close` | 取消目标会话工作并释放其活动资源，不删除持久历史 |
+| `session/load` | `loadSession: true` | 恢复既有会话并用 `session/update` 完整重放历史，重放后才响应 |
+| `session/resume` | `sessionCapabilities.resume` | 恢复上下文，不重放历史 |
+
+`close → load/resume` 可组成目标会话的关闭与重新打开，但不是通用的 agent process restart，也不能仅凭 `loadSession` 推定隔离或强制新建运行时。核心和 bridge 已提供这些生命周期操作（`rust/acp-core/src/core.rs:323–337`、`lib/app/core_bridge.dart`），不需要为本次改动新增协议。
+
+#### 接入 agent 能力（源码研究，不等于双会话并跑验收）
+
+| Agent | 证据 | session 级关闭 / 重开结论 |
+|---|---|---|
+| Claude Agent | `vendor/upstream/claude-agent-acp/src/acp-agent.ts`：initialize 声明 load / close / resume；`teardownSession(sessionId)` 仅销毁目标 query，`getOrCreateSession` 复用相同参数的活跃 session | 可组成 close → load/resume；单独 load 不保证重建运行时 |
+| Codex | `vendor/upstream/codex-acp/src/CodexAcpServer.ts`：声明 load / close / resume；`closeSession` 中断目标 turn 并按 sessionId 清理；`CodexAcpClient` 的 close 对应 thread unsubscribe | 可组成 close → load/resume；不是重启共享 Codex process |
+| DeepSeek Harness | `vendor/upstream/dsh-acp-interactive/src/index.ts`：声明 load / close / resume；`closeRecord` 仅关闭目标 record；`resumeRecord` 拒绝同连接中已经 active 的 session | 可组成 close → load/resume；必须先 close，再等待成功后重开 |
+| pi-acp | `vendor/upstream/pi-acp/src/acp/agent.ts:243` 声明 load / list / delete，无 close / resume；`:372–377` 与 `:930–957` 的 new/load 调 `closeAllExcept` | load 会重建目标 pi subprocess，但同连接其他 live session 也被关闭，不能保证多 active session 隔离；属上游策略，不混入本项目 backlog |
+| Cursor CLI ACP | 本机 Windows `2026.09.28-64d2043`，通过 `cursor-agent.ps1 acp` 仅发送 initialize，退出后 stderr 为空；返回 `protocolVersion: 1`、`loadSession: true`、`sessionCapabilities: {list: {}}` | 没有声明 close / resume；可恢复历史，不足以承诺只重启目标运行时且其他会话不受影响。不是本项目 registry 钉版本 2026.09.02 的双会话实测 |
+| 历史内置 Zed sidecar | [`zed-agent.md`](zed-agent.md) 已归档：iteration-16 已移除 sidecar、源码目录和 pin | 已不属于当前产品，不补测；不能把历史 sidecar 与 Zed 编辑器客户端混为一谈 |
+
+#### Zed 编辑器的 Reload 调用链
+
+同时查了历史参考 commit `d9e1c024f393832765a03f4de204d6c8cd9abcb2` 与研究时 main `309f91f564fa267820e5d426daeeffafc2599530`；后者的永久链接如下，不修改本项目 pins：
+
+1. [`agent_panel.rs:5831–5838`](https://github.com/zed-industries/zed/blob/309f91f564fa267820e5d426daeeffafc2599530/crates/agent_ui/src/agent_panel.rs#L5831-L5838)：菜单叫 **Reload Agent**，点击 `ConversationView::retry_connection`。
+2. [`conversation_view.rs:1157–1164`](https://github.com/zed-industries/zed/blob/309f91f564fa267820e5d426daeeffafc2599530/crates/agent_ui/src/conversation_view.rs#L1157-L1164)：先 `restart_connection(connection_key)`，再 `reset`；注释明说下一次请求拉起新的 server process。
+3. [`agent_connection_store.rs:127–142`](https://github.com/zed-industries/zed/blob/309f91f564fa267820e5d426daeeffafc2599530/crates/agent_ui/src/agent_connection_store.rs#L127-L142)：从按 Agent 索引的连接缓存删除旧 entry，再 `request_connection`；不是发一个 session reload RPC。
+4. `reset` 保存当前 root sessionId、work dirs、title，重建当前视图；`initial_state` 在新连接初始化后优先 load，其次 resume，两者都没有就报不支持；没有 sessionId 才 new。历史参考版对应 `conversation_view.rs:992–1048`、`:1131–1166`。
+5. [`acp.rs:1524–1530`](https://github.com/zed-industries/zed/blob/309f91f564fa267820e5d426daeeffafc2599530/crates/agent_servers/src/acp.rs#L1524-L1530)：`AcpConnection::drop` 最终 kill 子进程。
+
+**生命周期差异不可略过**：Zed 用 `Rc<dyn AgentConnection>`，移出缓存不等于立刻断开旧连接；其他 retained conversation / thread 若仍持有旧连接，旧进程可继续存在，直到最后一个引用释放才 kill。因此前一轮口头概括「Zed Reload 必然立即中断同连接全部会话」过强，源码并没有该保证。本项目则显式 `agentDisconnect`，确实立即断开整条 agent 连接。此次仅对齐命名与新连接恢复当前会话的流程，**不宣称引用计数与后台会话隔离行为完全相同，也未进行 Zed 双会话 Windows 真跑**。
+
+#### 本项目保留的行为与裁定
+
+`lib/app/session_controller.dart:540` 的 `reloadAgent()` 按 agent 清发送队列，调用 `agentDisconnect → _connectOnce`，只 load 当前 session；没声明 load 或 load 失败仍按原流程新建会话。Rust 连接表按 agentId 寻址；连接更换后 `SessionAttach.connectionReplaced` 将该 agent 名下会话标 detached，其他会话切回或发送前再挂回。
+
+agent 升级后让新的二进制生效也依赖 process 级重启，单纯 close/load 不能替代（`docs/design.md` § 6.7 的 `reloadPending`）。所有者明确保留以上实现，仅修正 `lib/ui/shell/session_header.dart:124` 的悬停提示；本条 backlog 关闭，不遗留 session 重建的新功能任务。
+
 ## 5. 五个 agent 对客户端的要求
 
 见 `requirements.md` § 必须 第 3 条的表。补充事实：
