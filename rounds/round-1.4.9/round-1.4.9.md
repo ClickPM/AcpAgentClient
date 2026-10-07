@@ -14,10 +14,19 @@
 
 ## 验证与代码审查
 
-待在 release 工作区执行完整 validate，随后 Cursor CLI `grok-4.7-high-fast` 审查发布范围。结果回填本段；硬失败停下，不回落子代理。
+release 工作区 `4ae8d58` 上完整 `scripts/validate.ps1` 通过（VALIDATE OK），上游八项钉版本、Rust build / test / clippy、静态门、Flutter analyze 全过；Flutter 测试 622 项全过。
 
-首次 validate 的 Rust build / test / clippy 全过，但 Flutter 启动挂住。进一步定位为本机全局 Git `safe.directory` 列表中的不可达 UNC 路径：Git 校验另一个所有者安装的 Flutter / vendor 仓库时扫描该列表，卡在网络路径解析。仅对子进程用 `GIT_CONFIG_COUNT` 重置安全目录列表并明确允许 Flutter 与上游目录，不改用户全局配置；试验性的 fetch 脚本调整已撤回，产品与脚本净 diff 不增加额外功能。
+首次 validate 的 Rust build / test / clippy 全过，但 Flutter 启动挂住。进一步定位为本机全局 Git `safe.directory` 列表中的不可达 UNC 路径：Git 校验另一个所有者安装的 Flutter / vendor 仓库时扫描该列表，卡在网络路径解析。用 `GIT_CONFIG_COUNT` 重置不能阻止先扫描旧项。最终将全局配置复制到终端临时目录，移除该副本的安全目录条目，仅加入 Flutter 与上游目录，再通过子进程 `GIT_CONFIG_GLOBAL` 使用这份临时配置，保留原凭据配置且不修改用户全局配置；完整验证通过。试验性的 fetch 脚本调整已撤回，脚本净 diff 为零。
+
+### 审查硬失败（停下等所有者）
+
+- 命令：`powershell -NoProfile -File .claude/cursor-review.ps1 -Scope since -Base v1.4.8 -Wait -Note <发布范围：非文档 diff，UI 两项与版本号>`。
+- 执行器：Cursor CLI / `grok-4.7-high-fast`。
+- 产物：release 工作区 `.claude/reviews/20261007-144847-review.prompt.md` 与 `.out.md`。
+- `.out.md` 输出：`ActionRequiredError: Named models unavailable Free plans can only use Auto. Switch to Auto or upgrade plans to continue.`
+- 包装脚本退出码为 0，但输出是套餐拒绝指定模型，不是 findings，也不是审查通过。`-Wait` 分支不生成 `.err.log`。
+- 按 AGENTS.md 硬失败规则停下，不换 Auto、不回落子代理。等待所有者恢复指定模型权限或明确点名只读独立审查执行器。
 
 ## 发布、安装与清理
 
-待执行 build / smoke、package / verify-package、推两个远端、创建 GitHub release、安装目录镜像与隔离 APPDATA smoke；全部成功后才清理缓存。
+未执行正式 build / smoke、package / verify-package、推两个远端、创建 tag / GitHub release、安装目录镜像或缓存删除。只有完整审查门禁与发布、安装验收均成功后才清理历史缓存。
