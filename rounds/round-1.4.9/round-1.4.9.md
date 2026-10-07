@@ -16,6 +16,8 @@
 
 待在 release 工作区执行完整 validate，随后 Cursor CLI `grok-4.7-high-fast` 审查发布范围。结果回填本段；硬失败停下，不回落子代理。
 
+首次 validate 的 Rust build / test / clippy 全过，但 Flutter 启动挂住。进一步定位为本机全局 Git `safe.directory` 列表中的不可达 UNC 路径：Git 校验另一个所有者安装的 Flutter / vendor 仓库时扫描该列表，卡在网络路径解析。仅对子进程用 `GIT_CONFIG_COUNT` 重置安全目录列表并明确允许 Flutter 与上游目录，不改用户全局配置；试验性的 fetch 脚本调整已撤回，产品与脚本净 diff 不增加额外功能。
+
 ## 发布、安装与清理
 
 待执行 build / smoke、package / verify-package、推两个远端、创建 GitHub release、安装目录镜像与隔离 APPDATA smoke；全部成功后才清理缓存。
