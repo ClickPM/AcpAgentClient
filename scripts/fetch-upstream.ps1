@@ -12,7 +12,10 @@ foreach ($u in $pins.upstream) {
   $dir = Join-Path $dest $u.name
   $short = $u.commit.Substring(0, 12)
   if (Test-Path (Join-Path $dir ".git")) {
-    $head = (& git -C $dir rev-parse HEAD).Trim()
+    # These pinned sources are standalone clones. An explicit git-dir avoids
+    # worktree discovery hanging on Windows when vendor/upstream is a junction.
+    $head = (& git --git-dir=(Join-Path $dir ".git") rev-parse HEAD).Trim()
+    if ($LASTEXITCODE -ne 0) { throw "cannot read pinned HEAD for $($u.name)" }
     if ($head -eq $u.commit) { Write-Host "OK      $($u.name) @ $short" }
     else { Write-Host "DRIFT   $($u.name): HEAD $($head.Substring(0,12)) != pinned $short"; $fail = $true }
   } elseif ($Check) {
