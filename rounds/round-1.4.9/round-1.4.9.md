@@ -27,6 +27,20 @@ release 工作区 `4ae8d58` 上完整 `scripts/validate.ps1` 通过（VALIDATE O
 - 包装脚本退出码为 0，但输出是套餐拒绝指定模型，不是 findings，也不是审查通过。`-Wait` 分支不生成 `.err.log`。
 - 按 AGENTS.md 硬失败规则停下，不换 Auto、不回落子代理。等待所有者恢复指定模型权限或明确点名只读独立审查执行器。
 
+### 所有者裁定：发版不追加审查
+
+所有者指出本次只发布 main 的既有改动，不是新开发，明确要求继续发布、无需 Cursor。本轮未追加独立审查（所有者指定），不换审查执行器，不修改产品代码。完整 validate 结果沿用，不重复执行。
+
 ## 发布、安装与清理
 
-未执行正式 build / smoke、package / verify-package、推两个远端、创建 tag / GitHub release、安装目录镜像或缓存删除。只有完整审查门禁与发布、安装验收均成功后才清理历史缓存。
+- 发布构建源码：`fdb6b8a`；此后仅补发布记录与产物哈希，不改产品、版本或依赖。
+- `scripts/build.ps1 -Smoke` 成功；APPDATA 指向临时目录，不接触真实用户数据。`ok: true`、`coreVersion: 1.4.9`、`droppedEvents: 0`。
+- `scripts/package.ps1 -SkipBuild` 成功，payload 84.1 MiB；包内四个可选字体仅随应用分发。
+- `scripts/verify-package.ps1`：zip 解压运行与安装器静默装 → 运行 → 卸载均通过，VERIFY OK；两处 banner 均为 `AcpAgentClient 1.4.9 (release, windows/x86_64)`。
+
+| 产物 | 字节 | SHA-256 |
+|---|---|---|
+| `AcpAgentClient-1.4.9-windows-x64.zip` | 48,400,570 | `e812b693ad44e70be1638cf696d0a0b9f98514b9e1685a153344c4e87399b4b9` |
+| `AcpAgentClient-1.4.9-setup.exe` | 39,903,213 | `54a2d9659667d425da1d35124addeb696c66d0e67224e2fb5dc91bd39671fae4` |
+
+待推两个远端、创建 tag / GitHub release、安装目录镜像与隔离 APPDATA smoke；发布与本地安装验收全部成功后才清理历史缓存。
