@@ -43,4 +43,19 @@ release 工作区 `4ae8d58` 上完整 `scripts/validate.ps1` 通过（VALIDATE O
 | `AcpAgentClient-1.4.9-windows-x64.zip` | 48,400,570 | `e812b693ad44e70be1638cf696d0a0b9f98514b9e1685a153344c4e87399b4b9` |
 | `AcpAgentClient-1.4.9-setup.exe` | 39,903,213 | `54a2d9659667d425da1d35124addeb696c66d0e67224e2fb5dc91bd39671fae4` |
 
-待推两个远端、创建 tag / GitHub release、安装目录镜像与隔离 APPDATA smoke；发布与本地安装验收全部成功后才清理历史缓存。
+## 发布结果（2026-10-07）
+
+- 附注 tag `v1.4.9` 指向 `7fe9bae`（相比构建源码只增加发布记录）。GitHub main 与 tag 已推送。
+- GitHub release：<https://github.com/ClickPM/AcpAgentClient/releases/tag/v1.4.9>，非 draft、latest 为 v1.4.9；两个 assets 均 uploaded，远端 digest 与上述 SHA-256 一致。
+- Cursor origin 推送失败：HTTP 403，`Origin requires a paid plan; user is on 'free'`。不是 GitHub 发布失败，未强推或改认证配置；origin 镜像保持旧状态。
+- 本地日用目录 `D:\tools\AcpAgentClient` 已更新。`release-mirror.ps1` 从验收过的包镜像，连同 LICENSE / NOTICE 共 44 个文件清单及逐文件 SHA-256 全一致；robocopy exit 1（成功复制）。
+- 安装目录隔离 APPDATA smoke：`ok: true`、`coreVersion: 1.4.9`、`droppedEvents: 0`；banner 为 release / windows x86_64，exe FileVersion / ProductVersion 均 1.4.9+1。未触碰真实 APPDATA 或会话数据。
+
+## 成功之后的缓存清理
+
+- 先确认没有 cargo / rustc / dart / link / cl / msbuild 在编译，再清理；未删除 vendor、全局 Cargo registry / git、Pub Cache 或其它项目目录。
+- debug：沿用 `rounds/round-1.4.8/prune-cargo-debug.ps1`，Cargo build / test --no-run / clippy 自报在用 hash 并集 454 个；删除 74 个旧 deps 文件（2.51 GiB）、incremental（4.92 GiB）。剪枝后三条均 0 重编，debug 保留 11.00 GiB 的当前版依赖闭包。
+- cargokit release：临时脚本收集当前 acp_bridge 的 compiler-artifact / build-script 输出与 fingerprint trace，在 host / Windows target 两个 release profile 剪枝；删除 45 个文件与 133 个目录，199,277,842 字节（0.19 GiB）。fingerprint 采集不足导致剪枝后检查重编 148 个单元；已完成当前 1.4.9 缓存重建，未再次删除。随后独立检查 243 个 compiler-artifact **全部 fresh、0 重编**。这不是「剪枝后一直零重编」，不要照抄临时 fingerprint 删除方法。
+- release 缓存重建不会重新发布或覆盖安装文件：安装目录与已打包 Release 的 acp_bridge.dll SHA-256 仍一致（`0065007376bbed79fcd551c8ffe3de0291761e54f6b95b0e79f02e41c159e386`）；最终 cargokit 目录保留 0.92 GiB。
+- 删除 release 工作区的 v1.4.8 两个旧包与已用完的 dist/stage，共 176,449,069 字节；dist 只剩 v1.4.9 zip 与 exe，保留最新 Release 构建输出。
+- 发布后补记与安装脚本仅追加到 main，不移动已发布 tag，不改发布产物。
