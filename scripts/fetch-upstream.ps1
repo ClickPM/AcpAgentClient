@@ -14,8 +14,10 @@ foreach ($u in $pins.upstream) {
   if (Test-Path (Join-Path $dir ".git")) {
     # These pinned sources are standalone clones. An explicit git-dir avoids
     # worktree discovery hanging on Windows when vendor/upstream is a junction.
-    $head = (& git --git-dir=(Join-Path $dir ".git") rev-parse HEAD).Trim()
+    $gitDir = Join-Path $dir ".git"
+    $head = & git "--git-dir=$gitDir" rev-parse HEAD
     if ($LASTEXITCODE -ne 0) { throw "cannot read pinned HEAD for $($u.name)" }
+    $head = $head.Trim()
     if ($head -eq $u.commit) { Write-Host "OK      $($u.name) @ $short" }
     else { Write-Host "DRIFT   $($u.name): HEAD $($head.Substring(0,12)) != pinned $short"; $fail = $true }
   } elseif ($Check) {
