@@ -74,6 +74,9 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
   void Function(String sessionId)? onClearQueue;
   void Function(String agentId)? onClearAgentQueues;
 
+  /// 会话被删掉：输入框留给它的草稿一并放下（`ComposerState.forgetDraft`）。
+  void Function(String sessionId)? onForgetSession;
+
   // ---- 本地态（协议之外）
   List<SidebarSession> sidebarSessions = const <SidebarSession>[];
   String? agentId;
@@ -325,6 +328,9 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
     if (id == null || workspace.inCurrentWorkspace(cwdOf(id))) return;
     sessionId = null;
     sessionEpoch++;
+    // 换项目不经过会通知的那几条切换路径（侧栏 / 新建）。不在这里通知的话，输入框草稿还留在
+    // 旧会话上，下一次发送会把它带进新项目现开的会话（审查 high，iteration-25）。
+    touch();
   }
 
   void setSearch(String value) {
@@ -385,24 +391,25 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
 
   // ---------------------------------------------------------------- 会话
 
-  Future<void> newSession(AgentRef agent) async {
+  /// 开出来并切成当前会话时返回它的 id；没开出来、或 cwd 不属于当前项目所以没切过来时返回 null。
+  Future<String?> newSession(AgentRef agent) async {
     hidePopover(newSessionAnchor);
     // 重入守卫（发布前审查 P2，2026-09-18）：等待期里会话头的 `+` 仍可点（`IgnorePointer` 只包住 `_body()`），
     // 再选一次 agent 会让两条 newSession 交叠：第二条存下的 `wasWaiting` 是 true，它后返回时把等待态永久留在 true
     // （转录区一直变暗不可点、会话头 spinner 不停、[reloadAgent] 永远被挡）；而且两条都走 [ensureConnected]，
     // 第二条的 `agent_connect` 会把第一条刚拉起的进程断掉——正是本轮要避免的那种误杀。`send()` 现开一条
     // 与 `+` 交错是同一回事。[reloadAgent] 的「没有旧会话」分支自己已经在等待期里，走不带守卫的 [_newSession]。
-    if (waitingForAgent) return;
-    await _newSession(agent);
+    if (waitingForAgent) return null;
+    return _newSession(agent);
   }
 
-  Future<void> _newSession(AgentRef agent) async {
+  Future<String?> _newSession(AgentRef agent) async {
     final b = bridge;
     final cwd = workspace.project?.path;
     if (b == null || cwd == null) {
       lastError = cwd == null ? '先选一个项目目录，新会话的 cwd 从它来' : null;
       touch();
-      return;
+      return null;
     }
     // 画板 05 B 组阶段 ①：先把等待态摆出来再发命令。拉起进程 + `initialize` + `session/new`
     // 要几百毫秒到数秒，这期间界面一动不动会被当成卡死（所有者手测 2026-09-18，与重载 agent 同一回事）。
@@ -410,13 +417,14 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
     final wasWaiting = waitingForAgent;
     waitingForAgent = true;
     touch();
+    String? opened;
     try {
       // 已经连着就别重连：`agent_connect` 会先断开旧连接，把这个 agent 上**所有**会话连着正在跑的那一轮
       // 一起杀掉。所有者报障 2026-09-18（dsh-acp-interactive）：一条会话跑着任务时新建另一条，
       // 跑着的那条当场中断，回头再给它发消息就撞 agent 的 `-32602 unknown session`——
       // 进程已经换了一个，旧 sessionId 在新进程里不存在。要换进程走会话头的「重载 agent」。
       await ensureConnected(agent.id, cwd);
-      await createSession(agent.id, cwd);
+      opened = await createSession(agent.id, cwd);
     } on CoreCommandError catch (e) {
       await onConnectError(e, agent.id, cwd);
     } catch (e) {
@@ -426,6 +434,7 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
       waitingForAgent = wasWaiting;
       touch();
     }
+    return opened;
   }
 
   /// 连 agent / 开会话失败的共用出口（新建会话与挂回 [reattach] 两条路同一口径）：原因写进 [lastError]，
@@ -447,9 +456,9 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
 
   /// 已连接的 agent 上开一个会话（`newSession` 的后半段；认证成功后的自动重试也走这里）。
   /// 索引按**这条**会话写（`target`）：它不一定成了当前会话（见 [_adoptSession]）。
-  Future<void> createSession(String agent, String cwd) async {
+  Future<String?> createSession(String agent, String cwd) async {
     final b = bridge;
-    if (b == null) return;
+    if (b == null) return null;
     final SessionStore s;
     try {
       s = _adoptSession(agent, cwd, await b.sessionNew(agent, cwd));
@@ -458,6 +467,8 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
       unawaited(agents.refreshRegistry());
     }
     await saveIndex(target: s);
+    // 认证期间换过项目时会话登记在原目录、不成为当前会话（[_adoptSession]）。调用方要的是「现在看着的这条」。
+    return sessionId == s.sessionId ? s.sessionId : null;
   }
 
   /// terminal 型认证由核心顺手开好的会话（`terminal_auth_run` 回的 `session`）：直接采用并写索引。
@@ -877,6 +888,7 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
       index.forgetPromptSent(id);
       clearUnread(id);
       sessions.forget(id);
+      onForgetSession?.call(id);
       if (sessionId == id) sessionId = null;
     });
     touch();

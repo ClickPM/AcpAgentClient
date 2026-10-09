@@ -6,7 +6,7 @@
 实现与画板不一致的地方（实现先行 / 画板画错 / 实现有意少做）收在 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)，
 按所有者裁定 2026-09-20 **不要求补设计稿**，本文不再重备一份（AGENTS.md 规则 3）。
 
-**最近闭项（2026-10-09，v1.5.0 已发布）**：JSON 展开体重复格式化 / 高亮、最小化期间消息队列堆积、Copy 成功反馈过短、终端释放测试竞态这四项已关闭，不再计入下表。修复结论见 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md) 末尾；发布验证、安装更新与缓存清理见 [`round-1.5.0`](round-1.5.0/round-1.5.0.md)。当前剩余 **6 条未关闭项**（含 v1.5.0 之后新登记的 2 条 P0），未修复的问题不因发版而关闭。
+**最近闭项（2026-10-09）**：v1.5.0 之后登记的 2 条 P0（切换 session 后未发送的提示词串到别的会话、超大 payload 进入 TrafficStore 同步全量 `jsonDecode`）已由 iteration-25 修掉，不再计入下表。结论见 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md) 末尾与 [`iterations/iteration-25.md`](../iterations/iteration-25.md)。当前剩余 **4 条未关闭项**。
 
 ## 怎么读这份表
 
@@ -18,14 +18,14 @@
 
 | 档 | 条数 | 这档是什么 |
 |---|---|---|
-| **P0 真缺陷** | 2 | 会丢内容、作用到错对象、吃光资源、静默失败。撞上就是事故，排进最近的轮次。 |
+| **P0 真缺陷** | 0 | 会丢内容、作用到错对象、吃光资源、静默失败。撞上就是事故，排进最近的轮次。 |
 | **P1 看得见的粗糙** | 2 | 用户看得见的不一致、缺等待态、行为不符直觉。能用，膈应；攒批做。 |
 | **P2 功能缺口** | 1 | 该有没有的能力。**全部需所有者裁定才能进轮次**，多数还要先改设计稿。 |
 | P3 设计稿欠账 | — | **已整体释放**到 `design/DIVERGENCE.md`，见下面的占位小节 |
 | **P4 平台与分发** | 1 | 安装、打包、跨平台、构建链这类问题（2026-09-23 曾整档清空：跨平台暂不做、构建链两条关闭、sidecar 两条移到 `BACKLOG-ZED.md`，见下面该节首段） |
 | **P5 内部工程与验收** | 0 | 测试、行数门、验收自动化这类用户无感的问题（2026-09-23 曾整档清空，16 条收在 iteration-04，见下面该节首段） |
 | X 卡在上游 / 协议 | — | **已撤档**：不是本项目的问题不进本表（所有者裁定 2026-09-23），见下面的占位小节 |
-| | **6** | |
+| | **4** | |
 
 **新增条目**：挑一档追在该档末尾，照同样的三行格式写。不新开档位；一条只进一档。
 **只收本项目自己的问题**：问题出在上游（agent、zed、xterm 等依赖）或协议本身的，不进本表（所有者裁定 2026-09-23，X 档因此撤掉）；其中实现因此与画板对不上的，照规则 3 记 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)。
@@ -33,19 +33,13 @@
 **内置 Zed agent（sidecar）的问题不进本表**：记 [`BACKLOG-ZED.md`](BACKLOG-ZED.md)（所有者裁定 2026-09-23：原先本表的 4 条连同统筹时新盘点出的 5 条都移到那里，**当前不修**）；背景与上游限制见 [`docs/zed-agent.md`](../docs/zed-agent.md)。
 **关闭条目**：把**技术行连同结论压成一行** `- [x]` 剪到 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md) 末尾（那份是平铺存档，不分档），本文删掉这三行。
 
-## P0 · 真缺陷（2）
+## P0 · 真缺陷（0）
 
 2026-09-23 全仓只读审查（v1.4.4 之后的 `main`，Rust 核心 / 文件与终端 / Dart 状态层 / 投影与转录四路）登记的 7 条已全部关闭：「本地状态文件的读改写没有串行化」由 iteration-10、「资源与静默失败」一小节三条由 iteration-11、「请求与会话路由」一小节三条由 iteration-12 修掉（均未在 Windows 实机复现，按代码路径与单测判定）；所有者同日报障的「dsh 的会话存到哪里跟着进程工作目录走」已由 round-dsh-1.3.2 在上游修掉。各条结论见 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md) 末尾。以后的真缺陷照常追在这里。
 
 iteration-18 排查内存报障时登记的两条（JSON 展开体按帧重算、最小化期间消息队列堆积）已由 iteration-23（本线程原 21）修复并合并 `main`（`04b7a96`）；验证与审查见 [`iterations/iteration-23.md`](../iterations/iteration-23.md)，结论移入 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md) 末尾。Windows 真窗口长任务的内存曲线未测，关闭依据是回归测试与代码路径验证。
 
-- [ ] **切换 session 后，未发送的提示词会带入另一个会话的输入区**（所有者 Windows 实机复现，提供两张截图）
-  - **产品**：在会话 A 输入提示词但不发送，再点侧栏切到会话 B，B 的输入区仍显示 A 刚输入的内容；截图中从 pi 会话切到 Codex 会话后，同一段「测试…网络…」文字仍在输入框。预期未发送内容归属于原会话，切换时不串到目标会话；否则容易误把提示词发给另一条会话或另一个 agent。
-  - **技术**：`lib/app/composer_state.dart` 的 `TextEditingController editor` 是共用输入状态，`lib/app/session_controller.dart` 的 `selectSession` 更新 sessionId / agentId 并载入会话，未保存 / 恢复对应会话的输入草稿。需排查草稿是否按 session 隔离；附件与输入上下文是否同样串会话待核验，截图只确认文本。暂不修复，具体草稿保留策略实施前裁定；验收至少覆盖 A 输入未发送 → B 不出现 A 草稿，以及不同 agent 之间的切换（所有者报障，2026-09-30）。
-
-- [ ] **超大 payload（带大图 prompt 或大工具输出）进入 TrafficStore 同步全量 jsonDecode 且无截断着色**（所有者 Windows 实机复现，2026-10-08 诱发吃满内存卡死）
-  - **产品**：用户发送带大图（如 2 MB+ base64 PNG 截图）的 prompt 或 agent 吐出大文本时，客户端内存暴涨数十倍，Windows 系统 RADAR 多次记录内存泄漏排查（事件 100/105），应用迅速吃满系统内存假死，只能在任务管理器强杀。
-  - **技术**：`lib/projection/traffic.dart` 的 `_parse` 在收到 `acp/traffic`（无论 in/out）时，直接在主线程对原始整行无条件执行 `jsonDecode(raw)`；2026-10-08 实测一条包含 2.1 MB base64 PNG 的 prompt（字符串长 2,105,072 字节）在 UI 线程解析产生巨大内存毛刺并常驻在 2000 行缓冲中；且若流量面板打开，`lib/ui/traffic/traffic_page.dart` 第 320 行 `MonoBlock(span: JsonHighlight.span(line.pretty ?? line.raw))` 会对 2.1 MB 的超长 JSON 字符串无上限调用 `Highlight().highlight` 正则词法分析器铺出海量 `TextSpan` AST 节点直接撑爆堆与核显共享内存。最小修法：① `TrafficStore._parse` 对超过长度门（如 64 KB 或 256 KB）的行不做完整 `jsonDecode` 或用正则抽 `method`/`id`、大 base64 字段打码/截断；② `JsonHighlight.span` 设严格长度上限（如超过 32 KB 降级为纯文本，禁止正则跑巨型字符串）；③ `TrafficLine` 的展开详情对超长内容做截断（所有者报障，2026-10-08 诱发客户端卡死强杀）。
+v1.5.0 之后登记的两条（切换 session 后未发送的提示词串到别的会话、超大 payload 进入 TrafficStore）已由 iteration-25 修掉，结论同样在 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md) 末尾。
 
 ## P1 · 看得见的粗糙（2）
 

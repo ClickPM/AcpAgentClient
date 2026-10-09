@@ -326,13 +326,13 @@ class _TrafficRowState extends State<_TrafficRow> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
-                          Text.rich(_json.span(line.raw)),
+                          Text.rich(_json.span(line.elidedRaw)),
                           Text('→ 该变体未编译进 SessionUpdate，整条通知反序列化失败并被丢弃',
                               style: CardText.code.copyWith(color: t.Semantic.warning)),
                         ],
                       ),
                     )
-                  : MonoBlock(span: _json.span(line.pretty ?? line.raw)),
+                  : MonoBlock(span: _json.span(line.pretty ?? line.elidedRaw)),
             ),
         ],
       ),

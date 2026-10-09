@@ -86,11 +86,14 @@ class TurnController extends ChangeNotifier with GuardedNotifier {
         // 画板 01 状态 1（还没有会话）或挂不回：第一条消息现开一条（R3 既定语义；挂不回的输入框占位文案已经先说了）。
         // 失败（认证 / 缺 Node / 没选项目）时 `newSession` 已经把错误与认证页安排好，输入框里的文本原样留着。
         if (state == SessionAttach.none || state == SessionAttach.unattachable) {
-          await session.newSession(session.agentRefOf(id));
-          // 挂不回的那条开新会话没开出来：它的转录还在内存里，不能落到下面把这句话发给当前连接上不存在的旧 sessionId，
-          // 再拿 `-32602` 盖掉 `newSession` 写好的原因（cursor 审查 high，iteration-09）。判「开出来没有」看挂没挂上，
-          // 不只看 id：`session/new` 可以回同一个 id（fake-agent 不带 `--sessions` 时总是这样，复审 high）。
-          if (target != null && session.sessionId == target && session.attachOf(target) != SessionAttach.attached) return;
+          final opened = await session.newSession(session.agentRefOf(id));
+          // 没开出来，或等待期里点了侧栏、当前会话已经不是刚开的那条：这条消息不改投。
+          // 草稿在换会话时已经按会话存好（审查 high，iteration-25）。开出来了才把发送开始时那一槽取回来，
+          // 连同等待期里新打的字一起发出去。
+          if (opened == null || session.sessionId != opened || session.attachOf(opened) != SessionAttach.attached) {
+            return;
+          }
+          composer.restoreDraft(target);
         }
       } finally {
         _startingSession = false;

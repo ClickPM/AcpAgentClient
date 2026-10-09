@@ -296,8 +296,13 @@ abstract final class JsonHighlight {
     return const JsonEncoder.withIndent('  ').convert(value);
   }
 
+  /// 着色的长度上限（UTF-16 码元）：超过就铺纯文本。词法分析器对几 MB 的串要铺出海量 `TextSpan` 节点，
+  /// 带图的流量行与整份文件的工具输出会把堆撑爆（BACKLOG P0「超大 payload 进入 TrafficStore」，2026-10-08）。
+  static const int maxHighlightLength = 32 * 1024;
+
   static TextSpan span(Object? value) {
     final text = pretty(value);
+    if (text.length > maxHighlightLength) return TextSpan(text: text, style: CardText.code);
     final r = _hl.highlight(code: text, language: 'json');
     final renderer = TextSpanRenderer(CardText.code, theme);
     r.render(renderer);

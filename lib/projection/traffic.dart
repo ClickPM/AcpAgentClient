@@ -71,16 +71,32 @@ class TrafficLine {
   /// 缩进后 1 MB 出头），而它只有流量面板把这一行展开时才用得到。[TrafficStore] 却保 2000 行，
   /// 收一条算一条＝把整段会话的流量按一倍多的体积常驻在堆里。这里改成第一次访问时算一次、算过记住；
   /// 也不留下解析出来的那个 Map——那同样让 2000 行的解码结果常驻，等于没省。
+  ///
+  /// 超长行（[TrafficStore.elideThreshold] 以上）缩进的是 [elidedRaw]：长字符串只留开头，见 [elideLongStrings]。
   String? get pretty {
     if (!_prettyResolved) {
       _prettyResolved = true;
-      _pretty = _indentJson(raw);
+      _pretty = _indentJson(_isLong ? elidedRaw : raw);
     }
     return _pretty;
   }
 
   String? _pretty;
   bool _prettyResolved = false;
+
+  bool get _isLong => raw.length > TrafficStore.elideThreshold;
+
+  /// 展开时显示的原文：短行就是 [raw]；超长行把长字符串截成开头一段，不是 JSON 的超长行直接截断。
+  /// 带图 prompt 一行 2 MB 出头（所有者 2026-10-08 实测），整串交给着色器会铺出海量 `TextSpan` 直接撑爆堆。
+  /// 同样按需算、不记忆：只有展开那一下用（缩进结果由 [pretty] 记住），常驻的仍只有 [raw]。
+  /// 「复制行」照旧复制完整的 [raw]。
+  String get elidedRaw {
+    if (!_isLong) return raw;
+    final body = direction == TrafficDirection.stderr || label == 'raw' ? raw : elideLongStrings(raw);
+    // 截完长字符串仍然超门（大量短元素）：展示也要有上界，不能把整行交给出缩进和着色。
+    if (body.length <= TrafficStore.elideThreshold) return body;
+    return '${body.substring(0, TrafficStore.elideKeep)}…（省略 ${body.length - TrafficStore.elideKeep} 字符）';
+  }
 
   String get displayMethod => method ?? (direction == TrafficDirection.stderr ? 'stderr' : '?');
 
@@ -103,9 +119,149 @@ String? _indentJson(String raw) {
   return null;
 }
 
+/// 把 JSON 文本里超过 [TrafficStore.elideKeep] 的字符串字面量截成开头一段 + `…（省略 N 字符）`，其余原样。
+/// 结构（键、`id`、`method`、`sessionUpdate`）不受影响，所以截完仍是合法 JSON、标签照样认得出。
+/// 手写的单趟扫描而不是正则：输入是几 MB 的整行，回溯型正则在这种长度上既慢又有栈风险。
+/// 截断点落在转义序列之外（不切断 `\uXXXX` / `\"`），截出来的仍是合法的字符串字面量。
+@visibleForTesting
+String elideLongStrings(String raw) {
+  const keep = TrafficStore.elideKeep;
+  final out = StringBuffer();
+  var i = 0;
+  var copiedUpTo = 0;
+  final n = raw.length;
+  while (i < n) {
+    if (raw.codeUnitAt(i) != 0x22) {
+      i++;
+      continue;
+    }
+    // 字符串字面量从 i（开引号）开始：找它的闭引号，顺带记下「保留 keep 个字符」的截断点。
+    final start = i + 1;
+    var j = start;
+    var cut = -1;
+    while (j < n) {
+      final c = raw.codeUnitAt(j);
+      if (c == 0x22) break;
+      // 不切在代理对中间：原文里的低位代理，以及 `\uD83D\uDE00` 这种转义形式的一对。
+      if (cut < 0 && j - start >= keep && !_inSurrogatePair(raw, j)) cut = j;
+      // `\uXXXX` 是 6 个码元，其余转义 2 个：整个跳过，截断点只落在转义之间。
+      j += c != 0x5c ? 1 : (j + 1 < n && raw.codeUnitAt(j + 1) == 0x75 ? 6 : 2);
+    }
+    if (j > n) j = n; // 末尾是一个落单的反斜杠：不是合法 JSON，原样收尾
+    if (cut >= 0) {
+      out
+        ..write(raw.substring(copiedUpTo, cut))
+        ..write('…（省略 ${j - cut} 字符）');
+      copiedUpTo = j;
+    }
+    i = j + 1;
+  }
+  if (copiedUpTo == 0) return raw;
+  out.write(raw.substring(copiedUpTo));
+  return out.toString();
+}
+
+/// `j` 落在一对代理的前半（原文低位代理的前一个码元，或转义形式的高位 `\uD800`–`\uDBFF`）。
+bool _inSurrogatePair(String raw, int j) {
+  final n = raw.length;
+  if (j < 0 || j >= n) return false;
+  final c = raw.codeUnitAt(j);
+  if (c >= 0xdc00 && c <= 0xdfff) return true;
+  // 转义形式的低位代理，且前面紧挨着高位代理：截在这里会留下孤立的 `\uD83D`。
+  if (_isSurrogateEscape(raw, j, high: false) && _isSurrogateEscape(raw, j - 6, high: true)) return true;
+  if (c < 0xd800 || c > 0xdbff) {
+    // 转义的高位代理：`\uD83D` 后面紧跟转义的低位代理才算一对。单独的 `\uD800` 可以截。
+    if (!_isSurrogateEscape(raw, j, high: true)) return false;
+    return _isSurrogateEscape(raw, j + 6, high: false);
+  }
+  return j + 1 < n && raw.codeUnitAt(j + 1) >= 0xdc00 && raw.codeUnitAt(j + 1) <= 0xdfff;
+}
+
+bool _isSurrogateEscape(String raw, int j, {required bool high}) {
+  if (j < 0 || j + 6 > raw.length) return false;
+  if (raw.codeUnitAt(j) != 0x5c || raw.codeUnitAt(j + 1) != 0x75) return false;
+  final v = int.tryParse(raw.substring(j + 2, j + 6), radix: 16);
+  if (v == null) return false;
+  return high ? v >= 0xd800 && v <= 0xdbff : v >= 0xdc00 && v <= 0xdfff;
+}
+
+/// 超长、截完字符串仍然超门的行：只从文本里取 `method` / `id` / `sessionUpdate` / `stopReason`，不 `jsonDecode`。
+/// 这些键通常在行首；取到的是第一个同名键，够给流量行做标签。取不到就当普通 JSON 对象，标签退回 request / response。
+JsonMap _headerOnly(String raw) {
+  final method = _jsonStringField(raw, 'method');
+  final id = _jsonIdToken(raw);
+  final variant = _jsonStringField(raw, 'sessionUpdate');
+  final stop = _jsonStringField(raw, 'stopReason');
+  return <String, dynamic>{
+    if (method != null) 'method': method,
+    if (id != null) 'id': id,
+    if (method == 'session/update')
+      'params': <String, dynamic>{
+        'update': <String, dynamic>{'sessionUpdate': variant},
+      },
+    if (stop != null) 'result': <String, dynamic>{'stopReason': stop},
+    if (raw.contains('"error"')) 'error': <String, dynamic>{},
+  };
+}
+
+String? _jsonStringField(String raw, String key) {
+  final value = _jsonValueAt(raw, key);
+  if (value == null || value.isEmpty || value.codeUnitAt(0) != 0x22) return null;
+  final end = value.indexOf('"', 1);
+  if (end < 0) return null;
+  return value.substring(1, end > 80 ? 80 : end);
+}
+
+/// `id` 可能是字符串或数字，回填表用它的文本形式。
+String? _jsonIdToken(String raw) {
+  final value = _jsonValueAt(raw, 'id');
+  if (value == null || value.isEmpty) return null;
+  if (value.codeUnitAt(0) == 0x22) {
+    final end = value.indexOf('"', 1);
+    return end < 0 ? null : value.substring(1, end);
+  }
+  final m = RegExp(r'^-?[0-9]+').matchAsPrefix(value);
+  return m?.group(0);
+}
+
+/// 键后面的值从哪开始，最多看 200 个码元（方法名 / id / 变体都远小于此）。找不到返回 null。
+String? _jsonValueAt(String raw, String key) {
+  final needle = '"$key"';
+  var from = 0;
+  while (from < raw.length) {
+    final at = raw.indexOf(needle, from);
+    if (at < 0) return null;
+    var j = at + needle.length;
+    while (j < raw.length && _isJsonWs(raw.codeUnitAt(j))) {
+      j++;
+    }
+    if (j >= raw.length || raw.codeUnitAt(j) != 0x3a) {
+      from = at + needle.length;
+      continue;
+    }
+    j++;
+    while (j < raw.length && _isJsonWs(raw.codeUnitAt(j))) {
+      j++;
+    }
+    if (j >= raw.length) return null;
+    final end = j + 200 < raw.length ? j + 200 : raw.length;
+    return raw.substring(j, end);
+  }
+  return null;
+}
+
+bool _isJsonWs(int c) => c == 0x20 || c == 0x09 || c == 0x0a || c == 0x0d;
+
 class TrafficStore extends ChangeNotifier {
   /// 环形缓冲上限：调试面板不是日志留存，超出丢最旧的。
   static const int maxLines = 2000;
+
+  /// 超过这么长（UTF-16 码元）的行先截掉长字符串再解析与展示（BACKLOG P0「超大 payload 进入 TrafficStore」）。
+  /// 正常的 JSON-RPC 行远小于它；越过它的几乎都是 base64 图或整份文件的正文。
+  static const int elideThreshold = 64 * 1024;
+
+  /// 超长行里每个字符串字面量保留的开头长度。
+  static const int elideKeep = 256;
 
   /// stderr 尾巴保留行数（与核心 `exited` 的尾巴口径一致）。
   static const int stderrKeep = 5;
@@ -179,11 +335,19 @@ class TrafficStore extends ChangeNotifier {
       );
     }
     JsonMap? json;
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is Map) json = decoded.cast<String, dynamic>();
-    } on FormatException {
-      json = null;
+    final source = raw.length > elideThreshold ? elideLongStrings(raw) : raw;
+    if (raw.length > elideThreshold && source.length > elideThreshold) {
+      // 截完长字符串还是超门（大量短元素拼成的数 MB）：不再 jsonDecode，避免整棵对象树。
+      // 不是 JSON 对象的超长行保持「raw」。
+      json = raw.trimLeft().startsWith('{') ? _headerOnly(raw) : null;
+    } else {
+      try {
+        // 超长但能截短的行只解析截过的那一份：要的只是 `id` / `method` / 变体。
+        final decoded = jsonDecode(source);
+        if (decoded is Map) json = decoded.cast<String, dynamic>();
+      } on FormatException {
+        json = null;
+      }
     }
     if (json == null) {
       return TrafficLine(

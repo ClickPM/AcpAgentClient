@@ -63,6 +63,11 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier, WidgetsBi
     _scheduler = scheduler ?? _scheduleOnFrame;
     _observesLifecycle = scheduler == null;
     if (_observesLifecycle) WidgetsBinding.instance.addObserver(this);
+    // 输入框草稿按会话归属：当前会话一变就换草稿（BACKLOG P0「切换 session 后未发送的提示词带入另一个会话」）。
+    // 听会话控制器本身而不是在各条切换路径上挂钩子：`sessionId` 的写入点有十来处（侧栏、新建、换项目、删除……）。
+    // 必须排在下面那条「转发到根」之前：同一次通知里先换草稿，工作台重绘时输入框已经是目标会话的。
+    session.addListener(() => composer.followSession(session.sessionId));
+    session.onForgetSession = composer.forgetDraft;
     // 阶段 A：子对象的通知全部转发到根。在构造函数里接而不是 start() 里：不 start 也能用（单测这么用）。
     for (final child in <ChangeNotifier>[shell, workspace, agents, auth, composer, turn, session, toasts]) {
       child.addListener(notifyListeners);
@@ -156,8 +161,10 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier, WidgetsBi
       if (shell.rightTab != ShellTab.agents) shell.openTab(ShellTab.agents);
     },
     showWorkbench: () => shell.page = MainPage.workbench,
-    onAuthenticated: (agent, cwd, adopted) =>
-        adopted == null ? session.createSession(agent, cwd) : session.adoptAuthSession(agent, cwd, adopted),
+    onAuthenticated: (agent, cwd, adopted) async {
+      if (adopted == null) await session.createSession(agent, cwd);
+      else await session.adoptAuthSession(agent, cwd, adopted);
+    },
   );
 
   /// 输入框（画板 40 / 42）：正文与附件、`@` `/` 内联菜单、`+` 四项、配置格与三个弹层锚点。

@@ -106,6 +106,68 @@ class ComposerState extends ChangeNotifier with GuardedNotifier {
     super.dispose();
   }
 
+  // ---------------------------------------------------------------- 按会话的草稿
+
+  /// 输入框此刻属于哪条会话（null = 还没有会话，画板 01 状态 1；它也是一个槽位）。
+  String? _draftOwner;
+
+  /// 第一次跟上当前会话时只认领、不换草稿。`sessionId` 可以在通知之前就写好（启动恢复的选中态、
+  /// 测试直接赋值），那时输入框里的字属于现在这条，不是一个切不回去的空槽。
+  bool _draftBound = false;
+
+  /// 切走的会话留下的草稿（正文 + 附件块），键同 [_draftOwner]。只在内存里，不落盘。
+  final Map<String?, ({TextEditingValue value, List<JsonMap> blocks})> _drafts =
+      <String?, ({TextEditingValue value, List<JsonMap> blocks})>{};
+
+  /// 当前会话换了（组合根每次通知都调）：未发送的正文与附件留在原会话，换上目标会话自己的草稿。
+  /// 以前输入框是所有会话共用的一份，切到另一条（甚至另一个 agent）文字还在，容易发错对象
+  /// （BACKLOG P0，所有者实机报障 2026-09-30）。不通知：调用方就在通知链上。
+  /// 发送现开会话的等待期也走这里，不特殊放行：等待中点了侧栏另一条，草稿留在原来那条，不出现在新的当前会话上。
+  void followSession(String? id) {
+    if (!_draftBound) {
+      _draftOwner = id;
+      _draftBound = true;
+      return;
+    }
+    if (id == _draftOwner) return;
+    final from = _draftOwner;
+    _draftOwner = id;
+    if (editor.text.isNotEmpty || pendingBlocks.isNotEmpty) {
+      _drafts[from] = (value: editor.value, blocks: List<JsonMap>.of(pendingBlocks));
+    } else {
+      _drafts.remove(from);
+    }
+    final next = _drafts.remove(id);
+    editor.value = next?.value ?? TextEditingValue.empty;
+    pendingBlocks
+      ..clear()
+      ..addAll(next?.blocks ?? const <JsonMap>[]);
+    _clearInlineMenu();
+  }
+
+  /// 现开的会话已经切成当前会话、发送正要取快照：把 [from] 那一槽（发送开始时的会话，没有会话就是 null）
+  /// 的草稿取回输入框。换会话那一下已经按正常规则把它存走了，不取回的话这条消息会发空。
+  /// [from] 仍是当前槽、或那一槽没有草稿时不动输入框（等待期里新打的字还在上面）。
+  void restoreDraft(String? from) {
+    if (from == _draftOwner) return;
+    final next = _drafts.remove(from);
+    if (next == null) return;
+    editor.value = next.value;
+    pendingBlocks
+      ..clear()
+      ..addAll(next.blocks);
+  }
+
+  /// 会话被删掉：它留下的草稿（可能带着几 MB 的 base64 图）一并放下。删的正是输入框此刻所属的那条时，
+  /// 输入框里的也是它的草稿：一起清掉，否则紧接着的 [followSession] 会把它存到一个再也切不回来的键下。
+  void forgetDraft(String id) {
+    _drafts.remove(id);
+    if (_draftOwner != id) return;
+    editor.clear();
+    pendingBlocks.clear();
+    _clearInlineMenu();
+  }
+
   /// 发送时把正文、附件与内联菜单一起清掉（一轮对话控制器在取走快照之后调；不通知，收轮那次 `touch` 会带上）。
   void clearForSend() {
     editor.clear();

@@ -53,6 +53,9 @@ class _AttachCore extends FakeCore {
   /// `session/new` 抛这个错（认证等）。
   CoreCommandError? newError;
 
+  /// 堵住 `session/new`（现开会话要数秒的那个窗口）。
+  Completer<void>? newGate;
+
   /// `session/new` 回这个 id（fake-agent 不带 `--sessions` 时总回同一个）；不设就每次回新的。
   String? newSessionId;
 
@@ -84,6 +87,7 @@ class _AttachCore extends FakeCore {
   @override
   Future<JsonMap> sessionNew(String agentId, String cwd) async {
     calls.add('new');
+    await newGate?.future;
     final e = newError;
     if (e != null) throw e;
     return <String, dynamic>{'sessionId': newSessionId ?? 'sess_new_${++_newCount}'};
@@ -436,7 +440,7 @@ void main() {
       c.dispose();
     });
 
-    test('挂回期间点了侧栏另一条：这条消息不改投别的会话，输入框原样留着', () async {
+    test('挂回期间点了侧栏另一条：这条消息不改投别的会话，草稿留在原来那条', () async {
       final (c, core) = await _controller(connected: false);
       c.session.sessionId = _a;
       final gate = Completer<void>();
@@ -458,6 +462,35 @@ void main() {
 
       expect(core.calls.where((x) => x.startsWith('prompt:')), isEmpty);
       expect(c.session.sessionId, _b);
+      expect(c.composer.editor.text, isEmpty, reason: '未发送的内容留在 A，不出现在切过去的 B');
+      await c.session.selectSession(_a);
+      expect(c.composer.editor.text, '给 A 的');
+      c.dispose();
+    });
+
+    test('现开会话的等待期点了侧栏另一条、新会话又没开出来：草稿不出现在那一条，也不发出去', () async {
+      final (c, core) = await _controller(initialize: _initialize(loadSession: false, caps: <String>[]));
+      _live(c, _a, <String>['A 的历史']);
+      _live(c, _b, <String>['B 的历史']);
+      c.session.sessionId = _a;
+      c.sessions.applyAgentState(<String, dynamic>{'agentId': _agent, 'state': 'exited', 'code': 1});
+      expect(c.session.attachOf(_a), SessionAttach.unattachable);
+      final gate = Completer<void>();
+      core.newGate = gate;
+
+      c.composer.editor.text = '给 A 的';
+      final sending = c.turn.send();
+      await Future<void>.delayed(Duration.zero);
+      await c.session.selectSession(_b);
+      expect(c.composer.editor.text, isEmpty);
+      core.newError = const CoreCommandError('acp', 'quota exceeded');
+      gate.complete();
+      await sending;
+
+      expect(core.calls.where((x) => x.startsWith('prompt:')), isEmpty);
+      expect(c.session.sessionId, _b);
+      expect(c.composer.editor.text, isEmpty);
+      await c.session.selectSession(_a);
       expect(c.composer.editor.text, '给 A 的');
       c.dispose();
     });
