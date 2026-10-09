@@ -1,13 +1,13 @@
 # Iteration 22 — Copy 反馈停留与终端释放测试竞态
 
-> 状态：待审查　基线：`main` = `ce578d7`　分支：`fix/backlog-copy-terminal-test`
+> 状态：审查通过，待所有者指定合并　基线：`main` = `ce578d7`　分支：`fix/backlog-copy-terminal-test`
 
 ## 工作项
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | fix | Copy 成功反馈停留 1.8 秒，后续复制成功重置计时，卸载时撤计时器 | BACKLOG P1「代码块的 Copy 点完 Copied 一闪就回去」 | `fix/backlog-copy-terminal-test` → 待所有者指定合并 | Windows validate 全绿（Flutter 632 项） | Delta 只读 Reviewer / Grok 4.7（所有者指定），待执行 | 待审查 |
-| 2 | fix | 断开后的终端释放断言改为有超时的条件等待，不修改生产断开语义 | BACKLOG P5「Rust 集成测试 agent 断开时释放它建的终端在负载下偶发失败」 | 同上 | 同上；指定用例连续 20 次通过 | 同上 | 待审查 |
+| 1 | fix | Copy 成功反馈停留 1.8 秒，后续复制成功重置计时，卸载时撤计时器 | BACKLOG P1「代码块的 Copy 点完 Copied 一闪就回去」 | `98326fa`（`fix/backlog-copy-terminal-test`）→ 待所有者指定合并 | Windows validate 全绿（Flutter 632 项） | 1 轮：Delta 只读 Reviewer / Grok 4.7（所有者指定），0 条 findings | 待合并 |
+| 2 | fix | 断开后的终端释放断言改为有超时的条件等待，不修改生产断开语义 | BACKLOG P5「Rust 集成测试 agent 断开时释放它建的终端在负载下偶发失败」 | 同上 | 同上；指定用例连续 20 次通过 | 同上 | 待合并 |
 
 ## 收口
 
@@ -23,3 +23,9 @@
 - Windows Rust 指定用例：`CARGO_TARGET_DIR=D:/cargo-target/AcpAgentClient-copy-terminal-test cargo test --manifest-path rust/Cargo.toml -p acp-core --test scripted owned_terminals_are_released_when_the_agent_disconnects -- --exact` 连续 **20/20 通过**。这是顺序重复回归，不宣称复现了旧版负载下偶发竞态；仍保留终端与 owner IDs 两条最终断言、10s 超时会失败。
 - 全量：`powershell -NoProfile -File scripts/validate.ps1 -CargoTargetDir D:\cargo-target\AcpAgentClient-copy-terminal-test` **VALIDATE OK**；cargo build / test / clippy、flutter analyze / test（632 项）与全部静态门。Rust 测试改动用本分支独立 target，避免共用缓存串代码。
 - 审查采用本轮所有者明确指定的 Delta 只读子代理、模型 Grok 4.7；不调用 Cursor / Codex，不改仓库默认执行器。
+
+### 代码审查
+
+- R1：Delta Reviewer / `x_ai-subscribed/grok-4.7`（执行器由所有者指定），范围固定为 `ce578d7..98326fa`，最终 **findings: 0**（high / P2 / P3 全 0），无整改、无需复审。
+- 实际审阅范围内七个文件；对照 `Shared::finish`、`release_owned_terminals`、`disconnect` 与 `TerminalManager::release` / `output`。按任务书未重跑测试。
+- 结果返回后仅回填审查台账；实现与测试不变。未自行合并 `main`，合并时机等待所有者指定。
