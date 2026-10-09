@@ -16,14 +16,14 @@
 
 | 档 | 条数 | 这档是什么 |
 |---|---|---|
-| **P0 真缺陷** | 2 | 会丢内容、作用到错对象、吃光资源、静默失败。撞上就是事故，排进最近的轮次。 |
+| **P0 真缺陷** | 0 | 会丢内容、作用到错对象、吃光资源、静默失败。撞上就是事故，排进最近的轮次。 |
 | **P1 看得见的粗糙** | 2 | 用户看得见的不一致、缺等待态、行为不符直觉。能用，膈应；攒批做。 |
 | **P2 功能缺口** | 1 | 该有没有的能力。**全部需所有者裁定才能进轮次**，多数还要先改设计稿。 |
 | P3 设计稿欠账 | — | **已整体释放**到 `design/DIVERGENCE.md`，见下面的占位小节 |
 | **P4 平台与分发** | 1 | 安装、打包、跨平台、构建链这类问题（2026-09-23 曾整档清空：跨平台暂不做、构建链两条关闭、sidecar 两条移到 `BACKLOG-ZED.md`，见下面该节首段） |
 | **P5 内部工程与验收** | 1 | 测试、行数门、验收自动化这类用户无感的问题（2026-09-23 曾整档清空，16 条收在 iteration-04，见下面该节首段） |
 | X 卡在上游 / 协议 | — | **已撤档**：不是本项目的问题不进本表（所有者裁定 2026-09-23），见下面的占位小节 |
-| | **7** | |
+| | **5** | |
 
 **新增条目**：挑一档追在该档末尾，照同样的三行格式写。不新开档位；一条只进一档。
 **只收本项目自己的问题**：问题出在上游（agent、zed、xterm 等依赖）或协议本身的，不进本表（所有者裁定 2026-09-23，X 档因此撤掉）；其中实现因此与画板对不上的，照规则 3 记 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)。
@@ -31,17 +31,11 @@
 **内置 Zed agent（sidecar）的问题不进本表**：记 [`BACKLOG-ZED.md`](BACKLOG-ZED.md)（所有者裁定 2026-09-23：原先本表的 4 条连同统筹时新盘点出的 5 条都移到那里，**当前不修**）；背景与上游限制见 [`docs/zed-agent.md`](../docs/zed-agent.md)。
 **关闭条目**：把**技术行连同结论压成一行** `- [x]` 剪到 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md) 末尾（那份是平铺存档，不分档），本文删掉这三行。
 
-## P0 · 真缺陷（2）
+## P0 · 真缺陷（0）
 
 2026-09-23 全仓只读审查（v1.4.4 之后的 `main`，Rust 核心 / 文件与终端 / Dart 状态层 / 投影与转录四路）登记的 7 条已全部关闭：「本地状态文件的读改写没有串行化」由 iteration-10、「资源与静默失败」一小节三条由 iteration-11、「请求与会话路由」一小节三条由 iteration-12 修掉（均未在 Windows 实机复现，按代码路径与单测判定）；所有者同日报障的「dsh 的会话存到哪里跟着进程工作目录走」已由 round-dsh-1.3.2 在上游修掉。各条结论见 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md) 末尾。以后的真缺陷照常追在这里。
 
-- [ ] **工具卡与流量面板在 build 里重算缩进 JSON 与语法着色的 TextSpan**（未复现，按代码路径判定）
-  - **产品**：agent 跑长任务时内存与 CPU 一路往上走（尤其工具结果里带图或带整份文件），跑到后面整机发卡；所有者 2026-09-29 在任务管理器里强杀过一次。
-  - **技术**：`lib/ui/transcript/tool_call_card.dart` 的 `_body()` / `_cancelledBody()` 在 `build` 里直接调 `JsonHighlight.span(e.rawInput)`（第 214 / 232 行）与 `JsonHighlight.pretty(raw)`（第 208 行，`rawOutput`）；`lib/ui/traffic/traffic_page.dart` 第 314 / 320 行同理。`JsonHighlight.pretty` 是 `JsonEncoder.withIndent('  ').convert(value)`，`span` 再把这串喂给 `re_highlight` 的词法分析器、铺成一棵 `TextSpan` 树（`lib/ui/transcript/card_chrome.dart` 第 293–304 行）——**每一步都在 build 里**。转录区在流式期间按帧重建，于是展开着的工具卡每帧重来一遍：实测 agent 回来的 `write` 工具卡 `rawInput.content` 是整份 HTML（几十 KB）、`read` 的 `rawOutput` 是整份被读的文件。最小修法：把这两处的「值 → TextSpan」按值缓存一次（`StatefulWidget` + `didUpdateWidget` 比值，与 iteration-18 的 `_ImageBlock` 同一形状），或按长度给个上限、超限就不着色直接铺纯文本 (iteration-18 排查内存报障 2026-09-29)
-
-- [ ] **窗口最小化期间 `session/update` 在批处理器队列里无上限堆积**（未复现，按代码路径判定）
-  - **产品**：agent 在后台跑长任务、窗口最小化放一会儿，还原后内存峰值明显高于一直看着；任务久了整机内存吃紧。
-  - **技术**：`lib/projection/batcher.dart` 的 `enqueue` 只在 `!_scheduled` 时排一次刷新，而 `_scheduled` 要等 `flush()` 才复位；`WorkbenchController._scheduleOnFrame` 走的是 `SchedulerBinding.scheduleFrameCallback` + `scheduleFrame()`。Windows 上最小化会报 `AppLifecycleState.hidden`（`windows_lifecycle_manager.cc` 把 `SIZE_MINIMIZED` / `WM_SHOWWINDOW(0)` 映射成 `hidden`，见 iteration-14 调研），那时 `framesEnabled` 为假、`scheduleFrame()` 直接返回，回调不跑——队列只进不出，每个闭包还攥着一条已解析的 `session/update`（含 chunk 正文与 base64 图）。最小修法：除了 `_scheduled` 再记一个「挂了多久」的上限，或在 `hidden` 期间改用微任务调度（`WorkbenchController.scheduleOnMicrotask` 已经有了，无头实跑在用），窗口还原后再切回按帧 (iteration-18 排查内存报障 2026-09-29)
+iteration-18 排查内存报障时登记的两条（JSON 展开体按帧重算、最小化期间消息队列堆积）已由 iteration-21 修复并合并 `main`（`04b7a96`）；验证与审查见 [`iterations/iteration-21.md`](../iterations/iteration-21.md)，结论移入 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md) 末尾。Windows 真窗口长任务的内存曲线未测，关闭依据是回归测试与代码路径验证。
 
 ## P1 · 看得见的粗糙（2）
 

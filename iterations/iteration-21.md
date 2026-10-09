@@ -1,18 +1,18 @@
 # Iteration 21 — JSON 重建缓存与最小化期间消息队列排空
 
-> 状态：审查通过，待所有者指定合并　基线：`main` = `458cff0`　分支：`fix/backlog-memory`
+> 状态：已合并（未构建发布包）　基线：`main` = `458cff0`　分支：`fix/backlog-memory` → `main`（快进 `04b7a96`）
 
 ## 工作项
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | fix | 工具卡与流量展开行的 JSON 格式化 / TextSpan 按输入与字体代数缓存；每个 State 只保留当前值 | BACKLOG P0「工具卡与流量面板在 build 里重算缩进 JSON 与语法着色的 TextSpan」 | `fix/backlog-memory` → 待所有者指定合并 | validate 全绿（Flutter 628 项） | 1 轮有效审查：Grok 4.7，0 条 findings | 待合并 |
-| 2 | fix | 无帧期间用微任务刷新消息，进入 hidden 时迁移已排队的帧回调，恢复后按帧合并 | BACKLOG P0「窗口最小化期间 session/update 在批处理器队列里无上限堆积」 | 同上 | 同上 | 同上 | 待合并 |
+| 1 | fix | 工具卡与流量展开行的 JSON 格式化 / TextSpan 按输入与字体代数缓存；每个 State 只保留当前值 | BACKLOG P0「工具卡与流量面板在 build 里重算缩进 JSON 与语法着色的 TextSpan」 | `fix/backlog-memory` → `main`（快进 `04b7a96`） | validate 全绿（Flutter 628 项） | 1 轮有效审查：Grok 4.7，0 条 findings | 已合并 |
+| 2 | fix | 无帧期间用微任务刷新消息，进入 hidden 时迁移已排队的帧回调，恢复后按帧合并 | BACKLOG P0「窗口最小化期间 session/update 在批处理器队列里无上限堆积」 | 同上 | 同上 | 同上 | 已合并 |
 
 ## 收口
 
 - 构建 / 手测：validate 全绿；未跑 `scripts/build.ps1`、未构建发布包，Windows 真窗口长任务的内存曲线未测。
-- 合并 / 发版：未合并、不发版，时机由所有者定；BACKLOG 在合并后再移入 CLOSED。
+- 合并 / 发版：所有者指定合并 `main`；实现与测试提交 `04b7a96`，`git merge --ff-only fix/backlog-memory` 快进，无冲突且合并不改代码；两条 BACKLOG 移入 CLOSED，P0 清空。未 push、不发版。合并前后各一次 `powershell -NoProfile -File scripts/validate.ps1` 全绿（每次 628 Flutter 测试与全部 Rust / 静态门）；合并后只回填本段验证结果，无代码改动。
 - 设计稿补注记：无；不改布局、token、协议，不增加会话淘汰机制。
 
 ## 备注
