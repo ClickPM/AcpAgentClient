@@ -93,5 +93,6 @@
 | 18 | 2026-09-29 起 | 内存冲到 100% 的两处按帧重算：工具卡内容里的 `image` 块不再每帧重解 base64（`Image.memory` 的缓存键跟着 `bytes` 的同一性走）、流量面板的缩进 JSON 改按需算 + 记忆化 | 已合并（未构建；连同已完成的 iter-17 一起落 main） | [`iteration-18.md`](iteration-18.md) |
 | 19 | 2026-09-29 起 | 侧栏 Active 行的「挂起」：把会话交给 agent 的 `session/close`（转录留着只读、不删），它从 Active 沉到 History，再点 History 那一行挂回来（BACKLOG P1「会话菜单的 Resume / Close 没有入口」收尾） | 已合并（未构建；审查 R1–R3：0 条 high；回补画板那轮免审—所有者指定） | [`iteration-19.md`](iteration-19.md) |
 | 20 | 2026-09-29 起 | 去 Claude Code 绑定：规范正本 `CLAUDE.md` → `AGENTS.md`（`CLAUDE.md` 退成指针）、审查执行器改「cursor 硬失败就停下喊人」、上一代 agent 的项目记忆整批内联到 `docs/agent-notes/` | 已合并（未构建；`f752859`；免审—所有者指定：纯文档与注释） | [`iteration-20.md`](iteration-20.md) |
+| 21 | 当前 | JSON 展开体局部缓存与最小化期间批处理队列排空 | validate 全绿；Grok 4.7 审查 0 条 findings，待合并（未构建发布包） | [`iteration-21.md`](iteration-21.md) |
 
 **在本流程之前开工的那一批仍按轮次走完**：`rounds/round-1.4.1`（v1.4.0 之后六批 `main` 改动的复审与整改，2026-09-22 发 v1.4.1）在本流程建立之前就已立项并写好任务卡，按原样以轮次收口、登记在 `ROUNDS.md` § 7 的进度表里，不回改编号。按本文 § 0 的判据，这种「一批缺陷的集中复审与整改」以后属于迭代（类型 `fix`）；`ROUNDS.md` § 7 里被封存的是「main 直改」那一行，轮次自己的行照旧。

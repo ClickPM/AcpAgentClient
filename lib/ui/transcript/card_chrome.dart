@@ -305,6 +305,39 @@ abstract final class JsonHighlight {
   }
 }
 
+/// 每个卡片 State 各持一份，只留当前输入；不把历史 JSON 常驻在全局缓存。
+/// 投影层的 rawInput / rawOutput 来自每次新解码的线上 JSON，替换字段而不原地修改 Map。
+/// 不能比较 ToolCallEntry 本身：它在流式更新时会被原地复用。
+class JsonHighlightCache {
+  Object? _value;
+  String? _pretty;
+  TextSpan? _span;
+  int? _generation;
+
+  /// 输入被替换（包括变成 null）时立即放下旧结果；折叠态也不保留旧大对象。
+  void update(Object? value) {
+    if (value != _value) {
+      _value = value;
+      _pretty = null;
+      _span = null;
+    }
+  }
+
+  String pretty(Object? value) {
+    update(value);
+    return _pretty ??= JsonHighlight.pretty(value);
+  }
+
+  TextSpan span(Object? value) {
+    final text = pretty(value);
+    if (_span == null || _generation != t.Fonts.generation) {
+      _generation = t.Fonts.generation;
+      _span = JsonHighlight.span(text);
+    }
+    return _span!;
+  }
+}
+
 /// 徽章 / 芯片：mono 11 · radius 3 · space.chip。
 class Chip extends StatelessWidget {
   const Chip(this.text, {super.key, required this.background, required this.color, this.style});

@@ -249,7 +249,7 @@ class _TrafficPageState extends State<TrafficPage> {
 }
 
 /// 一行流量（可展开看原文）。
-class _TrafficRow extends StatelessWidget {
+class _TrafficRow extends StatefulWidget {
   const _TrafficRow({required this.line, required this.expanded, this.onToggle});
 
   final TrafficLine line;
@@ -257,7 +257,22 @@ class _TrafficRow extends StatelessWidget {
   final VoidCallback? onToggle;
 
   @override
+  State<_TrafficRow> createState() => _TrafficRowState();
+}
+
+class _TrafficRowState extends State<_TrafficRow> {
+  final JsonHighlightCache _json = JsonHighlightCache();
+
+  @override
+  void didUpdateWidget(covariant _TrafficRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.line, widget.line)) _json.update(null);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final line = widget.line;
+    final expanded = widget.expanded;
     final arrow = line.direction == TrafficDirection.outbound ? AcpIcons.arrowRight : AcpIcons.arrowLeft;
     final arrowColor = line.direction == TrafficDirection.outbound ? t.Semantic.success : t.Accent.text;
     return Container(
@@ -270,7 +285,7 @@ class _TrafficRow extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           Hoverable(
-            onTap: onToggle,
+            onTap: widget.onToggle,
             builder: (context, hovered) => Container(
               height: t.Controls.standard,
               color: hovered && !line.dropped ? t.Overlays.hover : null,
@@ -311,13 +326,13 @@ class _TrafficRow extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
-                          Text.rich(JsonHighlight.span(line.raw)),
+                          Text.rich(_json.span(line.raw)),
                           Text('→ 该变体未编译进 SessionUpdate，整条通知反序列化失败并被丢弃',
                               style: CardText.code.copyWith(color: t.Semantic.warning)),
                         ],
                       ),
                     )
-                  : MonoBlock(span: JsonHighlight.span(line.pretty ?? line.raw)),
+                  : MonoBlock(span: _json.span(line.pretty ?? line.raw)),
             ),
         ],
       ),

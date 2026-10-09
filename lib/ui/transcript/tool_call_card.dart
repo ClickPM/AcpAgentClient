@@ -149,6 +149,15 @@ class ToolCallCard extends StatefulWidget {
 class _ToolCallCardState extends State<ToolCallCard> {
   late bool _expanded = widget.initiallyExpanded;
   late bool _pathHover = widget.pathHoveredInitially;
+  final JsonHighlightCache _input = JsonHighlightCache();
+  final JsonHighlightCache _output = JsonHighlightCache();
+
+  @override
+  void didUpdateWidget(covariant ToolCallCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _input.update(widget.entry.rawInput);
+    _output.update(widget.entry.rawOutput);
+  }
 
   void _toggle() => setState(() => _expanded = !_expanded);
 
@@ -205,19 +214,19 @@ class _ToolCallCardState extends State<ToolCallCard> {
       }
     }
     final raw = e.rawOutput;
-    if (textOut.isEmpty && raw != null) textOut.add(JsonHighlight.pretty(raw));
+    if (textOut.isEmpty && raw != null) textOut.add(_output.pretty(raw));
     final hasOutput = textOut.isNotEmpty || otherOut.isNotEmpty;
     return <Widget>[
       if (command != null && e.kind == ToolKind.execute) MonoBlock(text: command),
       if (e.rawInput != null) ...<Widget>[
         SectionLabel('Raw Input:'),
-        MonoBlock(span: JsonHighlight.span(e.rawInput)),
+        MonoBlock(span: _input.span(e.rawInput)),
       ],
       if (hasOutput) ...<Widget>[
         SectionLabel('Output:'),
         if (textOut.isNotEmpty)
           MonoBlock(
-            text: textOut.join('\n'),
+            text: textOut.length == 1 ? textOut.single : textOut.join('\n'),
             background: failed ? t.Semantic.errorSoft : t.Neutral.panel,
             style: failed ? CardText.codeError : CardText.code,
           ),
@@ -229,7 +238,7 @@ class _ToolCallCardState extends State<ToolCallCard> {
   List<Widget> _cancelledBody(ToolCallEntry e) {
     final command = toolCommand(e);
     return <Widget>[
-      if (command != null) MonoBlock(text: command) else if (e.rawInput != null) MonoBlock(span: JsonHighlight.span(e.rawInput)),
+      if (command != null) MonoBlock(text: command) else if (e.rawInput != null) MonoBlock(span: _input.span(e.rawInput)),
       SectionLabel('Output:'),
       MonoBlock(text: 'Error: tool call aborted'),
     ];

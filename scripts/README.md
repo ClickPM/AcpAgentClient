@@ -12,5 +12,6 @@
 | `verify-package.ps1` | 在全新空数据目录上验收打包产物：解压即用、随包 sidecar 自检、静默装 → 跑 → 静默卸（`-ZipOnly`） | 发版前 |
 | `render-design.ps1` | `design/<轮>/*.dc.html` → 同名 PNG（headless Edge / Chrome，尺寸 = `$preview`；`-Round` / `-Only`） | 改画板源后必跑 |
 | `render-icon.ps1` | `design/brand/app-icon.svg` → `windows/runner/resources/app_icon.ico`（七帧） | 改应用图标后 |
+| `codex-review.ps1` | 所有者指定的 Codex CLI 只读审查（`gpt-6.1-sol` / medium / 不开快速），复用既有任务书，结果落 `.claude/reviews/` | 仅在所有者指定 Codex 时；不替换默认 Cursor 流程 |
 
 另有两处不在本目录的脚本：独立审查的启动脚本 `.claude/cursor-review.ps1`（契约在同目录 `cursor-review-prompt.md`，流程在 `docs/review-workflow.md`）；frb 生成 `flutter_rust_bridge_codegen generate`（改 `rust/bridge/src/api.rs` 后必跑，生成物入库）。

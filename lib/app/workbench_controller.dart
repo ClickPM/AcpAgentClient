@@ -58,9 +58,11 @@ enum DataSource {
       const String.fromEnvironment('DATA_SOURCE') == 'fixtures' ? DataSource.fixtures : DataSource.bridge;
 }
 
-class WorkbenchController extends ChangeNotifier with GuardedNotifier {
-  WorkbenchController({required this.source, this.bridge, FlushScheduler? scheduler})
-      : _scheduler = scheduler ?? _scheduleOnFrame {
+class WorkbenchController extends ChangeNotifier with GuardedNotifier, WidgetsBindingObserver {
+  WorkbenchController({required this.source, this.bridge, FlushScheduler? scheduler}) {
+    _scheduler = scheduler ?? _scheduleOnFrame;
+    _observesLifecycle = scheduler == null;
+    if (_observesLifecycle) WidgetsBinding.instance.addObserver(this);
     // 阶段 A：子对象的通知全部转发到根。在构造函数里接而不是 start() 里：不 start 也能用（单测这么用）。
     for (final child in <ChangeNotifier>[shell, workspace, agents, auth, composer, turn, session, toasts]) {
       child.addListener(notifyListeners);
@@ -77,8 +79,11 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   final CoreCommands? bridge;
 
   /// 批量刷新的调度器。窗口里按帧合并（docs/design.md § 9）；无头实跑（lib/app/headless_run.dart）
-  /// 没有 vsync、`scheduleFrameCallback` 永远不回调，那里传微任务调度。
-  final FlushScheduler _scheduler;
+  /// 传微任务调度；默认调度在窗口无帧期间同样走微任务，不攒到还原时。
+  late final FlushScheduler _scheduler;
+  late final bool _observesLifecycle;
+  int? _flushFrameId;
+  void Function()? _pendingFrameFlush;
 
   // ---- 投影层
   late final Sessions sessions = Sessions();
@@ -305,9 +310,44 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
     batcher.enqueue(() => apply(json));
   }
 
-  static void _scheduleOnFrame(void Function() flush) {
-    SchedulerBinding.instance.scheduleFrameCallback((_) => flush());
-    SchedulerBinding.instance.scheduleFrame();
+  void _scheduleOnFrame(void Function() flush) {
+    if (disposed) return;
+    // 手动 flush / release 后可能仍留着上一轮帧回调；新刷新只能保留一个。
+    _cancelFrameFlush();
+    final binding = SchedulerBinding.instance;
+    if (!binding.framesEnabled) {
+      _scheduleFlushMicrotask(flush);
+      return;
+    }
+    _pendingFrameFlush = flush;
+    _flushFrameId = binding.scheduleFrameCallback((_) {
+      _flushFrameId = null;
+      _pendingFrameFlush = null;
+      if (!disposed) flush();
+    });
+  }
+
+  void _scheduleFlushMicrotask(void Function() flush) {
+    scheduleMicrotask(() {
+      if (!disposed) flush();
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // 已排上帧再最小化时，batcher 的 _scheduled 仍为 true，不会另排刷新。
+    // 把那一次刷新迁走（并撤销帧回调），否则即使新消息走微任务，旧队列也永远等帧。
+    if (state == AppLifecycleState.resumed || state == AppLifecycleState.inactive) return;
+    final flush = _pendingFrameFlush;
+    _cancelFrameFlush();
+    if (flush != null) _scheduleFlushMicrotask(flush);
+  }
+
+  void _cancelFrameFlush() {
+    final id = _flushFrameId;
+    if (id != null) SchedulerBinding.instance.cancelFrameCallbackWithId(id);
+    _flushFrameId = null;
+    _pendingFrameFlush = null;
   }
 
   /// 无头实跑用：微任务里刷，不依赖帧。
@@ -316,6 +356,8 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier {
   @override
   void dispose() {
     markDisposed();
+    if (_observesLifecycle) WidgetsBinding.instance.removeObserver(this);
+    _cancelFrameFlush();
     for (final s in _subs) {
       s.cancel();
     }
