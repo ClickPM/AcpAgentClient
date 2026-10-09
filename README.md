@@ -85,7 +85,9 @@ powershell -File scripts/package.ps1           # 打包 zip 与安装器 → dis
 
 ## 状态
 
-当前 **v1.4.8**，Windows x64。逐版本的改动见 [Releases](https://github.com/ClickPM/AcpAgentClient/releases)；开发轮次与进度表在 [`ROUNDS.md`](ROUNDS.md)。2026-09-22 起 R0–R8 主体完成、进入敏捷迭代阶段：日常的缺陷修复、交互优化与单画板功能按 [`iterations/`](iterations/README.md) 的迭代流程走（一迭代一文件、一项一行、一轮审查），轮次流程保留给核心大迭代。
+当前 **v1.4.9**，Windows x64。逐版本的改动见 [Releases](https://github.com/ClickPM/AcpAgentClient/releases)；开发轮次与进度表在 [`ROUNDS.md`](ROUNDS.md)。2026-09-22 起 R0–R8 主体完成、进入敏捷迭代阶段：日常的缺陷修复、交互优化与单画板功能按 [`iterations/`](iterations/README.md) 的迭代流程走（一迭代一文件、一项一行、一轮审查），轮次流程保留给核心大迭代。
+
+v1.4.9 精简侧栏 Active 会话行：副标题只保留时间与消息数，去掉重复的「· 已连接」，在线状态仍由图标绿点、Active 分组和 Connected 提示表达；同步画板与测试。会话头重载按钮的提示由 `Reload this session` 改为 `Reload Agent`，准确表达已有行为的作用范围，不改变重载逻辑、不新增确认框（[`iterations/`](iterations/README.md) 的 iteration-21、22）。Send Now 与关闭会话的竞态仅登记到 BACKLOG，未在本版修复。
 
 v1.4.8 给侧栏 Active 区的会话行加了「挂起」：点一下就把它交还 agent（`session/close`，先撤掉排队里的请求再关），转录留着只读、这一行随即从 Active 沉到 History，回头点 History 里那一行由 `session/load`（退 `resume`）挂回来——以前 `session/close` 只在代码里接通、产品里没有入口。按钮只在 Active 行出现，且只给「自己的 agent 声明了 `session/close` **并且**挂得回来（`loadSession` 或 `resume`）」的会话；不按 agent 名判，只看会话能力。挂起传的是那一行的 id，目标 agent 按这条会话自己的登记取，所以后台会话也能挂起、不碰当前选中态与输入框。另修一处文案：被挂起后按发送键的提示以前一律说「用 ≡ 菜单的 Resume 挂回来」，而那个入口产品里没有——现在按能不能挂回来的两种原因分开说（agent 侧已经没有这条 / agent 不支持挂回来）。此外把开发规范正本从 `CLAUDE.md` 迁到跨 agent 的 [`AGENTS.md`](AGENTS.md)（`CLAUDE.md` 退成指针），上一代的工程记忆整批内联到 [`docs/agent-notes/`](docs/agent-notes/README.md)，审查执行器收窄为「cursor 硬失败就停下喊人、不自动回落子代理」。挂起（iteration-19）合并前经 cursor 三轮审到 0 条；规范迁移（iteration-20）只动文档与注释、无 Dart / Rust 逻辑变更，经所有者指定免审（[`iterations/`](iterations/README.md) 的 iteration-19、20）。
 

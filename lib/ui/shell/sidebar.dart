@@ -543,7 +543,7 @@ class SidebarSessionRow extends StatelessWidget {
   final SidebarSession session;
   final DateTime now;
 
-  /// 画板 45：会话是否已挂载到存活 Agent 连接上（图标带在线绿点，副标题带「· 已连接」）。
+  /// 画板 45：会话是否已挂载到存活 Agent 连接上（图标带在线绿点，副标题只显示时间与消息数）。
   final bool attached;
 
   final String query;
@@ -698,10 +698,6 @@ class SidebarSessionRow extends StatelessWidget {
                     style: t.TextStyles.meta.copyWith(fontFeatures: const <FontFeature>[FontFeature.tabularFigures()]),
                     children: <InlineSpan>[
                       TextSpan(text: '${relativeTime(session.updatedAt, now: now)} · ${session.messageCount} 条消息'),
-                      if (attached) ...<InlineSpan>[
-                        const TextSpan(text: ' · '),
-                        TextSpan(text: '已连接', style: TextStyle(color: t.Semantic.success)),
-                      ],
                     ],
                   ),
                   maxLines: 1,

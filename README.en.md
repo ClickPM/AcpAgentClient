@@ -85,7 +85,9 @@ If the project path contains non-ASCII characters or spaces, use `scripts/build.
 
 ## Status
 
-Current release: **v1.4.8**, Windows x64. Per-version changes are on [Releases](https://github.com/ClickPM/AcpAgentClient/releases), and development rounds and the progress table are in [`ROUNDS.md`](ROUNDS.md). As of 2026-09-22 the R0–R8 core is done and the project is in agile iterations. Day-to-day bug fixes, UX polish and single-board features follow the iteration process in [`iterations/`](iterations/README.md): one file per iteration, one line per item, one review round. The round process is reserved for major core work.
+Current release: **v1.4.9**, Windows x64. Per-version changes are on [Releases](https://github.com/ClickPM/AcpAgentClient/releases), and development rounds and the progress table are in [`ROUNDS.md`](ROUNDS.md). As of 2026-09-22 the R0–R8 core is done and the project is in agile iterations. Day-to-day bug fixes, UX polish and single-board features follow the iteration process in [`iterations/`](iterations/README.md): one file per iteration, one line per item, one review round. The round process is reserved for major core work.
+
+v1.4.9 simplifies Active session rows: subtitles show only time and message count, without the redundant connected label. The online dot, Active grouping and Connected hint remain; mockups and tests are updated. The reload button tooltip now reads `Reload Agent` instead of `Reload this session`, accurately describing the existing scope without changing reload behavior or adding a confirmation dialog (iterations 21 and 22 in [`iterations/`](iterations/README.md)). The Send Now / session-close race is recorded in the backlog but is not fixed in this release.
 
 v1.4.8 adds a "Suspend" action to the sidebar's Active session rows:
 

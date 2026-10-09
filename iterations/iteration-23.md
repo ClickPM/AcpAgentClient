@@ -15,6 +15,7 @@
 
 - 构建 / 手测：validate 全绿；未跑 `scripts/build.ps1`、未构建发布包，Windows 真窗口长任务的内存曲线未测。
 - 合并 / 发版：所有者指定合并 `main`；实现与测试提交 `04b7a96`，`git merge --ff-only fix/backlog-memory` 快进，无冲突且合并不改代码；两条 BACKLOG 移入 CLOSED，P0 清空。未 push、不发版。合并前后各一次 `powershell -NoProfile -File scripts/validate.ps1` 全绿（每次 628 Flutter 测试与全部 Rust / 静态门）；合并后只回填本段验证结果，无代码改动。
+- 后续 GitHub 收口：以上「未 push」为当时记录；所有者随后指定将本轮与 Copy / 终端测试修复一并合入 GitHub `main`，不推 `origin`，本次不重跑构建测试。GitHub 原占用 21 / 22 的记录原样保留，本台账按明确授权改为 23；合并的四份文档冲突与内容核对见 [`iteration-24.md`](iteration-24.md)。
 - 设计稿补注记：无；不改布局、token、协议，不增加会话淘汰机制。
 
 ## 备注

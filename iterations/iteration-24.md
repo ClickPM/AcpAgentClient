@@ -1,6 +1,6 @@
 # Iteration 24 — Copy 反馈停留与终端释放测试竞态
 
-> 状态：审查通过，待所有者指定合并　基线：`main` = `ce578d7`　分支：`fix/backlog-copy-terminal-test`
+> 状态：已合并（本次未重跑构建测试—所有者指定）　基线：`main` = `ce578d7`　分支：`fix/backlog-copy-terminal-test` → `main`（快进 `5436973`）
 
 > 编号冲突处理（所有者明确授权）：本线程原登记为 iteration-22；GitHub `main` 已用 22 登记 Reload Agent 文案，合并时本台账改为 24。历史提交与审查范围不变，不回写历史。
 
@@ -8,13 +8,15 @@
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | fix | Copy 成功反馈停留 1.8 秒，后续复制成功重置计时，卸载时撤计时器 | BACKLOG P1「代码块的 Copy 点完 Copied 一闪就回去」 | `98326fa`（`fix/backlog-copy-terminal-test`）→ 待所有者指定合并 | Windows validate 全绿（Flutter 632 项） | 1 轮：Delta 只读 Reviewer / Grok 4.7（所有者指定），0 条 findings | 待合并 |
-| 2 | fix | 断开后的终端释放断言改为有超时的条件等待，不修改生产断开语义 | BACKLOG P5「Rust 集成测试 agent 断开时释放它建的终端在负载下偶发失败」 | 同上 | 同上；指定用例连续 20 次通过 | 同上 | 待合并 |
+| 1 | fix | Copy 成功反馈停留 1.8 秒，后续复制成功重置计时，卸载时撤计时器 | BACKLOG P1「代码块的 Copy 点完 Copied 一闪就回去」 | `98326fa`（修复）/ `5436973`（改号），快进到 `main` | 此前 Windows validate 全绿（Flutter 632 项）；本次不重跑—所有者指定 | 1 轮：Delta 只读 Reviewer / Grok 4.7（所有者指定），0 条 findings | 已合并 |
+| 2 | fix | 断开后的终端释放断言改为有超时的条件等待，不修改生产断开语义 | BACKLOG P5「Rust 集成测试 agent 断开时释放它建的终端在负载下偶发失败」 | 同上 | 同上；此前指定用例连续 20 次通过 | 同上 | 已合并 |
 
 ## 收口
 
-- 未合并、未发版；BACKLOG 合并后再移入 CLOSED。
-- 构建 / 手测：Windows validate 全绿，未构建发布包、未做真窗口手测。
+- 所有者指定合并 `main`、只推 GitHub，不推 `origin`，不重跑构建测试；两条 BACKLOG 已移入 CLOSED。本次不发版、不改应用版本号。
+- 合并顺序：本分支快进到 `main`（`5436973`），再合并 GitHub `main`（`6245c93`），保留远端已有 v1.4.9、Active 行优化、Reload Agent 文案与全部历史。冲突只有四份文档：DIVERGENCE、迭代清单、BACKLOG / CLOSED；保留双方记录并以所有者授权改号 23 / 24 收口，Copy 偏离改 A-39。
+- Git 内容核对：远端迭代 21 / 22、sidebar / session_header / sidebar 测试、应用版本与 Cargo.lock 与 GitHub 侧逐字节一致；本线程四份内存实现、Copy 实现、Rust 释放测试及新增回归测试与合并前分支逐字节一致。只更新 token 注释中的迭代编号，不改行为；未运行任何构建测试。
+- 构建 / 手测：此前 Windows validate 全绿，未构建本次发布包、未做真窗口手测。
 - 设计偏离：画板 13 只画 Copied 状态，未定义停留时长；本次补停留 token，不改布局或其余动效，记 DIVERGENCE。
 
 ## 备注
@@ -30,4 +32,4 @@
 
 - R1：Delta Reviewer / `x_ai-subscribed/grok-4.7`（执行器由所有者指定），范围固定为 `ce578d7..98326fa`，最终 **findings: 0**（high / P2 / P3 全 0），无整改、无需复审。
 - 实际审阅范围内七个文件；对照 `Shared::finish`、`release_owned_terminals`、`disconnect` 与 `TerminalManager::release` / `output`。按任务书未重跑测试。
-- 结果返回后仅回填审查台账；实现与测试不变。未自行合并 `main`，合并时机等待所有者指定。
+- 审查结果返回后仅回填台账；随后经所有者明确授权合并与处理编号冲突，实现与测试行为不变。

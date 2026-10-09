@@ -21,9 +21,9 @@
 | **P2 功能缺口** | 1 | 该有没有的能力。**全部需所有者裁定才能进轮次**，多数还要先改设计稿。 |
 | P3 设计稿欠账 | — | **已整体释放**到 `design/DIVERGENCE.md`，见下面的占位小节 |
 | **P4 平台与分发** | 1 | 安装、打包、跨平台、构建链这类问题（2026-09-23 曾整档清空：跨平台暂不做、构建链两条关闭、sidecar 两条移到 `BACKLOG-ZED.md`，见下面该节首段） |
-| **P5 内部工程与验收** | 1 | 测试、行数门、验收自动化这类用户无感的问题（2026-09-23 曾整档清空，16 条收在 iteration-04，见下面该节首段） |
+| **P5 内部工程与验收** | 0 | 测试、行数门、验收自动化这类用户无感的问题（2026-09-23 曾整档清空，16 条收在 iteration-04，见下面该节首段） |
 | X 卡在上游 / 协议 | — | **已撤档**：不是本项目的问题不进本表（所有者裁定 2026-09-23），见下面的占位小节 |
-| | **5** | |
+| | **4** | |
 
 **新增条目**：挑一档追在该档末尾，照同样的三行格式写。不新开档位；一条只进一档。
 **只收本项目自己的问题**：问题出在上游（agent、zed、xterm 等依赖）或协议本身的，不进本表（所有者裁定 2026-09-23，X 档因此撤掉）；其中实现因此与画板对不上的，照规则 3 记 [`design/DIVERGENCE.md`](../design/DIVERGENCE.md)。
@@ -35,7 +35,7 @@
 
 2026-09-23 全仓只读审查（v1.4.4 之后的 `main`，Rust 核心 / 文件与终端 / Dart 状态层 / 投影与转录四路）登记的 7 条已全部关闭：「本地状态文件的读改写没有串行化」由 iteration-10、「资源与静默失败」一小节三条由 iteration-11、「请求与会话路由」一小节三条由 iteration-12 修掉（均未在 Windows 实机复现，按代码路径与单测判定）；所有者同日报障的「dsh 的会话存到哪里跟着进程工作目录走」已由 round-dsh-1.3.2 在上游修掉。各条结论见 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md) 末尾。以后的真缺陷照常追在这里。
 
-iteration-18 排查内存报障时登记的两条（JSON 展开体按帧重算、最小化期间消息队列堆积）已由 iteration-21 修复并合并 `main`（`04b7a96`）；验证与审查见 [`iterations/iteration-21.md`](../iterations/iteration-21.md)，结论移入 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md) 末尾。Windows 真窗口长任务的内存曲线未测，关闭依据是回归测试与代码路径验证。
+iteration-18 排查内存报障时登记的两条（JSON 展开体按帧重算、最小化期间消息队列堆积）已由 iteration-23（本线程原 21）修复并合并 `main`（`04b7a96`）；验证与审查见 [`iterations/iteration-23.md`](../iterations/iteration-23.md)，结论移入 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md) 末尾。Windows 真窗口长任务的内存曲线未测，关闭依据是回归测试与代码路径验证。
 
 ## P1 · 看得见的粗糙（2）
 
@@ -44,14 +44,17 @@ Active 行的「挂起」（`session/close`，转录留着只读、不删），�
 入口（侧栏点开一条会话本来就是 load / resume 自动选一条，用途被覆盖）。结论见 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md)
 末尾。原先的「壳与交互」小节随之清空，留空占位，不重排编号。
 
-### 转录（2）
+### 转录（1）
 
-- [ ] **代码块的 Copy 点完「Copied」一闪就回去**
-  - **产品**：点代码块右上角的 Copy，内容确实进了剪贴板，但「✓ Copied」只停一眨眼就变回 Copy，用户看不清有没有复制成功，容易再点一次。
-  - **技术**：`lib/ui/transcript/code_block.dart` 的 `_copy()` 把 Copied 态的**保持时长**写成了 `Future.delayed(t.Motion.fast)`，而 `motion.fast` 是 120ms 的过渡时长，不是停留时长。画板 13 只画了「点击后变 Copied」、没给停留多久；动效 token 里也没有「停留」这一档，样式字面量扫描又不放行毫秒字面量，所以当时就近借了 `fast`。最小修法：照 `Motion.tooltipDelay`（`fast * 4`）的先例在 `tokens.dart` 派生一个停留时长（常见取值 1.5–2s），并在 DIVERGENCE 记一行（所有者 2026-09-24 实机报障）
 - [ ] **转录里用鼠标选中文字后 Ctrl+C 有时复制不上**（未复现，待查）
   - **产品**：在转录里拖选一段文字按 Ctrl+C，有时剪贴板里就是选中的内容，有时什么都没进去；复制不上的那次，闪烁光标还停在底部输入框里。时好时坏，用户只能反复试或改用右键。
   - **技术**：转录的跨消息选择是 `lib/ui/transcript/transcript_list.dart` 的 `SelectableRegion`（没传 `focusNode`，用它自带的）。Flutter 3.47.4 里它的 Ctrl+C（`CopySelectionTextIntent` → `_CopySelectionAction`）只在**它自己拿着键盘焦点**时生效，要焦点只在三个地方：鼠标单击 / 拖选按下（`_startNewMouseSelectionGesture` 的单击分支）、触屏长按、右键按下；失焦就 `clearSelection`。所以复制不上说明按键时主焦点不在选区里，而选区还显示着（没走到失焦清空）。待验证的两个方向：① 拖选起点落在转录里自带手势的子 widget 上（链接 recognizer、可点的卡片头、气泡上的按钮等），手势竞技场被子 widget 赢走、选区靠拖动建起来却没走那条单击分支，焦点留在输入框；② 选完之后有别的路径把焦点拉回了输入框（`lib/app/composer_state.dart` 里的 `focus.requestFocus()` 都是用户操作触发的，不太像，但其他面板的 autofocus / 焦点恢复也要排除）。先按「从哪里开始拖」实机复现锁定是哪一种，再定最小修法（比如在转录区的 pointer down 上显式给选区要焦点）（所有者 2026-09-24 实机报障）
+
+### 发送队列（1）
+
+- [ ] **Send Now 打断当前回合的那几秒里关掉会话，排队的那条仍会发出去**（测试复现，极限场景，所有者 2026-09-30 裁定先不修）
+  - **产品**：会话在跑，点队列里某条的 Send Now，紧接着在 agent 响应取消的那几秒内从 ≡ 菜单 Close 或侧栏「挂起」这条会话——那条消息照样发给了正在关闭的会话，agent 可能还会执行它；若关闭失败，那条消息则从队列里消失。
+  - **技术**：`SessionController.closeSession`（`lib/app/session_controller.dart:640-644`）先 `onClearQueue` 清队列，但要等 `session/close` 返回才 `markClosed`；`TurnController.sendNow` / `fastTrack`（`lib/app/turn_controller.dart:298-311` / `271-284`）已把那条从队列取出，`await _turnsInFlight[sid]` 之后只查 `isSessionClosed`，查不到「正在关闭」，于是经 `_sendQueuedEntry` 发出第二个 `session/prompt`。`4b7e00b` 回退了 `b4daab3` / `1e831ed` 的 `markClosing` / `unmarkClosed` 方案并删掉两个测试（`1e831ed:test/app/send_queue_wiring_test.dart:423,457`），当时的裁定针对的是「关闭失败的回滚」（`round-send-queue.md:85`）；2026-09-30 把两个测试放回 `458cff0` 上跑：关闭成功那条 `prompts` 期望 1 实得 2，关闭失败那条队列期望 1 实得 0。最小修法（不动 `session_attach.dart`）：`onClearQueue` 时给该会话的队列记一个递增纪元，`sendNow` / `fastTrack` 在 await 前记下、await 后纪元变了就放弃这一条，并恢复关闭成功那条测试（issue #13 第一条，2026-09-30）
 
 ## P2 · 功能缺口（1）
 
@@ -77,13 +80,11 @@ sidecar 的另 2 条（languages crate、`0-dev` 目录名）移到 [`BACKLOG-ZE
   - **产品**：安装向导里保持默认目录（`%LOCALAPPDATA%\Programs\AcpAgentClient`）能装，改到别的目录（所有者报的是 D 盘的 Program 类目录）会提示不能安装；向导只让选目录，不告诉用户为什么不行、也不给提权的出路。
   - **技术**：`packaging/windows/AcpAgentClient.iss` 设了 `PrivilegesRequired=lowest`（R8 裁定 2026-09-20：per-user、免 UAC、不签名），安装器全程以普通用户身份跑、从不提权，所以选中的目录普通用户写不进去就失败（Inno Setup 报 `ErrorCreatingDir`：`Setup was unable to create the directory …`）；`C:\Program Files` 必然如此，其他盘看那个目录的 ACL。本机**未复现**：1.4.6 安装包静默装到 `D:\Program Files\AcpAgentClient` 退出码 0（本机该目录给了 Authenticated Users「修改」，非提权进程可写），随后已静默卸载干净；所有者看到的弹窗原文与完整路径待补，拿到后先确认是不是 `ErrorCreatingDir`。最小修法：`[Setup]` 加一行 `PrivilegesRequiredOverridesAllowed=dialog`，向导开头多一页「只为我安装 / 为所有用户安装」，前者与现在一致，后者走 UAC 后可装进 Program Files 类目录；代价是改了 R8「免 UAC」的口径，且不签名时 per-machine 安装会被 SmartScreen 拦得更凶，所以要所有者裁定 (2026-09-24)
 
-## P5 · 内部工程与验收（1）
+## P5 · 内部工程与验收（0）
 
 所有者裁定 2026-09-23，这一档的 16 条整档收掉，档位留空占位，不重排编号：7 条在 iteration-04 改完代码关闭，8 条按裁定不做 / 不修 / 视为已覆盖，「headless 报告的 lastError」并入 P0「失败没有出口」那条；各条结论见 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md) 末尾。以后内部工程与验收的新问题照常追在这里。
 
-- [ ] **Rust 集成测试「agent 断开时释放它建的终端」在负载下偶发失败**
-  - **产品**：用户无感；`scripts/validate.ps1` 偶尔在 `cargo test` 一步红掉，重跑就过，容易被当成本分支引入的问题去查。
-  - **技术**：`rust/acp-core/tests/scripted.rs` 的 `owned_terminals_are_released_when_the_agent_disconnects` 在 `connection.disconnect().await` 返回后立刻断言 `terminals.output(&id)` 已是 `UnknownTerminal`（`terminal must be released` 那一句），而终端是在连接收尾（`Shared::finish` → `release_owned_terminals`）里释放的，负载高时断言可能抢在收尾之前。iteration-12 的 validate 撞上一次（`rust/` 零 diff 的分支；同一个测试二进制随后单跑 3 次、整组 10 项连跑 2 次都过）。最小修法：断言前按短超时轮询到释放为止，或让 `disconnect` 等收尾跑完再返回 (2026-09-24)
+「agent 断开时释放它建的终端」的测试竞态已由 iteration-24（本线程原 22）修复并合并 `main`（`98326fa`）；结论见 [`BACKLOG-CLOSED.md`](BACKLOG-CLOSED.md)，本次合并不重跑构建测试（所有者指定）。
 
 ## X · 卡在上游 / 协议 —— 已撤档
 

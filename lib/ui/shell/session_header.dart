@@ -121,7 +121,7 @@ class SessionHeader extends StatelessWidget {
             child: PopoverAnchor(handle: newSessionAnchor, child: IconButtonGhost(icon: AcpIcons.plusSquare, onTap: onNewSession)),
           ),
           if (hasAgent && canReload)
-            AcpTooltip(message: 'Reload this session', child: IconButtonGhost(icon: AcpIcons.reload, onTap: onReload)),
+            AcpTooltip(message: 'Reload Agent', child: IconButtonGhost(icon: AcpIcons.reload, onTap: onReload)),
           if (hasAgent && canTimeline)
             AcpTooltip(
               message: 'Session timeline',
