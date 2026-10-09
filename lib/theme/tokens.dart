@@ -678,7 +678,7 @@ abstract final class Motion {
   /// 鼠标扫过一排按钮时不会一路弹提示，停下来又不用等太久。
   static final Duration tooltipDelay = fast * 4;
 
-  /// 复制成功反馈的停留（画板 13 未给时长，iteration-22）：1.8s，不借过渡时长直接回落。
+  /// 复制成功反馈的停留（画板 13 未给时长，iteration-24）：1.8s，不借过渡时长直接回落。
   static final Duration copyFeedback = fast * 15;
 
   /// 常驻动画（spinner、扫掠线）的跳动间隔（设计稿之外的增补，iteration-14）：≈ 15 帧/秒。

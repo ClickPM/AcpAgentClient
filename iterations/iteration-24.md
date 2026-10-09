@@ -1,6 +1,8 @@
-# Iteration 22 — Copy 反馈停留与终端释放测试竞态
+# Iteration 24 — Copy 反馈停留与终端释放测试竞态
 
 > 状态：审查通过，待所有者指定合并　基线：`main` = `ce578d7`　分支：`fix/backlog-copy-terminal-test`
+
+> 编号冲突处理（所有者明确授权）：本线程原登记为 iteration-22；GitHub `main` 已用 22 登记 Reload Agent 文案，合并时本台账改为 24。历史提交与审查范围不变，不回写历史。
 
 ## 工作项
 
