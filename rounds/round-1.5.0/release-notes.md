@@ -20,7 +20,14 @@ Windows 10 / 11 x64。**安装包未签名**，SmartScreen 首次可能拦截，
 
 ## 验收与校验
 
-两轮修复分别经所有者指定的 Delta / Grok 4.7 只读审查，均 0 条 findings。发布验证与产物 SHA-256 待验收后补记。
+两轮修复分别经所有者指定的 Delta / Grok 4.7 只读审查，均 0 条 findings。1.5.0 完整 validate 通过（632 项 Flutter 测试及 Rust / 静态门），Windows release 自检与 zip / 安装器装卸验收均通过；核心版本 1.5.0，droppedEvents 0。
+
+SHA-256：
+
+```
+46596426c5d47eb72c631cb8ea25a32ca45e84733c36bce8fe491a6c2adf4541  AcpAgentClient-1.5.0-windows-x64.zip
+5c35514532f5de6c38b380b1b4083371b1bcb4eef77e8ef51a98898243474311  AcpAgentClient-1.5.0-setup.exe
+```
 
 ## 已知限制
 
