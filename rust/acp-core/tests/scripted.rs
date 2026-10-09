@@ -870,6 +870,17 @@ async fn owned_terminals_are_released_when_the_agent_disconnects() {
     connection.shared().adopt_terminal(&id);
     assert_eq!(connection.shared().owned_terminal_ids(), vec![id.clone()]);
     connection.disconnect().await;
+    // finish 先通知 exit watch，再 drain owned IDs 并逐个 release。
+    // disconnect 等到 exit 不等于终端已释放；同时等两项，仍按限时判失败，不用固定 sleep 放宽断言。
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while !connection.shared().owned_terminal_ids().is_empty()
+            || !matches!(terminals.output(&id), Err(pty::PtyError::UnknownTerminal(_)))
+        {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("timed out waiting for owned terminals to be released");
     assert!(connection.shared().owned_terminal_ids().is_empty());
     assert!(matches!(terminals.output(&id), Err(pty::PtyError::UnknownTerminal(_))), "terminal must be released");
 }

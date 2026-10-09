@@ -1,6 +1,8 @@
-// 画板 13 · 代码块卡片：语言标签 + Copy（点击后 Copied，motion.fast 后回落）+ 高亮（re_highlight，色表按画板 13 注释：
+// 画板 13 · 代码块卡片：语言标签 + Copy（点击后 Copied，motion.copyFeedback 后回落）+ 高亮（re_highlight，色表按画板 13 注释：
 // 关键字 accent、字符串 success、类型 / 数字 warning、注释 placeholder、其余中性色阶）+ 长行横向滚动（不换行）。
 // 也被 18 / 19 / 25 的 Raw Input 等宽块以外的 Markdown 围栏复用（markdown_body.dart）。
+
+import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -88,6 +90,7 @@ class CodeBlock extends StatefulWidget {
 
 class _CodeBlockState extends State<CodeBlock> {
   late bool _copied = widget.copiedInitially;
+  Timer? _copyReset;
 
   /// 高亮结果按 (code, language, 字体代数) 缓存（BACKLOG「流式渲染性能」）：上百行的代码高亮一次要十几毫秒，
   /// 而转录每个流式 chunk 都会重建这张卡（Markdown 尾部重解析、Copy 态切换）。色表与字阶烘在 span 里，
@@ -106,9 +109,15 @@ class _CodeBlockState extends State<CodeBlock> {
   Future<void> _copy() async {
     await Clipboard.setData(ClipboardData(text: widget.code));
     if (!mounted) return;
+    _copyReset?.cancel();
     setState(() => _copied = true);
-    await Future<void>.delayed(t.Motion.fast);
-    if (mounted) setState(() => _copied = false);
+    _copyReset = Timer(t.Motion.copyFeedback, () => setState(() => _copied = false));
+  }
+
+  @override
+  void dispose() {
+    _copyReset?.cancel();
+    super.dispose();
   }
 
   @override

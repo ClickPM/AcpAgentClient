@@ -678,6 +678,9 @@ abstract final class Motion {
   /// 鼠标扫过一排按钮时不会一路弹提示，停下来又不用等太久。
   static final Duration tooltipDelay = fast * 4;
 
+  /// 复制成功反馈的停留（画板 13 未给时长，iteration-22）：1.8s，不借过渡时长直接回落。
+  static final Duration copyFeedback = fast * 15;
+
   /// 常驻动画（spinner、扫掠线）的跳动间隔（设计稿之外的增补，iteration-14）：≈ 15 帧/秒。
   /// 画板只定了周期（`sweep.cycle`、spinner 转速），没定帧率；逐帧跟显示器刷新率跑时，Windows 上每一帧都是整窗重画
   /// （嵌入层没有局部重绘），2880×1800 @ 120Hz 的核显实测 72%。15 帧/秒与终端 spinner 常见的 80–130ms 步长同档。
