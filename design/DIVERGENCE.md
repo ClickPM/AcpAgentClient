@@ -51,6 +51,7 @@
 
 38. **会话头 Reload 的操作范围文案**：画板 / 原实现的悬停提示写 `Reload this session` → 实现改为 `Reload Agent`，保留按 agent 断开重连、只恢复当前会话的现有行为；不增加中断提示或确认框。对齐 Zed 的菜单命名，研究见 `docs/research.md` § 4.4；所有者裁定不做 session 级重建、不补稿。（iteration-22, 2026-09-30）
 39. **画板 13 的 Copy 成功反馈停留**：画板画了 Copy → Copied，没定义停留多久 → 实现以 `Motion.copyFeedback = fast × 15` 保持 1.8s，后续复制成功从该次重新计时；不改按钮布局、样式或其余过渡时长。修复原来借 `motion.fast` 导致 120ms 一闪即逝的报障。（iteration-24, 2026-10-09；本线程原 A-38 / iteration-22，所有者授权解决 GitHub 编号冲突）
+40. **画板 46 规格表把卡片圆角写成 `Radii.control (6px)`**：token 里 `Radii.control` 是 4px，6px 是 `Radii.card`，PNG 画的是 6px → 卡片用 `Radii.card`。索引里的 `Accent.mutedBg` 不是已有 token，PINNED 数量胶囊用已有的 `Badge.accentBg`。没有单独的列表位移动画：挂上 / 挂起后按分组判定换区，与画板 45 的升格 / 沉降一样。（iteration-26, 2026-10-10）
 
 ## B · 画板画错或自相矛盾，实现做对了
 

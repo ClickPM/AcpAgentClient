@@ -1116,3 +1116,41 @@ abstract final class SidebarSection {
   static const double offlineOpacity = 0.75;
 }
 
+/// 画板 46「侧栏置顶区与首 Query 悬浮」的几何。底色 / 边框 / 阴影复用弹层；圆角用 [Radii.card]
+/// （画板把 6px 写成了 `Radii.control`，见 `design/DIVERGENCE.md` A-40）。
+/// 留白按源稿 `.query-hover-card`：不在 4px 网格上的 10 / 6 / 5 也收在这里，widget 里不写字面量。
+abstract final class QueryPreview {
+  /// 悬停会话行后浮出卡片的等待。比 [Motion.tooltipDelay] 短：这是内容预览，不是图标说明。
+  static const Duration hoverDelay = Duration(milliseconds: 150);
+
+  /// 卡片宽。提示条的 [Geometry.tooltipMaxWidth] 是一行短说明的上限（240），这张要排多行原文，单独一档。
+  static const double width = 250;
+
+  /// 首条指令最多排几行，再长省略。
+  static const int maxLines = 4;
+
+  /// 卡片内边距：左右 12、上下 10。
+  static const EdgeInsets padding = EdgeInsets.symmetric(horizontal: Spacing.s12, vertical: 10);
+
+  /// 标题图标与 `INITIAL QUERY` 的间距（源稿 `gap: 4px`）。
+  static const double titleGap = Spacing.s4;
+
+  /// 头部与正文、正文与底部之间的间距（源稿 `margin: 6px`）。
+  static const double blockGap = 6;
+
+  /// 头部分割线内侧只留底边 5px；底部分割线只留顶边 5px。
+  static const EdgeInsets headerRulePadding = EdgeInsets.only(bottom: 5);
+  static const EdgeInsets footerRulePadding = EdgeInsets.only(top: 5);
+
+  /// 画板把圆角写成 `Radii.control (6px)`。token 里 control 是 4px，6px 是 [Radii.card]；卡片用后者对齐 PNG。
+
+  /// 贴到窗口边上时留的余量，与提示条同一档。
+  static const double margin = Geometry.tooltipMargin;
+
+  /// 卡片贴在会话行右侧时的间隙。
+  static const double sideGap = Geometry.tooltipGap;
+
+  /// 卡片在 Overlay 里的落点。`Offset` 是几何字面量，按规则 3 归这里（同 [Geometry.tooltipOffset]）。
+  static Offset offset(double dx, double dy) => Offset(dx, dy);
+}
+

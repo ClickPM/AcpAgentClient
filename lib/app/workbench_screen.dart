@@ -263,9 +263,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       searchFocusNode: c.session.sidebarSearchFocus,
       activeTab: c.shell.activeNavTab,
       onSelect: c.session.selectSession,
-      // 挂起（iteration-19）：把这一行那条会话交给 agent 的 `session/close`，它随即从 Active 沉到 History；
-      // 再点那一行由 `selectSession` → `ensureLoaded` 挂回来（load 优先，退 resume）。
       onSuspend: (id) => c.session.closeSession(id: id),
+      onTogglePin: c.session.togglePinned,
       onSearchChanged: c.session.setSearch,
       onClearSearch: c.session.clearSearch,
       onStartRename: c.session.startRename,

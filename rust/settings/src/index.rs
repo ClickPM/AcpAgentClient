@@ -1,5 +1,6 @@
 //! 本地索引（docs/design.md § 10）：`%APPDATA%/AcpAgentClient/{sessions.json, projects.json}`。
-//! 会话数据归各 agent 自己，本客户端只存索引（agentId + sessionId + 标题 + cwd + 时间 + 消息计数）与最近项目列表。
+//! 会话数据归各 agent 自己，本客户端只存索引（agentId + sessionId + 标题 + cwd + 时间 + 消息计数，
+//! 另加是否置顶、置顶时间与首条用户指令）与最近项目列表。
 //! 两者都走「临时文件 + rename」（AGENTS.md 规则 7），且只写自己的数据目录，不碰任何 agent 的存储。
 //!
 //! 时间戳一律是 Unix 毫秒（数字）：省掉一个日期格式化依赖，Dart 侧 `DateTime.fromMillisecondsSinceEpoch` 直接吃。
@@ -44,6 +45,48 @@ pub struct SessionEntry {
     pub updated_at: i64,
     #[serde(default)]
     pub message_count: u32,
+    /// 侧栏置顶（画板 46）。没写过的旧索引读回来是 false，落盘时也不写这个默认值。
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub is_pinned: bool,
+    /// 置顶的那一刻（Unix 毫秒）。只在 [SessionEntry::is_pinned] 为真时有值；侧栏 PINNED 区按它倒序。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pinned_at: Option<i64>,
+    /// 这条会话的首条用户指令原文。写一次就不再覆盖（后来的 upsert 省了这个键、或又给了别的文本，都留第一次的）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub first_prompt: Option<String>,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
+/// `isPinned` 缺键 = 这次没表态，留着原来的；显式 true 且没给 `pinnedAt` 就沿用旧时间，没有旧时间才打现在；
+/// 显式 false 清掉置顶时间。`firstPrompt` 非空且原来没有才写入。
+fn merge_pin_and_prompt(entry: &mut SessionEntry, existing: &SessionEntry, raw: &serde_json::Value, now: i64) {
+    if raw.get("isPinned").and_then(serde_json::Value::as_bool).is_none() {
+        entry.is_pinned = existing.is_pinned;
+        entry.pinned_at = existing.pinned_at;
+    } else if entry.is_pinned {
+        entry.pinned_at = raw
+            .get("pinnedAt")
+            .and_then(serde_json::Value::as_i64)
+            .or(existing.pinned_at)
+            .or(Some(now));
+    } else {
+        entry.pinned_at = None;
+    }
+    entry.first_prompt = match non_empty_prompt(raw) {
+        Some(text) if existing.first_prompt.as_ref().is_none_or(String::is_empty) => Some(text),
+        _ => existing.first_prompt.clone(),
+    };
+}
+
+fn non_empty_prompt(raw: &serde_json::Value) -> Option<String> {
+    raw.get("firstPrompt")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+        .map(str::to_string)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -111,14 +154,15 @@ impl IndexStore {
         index.sessions
     }
 
-    /// 新增或更新一条（键是 agentId + sessionId）。`created_at` 只在新增时写，`updated_at` 每次都刷新。
-    pub fn upsert_session(&self, mut entry: SessionEntry) -> Result<Vec<SessionEntry>> {
+    /// 新增或更新一条（键是 agentId + sessionId）。`created_at` 只在新增时写，`updated_at` 为 0 时打上当前时间。
+    ///
+    /// 置顶与首条指令不跟着整行替换被抹掉：收轮、改名、补标题都是整行写，而它们不知道这两个字段。
+    /// [raw] 是调用方原样的 JSON（解析成 [SessionEntry] 之前）：没有 `isPinned` 这个键就留着原来的置顶态与
+    /// `pinnedAt`；显式 `false` 才取消并清掉 `pinnedAt`；`firstPrompt` 只在还没记过、且这次给了非空文本时写一次。
+    pub fn upsert_session(&self, mut entry: SessionEntry, raw: &serde_json::Value) -> Result<Vec<SessionEntry>> {
         let _writing = write_lock(&SESSIONS_WRITES);
         let mut index: SessionIndex = load(&self.sessions_path);
         let now = now_ms();
-        if entry.updated_at == 0 {
-            entry.updated_at = now;
-        }
         match index
             .sessions
             .iter_mut()
@@ -126,12 +170,43 @@ impl IndexStore {
         {
             Some(existing) => {
                 entry.created_at = existing.created_at;
+                // 没带 updatedAt（置顶 / 补记）就留着盘上的。带了 0 表示「打成现在」。
+                // 带了更小的旧时间也不能把「最后一次发消息」改回去。
+                if raw.get("updatedAt").is_none() {
+                    entry.updated_at = existing.updated_at;
+                } else if entry.updated_at == 0 {
+                    entry.updated_at = now;
+                } else if entry.updated_at < existing.updated_at {
+                    entry.updated_at = existing.updated_at;
+                }
+                // 置顶 / 补记只带自己的字段。没给的标题、cwd、消息数留着盘上的，避免用镜像里的旧值盖回去。
+                if raw.get("title").is_none() {
+                    entry.title.clone_from(&existing.title);
+                }
+                if raw.get("cwd").is_none() {
+                    entry.cwd.clone_from(&existing.cwd);
+                }
+                if raw.get("messageCount").is_none() {
+                    entry.message_count = existing.message_count;
+                }
+                merge_pin_and_prompt(&mut entry, existing, raw, now);
                 *existing = entry;
             }
             None => {
                 if entry.created_at == 0 {
                     entry.created_at = now;
                 }
+                if entry.updated_at == 0 {
+                    entry.updated_at = now;
+                }
+                if entry.is_pinned {
+                    if entry.pinned_at.is_none() {
+                        entry.pinned_at = Some(now);
+                    }
+                } else {
+                    entry.pinned_at = None;
+                }
+                entry.first_prompt = non_empty_prompt(raw);
                 index.sessions.push(entry);
             }
         }
@@ -199,7 +274,20 @@ mod tests {
             created_at: 0,
             updated_at: updated,
             message_count: 2,
+            is_pinned: false,
+            pinned_at: None,
+            first_prompt: None,
         }
+    }
+
+    fn put(store: &IndexStore, entry: SessionEntry) -> Vec<SessionEntry> {
+        let raw = serde_json::to_value(&entry).expect("entry json");
+        store.upsert_session(entry, &raw).expect("upsert")
+    }
+
+    fn put_raw(store: &IndexStore, raw: serde_json::Value) -> Vec<SessionEntry> {
+        let entry: SessionEntry = serde_json::from_value(raw.clone()).expect("parse");
+        store.upsert_session(entry, &raw).expect("upsert")
     }
 
     #[test]
@@ -209,8 +297,8 @@ mod tests {
         assert!(store.sessions().is_empty());
         assert!(!store.sessions_path.exists(), "read must not create the file");
 
-        store.upsert_session(entry("s1", 100)).expect("upsert");
-        let after = store.upsert_session(entry("s2", 200)).expect("upsert");
+        put(&store, entry("s1", 100));
+        let after = put(&store, entry("s2", 200));
         assert_eq!(after.iter().map(|s| s.session_id.as_str()).collect::<Vec<_>>(), vec!["s2", "s1"]);
         assert!(after.iter().all(|s| s.created_at > 0), "created_at stamped on insert");
 
@@ -219,7 +307,7 @@ mod tests {
         let mut renamed = entry("s1", 300);
         renamed.title = Some("改过的标题".into());
         renamed.message_count = 7;
-        let after = store.upsert_session(renamed).expect("upsert");
+        let after = put(&store, renamed);
         let s1 = after.iter().find(|s| s.session_id == "s1").expect("s1");
         assert_eq!(s1.created_at, created);
         assert_eq!(s1.title.as_deref(), Some("改过的标题"));
@@ -235,6 +323,98 @@ mod tests {
                 .filter_map(|e| e.ok())
                 .all(|e| !e.file_name().to_string_lossy().contains(".tmp-")),
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn pin_and_first_prompt_survive_a_row_that_omits_them() {
+        let dir = temp_dir("pin");
+        let store = IndexStore::new(dir.clone());
+        let pinned = put_raw(
+            &store,
+            serde_json::json!({
+                "agentId": "a",
+                "sessionId": "s1",
+                "title": "t",
+                "updatedAt": 100,
+                "isPinned": true,
+                "pinnedAt": 50,
+                "firstPrompt": "  hello\nworld  "
+            }),
+        );
+        let row = pinned.iter().find(|s| s.session_id == "s1").expect("s1");
+        assert!(row.is_pinned);
+        assert_eq!(row.pinned_at, Some(50));
+        assert_eq!(row.first_prompt.as_deref(), Some("hello\nworld"));
+
+        // 收轮 / 改名那种整行：不带这两个键。置顶与首条指令都还在。
+        let mut renamed = entry("s1", 300);
+        renamed.title = Some("改过".into());
+        let after = put(&store, renamed);
+        let row = after.iter().find(|s| s.session_id == "s1").expect("s1");
+        assert!(row.is_pinned);
+        assert_eq!(row.pinned_at, Some(50));
+        assert_eq!(row.first_prompt.as_deref(), Some("hello\nworld"));
+        assert_eq!(row.title.as_deref(), Some("改过"));
+
+        // 显式取消。首条指令不跟着清。
+        let unpinned = put_raw(
+            &store,
+            serde_json::json!({
+                "agentId": "a",
+                "sessionId": "s1",
+                "title": "改过",
+                "updatedAt": 300,
+                "isPinned": false
+            }),
+        );
+        let row = unpinned.iter().find(|s| s.session_id == "s1").expect("s1");
+        assert!(!row.is_pinned);
+        assert_eq!(row.pinned_at, None);
+        assert_eq!(row.first_prompt.as_deref(), Some("hello\nworld"));
+
+        // 再给一条别的文本也不覆盖第一次。
+        let kept = put_raw(
+            &store,
+            serde_json::json!({
+                "agentId": "a",
+                "sessionId": "s1",
+                "updatedAt": 400,
+                "firstPrompt": "second"
+            }),
+        );
+        let row = kept.iter().find(|s| s.session_id == "s1").expect("s1");
+        assert_eq!(row.first_prompt.as_deref(), Some("hello\nworld"));
+        assert!(!row.is_pinned, "没带 isPinned 的写入不该把刚取消的置顶写回来");
+        assert_eq!(row.updated_at, 400);
+
+        let rolled = put_raw(
+            &store,
+            serde_json::json!({"agentId": "a", "sessionId": "s1", "updatedAt": 50}),
+        );
+        assert_eq!(
+            rolled.iter().find(|s| s.session_id == "s1").expect("s1").updated_at,
+            400,
+            "后到的更小 updatedAt 不能把最后一次发消息的时间改回去"
+        );
+
+        let pinned_only = put_raw(
+            &store,
+            serde_json::json!({"agentId": "a", "sessionId": "s1", "isPinned": true, "pinnedAt": 9}),
+        );
+        let row = pinned_only.iter().find(|s| s.session_id == "s1").expect("s1");
+        assert!(row.is_pinned);
+        assert_eq!(row.title.as_deref(), Some("改过"), "缺 title 的置顶写入留着盘上的标题");
+        assert_eq!(row.message_count, 2);
+        assert_eq!(row.updated_at, 400);
+
+        let stamped = put_raw(
+            &store,
+            serde_json::json!({"agentId": "a", "sessionId": "s2", "updatedAt": 10, "isPinned": true}),
+        );
+        let s2 = stamped.iter().find(|s| s.session_id == "s2").expect("s2");
+        assert!(s2.is_pinned);
+        assert!(s2.pinned_at.is_some_and(|at| at > 0), "没给 pinnedAt 时打上当前时间");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -265,7 +445,7 @@ mod tests {
         let store = IndexStore::new(dir.clone());
         std::fs::write(&store.sessions_path, "{ not json").expect("write");
         assert!(store.sessions().is_empty());
-        let after = store.upsert_session(entry("s1", 10)).expect("upsert rebuilds");
+        let after = put(&store, entry("s1", 10));
         assert_eq!(after.len(), 1);
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -278,7 +458,7 @@ mod tests {
         let dir = temp_dir("concurrent");
         let store = IndexStore::new(dir.clone());
         for w in 0..WRITERS {
-            store.upsert_session(entry(&format!("old-{w}"), 1)).expect("seed");
+            put(&store, entry(&format!("old-{w}"), 1));
         }
         let start = std::sync::Barrier::new(WRITERS);
         std::thread::scope(|s| {
@@ -287,7 +467,7 @@ mod tests {
                 s.spawn(move || {
                     start.wait();
                     for i in 0..EACH {
-                        store.upsert_session(entry(&format!("new-{w}-{i}"), 100)).expect("upsert");
+                        put(store, entry(&format!("new-{w}-{i}"), 100));
                         if i == EACH / 2 {
                             store.remove_session("a", &format!("old-{w}")).expect("remove");
                         }

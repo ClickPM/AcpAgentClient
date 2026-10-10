@@ -105,12 +105,16 @@ class SessionIndex {
       'cwd': s.cwd,
       'messageCount': s.entries.whereType<MessageEntry>().length,
       'updatedAt': ?updatedAt,
+      // 首条用户指令只写一次：已经记过就省掉这个键（核心缺键即保留，见 `IndexStore::upsert_session`）。
+      // 置顶同理不在这里带——收轮 / 发消息的整行替换不该把置顶抹掉，也不该把刚取消的写回来。
+      if (firstPromptOf(s.sessionId) == null) 'firstPrompt': ?firstUserTextOf(s),
     });
     if (result == null) return; // 正在删这条会话：这笔写不发
     apply(result['sessions']);
   }
 
   /// 整行替换地写一条（改名 / `session/list` 补标题）：核心的 upsert 是整行替换，调用方少给一个字段就是把它抹成默认值。
+  /// 置顶与首条指令是例外：JSON 里没有这两个键时核心留着原来的值（画板 46），所以改名不必把它们再抄一遍。
   Future<void> upsertEntry(JsonMap entry) async {
     final b = bridge;
     if (b == null) return;
@@ -144,6 +148,54 @@ class SessionIndex {
   JsonMap? entryOf(String sessionId) {
     for (final e in entries) {
       if (e['sessionId'] == sessionId) return e;
+    }
+    return null;
+  }
+
+  /// 切换置顶。已经在索引里的才写（侧栏行都来自索引）；`updatedAt` 沿用原值，置顶不把这条当成刚发过消息。
+  /// 取消时显式带 `pinnedAt: null`，替身核心是合并写、不带键不会把旧时间清掉。
+  Future<void> togglePinned(String sessionId, {required String agentId}) async {
+    final existing = entryOf(sessionId);
+    if (existing == null) return;
+    final pinned = existing['isPinned'] == true;
+    // 只带身份和置顶。标题 / cwd / 消息数缺键，核心留盘上的现值，不把镜像里的旧行盖回去。
+    await upsertEntry(<String, dynamic>{
+      'agentId': existing['agentId'] ?? agentId,
+      'sessionId': sessionId,
+      'isPinned': !pinned,
+      'pinnedAt': pinned ? null : DateTime.now().millisecondsSinceEpoch,
+      'updatedAt': ?updatedAtOf(sessionId),
+    });
+  }
+
+  /// 转录里已经有首条用户指令、索引还没记过：补一次。没有可写的（不在索引里 / 记过了 / 转录里没有）返回 false。
+  Future<bool> rememberFirstPrompt(SessionStore s) async {
+    if (firstPromptOf(s.sessionId) != null) return false;
+    final text = firstUserTextOf(s);
+    final existing = entryOf(s.sessionId);
+    if (text == null || existing == null) return false;
+    // 只带首条指令。不带置顶、标题、消息数，后落盘也不会把刚改过的那些盖回去。
+    await upsertEntry(<String, dynamic>{
+      'agentId': existing['agentId'],
+      'sessionId': s.sessionId,
+      'firstPrompt': text,
+      'updatedAt': ?updatedAtOf(s.sessionId),
+    });
+    return true;
+  }
+
+  /// 本地索引里这条记录的首条用户指令（非空才算有）。
+  String? firstPromptOf(String sessionId) {
+    final text = entryOf(sessionId)?['firstPrompt'];
+    return text is String && text.trim().isNotEmpty ? text : null;
+  }
+
+  /// 转录里第一条顶层用户消息的原文（嵌在工具卡里的不算）。没有文本块时为 null。
+  static String? firstUserTextOf(SessionStore s) {
+    for (final e in s.entries) {
+      if (e is! MessageEntry || e.role != MessageRole.user || e.parentToolCallId != null) continue;
+      final text = e.text.trim();
+      if (text.isNotEmpty) return text;
     }
     return null;
   }

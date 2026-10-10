@@ -192,6 +192,16 @@ abstract final class AcpIcons {
   /// 两条竖线（pause）：与其余图标同路数（24 单位视口、单线、圆头），外廓撑到 5–19，并排看轻重一致。
   static const String pause = '<line x1="9" y1="5" x2="9" y2="19"/><line x1="15" y1="5" x2="15" y2="19"/>';
 
+  /// 侧栏会话行的「置顶」（画板 46）。描边图钉：未置顶。几何照 lucide `pin`（24 视口、单线、圆头）。
+  static const String pin =
+      '<path d="M12 17v5"/>'
+      '<path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24z"/>';
+
+  /// 已置顶：同一只图钉的头部填实（针仍是线）。`fill` 由 [AcpIcon] 的 colorFilter 着色。
+  static const String pinFilled =
+      '<path d="M12 17v5"/>'
+      '<path fill="#000000" stroke="none" d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24z"/>';
+
   /// 全部图标（测试预热 svg 缓存用）。
   static const List<String> all = <String>[
     rotateCcw, pencil, copy, check, arrowDown, spinnerArc, chevronDown, chevronUp, lightbulb, file, checkCircle, search,
@@ -199,7 +209,7 @@ abstract final class AcpIcons {
     alertTriangle, info, plus, arrowUpRight, play, link, dot, lock, slashCircle, diamond,
     panelLeft, gitBranch, settings, folder, plusSquare, reload, rotateCw, menuLines, target, arrowUp,
     arrowRight, arrowLeft, messageSquare, image, command, windowMinimize, windowMaximize, download,
-    chevronRight, collapseAll, clearScreen, history, moon, sun, monitor, list, pause,
+    chevronRight, collapseAll, clearScreen, history, moon, sun, monitor, list, pause, pin, pinFilled,
   ];
 
   /// 完整 SVG 文档：stroke 固定为黑，真实颜色由 [AcpIcon] 的 colorFilter 给，这样同一图标只解析一次。

@@ -83,6 +83,10 @@ mixin SessionAttachment on ChangeNotifier, GuardedNotifier {
   @protected
   Future<void> onConnectError(CoreCommandError e, String agent, String cwd);
 
+  /// 载入或 resume 成功、转录已经在内存里：把首条用户指令补进本地索引（没有就不写）。
+  @protected
+  void captureLoadedPrompt(SessionStore s);
+
   // ---------------------------------------------------------------- 账本
 
   /// 每个 agent 的连接换过几代（`agent_connect` 成功一次加一）。
@@ -248,8 +252,9 @@ mixin SessionAttachment on ChangeNotifier, GuardedNotifier {
     _detached.add(id);
     final generation = generationOf(owner);
     await b.sessionResume(owner, id, cwd);
-    sessions.session(id, agentId: owner).cwd = cwd;
+    final s = sessions.session(id, agentId: owner)..cwd = cwd;
     markResumed(id, owner, generation);
+    captureLoadedPrompt(s);
     return true;
   }
 
@@ -347,6 +352,7 @@ mixin SessionAttachment on ChangeNotifier, GuardedNotifier {
       batcher.enqueue(() {
         try {
           s.applyLoadSession(result);
+          captureLoadedPrompt(s);
         } finally {
           _attached(id, agent, generation);
           settled.complete(true);

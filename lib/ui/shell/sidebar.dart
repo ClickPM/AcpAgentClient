@@ -1,11 +1,12 @@
-// 画板 01 / 04 / 06 / 09 · 侧栏：应用标题条、会话搜索、会话项（默认 / 悬浮出重命名、挂起与删除 / 选中 / 行内重命名 /
-// 运行中的扫掠亮点线 / 完成未读的绿点 / 等你处理的「待授权 · 待输入」标记）、空态与无结果态、底部四个导航入口。
-// 会话列表以本地索引为准（docs/design.md § 3 末条）：时间戳是客户端本地态，「N 条消息」由投影层分组计数得出（画板 04 注）。
+// 画板 01 / 04 / 06 / 09 / 45 / 46 · 侧栏：应用标题条、会话搜索、会话项（默认 / 悬浮出置顶、挂起、重命名与删除 /
+// 选中 / 行内重命名 / 运行中的扫掠亮点线 / 完成未读的绿点 / 等你处理的「待授权 · 待输入」标记）、空态与无结果态、
+// 底部四个导航入口。会话列表以本地索引为准（docs/design.md § 3 末条）：时间戳是客户端本地态，「N 条消息」由投影层
+// 分组计数得出（画板 04 注）。
 // 删除图标一律渲染（确认弹层在画板 41）：它删的首先是本地索引这条记录，agent 侧删不删由组合根判——
 // 按 `sessionCapabilities.delete` 裁剪过一版，结果是没声明 delete 的 agent 的会话在侧栏里永远清不掉。
-// 「挂起」（画板 45 § ② 悬浮态里的第一枚行内动作，iteration-19）只给 Active 区、且这条会话的 agent 声明了
-// `session/close` 与 `loadSession` / `resume` 的行：点了它这条会话交还 agent（转录留着只读、从 Active 沉到
-// History），再点 History 里那一行由组合根挂回来。
+// 「挂起」（画板 45 § ②）只给 Active 区、且这条会话的 agent 声明了 `session/close` 与 `loadSession` / `resume`
+// 的行：点了它这条会话交还 agent（转录留着只读）。挂着的会话在 ACTIVE；没挂上且置顶的在 PINNED；其余在 HISTORY。
+// 行内动作第一枚是置顶（画板 46），三个区都有。悬停整行出首条用户指令卡片（[InitialQueryHover]）。
 
 import 'package:flutter/widgets.dart';
 
@@ -17,6 +18,7 @@ import '../transcript/icons.dart';
 import 'app_logo.dart';
 import 'motion.dart';
 import 'popover_anchor.dart';
+import 'query_preview.dart';
 import 'shell_common.dart';
 import 'tooltip.dart';
 
@@ -29,6 +31,10 @@ class SidebarSession {
     required this.messageCount,
     this.canDelete = true,
     this.iconSvg,
+    this.isPinned = false,
+    this.pinnedAt,
+    this.firstPrompt,
+    this.agentName,
   });
 
   final String id;
@@ -41,6 +47,36 @@ class SidebarSession {
 
   /// 这条会话所属 agent 的 `icon.svg`（registry 缓存；组合根按 `agentId` 查出来给）。没有时是画板的单色占位。
   final String? iconSvg;
+
+  /// 画板 46：本地索引里的置顶。挂在连接上时仍进 ACTIVE，只是行内图钉是实心的。
+  final bool isPinned;
+
+  /// 置顶的那一刻。PINNED 区按它倒序，没有则退到 [updatedAt]。
+  final DateTime? pinnedAt;
+
+  /// 首条用户指令原文。没有就不出悬停卡片。
+  final String? firstPrompt;
+
+  /// 悬停卡片底部的 `Agent: <name>`。没有名字就不出这一截之外的标注。
+  final String? agentName;
+
+  /// `sessions.json` 的一条。置顶时间与首条指令缺了或是空串就当没有。
+  factory SidebarSession.fromIndex(Map<dynamic, dynamic> item, {required String? iconSvg, required String? agentName}) {
+    final id = item['sessionId'] as String? ?? '';
+    final pinnedAt = item['pinnedAt'];
+    final prompt = item['firstPrompt'];
+    return SidebarSession(
+      id: id,
+      title: item['title'] as String? ?? id,
+      updatedAt: DateTime.fromMillisecondsSinceEpoch((item['updatedAt'] as num?)?.toInt() ?? 0),
+      messageCount: (item['messageCount'] as num?)?.toInt() ?? 0,
+      iconSvg: iconSvg,
+      isPinned: item['isPinned'] == true,
+      pinnedAt: pinnedAt is num && pinnedAt > 0 ? DateTime.fromMillisecondsSinceEpoch(pinnedAt.toInt()) : null,
+      firstPrompt: prompt is String && prompt.trim().isNotEmpty ? prompt.trim() : null,
+      agentName: agentName,
+    );
+  }
 }
 
 class Sidebar extends StatelessWidget {
@@ -61,6 +97,7 @@ class Sidebar extends StatelessWidget {
     this.renameFocusNode,
     this.activeTab,
     this.onSelect,
+    this.onTogglePin,
     this.onSuspend,
     this.onStartRename,
     this.onCommitRename,
@@ -105,6 +142,9 @@ class Sidebar extends StatelessWidget {
   final FocusNode? renameFocusNode;
   final ShellTab? activeTab;
   final ValueChanged<String>? onSelect;
+
+  /// 画板 46：置顶 / 取消置顶。三个区的行都给；不给就不画这枚按钮（gallery 与画板对照照原样出图）。
+  final ValueChanged<String>? onTogglePin;
 
   /// 画板 45 的行内动作扩展（iteration-19）：挂起这条 Active 会话（`session/close`）。
   final ValueChanged<String>? onSuspend;
@@ -166,18 +206,22 @@ class Sidebar extends StatelessWidget {
   Widget _list() {
     if (sessions.isEmpty && query.isEmpty) return const SidebarEmpty(searching: false);
 
-    // 画板 45：按 activeIds 分流为 Active（已连接）与 History（历史归档）
+    // 画板 45 / 46：挂着的进 ACTIVE（置顶了也一样）；没挂上且置顶的进 PINNED；其余进 HISTORY。
     final active = <SidebarSession>[];
+    final pinned = <SidebarSession>[];
     final history = <SidebarSession>[];
     for (final s in sessions) {
       if (activeIds.contains(s.id)) {
         active.add(s);
+      } else if (s.isPinned) {
+        pinned.add(s);
       } else {
         history.add(s);
       }
     }
+    pinned.sort(_pinnedFirst);
 
-    if (query.isNotEmpty && active.isEmpty && history.isEmpty) {
+    if (query.isNotEmpty && active.isEmpty && pinned.isEmpty && history.isEmpty) {
       return const SidebarEmpty(searching: true);
     }
 
@@ -190,40 +234,44 @@ class Sidebar extends StatelessWidget {
         : (active.isNotEmpty ? 'Connected' : null);
 
     final items = <Widget>[
-      // 1. ACTIVE 分区头
       _SidebarSectionHeader(
         title: 'ACTIVE',
         count: active.length,
-        isActive: true,
+        kind: _SidebarGroup.active,
         trailingText: activeTrailing,
       ),
-      // 2. ACTIVE 内容
-      if (active.isEmpty && query.isEmpty)
-        _activeEmptyHint(),
-      for (final s in active)
-        _buildRow(s, attached: true),
-
-      // 3. 分割线
+      if (active.isEmpty && query.isEmpty) _activeEmptyHint(),
+      for (final s in active) _buildRow(s, attached: true),
       _sectionDivider(),
-
-      // 4. HISTORY 分区头
+      if (pinned.isNotEmpty) ...<Widget>[
+        _SidebarSectionHeader(title: 'PINNED', count: pinned.length, kind: _SidebarGroup.pinned),
+        for (final s in pinned) _buildRow(s, attached: false),
+        _sectionDivider(),
+      ],
       _SidebarSectionHeader(
         title: 'HISTORY',
         count: history.length,
-        isActive: false,
+        kind: _SidebarGroup.history,
         collapsed: isHistoryCollapsed,
         onTap: query.isEmpty ? onToggleHistoryCollapsed : null,
       ),
-      // 5. HISTORY 内容 (未折叠时)
       if (!isHistoryCollapsed)
-        for (final s in history)
-          _buildRow(s, attached: false),
+        for (final s in history) _buildRow(s, attached: false),
     ];
 
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: t.Spacing.s4),
       children: items,
     );
+  }
+
+  /// PINNED 区：`pinnedAt` 倒序，没有置顶时间的退到 `updatedAt`，再按 `updatedAt` 倒序打破平局。
+  static int _pinnedFirst(SidebarSession a, SidebarSession b) {
+    final pinA = a.pinnedAt ?? a.updatedAt;
+    final pinB = b.pinnedAt ?? b.updatedAt;
+    final byPin = pinB.compareTo(pinA);
+    if (byPin != 0) return byPin;
+    return b.updatedAt.compareTo(a.updatedAt);
   }
 
   Widget _activeEmptyHint() => Padding(
@@ -258,7 +306,8 @@ class Sidebar extends StatelessWidget {
         renameController: renameController,
         renameFocusNode: renameFocusNode,
         onTap: onSelect == null ? null : () => onSelect!(s.id),
-        // 挂起只在 Active 区的行上给（[suspendableIds] 已经是 Active 的子集），History 行的动作仍是改名 / 删除。
+        // 置顶三个区都给。挂起只在 Active 区的行上给（[suspendableIds] 已经是 Active 的子集）。
+        onTogglePin: onTogglePin == null ? null : () => onTogglePin!(s.id),
         onSuspend: attached && suspendableIds.contains(s.id) && onSuspend != null ? () => onSuspend!(s.id) : null,
         onRename: onStartRename == null ? null : () => onStartRename!(s.id),
         onDelete: onDelete == null ? null : () => onDelete!(s.id),
@@ -284,12 +333,15 @@ class SidebarEmpty extends StatelessWidget {
       );
 }
 
-/// 侧栏会话区分组标题头（画板 45：ACTIVE 与 HISTORY 分区）。
+/// 侧栏三个会话区（画板 45 / 46）。ACTIVE 最高，PINNED 是没挂上的置顶，HISTORY 可折叠。
+enum _SidebarGroup { active, pinned, history }
+
+/// 侧栏会话区分组标题头。
 class _SidebarSectionHeader extends StatelessWidget {
   const _SidebarSectionHeader({
     required this.title,
     required this.count,
-    this.isActive = false,
+    required this.kind,
     this.collapsed = false,
     this.trailingText,
     this.onTap,
@@ -297,10 +349,12 @@ class _SidebarSectionHeader extends StatelessWidget {
 
   final String title;
   final int count;
-  final bool isActive;
+  final _SidebarGroup kind;
   final bool collapsed;
   final String? trailingText;
   final VoidCallback? onTap;
+
+  bool get _active => kind == _SidebarGroup.active;
 
   @override
   Widget build(BuildContext context) {
@@ -310,26 +364,19 @@ class _SidebarSectionHeader extends StatelessWidget {
       padding: t.SidebarSection.headerPadding,
       child: Row(
         children: <Widget>[
-          if (isActive)
-            _activeDot(hasCount)
-          else
-            AcpIcon(
-              collapsed ? AcpIcons.chevronRight : AcpIcons.chevronDown,
-              size: t.SidebarSection.chevronSize,
-              color: t.Neutral.muted,
-            ),
+          _leading(hasCount),
           const SizedBox(width: t.SidebarSection.labelGap),
           Text(
             title,
             style: t.TextStyles.label.copyWith(
-              color: isActive && hasCount ? t.Neutral.strong : t.Neutral.muted,
+              color: hasCount && kind != _SidebarGroup.history ? t.Neutral.strong : t.Neutral.muted,
             ),
           ),
           const SizedBox(width: t.SidebarSection.labelGap),
           _chip(hasCount),
           const Spacer(),
-          // 注意：HISTORY 折叠态绝不展示“已折叠”3个字，此 trailingText 仅在 isActive 时展示
-          if (isActive && trailingText != null && trailingText!.isNotEmpty)
+          // HISTORY 折叠态绝不展示“已折叠”。trailing 只属于 ACTIVE。
+          if (_active && trailingText != null && trailingText!.isNotEmpty)
             Text(
               trailingText!,
               style: t.TextStyles.meta.copyWith(
@@ -351,6 +398,21 @@ class _SidebarSectionHeader extends StatelessWidget {
       );
     }
     return row;
+  }
+
+  Widget _leading(bool hasCount) {
+    switch (kind) {
+      case _SidebarGroup.active:
+        return _activeDot(hasCount);
+      case _SidebarGroup.pinned:
+        return AcpIcon(AcpIcons.pin, size: t.SidebarSection.chevronSize, color: t.Accent.base);
+      case _SidebarGroup.history:
+        return AcpIcon(
+          collapsed ? AcpIcons.chevronRight : AcpIcons.chevronDown,
+          size: t.SidebarSection.chevronSize,
+          color: t.Neutral.muted,
+        );
+    }
   }
 
   Widget _activeDot(bool hasCount) {
@@ -375,21 +437,25 @@ class _SidebarSectionHeader extends StatelessWidget {
     );
   }
 
-  Widget _chip(bool hasCount) => Container(
-        padding: t.SidebarSection.chipPadding,
-        decoration: BoxDecoration(
-          color: isActive && hasCount ? t.Semantic.successSoft : t.Neutral.hoverSolid,
-          borderRadius: t.SidebarSection.chipRadius,
+  Widget _chip(bool hasCount) {
+    final (Color bg, Color fg) = switch (kind) {
+      _SidebarGroup.active when hasCount => (t.Semantic.successSoft, t.Semantic.success),
+      _SidebarGroup.pinned when hasCount => (t.Badge.accentBg, t.Accent.base),
+      _ => (t.Neutral.hoverSolid, t.Neutral.muted),
+    };
+    return Container(
+      padding: t.SidebarSection.chipPadding,
+      decoration: BoxDecoration(color: bg, borderRadius: t.SidebarSection.chipRadius),
+      child: Text(
+        count.toString(),
+        style: t.TextStyles.meta.copyWith(
+          color: fg,
+          fontWeight: t.Weights.medium,
+          fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
         ),
-        child: Text(
-          count.toString(),
-          style: t.TextStyles.meta.copyWith(
-            color: isActive && hasCount ? t.Semantic.success : t.Neutral.muted,
-            fontWeight: t.Weights.medium,
-            fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
-          ),
-        ),
-      );
+      ),
+    );
+  }
 }
 
 /// 侧栏顶部的应用标题条。
@@ -532,6 +598,7 @@ class SidebarSessionRow extends StatelessWidget {
     this.renameController,
     this.renameFocusNode,
     this.onTap,
+    this.onTogglePin,
     this.onSuspend,
     this.onRename,
     this.onDelete,
@@ -565,6 +632,9 @@ class SidebarSessionRow extends StatelessWidget {
   final FocusNode? renameFocusNode;
   final VoidCallback? onTap;
 
+  /// 画板 46：置顶 / 取消。不给就不画（三个区都由 [Sidebar] 传进来）。
+  final VoidCallback? onTogglePin;
+
   /// 画板 45 的行内动作扩展（iteration-19）：挂起这条会话（交给 agent 的 `session/close`，转录留着只读）。
   /// 不给就不画这个按钮 —— 挂在活着的连接上、且这条会话的 agent 声明了 `close` 时才由 [Sidebar] 传进来。
   final VoidCallback? onSuspend;
@@ -583,7 +653,7 @@ class SidebarSessionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Hoverable(
+    final row = Hoverable(
       onTap: renaming ? null : onTap,
       forceHover: forceHover,
       builder: (context, hovered) {
@@ -615,6 +685,16 @@ class SidebarSessionRow extends StatelessWidget {
                     const SizedBox(width: t.Spacing.s8),
                     Expanded(child: inlineEdit ? _renameField() : _titleAndMeta()),
                     if (showActions) ...<Widget>[
+                      if (onTogglePin != null)
+                        AcpTooltip(
+                          message: session.isPinned ? 'Unpin session' : 'Pin session',
+                          child: IconButtonGhost(
+                            icon: session.isPinned ? AcpIcons.pinFilled : AcpIcons.pin,
+                            color: session.isPinned ? t.Accent.base : null,
+                            size: t.Controls.compact,
+                            onTap: onTogglePin,
+                          ),
+                        ),
                       if (onSuspend != null)
                         AcpTooltip(
                           message: 'Suspend session',
@@ -650,6 +730,15 @@ class SidebarSessionRow extends StatelessWidget {
           ),
         );
       },
+    );
+    final prompt = session.firstPrompt;
+    if (renaming || prompt == null || prompt.isEmpty) return row;
+    return InitialQueryHover(
+      prompt: prompt,
+      agentName: session.agentName ?? '',
+      updatedAt: session.updatedAt,
+      now: now,
+      child: row,
     );
   }
 

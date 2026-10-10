@@ -302,17 +302,19 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
       if (owner != null && owner.isNotEmpty) _sessionAgent[sessionId] = owner;
       final cwd = item['cwd'];
       if (!workspace.inCurrentWorkspace(cwd is String ? cwd : null)) continue;
-      out.add(SidebarSession(
-        id: sessionId,
-        title: item['title'] as String? ?? sessionId,
-        updatedAt: DateTime.fromMillisecondsSinceEpoch((item['updatedAt'] as num?)?.toInt() ?? 0),
-        messageCount: (item['messageCount'] as num?)?.toInt() ?? 0,
-        canDelete: true,
-        iconSvg: agents.iconSvgOf(owner ?? agentId),
-      ));
+      out.add(SidebarSession.fromIndex(item, iconSvg: agents.iconSvgOf(owner ?? agentId), agentName: agentDisplayNameOf(owner)));
     }
     return out;
   }
+
+  @override
+  void captureLoadedPrompt(SessionStore s) {
+    unawaited(index.rememberFirstPrompt(s).then((wrote) {
+      if (wrote) touch();
+    }, onError: (Object e) => debugPrint('[workbench] first prompt: $e')));
+  }
+
+  Future<void> togglePinned(String id) => index.togglePinned(id, agentId: ownerOf(id)).whenComplete(touch);
 
   /// 换了项目：侧栏只留这个目录下的会话（[_toSidebar] 按当前项目过滤）；正开着的会话若属于别的目录，
   /// 就从会话区放下（回到画板 01 的空态，下一条消息在新目录里现开会话）——不然顶栏写着新项目、

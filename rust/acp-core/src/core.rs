@@ -640,12 +640,13 @@ impl Core {
 
     /// 新增 / 更新一条会话索引（`session_index_upsert`）；返回全量列表。
     pub fn session_index_upsert(&self, entry: Value) -> Result<Value> {
-        let entry: SessionEntry =
-            serde_json::from_value(entry).map_err(|e| CoreError::InvalidArgument(format!("session index entry: {e}")))?;
-        if entry.agent_id.trim().is_empty() || entry.session_id.trim().is_empty() {
+        let parsed: SessionEntry = serde_json::from_value(entry.clone())
+            .map_err(|e| CoreError::InvalidArgument(format!("session index entry: {e}")))?;
+        if parsed.agent_id.trim().is_empty() || parsed.session_id.trim().is_empty() {
             return Err(CoreError::InvalidArgument("session index entry needs agentId and sessionId".into()));
         }
-        Ok(json!({ "sessions": serde_json::to_value(self.index.upsert_session(entry)?)? }))
+        // 原样 JSON 一起送下去：置顶与首条指令靠「键在不在」决定留还是改，解析后的默认值分不出「没给」和「给了 false」。
+        Ok(json!({ "sessions": serde_json::to_value(self.index.upsert_session(parsed, &entry)?)? }))
     }
 
     /// 窗口 UI 状态（`ui_state_get`）：两栏被拖出来的宽度与文件面板树列的宽度 / 收起态。没存过的字段返回 null，

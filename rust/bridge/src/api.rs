@@ -408,13 +408,14 @@ pub async fn workspace_open(path: String) -> Result<String, BridgeError> {
     on_core(|core| async move { core.workspace_open(PathBuf::from(path)) }).await
 }
 
-/// 会话索引全量：`{sessions: [{agentId, sessionId, title?, cwd?, createdAt, updatedAt, messageCount}]}`。
+/// 会话索引全量：`{sessions: [{agentId, sessionId, title?, cwd?, createdAt, updatedAt, messageCount, isPinned?, pinnedAt?, firstPrompt?}]}`。
 pub async fn session_index_list() -> Result<String, BridgeError> {
     on_core(|core| async move { core.session_index_list() }).await
 }
 
 /// 新增 / 更新一条会话索引（`entry` 是上面那个形状的 JSON 字符串）；返回全量列表。
 /// `createdAt` 只在新增时写；`updatedAt` 省略或为 0 时由核心打当前时间。
+/// 没带 `isPinned` / `firstPrompt` 时保留原来的置顶与首条指令；`isPinned: false` 才取消置顶。
 pub async fn session_index_upsert(entry: String) -> Result<String, BridgeError> {
     let entry = parse_json("entry", &entry)?;
     on_core(|core| async move { core.session_index_upsert(entry) }).await

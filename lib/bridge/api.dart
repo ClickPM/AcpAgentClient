@@ -333,12 +333,13 @@ Future<String> workspaceRecent() =>
 Future<String> workspaceOpen({required String path}) =>
     RustLib.instance.api.crateApiWorkspaceOpen(path: path);
 
-/// 会话索引全量：`{sessions: [{agentId, sessionId, title?, cwd?, createdAt, updatedAt, messageCount}]}`。
+/// 会话索引全量：`{sessions: [{agentId, sessionId, title?, cwd?, createdAt, updatedAt, messageCount, isPinned?, pinnedAt?, firstPrompt?}]}`。
 Future<String> sessionIndexList() =>
     RustLib.instance.api.crateApiSessionIndexList();
 
 /// 新增 / 更新一条会话索引（`entry` 是上面那个形状的 JSON 字符串）；返回全量列表。
 /// `createdAt` 只在新增时写；`updatedAt` 省略或为 0 时由核心打当前时间。
+/// 没带 `isPinned` / `firstPrompt` 时保留原来的置顶与首条指令；`isPinned: false` 才取消置顶。
 Future<String> sessionIndexUpsert({required String entry}) =>
     RustLib.instance.api.crateApiSessionIndexUpsert(entry: entry);
 
