@@ -12,7 +12,7 @@
 
 ## 收口
 
-- 构建 / 手测：落地后 `validate.ps1` 全绿（flutter test 651），`build.ps1` release 成功，smoke `ok: true`、`coreVersion 1.5.1`、`droppedEvents 0`（临时 APPDATA）。未手测。安装目录未覆盖：`acp_agent_client.exe` 仍在 `D:\tools\AcpAgentClient` 运行
+- 构建 / 手测：落地后 `validate.ps1` 全绿（flutter test 651），`build.ps1` release 成功，smoke `ok: true`、`coreVersion 1.5.1`、`droppedEvents 0`（临时 APPDATA）。未手测。安装目录已镜像到 `D:\tools\AcpAgentClient`；安装副本 smoke 同样 `ok: true`。`/MIR` 曾清掉 gitignore 的可选字体和 `LICENSE` / `NOTICE`，已按主副本 `assets/fonts/optional` 与仓库根的同名文件按原大小放回
 - 发版：不发
 - 设计稿补注记：圆角与徽章的两处 token 名对不上，记 `design/DIVERGENCE.md` A-40。PNG 仍是验收基准
 
