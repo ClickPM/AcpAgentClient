@@ -8,11 +8,11 @@
 
 | # | 类型 | 工作项 | 来源 | 分支 → 合并提交 | 验证 | 审查 | 状态 |
 |---|---|---|---|---|---|---|---|
-| 1 | board | 画板 46：`isPinned` / `pinnedAt` / `firstPrompt`；ACTIVE → PINNED → HISTORY；行内 Pin / Unpin；悬停 150ms 出首条指令卡片 | 画板 46（`ff57f36`） | main（本提交） | 快进后 validate 全绿（651）；其后的索引与留白修复未再跑全量 | R1–R3 索引 high 已清；R4 对照画板 P2 1 已改；R5 findings 0 | 已合并 |
+| 1 | board | 画板 46：`isPinned` / `pinnedAt` / `firstPrompt`；ACTIVE → PINNED → HISTORY；行内 Pin / Unpin；悬停 150ms 出首条指令卡片 | 画板 46（`ff57f36`） | `da3abdc` | 落地后 validate 全绿（651）；release 构建成功；smoke ok（临时 APPDATA） | R1–R3 索引 high 已清；R4 对照画板 P2 1 已改；R5 findings 0 | 已合并 |
 
 ## 收口
 
-- 构建 / 手测：未跑 `build.ps1`，未手测
+- 构建 / 手测：落地后 `validate.ps1` 全绿（flutter test 651），`build.ps1` release 成功，smoke `ok: true`、`coreVersion 1.5.1`、`droppedEvents 0`（临时 APPDATA）。未手测。安装目录未覆盖：`acp_agent_client.exe` 仍在 `D:\tools\AcpAgentClient` 运行
 - 发版：不发
 - 设计稿补注记：圆角与徽章的两处 token 名对不上，记 `design/DIVERGENCE.md` A-40。PNG 仍是验收基准
 
@@ -31,4 +31,4 @@
 - R3：同一执行器复审该整改。**findings: 0**（high 0 / P2 0 / P3 0）。只读，未重跑测试。
 - R4（对照画板 46）：同一执行器。findings: 1（high 0 / P2 1 / P3 0）。Query 卡片留白被收成 8px，源稿是 padding 10/12、标题间距 4、块间距 6、分割线单侧 5。已按源稿改 `QueryPreview` 的几何 token。
 - R5：同一执行器复审该留白。**findings: 0**（high 0 / P2 0 / P3 0）。只读，未重跑测试。
-- 验证：快进到 `ff57f36` 之后 `scripts/validate.ps1` 全绿（flutter test 651）。R2/R3 的索引修复之后只重跑了 settings 单测（20）与 `session_pin_test`（3），全量 validate 未再跑。
+- 验证：合入 `da3abdc` 之后在 release worktree 重跑 `scripts/validate.ps1` 全绿（flutter test 651），覆盖索引修复和卡片留白。
