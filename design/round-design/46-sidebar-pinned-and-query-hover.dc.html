@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>46 · 侧栏置顶区与首 Query 悬浮规范 — AcpAgentClient Design</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet"><style>
+  @font-face {
+    font-family: 'Geist';
+    src: url('../../assets/fonts/Geist-Variable.ttf') format('truetype');
+    font-weight: 100 900;
+  }
+  @font-face {
+    font-family: 'Geist Mono';
+    src: url('../../assets/fonts/GeistMono-Variable.ttf') format('truetype');
+    font-weight: 100 900;
+  }
+  @font-face {
+    font-family: 'Noto Sans SC';
+    src: url('../../assets/fonts/NotoSansSC-Regular.otf') format('opentype');
+    font-weight: 400 500 600;
+  }
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  body {
+    margin: 0;
+    background: #17171C;
+    color: #D5D5DC;
+    font-family: 'Geist', 'Noto Sans SC', 'Microsoft YaHei UI', system-ui, sans-serif;
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono {
+    font-family: 'Geist Mono', 'Noto Sans SC', ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .section-header {
+    height: 28px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px;
+    user-select: none;
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    color: #9B9BA6;
+    text-transform: uppercase;
+  }
+  .chip-active {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: rgba(111, 191, 99, 0.16);
+    color: #6FBF63;
+    font-size: 10px;
+    font-weight: 500;
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    line-height: 14px;
+  }
+  .chip-pinned {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: rgba(139, 150, 236, 0.16);
+    color: #8B96EC;
+    font-size: 10px;
+    font-weight: 500;
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    line-height: 14px;
+  }
+  .chip-history {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #7E7E8A;
+    font-size: 10px;
+    font-weight: 500;
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    line-height: 14px;
+  }
+  .dot-online {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #6FBF63;
+    box-shadow: 0 0 6px rgba(111, 191, 99, 0.45);
+    flex: none;
+  }
+  .session-row {
+    height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    position: relative;
+    cursor: default;
+    border-radius: 4px;
+    margin: 1px 4px;
+  }
+  .session-row.running {
+    height: 58px;
+  }
+  .session-row.selected {
+    background: rgba(255, 255, 255, 0.09);
+  }
+  .session-row.hovered {
+    background: rgba(255, 255, 255, 0.05);
+  }
+  .sweep-line {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 4px;
+    height: 8px;
+    background-image:
+      linear-gradient(90deg, rgba(139, 150, 236, 0) 0%, #8B96EC 50%, rgba(139, 150, 236, 0) 100%),
+      linear-gradient(#303039, #303039);
+    background-repeat: no-repeat, no-repeat;
+    background-size: 96px 1px, 100% 1px;
+    background-position: 45% 50%, 0 50%;
+  }
+  .query-hover-card {
+    position: absolute;
+    width: 250px;
+    background: #23232B;
+    border: 1px solid #383845;
+    border-radius: 6px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+    padding: 10px 12px;
+    z-index: 100;
+    pointer-events: none;
+  }
+  .query-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #303039;
+  }
+  .query-card-title {
+    font-size: 10px;
+    font-weight: 600;
+    color: #8B96EC;
+    letter-spacing: 0.05em;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    text-transform: uppercase;
+  }
+  .query-card-meta {
+    font-size: 10px;
+    color: #7E7E8A;
+  }
+  .query-card-body {
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: #D5D5DC;
+    word-break: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .query-card-footer {
+    margin-top: 6px;
+    padding-top: 5px;
+    border-top: 1px solid #2B2B36;
+    font-size: 10px;
+    color: #7E7E8A;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .spec-grid {
+    display: grid;
+    grid-template-columns: 140px 180px 1fr;
+    border-top: 1px solid #303039;
+    font-size: 12px;
+  }
+  .spec-cell {
+    padding: 6px 10px;
+    border-bottom: 1px solid #23232B;
+    line-height: 1.45;
+  }
+</style>
+</helmet>
+
+<div data-screen-label="46" style="width:1440px;min-width:1440px;box-sizing:border-box;padding:24px 28px;background:#17171C;color:#D5D5DC;display:flex;flex-direction:column;gap:18px">
+
+  <!-- 标题与状态说明 -->
+  <div style="display:flex;align-items:baseline;justify-content:space-between;border-bottom:1px solid #303039;padding-bottom:12px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:15px;font-weight:600;color:#F0F0F4">46 · 侧栏置顶区与首 Query 悬浮规范（Pinned Sessions &amp; First Query Hover Card）</span>
+      <span style="font-size:11px;color:#7E7E8A;margin-left:8px">数据与状态：sessions.json (isPinned, pinnedAt, firstPrompt) · 统一 Pin/Unpin 按钮 · 侧栏三区分组 · 悬浮首问快照</span>
+    </div>
+    <div style="font-size:11px;color:#7E7E8A" class="mono">
+      Token 体系：00-tokens / 07-dark-tokens 严格对位
+    </div>
+  </div>
+
+  <!-- 第一部分：侧栏状态矩阵 (6组典型状态与对照) -->
+  <div>
+    <div style="font-size:12px;font-weight:500;color:#F0F0F4;margin-bottom:12px;display:flex;justify-content:space-between">
+      <span>A · 侧栏置顶分组与悬浮卡片矩阵（ACTIVE / PINNED / HISTORY 三区联动）</span>
+      <span style="font-size:11px;color:#9B9BA6;font-weight:400">活跃会话常驻 ACTIVE 区；非活跃置顶会话聚合于 PINNED 区；未置顶历史在 HISTORY 区；全区会话悬停均可快速预览首个用户 query。</span>
+    </div>
+
+    <!-- 6 列状态横排 -->
+    <div style="display:grid;grid-template-columns:repeat(6, 1fr);gap:14px">
+      
+      <!-- ① 三区分组常态展开 -->
+      <div>
+        <div style="font-size:11px;color:#9B9BA6;margin-bottom:6px" class="mono">① 三区分组常态 <span style="color:#7E7E8A;float:right">3 sections</span></div>
+        <div style="width:220px;height:430px;background:#1D1D23;border:1px solid #303039;border-radius:6px;display:flex;flex-direction:column;overflow:hidden">
+          <!-- 侧栏顶栏 -->
+          <div style="height:36px;padding:0 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #303039">
+            <span style="font-weight:600;font-size:12.5px;color:#F0F0F4;display:flex;align-items:center;gap:6px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8B96EC" stroke-width="2.2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+              Agent ACP Client
+            </span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7E7E8A" stroke-width="1.8"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </div>
+          <!-- 搜索框（还原实际实现：通栏 height: 36px、border-bottom: 1px solid #303039、无内缩圆角胶囊框） -->
+          <div style="height:36px;flex:none;display:flex;align-items:center;gap:8px;padding:0 8px 0 12px;border-bottom:1px solid #303039">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7E7E8A" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.2" y2="16.2"></line></svg>
+            <span style="font-size:12px;color:#7E7E8A">搜索会话</span>
+          </div>
+          <!-- 会话列表 -->
+          <div style="flex:1;overflow:hidden;padding:3px 0">
+            <!-- ACTIVE 分组头 -->
+            <div class="section-header">
+              <span class="dot-online"></span>
+              <span class="section-label" style="color:#D5D5DC">ACTIVE</span>
+              <span class="chip-active">2</span>
+              <span style="margin-left:auto;font-size:10px;color:#6FBF63" class="mono">Connected</span>
+            </div>
+            <!-- Active 项 1 (Selected) -->
+            <div class="session-row selected">
+              <div style="width:18px;height:18px;border-radius:4px;background:#262638;border:1px solid #5566D8;display:flex;align-items:center;justify-content:center;position:relative;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8B96EC" stroke-width="2.2"><path d="M7 8h10M10 8v8M14 8v8"/></svg>
+                <span style="position:absolute;right:-2px;bottom:-2px;width:6px;height:6px;border-radius:50%;background:#6FBF63;border:1.5px solid #1D1D23"></span>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;font-weight:500;color:#9AA5F0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">New pi ACP adapter Session</div>
+                <div style="font-size:10px;color:#7E7E8A" class="tabular">11 分钟前 · 6 条消息</div>
+              </div>
+            </div>
+
+            <!-- 分割线 -->
+            <div style="height:1px;background:#303039;margin:4px 12px"></div>
+
+            <!-- PINNED 分组头 -->
+            <div class="section-header">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8B96EC" stroke-width="2"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>
+              <span class="section-label" style="color:#D5D5DC">PINNED</span>
+              <span class="chip-pinned">2</span>
+            </div>
+            <!-- Pinned 项 1 -->
+            <div class="session-row">
+              <div style="width:18px;height:18px;border-radius:4px;background:#23232B;border:1px solid #383845;display:flex;align-items:center;justify-content:center;opacity:0.85;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9B9BA6" stroke-width="2"><path d="M7 8h10M10 8v8M14 8v8"/></svg>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:#D5D5DC;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Windows to Mac Mini low-la...</div>
+                <div style="font-size:10px;color:#7E7E8A" class="tabular">42 分钟前 · 6 条消息</div>
+              </div>
+            </div>
+            <!-- Pinned 项 2 -->
+            <div class="session-row">
+              <div style="width:18px;height:18px;border-radius:4px;background:#23232B;border:1px solid #383845;display:flex;align-items:center;justify-content:center;opacity:0.85;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9B9BA6" stroke-width="2"><circle cx="12" cy="12" r="6"/></svg>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:#D5D5DC;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">查询仓库飞常准设计规范文档</div>
+                <div style="font-size:10px;color:#7E7E8A" class="tabular">1 天前 · 10 条消息</div>
+              </div>
+            </div>
+
+            <!-- 分割线 -->
+            <div style="height:1px;background:#303039;margin:4px 12px"></div>
+
+            <!-- HISTORY 分组头 -->
+            <div class="section-header">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7E7E8A" stroke-width="1.8"><polyline points="6 9 12 15 18 9"/></svg>
+              <span class="section-label">HISTORY</span>
+              <span class="chip-history">35</span>
+            </div>
+            <!-- History 项 1 -->
+            <div class="session-row">
+              <div style="width:18px;height:18px;border-radius:4px;background:#23232B;border:1px solid #383845;display:flex;align-items:center;justify-content:center;opacity:0.7;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9B9BA6" stroke-width="2"><path d="M7 8h10M10 8v8M14 8v8"/></svg>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:#9B9BA6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">New pi ACP adapter Session</div>
+                <div style="font-size:10px;color:#62626E" class="tabular">18 小时前 · 6 条消息</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ② History 项悬浮出 Pin 按钮 -->
+      <div>
+        <div style="font-size:11px;color:#9B9BA6;margin-bottom:6px" class="mono">② History 悬浮 Pin <span style="color:#7E7E8A;float:right">hover → pin</span></div>
+        <div style="width:220px;height:430px;background:#1D1D23;border:1px solid #303039;border-radius:6px;display:flex;flex-direction:column;overflow:hidden">
+          <!-- 搜索框（还原实际实现：通栏 height: 36px、border-bottom: 1px solid #303039、无内缩圆角胶囊框） -->
+          <div style="height:36px;flex:none;display:flex;align-items:center;gap:8px;padding:0 8px 0 12px;border-bottom:1px solid #303039">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7E7E8A" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.2" y2="16.2"></line></svg>
+            <span style="font-size:12px;color:#7E7E8A">搜索会话</span>
+          </div>
+          <div style="flex:1;overflow:hidden;padding:3px 0">
+            <div class="section-header">
+              <span class="dot-online"></span>
+              <span class="section-label" style="color:#D5D5DC">ACTIVE</span>
+              <span class="chip-active">1</span>
+            </div>
+            <div class="session-row">
+              <div style="width:18px;height:18px;border-radius:4px;background:#262638;border:1px solid #5566D8;display:flex;align-items:center;justify-content:center;position:relative;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8B96EC" stroke-width="2.2"><path d="M7 8h10M10 8v8M14 8v8"/></svg>
+                <span style="position:absolute;right:-2px;bottom:-2px;width:6px;height:6px;border-radius:50%;background:#6FBF63;border:1.5px solid #1D1D23"></span>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:#D5D5DC;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">New pi ACP adapter Session</div>
+                <div style="font-size:10px;color:#7E7E8A" class="tabular">刚刚 · 2 条消息</div>
+              </div>
+            </div>
+
+            <div style="height:1px;background:#303039;margin:4px 12px"></div>
+
+            <div class="section-header">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8B96EC" stroke-width="2"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>
+              <span class="section-label" style="color:#D5D5DC">PINNED</span>
+              <span class="chip-pinned">1</span>
+            </div>
+            <div class="session-row">
+              <div style="width:18px;height:18px;border-radius:4px;background:#23232B;border:1px solid #383845;display:flex;align-items:center;justify-content:center;opacity:0.85;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9B9BA6" stroke-width="2"><path d="M7 8h10M10 8v8M14 8v8"/></svg>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:#D5D5DC;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Windows to Mac Mini low-la...</div>
+                <div style="font-size:10px;color:#7E7E8A" class="tabular">42 分钟前 · 6 条消息</div>
+              </div>
+            </div>
+
+            <div style="height:1px;background:#303039;margin:4px 12px"></div>
+
+            <div class="section-header">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7E7E8A" stroke-width="1.8"><polyline points="6 9 12 15 18 9"/></svg>
+              <span class="section-label">HISTORY</span>
+              <span class="chip-history">36</span>
+            </div>
+            <!-- History 悬浮项：显示 Pin / 改名 / 删除 -->
+            <div class="session-row hovered">
+              <div style="width:18px;height:18px;border-radius:4px;background:#23232B;border:1px solid #383845;display:flex;align-items:center;justify-content:center;opacity:0.75;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9B9BA6" stroke-width="2"><path d="M7 8h10M10 8v8M14 8v8"/></svg>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:#D5D5DC;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">探测下dmit cpa网关是否提供</div>
+                <div style="font-size:10px;color:#7E7E8A" class="tabular">1 天前 · 18 条消息</div>
+              </div>
+              <!-- 操作动作序列：首位为 Pin -->
+              <div style="display:flex;align-items:center;gap:3px">
+                <div style="width:20px;height:20px;border-radius:3px;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center" title="Pin session">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#8B96EC" stroke-width="2"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>
+                </div>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#7E7E8A" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#7E7E8A" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ③ Pinned 项悬浮出 Unpin 按钮（公共同一按钮） -->
+      <div>
+        <div style="font-size:11px;color:#9B9BA6;margin-bottom:6px" class="mono">③ Pinned 悬浮 Unpin <span style="color:#7E7E8A;float:right">pinned → unpin</span></div>
+        <div style="width:220px;height:430px;background:#1D1D23;border:1px solid #303039;border-radius:6px;display:flex;flex-direction:column;overflow:hidden">
+          <!-- 搜索框（还原实际实现：通栏 height: 36px、border-bottom: 1px solid #303039、无内缩圆角胶囊框） -->
+          <div style="height:36px;flex:none;display:flex;align-items:center;gap:8px;padding:0 8px 0 12px;border-bottom:1px solid #303039">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7E7E8A" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.2" y2="16.2"></line></svg>
+            <span style="font-size:12px;color:#7E7E8A">搜索会话</span>
+          </div>
+          <div style="flex:1;overflow:hidden;padding:3px 0">
+            <div class="section-header">
+              <span class="dot-online"></span>
+              <span class="section-label" style="color:#D5D5DC">ACTIVE</span>
+              <span class="chip-active">1</span>
+            </div>
+            <div class="session-row">
+              <div style="width:18px;height:18px;border-radius:4px;background:#262638;border:1px solid #5566D8;display:flex;align-items:center;justify-content:center;position:relative;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8B96EC" stroke-width="2.2"><path d="M7 8h10M10 8v8M14 8v8"/></svg>
+                <span style="position:absolute;right:-2px;bottom:-2px;width:6px;height:6px;border-radius:50%;background:#6FBF63;border:1.5px solid #1D1D23"></span>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:#D5D5DC;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">New pi ACP adapter Session</div>
+                <div style="font-size:10px;color:#7E7E8A" class="tabular">刚刚 · 2 条消息</div>
+              </div>
+            </div>
+
+            <div style="height:1px;background:#303039;margin:4px 12px"></div>
+
+            <div class="section-header">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8B96EC" stroke-width="2"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>
+              <span class="section-label" style="color:#D5D5DC">PINNED</span>
+              <span class="chip-pinned">2</span>
+            </div>
+            <!-- Pinned 项悬浮：Pin 图标高亮激活，点击执行 Unpin -->
+            <div class="session-row hovered">
+              <div style="width:18px;height:18px;border-radius:4px;background:#23232B;border:1px solid #383845;display:flex;align-items:center;justify-content:center;opacity:0.95;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8B96EC" stroke-width="2"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:#D5D5DC;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Windows to Mac Mini low-la...</div>
+                <div style="font-size:10px;color:#7E7E8A" class="tabular">42 分钟前 · 6 条消息</div>
+              </div>
+              <!-- 操作动作序列：首位为高亮激活的 Unpin 图标 -->
+              <div style="display:flex;align-items:center;gap:3px">
+                <div style="width:20px;height:20px;border-radius:3px;background:rgba(139,150,236,0.18);display:flex;align-items:center;justify-content:center" title="Unpin session">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="#8B96EC" stroke="#8B96EC" stroke-width="1.5"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>
+                </div>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#7E7E8A" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#7E7E8A" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </div>
+            </div>
+            <!-- Pinned 项 2 -->
+            <div class="session-row">
+              <div style="width:18px;height:18px;border-radius:4px;background:#23232B;border:1px solid #383845;display:flex;align-items:center;justify-content:center;opacity:0.85;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9B9BA6" stroke-width="2"><circle cx="12" cy="12" r="6"/></svg>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:#D5D5DC;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">查询仓库飞常准设计规范文档</div>
+                <div style="font-size:10px;color:#7E7E8A" class="tabular">1 天前 · 10 条消息</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ④ Active 项悬浮展示首个用户 Query 卡片 -->
+      <div style="position:relative">
+        <div style="font-size:11px;color:#9B9BA6;margin-bottom:6px" class="mono">④ Active 悬浮首问 <span style="color:#7E7E8A;float:right">query hover</span></div>
+        <div style="width:220px;height:430px;background:#1D1D23;border:1px solid #303039;border-radius:6px;display:flex;flex-direction:column;overflow:hidden;position:relative">
+          <!-- 搜索框（还原实际实现：通栏 height: 36px、border-bottom: 1px solid #303039、无内缩圆角胶囊框） -->
+          <div style="height:36px;flex:none;display:flex;align-items:center;gap:8px;padding:0 8px 0 12px;border-bottom:1px solid #303039">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7E7E8A" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.2" y2="16.2"></line></svg>
+            <span style="font-size:12px;color:#7E7E8A">搜索会话</span>
+          </div>
+          <div style="flex:1;overflow:hidden;padding:3px 0">
+            <div class="section-header">
+              <span class="dot-online"></span>
+              <span class="section-label" style="color:#D5D5DC">ACTIVE</span>
+              <span class="chip-active">2</span>
+              <span style="margin-left:auto;font-size:10px;color:#8B96EC" class="mono">1 running</span>
+            </div>
+            <!-- Active 悬浮项 (带运行扫掠线) -->
+            <div class="session-row running selected hovered">
+              <div style="width:18px;height:18px;border-radius:4px;background:#262638;border:1px solid #5566D8;display:flex;align-items:center;justify-content:center;position:relative;flex:none;align-self:flex-start;margin-top:10px">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8B96EC" stroke-width="2.2"><path d="M7 8h10M10 8v8M14 8v8"/></svg>
+                <span style="position:absolute;right:-2px;bottom:-2px;width:6px;height:6px;border-radius:50%;background:#6FBF63;border:1.5px solid #1D1D23"></span>
+              </div>
+              <div style="flex:1;min-width:0;align-self:flex-start;margin-top:8px">
+                <div style="font-size:12px;font-weight:500;color:#9AA5F0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">New pi ACP adapter Session</div>
+                <div style="font-size:10px;color:#7E7E8A" class="tabular">11 分钟前 · 6 条消息</div>
+              </div>
+              <div class="sweep-line"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 悬浮卡片：展示本会话首个用户 query -->
+        <div class="query-hover-card" style="top:75px;left:130px;width:250px">
+          <div class="query-card-header">
+            <span class="query-card-title">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              INITIAL QUERY
+            </span>
+            <span class="query-card-meta tabular">11 分钟前</span>
+          </div>
+          <div class="query-card-body">
+            我计划为我的AI基础设施添加一个mac mini m4 16+256版本了，我现在工位是：1. 核心主机：rog幻14air Ryzen8845hs 32g+1t 4060版本，屏幕分辨率2800*1440 2. 显示器：27寸 标准4k显示器，支持usbc和hdmi...
+          </div>
+          <div class="query-card-footer">
+            <span>Agent: pi ACP adapter</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ⑤ Pinned 会话悬浮：首 Query 消除同名认知负担 -->
+      <div style="position:relative">
+        <div style="font-size:11px;color:#9B9BA6;margin-bottom:6px" class="mono">⑤ Pinned 悬浮首问 <span style="color:#7E7E8A;float:right">differentiate</span></div>
+        <div style="width:220px;height:430px;background:#1D1D23;border:1px solid #303039;border-radius:6px;display:flex;flex-direction:column;overflow:hidden;position:relative">
+          <!-- 搜索框（还原实际实现：通栏 height: 36px、border-bottom: 1px solid #303039、无内缩圆角胶囊框） -->
+          <div style="height:36px;flex:none;display:flex;align-items:center;gap:8px;padding:0 8px 0 12px;border-bottom:1px solid #303039">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7E7E8A" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.2" y2="16.2"></line></svg>
+            <span style="font-size:12px;color:#7E7E8A">搜索会话</span>
+          </div>
+          <div style="flex:1;overflow:hidden;padding:3px 0">
+            <div class="section-header">
+              <span class="dot-online"></span>
+              <span class="section-label" style="color:#D5D5DC">ACTIVE</span>
+              <span class="chip-active">1</span>
+            </div>
+            <div class="session-row">
+              <div style="width:18px;height:18px;border-radius:4px;background:#262638;border:1px solid #5566D8;display:flex;align-items:center;justify-content:center;position:relative;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8B96EC" stroke-width="2.2"><path d="M7 8h10M10 8v8M14 8v8"/></svg>
+                <span style="position:absolute;right:-2px;bottom:-2px;width:6px;height:6px;border-radius:50%;background:#6FBF63;border:1.5px solid #1D1D23"></span>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:#D5D5DC;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">New pi ACP adapter Session</div>
+                <div style="font-size:10px;color:#7E7E8A" class="tabular">刚刚 · 2 条消息</div>
+              </div>
+            </div>
+
+            <div style="height:1px;background:#303039;margin:4px 12px"></div>
+
+            <div class="section-header">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8B96EC" stroke-width="2"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>
+              <span class="section-label" style="color:#D5D5DC">PINNED</span>
+              <span class="chip-pinned">2</span>
+            </div>
+            <!-- Pinned 项悬浮：消除默认标题歧义 -->
+            <div class="session-row hovered">
+              <div style="width:18px;height:18px;border-radius:4px;background:#23232B;border:1px solid #383845;display:flex;align-items:center;justify-content:center;opacity:0.95;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8B96EC" stroke-width="2"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:#D5D5DC;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">New pi ACP adapter Session</div>
+                <div style="font-size:10px;color:#7E7E8A" class="tabular">18 小时前 · 67 条消息</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 悬浮卡片 -->
+        <div class="query-hover-card" style="top:140px;left:130px;width:250px">
+          <div class="query-card-header">
+            <span class="query-card-title">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              INITIAL QUERY
+            </span>
+            <span class="query-card-meta tabular">18 小时前</span>
+          </div>
+          <div class="query-card-body">
+            请帮我审计当前项目中关于 sessions.json 的并发写入和墓碑机制，检查核心桥接接口在异步任务取消时是否存在死锁隐患...
+          </div>
+          <div class="query-card-footer">
+            <span>Agent: pi ACP adapter</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ⑥ 浅色主题严格对位 (00-tokens) -->
+      <div>
+        <div style="font-size:11px;color:#9B9BA6;margin-bottom:6px" class="mono">⑥ 浅色主题对位 <span style="color:#7E7E8A;float:right">AppTheme.light</span></div>
+        <div style="width:220px;height:430px;background:#F4F4F6;border:1px solid #E2E2E7;border-radius:6px;display:flex;flex-direction:column;overflow:hidden;color:#33333D">
+          <!-- 搜索框（还原实际实现：浅色模式 36px 条高、底部分割线 #E2E2E7） -->
+          <div style="height:36px;flex:none;display:flex;align-items:center;gap:8px;padding:0 8px 0 12px;border-bottom:1px solid #E2E2E7">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8B8B96" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.2" y2="16.2"></line></svg>
+            <span style="font-size:12px;color:#8B8B96">搜索会话</span>
+          </div>
+          <div style="flex:1;overflow:hidden;padding:3px 0">
+            <!-- ACTIVE 分组头 -->
+            <div class="section-header">
+              <span style="width:6px;height:6px;border-radius:50%;background:#477F40;flex:none"></span>
+              <span class="section-label" style="color:#33333D">ACTIVE</span>
+              <span style="padding:1px 5px;border-radius:3px;background:#ECF3EA;color:#477F40;font-size:10px;font-weight:500" class="mono">1</span>
+            </div>
+            <div class="session-row" style="background:rgba(30,30,38,0.10)">
+              <div style="width:18px;height:18px;border-radius:4px;background:#ECEDFA;border:1px solid #5566D8;display:flex;align-items:center;justify-content:center;position:relative;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4A59C9" stroke-width="2.2"><path d="M7 8h10M10 8v8M14 8v8"/></svg>
+                <span style="position:absolute;right:-2px;bottom:-2px;width:6px;height:6px;border-radius:50%;background:#477F40;border:1.5px solid #F4F4F6"></span>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;font-weight:500;color:#4A59C9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">New pi ACP adapter Session</div>
+                <div style="font-size:10px;color:#62626E" class="tabular">11 分钟前 · 6 条消息</div>
+              </div>
+            </div>
+
+            <div style="height:1px;background:#E2E2E7;margin:4px 12px"></div>
+
+            <!-- PINNED 分组头 -->
+            <div class="section-header">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4A59C9" stroke-width="2"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>
+              <span class="section-label" style="color:#33333D">PINNED</span>
+              <span style="padding:1px 5px;border-radius:3px;background:#ECEDFA;color:#4A59C9;font-size:10px;font-weight:500" class="mono">2</span>
+            </div>
+            <div class="session-row" style="background:rgba(30,30,38,0.05)">
+              <div style="width:18px;height:18px;border-radius:4px;background:#EEEEF1;border:1px solid #D3D3DA;display:flex;align-items:center;justify-content:center;opacity:0.9;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4A59C9" stroke-width="2"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:#33333D;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Windows to Mac Mini low-la...</div>
+                <div style="font-size:10px;color:#8B8B96" class="tabular">42 分钟前 · 6 条消息</div>
+              </div>
+            </div>
+
+            <div style="height:1px;background:#E2E2E7;margin:4px 12px"></div>
+
+            <!-- HISTORY 分组头 -->
+            <div class="section-header">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8B8B96" stroke-width="1.8"><polyline points="6 9 12 15 18 9"/></svg>
+              <span class="section-label" style="color:#62626E">HISTORY</span>
+              <span style="padding:1px 5px;border-radius:3px;background:#E7E7EB;color:#62626E;font-size:10px;font-weight:500" class="mono">35</span>
+            </div>
+            <div class="session-row">
+              <div style="width:18px;height:18px;border-radius:4px;background:#EEEEF1;border:1px solid #D3D3DA;display:flex;align-items:center;justify-content:center;opacity:0.75;flex:none">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#62626E" stroke-width="2"><path d="M7 8h10M10 8v8M14 8v8"/></svg>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;color:#33333D;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">New pi ACP adapter Session</div>
+                <div style="font-size:10px;color:#8B8B96" class="tabular">18 小时前 · 6 条消息</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 第二部分：规范明细表（几何、Token 与状态机规则） -->
+  <div style="display:flex;gap:24px;align-items:flex-start;margin-top:2px">
+    <div style="flex:1">
+      <div style="font-size:12px;font-weight:500;color:#F0F0F4;margin-bottom:8px">B · 分组判定、流转与数据持久化规格（Lifecycle &amp; Persistence Rules）</div>
+      <div class="spec-grid">
+        <div class="spec-cell" style="color:#7E7E8A;font-weight:500">维度 / 场景</div>
+        <div class="spec-cell" style="color:#7E7E8A;font-weight:500">判定条件与数据源</div>
+        <div class="spec-cell" style="color:#7E7E8A;font-weight:500">UI 表现与交互契约</div>
+
+        <div class="spec-cell" style="color:#D5D5DC">ACTIVE 区（最高优先级）</div>
+        <div class="spec-cell mono" style="color:#6FBF63">attached == true</div>
+        <div class="spec-cell" style="color:#9B9BA6">所有当前挂载在活跃 Agent 连接上的会话（含运行中、等待授权、普通挂载）。<b>即使该会话带有 isPinned 标记，只要处于活跃连接中，一律归入 ACTIVE 区展示</b>，保持实时状态和连接绿点统一。</div>
+
+        <div class="spec-cell" style="color:#D5D5DC">PINNED 区（非活跃置顶）</div>
+        <div class="spec-cell mono" style="color:#8B96EC">attached == false &amp;&amp; isPinned</div>
+        <div class="spec-cell" style="color:#9B9BA6">本地会话未连接（detached / unattachable / 挂起）且被打上置顶标记。独立分组聚类展示，按 pinnedAt 或 updatedAt 降序排序，数量胶囊使用 Accent 样式。</div>
+
+        <div class="spec-cell" style="color:#D5D5DC">HISTORY 区（普通归档）</div>
+        <div class="spec-cell mono" style="color:#7E7E8A">attached == false &amp;&amp; !isPinned</div>
+        <div class="spec-cell" style="color:#9B9BA6">未连接且未置顶的常规历史会话。支持整体折叠，按时间戳降序排布。</div>
+
+        <div class="spec-cell" style="color:#D5D5DC">Pin / Unpin 公共切换按钮</div>
+        <div class="spec-cell mono" style="color:#9AA5F0">AcpIcons.pin (切换持久化)</div>
+        <div class="spec-cell" style="color:#9B9BA6">悬浮快捷操作栏第一位。未置顶态为描边图钉（tooltip `Pin session`）；已置顶态为实心/高亮图钉（tooltip `Unpin session`）。点击立即翻转 isPinned 状态并写回本地 sessions.json。</div>
+
+        <div class="spec-cell" style="color:#D5D5DC">Pinned ↔ Active 平滑迁移</div>
+        <div class="spec-cell mono" style="color:#6FBF63">onSelect / onSuspend</div>
+        <div class="spec-cell" style="color:#9B9BA6">点选 Pinned 会话触发加载连接，连接成功后条目平滑升入 ACTIVE 区；在 ACTIVE 区挂起或断开连接时，若原带有 isPinned 标记，则平滑降格回 PINNED 区，而不是落入普通 History。</div>
+
+        <div class="spec-cell" style="color:#D5D5DC">首 Query 悬浮卡片机制</div>
+        <div class="spec-cell mono" style="color:#D8A83C">session.firstPrompt 投影</div>
+        <div class="spec-cell" style="color:#9B9BA6">鼠标悬浮任意会话行停留 150ms 触发 OverlayPortal 飞出卡片。展示首个用户 prompt 原始文本（多行折行、最大 4 行），右侧对齐不遮挡行内操作按钮，鼠标穿透点击。</div>
+      </div>
+    </div>
+
+    <div style="width:460px;flex:none">
+      <div style="font-size:12px;font-weight:500;color:#F0F0F4;margin-bottom:8px">C · 组件几何与 Token 对照（零新增硬编码）</div>
+      <div style="display:grid;grid-template-columns:150px 1fr;border-top:1px solid #303039;font-size:11.5px">
+        <div class="spec-cell" style="color:#7E7E8A">PINNED 分区头</div>
+        <div class="spec-cell mono" style="color:#D5D5DC">SidebarSection.headerHeight (28px) · padding: 0 12px · label 11px</div>
+
+        <div class="spec-cell" style="color:#7E7E8A">PINNED 数量徽章</div>
+        <div class="spec-cell mono" style="color:#8B96EC">Spacing.chip (1px 5px) · Radii.chip (3px) · Accent.mutedBg (#8B96EC29)</div>
+
+        <div class="spec-cell" style="color:#7E7E8A">Pin 图标规格</div>
+        <div class="spec-cell mono" style="color:#D5D5DC">AcpIcons.pin · Controls.compact (24px) · 未置顶 Neutral.muted / 已置顶 Accent.base</div>
+
+        <div class="spec-cell" style="color:#7E7E8A">Query 悬浮卡片容器</div>
+        <div class="spec-cell mono" style="color:#D5D5DC">Surface.popover (#23232B) · width: 250px · Shadows.popover · Radii.control (6px)</div>
+
+        <div class="spec-cell" style="color:#7E7E8A">Query 卡片正文字阶</div>
+        <div class="spec-cell mono" style="color:#D5D5DC">TextStyles.secondary (11.5px) · line-height 1.5 · Neutral.text (#D5D5DC)</div>
+
+        <div class="spec-cell" style="color:#7E7E8A">持久化字段扩充</div>
+        <div class="spec-cell mono" style="color:#9AA5F0">sessions.json: isPinned (bool), pinnedAt (int?), firstPrompt (String?)</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:960}}"></script>
+</x-dc>
+</body>
+</html>
