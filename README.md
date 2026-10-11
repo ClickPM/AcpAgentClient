@@ -85,7 +85,9 @@ powershell -File scripts/package.ps1           # 打包 zip 与安装器 → dis
 
 ## 状态
 
-当前 **v1.5.1**，Windows x64。逐版本的改动见 [Releases](https://github.com/ClickPM/AcpAgentClient/releases)；开发轮次与进度表在 [`ROUNDS.md`](ROUNDS.md)。2026-09-22 起 R0–R8 主体完成、进入敏捷迭代阶段：日常的缺陷修复、交互优化与单画板功能按 [`iterations/`](iterations/README.md) 的迭代流程走（一迭代一文件、一项一行、一轮审查），轮次流程保留给核心大迭代。
+当前 **v1.5.2**，Windows x64。逐版本的改动见 [Releases](https://github.com/ClickPM/AcpAgentClient/releases)；开发轮次与进度表在 [`ROUNDS.md`](ROUNDS.md)。2026-09-22 起 R0–R8 主体完成、进入敏捷迭代阶段：日常的缺陷修复、交互优化与单画板功能按 [`iterations/`](iterations/README.md) 的迭代流程走（一迭代一文件、一项一行、一轮审查），轮次流程保留给核心大迭代。
+
+v1.5.2 把侧栏分成 ACTIVE、PINNED、HISTORY 三区：会话行可以置顶和取消置顶，鼠标悬停 150 ms 弹出该会话的首条指令卡片（画板 46，[`iterations/iteration-26.md`](iterations/iteration-26.md)）。置顶状态与首条指令存进会话索引；审查用所有者指定的 Delta Reviewer / GPT-6.1-Sol，五轮后 findings 清零。未手测。
 
 v1.5.1 修掉 v1.5.0 之后登记的两条 P0：未发送的正文和附件按会话保存，切换会话或换项目时不再串到另一个输入框；发送现开新会话时，只有新会话开出来并且仍是当前会话才会把那一槽发出去。流量里超过 64 KB 的行先截断长字符串再解析，截完仍超限就不再整份 `jsonDecode`，展开和语法着色都有长度上限；「复制行」仍复制完整原文。审查用所有者指定的 Delta Reviewer / GPT-6.1-Sol，整改后复审 0 条 findings（[`iterations/iteration-25.md`](iterations/iteration-25.md)）。草稿只在内存里、不落盘；流量缓冲仍保留完整原文，没有另设累计上界。真窗口长任务的内存曲线未测。
 
