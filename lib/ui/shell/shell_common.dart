@@ -174,7 +174,7 @@ class _HoverableState extends State<Hoverable> {
 
 /// 单行 / 多行文本输入（`EditableText`，不引 Material）：输入框正文、侧栏搜索、行内重命名、分支名、方法名过滤。
 /// 中文 IME 的组合窗由 `EditableText` 自己处理（R0 记录的实测项）。
-class AcpTextField extends StatelessWidget {
+class AcpTextField extends StatefulWidget {
   const AcpTextField({
     super.key,
     required this.controller,
@@ -187,6 +187,7 @@ class AcpTextField extends StatelessWidget {
     this.autofocus = false,
     this.onChanged,
     this.onSubmitted,
+    this.backgroundCursorColor,
   });
 
   final TextEditingController controller;
@@ -199,36 +200,79 @@ class AcpTextField extends StatelessWidget {
   final bool autofocus;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
+  final Color? backgroundCursorColor;
+
+  @override
+  State<AcpTextField> createState() => _AcpTextFieldState();
+}
+
+class _AcpTextFieldState extends State<AcpTextField> implements TextSelectionGestureDetectorBuilderDelegate {
+  final GlobalKey<EditableTextState> _editableTextKey = GlobalKey<EditableTextState>();
+  late final _AcpTextFieldSelectionGestureDetectorBuilder _gestureDetectorBuilder;
+
+  @override
+  GlobalKey<EditableTextState> get editableTextKey => _editableTextKey;
+
+  @override
+  bool get forcePressEnabled => false;
+
+  @override
+  bool get selectionEnabled => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _gestureDetectorBuilder = _AcpTextFieldSelectionGestureDetectorBuilder(delegate: this);
+  }
 
   @override
   Widget build(BuildContext context) {
     final field = EditableText(
-      controller: controller,
-      focusNode: focusNode,
-      style: style,
+      key: _editableTextKey,
+      controller: widget.controller,
+      focusNode: widget.focusNode,
+      style: widget.style,
       cursorColor: t.Accent.base,
-      backgroundCursorColor: t.Neutral.border,
+      backgroundCursorColor: widget.backgroundCursorColor ?? t.Neutral.border,
       selectionColor: t.Accent.soft,
-      maxLines: maxLines,
-      minLines: minLines,
-      autofocus: autofocus,
-      onChanged: onChanged,
-      onSubmitted: onSubmitted,
+      maxLines: widget.maxLines,
+      minLines: widget.minLines,
+      autofocus: widget.autofocus,
+      onChanged: widget.onChanged,
+      onSubmitted: widget.onSubmitted,
+      rendererIgnoresPointer: true,
     );
-    final hint = placeholder;
-    if (hint == null || hint.isEmpty) return field;
-    return Stack(
-      children: <Widget>[
-        ValueListenableBuilder<TextEditingValue>(
-          valueListenable: controller,
-          builder: (context, value, _) => value.text.isEmpty
-              ? Text(hint, style: placeholderStyle ?? style.copyWith(color: t.Neutral.placeholder), maxLines: maxLines, overflow: TextOverflow.ellipsis)
-              : const SizedBox.shrink(),
-        ),
-        field,
-      ],
+    final hint = widget.placeholder;
+    final Widget child;
+    if (hint == null || hint.isEmpty) {
+      child = field;
+    } else {
+      child = Stack(
+        children: <Widget>[
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: widget.controller,
+            builder: (context, value, _) => value.text.isEmpty
+                ? Text(
+                    hint,
+                    style: widget.placeholderStyle ?? widget.style.copyWith(color: t.Neutral.placeholder),
+                    maxLines: widget.maxLines,
+                    overflow: TextOverflow.ellipsis,
+                  )
+                : const SizedBox.shrink(),
+          ),
+          field,
+        ],
+      );
+    }
+    return _gestureDetectorBuilder.buildGestureDetector(
+      behavior: HitTestBehavior.translucent,
+      child: child,
     );
   }
+}
+
+class _AcpTextFieldSelectionGestureDetectorBuilder extends TextSelectionGestureDetectorBuilder {
+  _AcpTextFieldSelectionGestureDetectorBuilder({required super.delegate});
 }
 
 /// 行内重命名输入（画板 04 / 41）：会话头的标题位与侧栏会话行共用一份，canvas 底 + 焦点环，Enter 保存、Esc 取消。

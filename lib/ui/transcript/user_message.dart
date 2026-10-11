@@ -89,44 +89,51 @@ class _UserMessageState extends State<UserMessage> {
     if (_editing) return _editor();
     final focused = _state == UserMessageState.focused || widget.focused;
     final hovered = _state == UserMessageState.hovered;
-    final bubble = MouseRegion(
-      onEnter: (_) => _state == UserMessageState.normal ? _set(UserMessageState.hovered) : null,
-      onExit: (_) => _state == UserMessageState.hovered ? _set(UserMessageState.normal) : null,
-      child: GestureDetector(
-        onTap: () => _set(focused ? UserMessageState.normal : UserMessageState.focused),
-        child: Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: t.Neutral.panel,
-            borderRadius: t.Radii.card,
-            border: Border.all(color: focused ? t.FocusRing.color : t.Neutral.panel, width: t.FocusRing.width),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s16, vertical: t.Spacing.s12),
-          child: Text.rich(_spans(), style: t.TextStyles.body),
+    final bubble = Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (e) {
+        if (e.buttons == kPrimaryButton) {
+          _set(focused ? UserMessageState.normal : UserMessageState.focused);
+        }
+      },
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: t.Neutral.panel,
+          borderRadius: t.Radii.card,
+          border: Border.all(color: focused ? t.FocusRing.color : t.Neutral.panel, width: t.FocusRing.width),
         ),
+        padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s16, vertical: t.Spacing.s12),
+        child: Text.rich(_spans(), style: t.TextStyles.body),
       ),
     );
-    if (!hovered) return bubble;
-    return Stack(
-      clipBehavior: Clip.none,
-      children: <Widget>[
-        bubble,
-        Positioned(
-          top: -t.Spacing.s16,
-          right: t.Spacing.s8,
-          child: Popover(
-            padding: const EdgeInsets.all(t.Spacing.s4),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                IconButtonGhost(icon: AcpIcons.pencil, size: t.Controls.compact, onTap: () => _set(UserMessageState.editing)),
-                IconButtonGhost(icon: AcpIcons.copy, size: t.Controls.compact, onTap: _copy),
-                IconButtonGhost(icon: AcpIcons.rotateCcw, size: t.Controls.compact, onTap: widget.onRestore),
-              ],
+    return MouseRegion(
+      onEnter: (_) => _state == UserMessageState.normal ? _set(UserMessageState.hovered) : null,
+      onExit: (_) => _state == UserMessageState.hovered ? _set(UserMessageState.normal) : null,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: <Widget>[
+          bubble,
+          Positioned(
+            top: -t.Spacing.s16,
+            right: t.Spacing.s8,
+            child: Visibility(
+              visible: hovered,
+              child: Popover(
+                padding: const EdgeInsets.all(t.Spacing.s4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    IconButtonGhost(icon: AcpIcons.pencil, size: t.Controls.compact, onTap: () => _set(UserMessageState.editing)),
+                    IconButtonGhost(icon: AcpIcons.copy, size: t.Controls.compact, onTap: _copy),
+                    IconButtonGhost(icon: AcpIcons.rotateCcw, size: t.Controls.compact, onTap: widget.onRestore),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -184,11 +191,10 @@ class _UserMessageState extends State<UserMessage> {
               border: Border.all(color: t.FocusRing.color, width: t.FocusRing.width),
             ),
             padding: const EdgeInsets.all(t.Spacing.s12),
-            child: EditableText(
+            child: AcpTextField(
               controller: _controller,
               focusNode: _focus,
               style: t.TextStyles.body,
-              cursorColor: t.Accent.base,
               backgroundCursorColor: t.Neutral.surface,
               maxLines: null,
               autofocus: true,

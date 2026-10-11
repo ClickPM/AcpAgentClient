@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import '../../projection/entries.dart';
 import '../../projection/wire.dart';
 import '../../theme/tokens.dart' as t;
+import '../shell/shell_common.dart';
 import 'card_chrome.dart';
 import 'icons.dart';
 
@@ -329,27 +330,22 @@ class _ElicitationFormCardState extends State<ElicitationFormCard> {
       ),
       padding: t.Controls.padInput,
       alignment: Alignment.centerLeft,
-      child: Stack(
-        alignment: Alignment.centerLeft,
-        children: <Widget>[
-          if (controller.text.isEmpty) Text(error ? '必填' : '', style: t.TextStyles.body.copyWith(color: error ? t.Semantic.error : t.Neutral.placeholder)),
-          EditableText(
-            controller: controller,
-            focusNode: focus,
-            style: t.TextStyles.body,
-            cursorColor: t.Accent.base,
-            backgroundCursorColor: t.Neutral.surface,
-            onChanged: (text) => setState(() {
-              if (text.isEmpty) {
-                _values[f.name] = null;
-              } else if (numeric) {
-                _values[f.name] = f.type == 'integer' ? int.tryParse(text) : num.tryParse(text);
-              } else {
-                _values[f.name] = text;
-              }
-            }),
-          ),
-        ],
+      child: AcpTextField(
+        controller: controller,
+        focusNode: focus,
+        style: t.TextStyles.body,
+        backgroundCursorColor: t.Neutral.surface,
+        placeholder: error ? '必填' : null,
+        placeholderStyle: error ? t.TextStyles.body.copyWith(color: t.Semantic.error) : null,
+        onChanged: (text) => setState(() {
+          if (text.isEmpty) {
+            _values[f.name] = null;
+          } else if (numeric) {
+            _values[f.name] = f.type == 'integer' ? int.tryParse(text) : num.tryParse(text);
+          } else {
+            _values[f.name] = text;
+          }
+        }),
       ),
     );
   }
