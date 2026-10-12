@@ -848,6 +848,9 @@ abstract final class Geometry {
   static const double attachmentPreviewMaxWidth = 320;
   static const double attachmentPreviewMaxHeight = 240;
 
+  /// 01–03：主输入框文本内容区的最高高度。超过就在输入框内部滚动，避免长文本撑满屏幕（所有者报障）。
+  static const double composerInputMaxHeight = 240;
+
   /// 弹层与触发控件的间隙（向下 / 向上展开）。
   static const Offset popoverBelow = Offset(0, Spacing.s4);
   static const Offset popoverAbove = Offset(0, -Spacing.s4);

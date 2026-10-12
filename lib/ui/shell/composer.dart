@@ -203,7 +203,10 @@ class Composer extends StatelessWidget {
               const SizedBox(height: t.Spacing.s8),
             ],
             ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: t.Controls.input + t.Spacing.s8),
+              constraints: const BoxConstraints(
+                minHeight: t.Controls.input + t.Spacing.s8,
+                maxHeight: t.Geometry.composerInputMaxHeight,
+              ),
               child: Focus(
                 canRequestFocus: false,
                 onKeyEvent: _onKeyEvent,
