@@ -268,6 +268,43 @@ void main() {
       final FontChoice optional = fontCatalog[FontAxis.uiCjk]!.firstWhere((FontChoice c) => c.source == FontSource.optional);
       expect(reg.isAvailable(optional), isFalse);
     });
+
+    test('macOS 与 Windows 的默认字体探测目录及 App Bundle 可选字体路径（R9）', () {
+      final macProbe = FontRegistry.probeDirsFor(
+        isWindows: false,
+        isMacOS: true,
+        env: const <String, String>{'HOME': '/Users/tester'},
+      ).map((d) => d.path).toList();
+      expect(
+        macProbe,
+        <String>['/System/Library/Fonts', '/Library/Fonts', '/Users/tester/Library/Fonts'],
+      );
+
+      final winProbe = FontRegistry.probeDirsFor(
+        isWindows: true,
+        isMacOS: false,
+        env: const <String, String>{'WINDIR': r'C:\Windows', 'LOCALAPPDATA': r'C:\Users\me\AppData\Local'},
+      ).map((d) => d.path).toList();
+      expect(
+        winProbe,
+        <String>[r'C:\Windows\Fonts', r'C:\Users\me\AppData\Local\Microsoft\Windows\Fonts'],
+      );
+
+      final macLoad = FontRegistry.loadDirsFor(
+        resolvedExecutable: '/Applications/AcpAgentClient.app/Contents/MacOS/acp_agent_client',
+        isMacOS: true,
+        dataDir: '/Users/tester/Library/Application Support/AcpAgentClient',
+        sep: '/',
+      ).map((d) => d.path).toList();
+      expect(
+        macLoad,
+        <String>[
+          '/Applications/AcpAgentClient.app/Contents/MacOS/fonts',
+          '/Applications/AcpAgentClient.app/Contents/Resources/fonts',
+          '/Users/tester/Library/Application Support/AcpAgentClient/fonts',
+        ],
+      );
+    });
   });
 
   group('AppearanceController', () {

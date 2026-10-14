@@ -349,7 +349,10 @@ class ComposerState extends ChangeNotifier with GuardedNotifier {
     touch();
   }
 
-  static String _fileUri(String path) => Uri.file(path, windows: Platform.isWindows).toString();
+  static String _fileUri(String path) {
+    final isWinPath = Platform.isWindows || RegExp(r'^[A-Za-z]:[\\/]').hasMatch(path);
+    return Uri.file(path, windows: isWinPath).toString();
+  }
 
   // ---------------------------------------------------------------- `+` 的四项（画板 40）
 

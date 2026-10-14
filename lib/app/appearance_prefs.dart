@@ -359,30 +359,76 @@ class FontRegistry {
   Set<String> get availableOptional => Set<String>.unmodifiable(_available);
 
   /// 随安装包的字体目录 + 用户自己丢文件的地方。这两处的文件会被注册进引擎。
-  static List<Directory> defaultLoadDirs() {
-    final List<Directory> dirs = <Directory>[];
+  /// macOS App Bundle 额外纳入 `Contents/Resources/fonts`。
+  static List<Directory> defaultLoadDirs([String? dataDir]) {
+    String? exe;
     try {
-      final String exeDir = File(Platform.resolvedExecutable).parent.path;
-      dirs.add(Directory('$exeDir${Platform.pathSeparator}fonts'));
+      exe = Platform.resolvedExecutable;
     } on Object {
-      // 拿不到可执行文件路径（测试环境）就只用数据目录。
+      exe = null;
     }
-    dirs.add(Directory('${defaultDataDir()}${Platform.pathSeparator}fonts'));
+    return loadDirsFor(
+      resolvedExecutable: exe,
+      isMacOS: Platform.isMacOS,
+      dataDir: dataDir ?? defaultDataDir(),
+      sep: Platform.pathSeparator,
+    );
+  }
+
+  @visibleForTesting
+  static List<Directory> loadDirsFor({
+    required String? resolvedExecutable,
+    required bool isMacOS,
+    required String? dataDir,
+    String sep = '/',
+  }) {
+    final List<Directory> dirs = <Directory>[];
+    if (resolvedExecutable != null && resolvedExecutable.isNotEmpty) {
+      final Directory exeDir = File(resolvedExecutable).parent;
+      dirs.add(Directory('${exeDir.path}${sep}fonts'));
+      if (isMacOS) {
+        final String contentsDir = exeDir.parent.path;
+        dirs.add(Directory('$contentsDir${sep}Resources${sep}fonts'));
+      }
+    }
+    if (dataDir != null && dataDir.isNotEmpty) {
+      dirs.add(Directory('$dataDir${sep}fonts'));
+    }
     return dirs;
   }
 
-  /// 系统字体目录，只探测不注册。
-  static List<Directory> defaultProbeDirs() {
-    if (!Platform.isWindows) return const <Directory>[];
-    final Map<String, String> env = Platform.environment;
-    final String windir = env['WINDIR'] ?? r'C:\Windows';
-    final List<Directory> dirs = <Directory>[Directory('$windir\\Fonts')];
-    final String? localAppData = env['LOCALAPPDATA'];
-    if (localAppData != null && localAppData.isNotEmpty) {
-      // 「仅为我安装」的字体在这里，不在 C:\Windows\Fonts。
-      dirs.add(Directory('$localAppData\\Microsoft\\Windows\\Fonts'));
+  /// 系统字体目录，只探测不注册（Windows 系统/用户字体目录；macOS `/System/Library/Fonts`、`/Library/Fonts`、`$HOME/Library/Fonts`）。
+  static List<Directory> defaultProbeDirs() => probeDirsFor(
+        isWindows: Platform.isWindows,
+        isMacOS: Platform.isMacOS,
+        env: Platform.environment,
+      );
+
+  @visibleForTesting
+  static List<Directory> probeDirsFor({
+    required bool isWindows,
+    required bool isMacOS,
+    required Map<String, String> env,
+  }) {
+    if (isWindows) {
+      final String windir = env['WINDIR'] ?? r'C:\Windows';
+      final List<Directory> dirs = <Directory>[Directory('$windir\\Fonts')];
+      final String? localAppData = env['LOCALAPPDATA'];
+      if (localAppData != null && localAppData.isNotEmpty) {
+        // 「仅为我安装」的字体在这里，不在 C:\Windows\Fonts。
+        dirs.add(Directory('$localAppData\\Microsoft\\Windows\\Fonts'));
+      }
+      return dirs;
     }
-    return dirs;
+    if (isMacOS) {
+      final String? home = env['HOME'];
+      return <Directory>[
+        Directory('/System/Library/Fonts'),
+        Directory('/Library/Fonts'),
+        if (home != null && home.isNotEmpty) Directory('$home/Library/Fonts'),
+      ];
+    }
+    return const <Directory>[];
   }
 
   /// 扫描三处目录，注册能注册的，返回本机可用的 optional family 集合。

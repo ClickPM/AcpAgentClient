@@ -52,9 +52,9 @@ registry 里的条目都能装（截图时 43 条），下面这五个是重点�
 
 npx 型的 agent 需要系统 Node ≥ 22；没有的话应用会自己下一份受管 Node。
 
-用户数据在 `%APPDATA%\AcpAgentClient\`（`settings.json`、会话索引、已安装的 agent、日志），安装与卸载都不动它。
+用户数据在 Windows `%APPDATA%\AcpAgentClient\`、macOS `~/Library/Application Support/AcpAgentClient/`（`settings.json`、会话索引、已安装的 agent、日志），安装与卸载都不动它。
 
-**macOS 与 Linux 还没有构建**，见下面「状态」。
+**macOS 源码工程与构建脚本已就绪（R9）**；Linux 还没有构建，见下面「状态」。
 
 ### 上手
 
@@ -80,6 +80,17 @@ powershell -File scripts/package.ps1           # 打包 zip 与安装器 → dis
 ```
 
 产物在 `build/windows/x64/runner/Release/`。
+
+macOS 下（需完整 Xcode、Rust stable、Flutter stable、Node ≥ 22）：
+
+```bash
+bash scripts/fetch-upstream.sh          # 首次填充 vendor/upstream/（--check 校验）
+bash scripts/validate.sh                # 编译 + 测试 + 契约检查（--quick 只跑静态检查）
+bash scripts/build-macos.sh --smoke     # flutter build macos --release + 无头自检
+bash scripts/package-macos.sh           # 打包 .zip 与 .dmg → dist/
+```
+
+macOS 产物在 `build/macos/Build/Products/Release/acp_agent_client.app`。
 
 项目路径含中文或空格时只能用 `scripts/build.ps1`（裸 `flutter build windows` 会把路径转码坏）。更多前置与本机坑见 [`AGENTS.md`](AGENTS.md)「本地开发」与 [`docs/agent-notes/`](docs/agent-notes/README.md)；各脚本的一句话索引在 [`scripts/README.md`](scripts/README.md)，测试布局在 [`test/README.md`](test/README.md)。
 

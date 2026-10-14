@@ -70,12 +70,16 @@ pub fn resolve_program(program: &str) -> PathBuf {
 
 /// [`resolve_program`] 的「找到了才回」版本：**裸名字**在 PATH 上找不到时回 `None`（内置 agent 要按
 /// 「PATH 上有没有这个命令」分流，见 `crate::builtin`）。已带路径的按原样回，不判存在——那种路径是调用方给的。
+/// macOS / Unix 下按 [`fs::effective_path`]（含登录 shell 与标准路径补齐）查找。
 pub fn lookup_program(program: &str) -> Option<PathBuf> {
     let path = Path::new(program);
     if path.is_absolute() || path.components().count() > 1 {
         return Some(path.to_path_buf());
     }
-    let path_var = std::env::var_os("PATH")?;
+    let path_var = fs::effective_path();
+    if path_var.is_empty() {
+        return None;
+    }
     let candidates: Vec<String> = candidate_names(program);
     for dir in std::env::split_paths(&path_var) {
         if dir.as_os_str().is_empty() {
@@ -106,11 +110,12 @@ fn candidate_names(program: &str) -> Vec<String> {
         .collect()
 }
 
-/// 三路管道、kill_on_drop、无控制台窗口。`cwd` 是 agent 进程的工作目录（第一个会话的项目目录）。
+/// 三路管道、kill_on_drop、无控制台窗口（Unix 下独立进程组 `process_group(0)`）。`cwd` 是 agent 进程的工作目录（第一个会话的项目目录）。
 pub fn build_command(spec: &LaunchSpec, cwd: Option<&Path>) -> tokio::process::Command {
     let program = resolve_program(&spec.program);
     let mut cmd = tokio::process::Command::new(program);
-    cmd.args(&spec.args)
+    cmd.env("PATH", fs::effective_path())
+        .args(&spec.args)
         .envs(&spec.env)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
@@ -121,10 +126,12 @@ pub fn build_command(spec: &LaunchSpec, cwd: Option<&Path>) -> tokio::process::C
     }
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
+    #[cfg(unix)]
+    cmd.process_group(0);
     cmd
 }
 
-/// 结束整棵进程树。Windows：`taskkill /F /T /PID`（不引 Job Object，那需要 unsafe，规则 6），再 `kill` 兜底。
+/// 结束整棵进程树。Windows：`taskkill /F /T /PID`；Unix：向 `-<pid>` 进程组发 `-TERM` / `-KILL`（规则 6 严禁 `unsafe`），再 `kill` 兜底。
 pub async fn kill_tree(child: &mut tokio::process::Child) {
     #[cfg(windows)]
     if let Some(pid) = child.id() {
@@ -135,6 +142,19 @@ pub async fn kill_tree(child: &mut tokio::process::Child) {
             .stderr(std::process::Stdio::null())
             .creation_flags(CREATE_NO_WINDOW);
         let _ = cmd.status().await;
+    }
+    #[cfg(unix)]
+    if let Some(pid) = child.id() {
+        let neg_pgid = format!("-{pid}");
+        for sig in ["-TERM", "-KILL"] {
+            let _ = tokio::process::Command::new("/bin/kill")
+                .args([sig, "--", &neg_pgid])
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .await;
+        }
     }
     let _ = child.start_kill();
 }
@@ -183,5 +203,38 @@ mod tests {
         assert!(matches!(LaunchSpec::from_server("x", &registry), Err(CoreError::NotImplemented("R5"))));
         let empty = AgentServer::Custom { path: " ".into(), args: vec![], env: BTreeMap::new(), extra: BTreeMap::new() };
         assert!(matches!(LaunchSpec::from_server("x", &empty), Err(CoreError::InvalidArgument(_))));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn kill_tree_terminates_process_group_descendants() {
+        use tokio::io::{AsyncBufReadExt, BufReader};
+
+        let mut spec = LaunchSpec::new("/bin/sh");
+        spec.args = vec!["-c".into(), "sleep 60 &\necho $!\nwait".into()];
+        let mut child = build_command(&spec, None).spawn().expect("spawn sh");
+        let stdout = child.stdout.take().expect("stdout");
+        let mut lines = BufReader::new(stdout).lines();
+        let sub_pid: u32 = lines
+            .next_line()
+            .await
+            .expect("read line")
+            .expect("sub pid line")
+            .trim()
+            .parse()
+            .expect("parse pid");
+
+        kill_tree(&mut child).await;
+        let _ = child.wait().await;
+
+        let alive = std::process::Command::new("/bin/kill")
+            .args(["-0", &sub_pid.to_string()])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        assert!(!alive, "grandchild process {sub_pid} must be terminated by kill_tree");
     }
 }

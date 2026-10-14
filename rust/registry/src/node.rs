@@ -173,11 +173,12 @@ pub async fn locate(dirs: &RegistryDirs) -> Result<NodeRuntime> {
 }
 
 impl NodeRuntime {
-    /// 拉起 npx 型 agent 时给它的环境：PATH 前面插 node 所在目录（agent 自己再拉 npm / npx 时用同一份 Node）。
+    /// 拉起 npx 型 agent 时给它的环境：PATH 前面插 node 所在目录（agent 自己再拉 npm / npx 时用同一份 Node），
+    /// 基底用 [`fs::effective_path`] 以保留 macOS GUI 启动下补齐的 PATH。
     pub fn env_overrides(&self) -> Vec<(String, String)> {
         let mut out = Vec::new();
         if let Some(dir) = self.node.parent() {
-            let existing = std::env::var_os("PATH").unwrap_or_default();
+            let existing = fs::effective_path();
             let joined = std::env::join_paths(std::iter::once(dir.to_path_buf()).chain(std::env::split_paths(&existing)))
                 .map(|p| p.to_string_lossy().into_owned())
                 .unwrap_or_else(|_| existing.to_string_lossy().into_owned());
@@ -241,11 +242,17 @@ async fn read_all<R: tokio::io::AsyncRead + Unpin>(reader: Option<R>) -> String 
     out
 }
 
-/// 结束整棵进程树（`npm.cmd` 是 `cmd.exe` 包装，杀它不带 node 子进程；照 acp-core 的做法用 `taskkill /T`）。
+/// 结束整棵进程树（Windows 用 `taskkill /T`；Unix 下子进程已设 `process_group(0)`，通过 `/bin/kill` 向 `-<pid>` 发信号，严禁 `unsafe`）。
 pub async fn kill_tree(child: &mut tokio::process::Child) {
     #[cfg(windows)]
     if let Some(pid) = child.id() {
         let _ = command("taskkill").args(["/F", "/T", "/PID", &pid.to_string()]).output().await;
+    }
+    #[cfg(unix)]
+    if let Some(pid) = child.id() {
+        let neg_pgid = format!("-{pid}");
+        let _ = command("/bin/kill").args(["-TERM", "--", &neg_pgid]).output().await;
+        let _ = command("/bin/kill").args(["-KILL", "--", &neg_pgid]).output().await;
     }
     let _ = child.start_kill();
     let _ = child.wait().await;

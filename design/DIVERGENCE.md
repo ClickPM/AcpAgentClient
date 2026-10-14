@@ -53,6 +53,7 @@
 39. **画板 13 的 Copy 成功反馈停留**：画板画了 Copy → Copied，没定义停留多久 → 实现以 `Motion.copyFeedback = fast × 15` 保持 1.8s，后续复制成功从该次重新计时；不改按钮布局、样式或其余过渡时长。修复原来借 `motion.fast` 导致 120ms 一闪即逝的报障。（iteration-24, 2026-10-09；本线程原 A-38 / iteration-22，所有者授权解决 GitHub 编号冲突）
 40. **画板 46 规格表把卡片圆角写成 `Radii.control (6px)`**：token 里 `Radii.control` 是 4px，6px 是 `Radii.card`，PNG 画的是 6px → 卡片用 `Radii.card`。索引里的 `Accent.mutedBg` 不是已有 token，PINNED 数量胶囊用已有的 `Badge.accentBg`。没有单独的列表位移动画：挂上 / 挂起后按分组判定换区，与画板 45 的升格 / 沉降一样。（iteration-26, 2026-10-10）
 41. **画板 01–03 主输入框的「超长多行文本」一态**：画板画的是短输入态，未画大段长文本时的封顶限制 → 实现给主输入框文本内容区封顶 `Geometry.composerInputMaxHeight`（240）并在内部滚动，避免长文本撑满屏幕（所有者报障 2026-10-11）。
+42. **画板 01–04 在 macOS 下的窗口控制与左上角红绿灯避让**：画板按 Windows 端绘制了右上角窗口控制三键（`— ☐ ✕`）且左上角无红绿灯留白 → macOS 端采用系统原生 traffic lights（红绿灯），隐藏 `TopBar` 与 `RightPanel` 右上角的 `WindowControls`；同时为左上角原生红绿灯预留 `Geometry.macosTrafficLightInset`（`72px`）安全左边距——侧栏展开时加在 `SidebarTitleBar` 左侧（保留 `AppLogo`、标题与主题切换按钮），侧栏收起时加在 `TopBar` 左侧（侧栏折叠按钮排在红绿灯右侧）。所有者前置裁定不补设计稿。（R9, 2026-10-13）
 
 ## B · 画板画错或自相矛盾，实现做对了
 

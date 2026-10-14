@@ -281,6 +281,9 @@ impl ExitCell {
 
 struct Handle {
     source: TerminalSource,
+    /// 子进程的 PID（Unix 下 `portable-pty` 以 `setsid` 拉起，`pid` 即进程组 ID `pgid`）。
+    #[cfg(unix)]
+    pid: Option<u32>,
     /// 子进程退出后由等待线程 take 掉：ConPTY 的读端要等伪终端关闭才会 EOF。
     master: Mutex<Option<Box<dyn MasterPty + Send>>>,
     writer: Mutex<Option<Box<dyn Write + Send>>>,
@@ -364,10 +367,14 @@ impl TerminalManager {
             .take_writer()
             .map_err(|e| PtyError::Io(e.to_string()))?;
         let killer = child.clone_killer();
+        #[cfg(unix)]
+        let pid = child.process_id();
 
         let id = format!("term_{}", self.seq.fetch_add(1, Ordering::Relaxed) + 1);
         let handle = Arc::new(Handle {
             source,
+            #[cfg(unix)]
+            pid,
             master: Mutex::new(Some(pair.master)),
             writer: Mutex::new(Some(writer)),
             killer: Mutex::new(killer),
@@ -389,7 +396,8 @@ impl TerminalManager {
                     // 启动探询没答之前先把字节攒在 `held` 里（探询可能被 read 边界切开）：找到就答一次并把探询本身从流里抠掉
                     // ——渲染器（xterm.dart）看不到它就不会再答第二次，那第二次应答会被 shell 当键盘输入吞掉相邻的按键
                     // （R4 实测：本地 PowerShell 里敲 `echo` 丢了 `e`）。攒满 [`DSR_HOLD_LIMIT`] 还没出现就不等了。
-                    let mut dsr_answered = false;
+                    // 启动探询只出现在 Windows ConPTY（`PSEUDOCONSOLE_INHERIT_CURSOR`）；其他平台不攒字节。
+                    let mut dsr_answered = !cfg!(windows);
                     let mut held: Vec<u8> = Vec::new();
                     let emit = |bytes: &[u8]| {
                         if bytes.is_empty() {
@@ -468,7 +476,7 @@ impl TerminalManager {
     /// 拉起后半途失败（读 / 等待线程建不出来）：撤表项、杀子进程、关伪终端，不留孤儿（审查 finding）。
     fn abandon(&self, id: &str, handle: &Arc<Handle>) {
         lock_or_recover(&self.terminals).remove(id);
-        let _ = lock_or_recover(&handle.killer).kill();
+        kill_handle(handle);
         drop(lock_or_recover(&handle.writer).take());
         drop(lock_or_recover(&handle.master).take());
     }
@@ -551,7 +559,7 @@ impl TerminalManager {
         // portable-pty 0.9.0 的 Windows `WinChildKiller::kill` 把 TerminateProcess 的成败判反了：成功时返回
         // Err(GetLastError 的陈旧值——本机实测见过 os error 0 与 os error 6「句柄无效」)，失败时反而返回 Ok。
         // 返回值不可信，以进程是否真的退出为准：等等待线程把退出状态落进 ExitCell。
-        let _ = lock_or_recover(&handle.killer).kill();
+        kill_handle(&handle);
         match handle.exit.wait_timeout(KILL_CONFIRM) {
             Some(_) => Ok(()),
             None => Err(PtyError::Io(format!("{id}: process still running {}s after kill", KILL_CONFIRM.as_secs()))),
@@ -583,7 +591,7 @@ impl TerminalManager {
             .remove(id)
             .ok_or_else(|| PtyError::UnknownTerminal(id.to_string()))?;
         if handle.exit.get().is_none() {
-            let _ = lock_or_recover(&handle.killer).kill();
+            kill_handle(&handle);
         }
         Ok(())
     }
@@ -591,6 +599,28 @@ impl TerminalManager {
     pub fn ids(&self) -> Vec<String> {
         lock_or_recover(&self.terminals).keys().cloned().collect()
     }
+}
+
+/// 杀掉终端进程（Unix 下同时通过 `/bin/kill` 向整个进程组 `-<pid>` 发信号，防止 `sh -c` 派生出的子进程
+/// 继续持有 PTY slave fd 导致读线程不 EOF；遵循规则 6 严禁 `unsafe`）。
+fn kill_handle(handle: &Handle) {
+    #[cfg(unix)]
+    if let Some(pid) = handle.pid {
+        let neg_pgid = format!("-{pid}");
+        let _ = std::process::Command::new("/bin/kill")
+            .args(["-TERM", "--", &neg_pgid])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+        let _ = std::process::Command::new("/bin/kill")
+            .args(["-KILL", "--", &neg_pgid])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+    }
+    let _ = lock_or_recover(&handle.killer).kill();
 }
 
 fn lock_or_recover<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {

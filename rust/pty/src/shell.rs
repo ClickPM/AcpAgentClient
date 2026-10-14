@@ -10,7 +10,9 @@
 //! 找不到 PowerShell 才退到 `cmd.exe /S /C`。其他平台 `sh -c "exec </dev/null\n<command> <args>"`。
 
 use std::borrow::Cow;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(windows)]
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShellKind {
@@ -24,7 +26,8 @@ pub enum ShellKind {
 
 impl ShellKind {
     pub fn of_program(program: &str) -> Self {
-        let name = Path::new(program)
+        let leaf = program.rsplit(['/', '\\']).next().unwrap_or(program);
+        let name = Path::new(leaf)
             .file_stem()
             .map(|s| s.to_string_lossy().to_ascii_lowercase())
             .unwrap_or_default();
@@ -63,11 +66,12 @@ pub fn default_shell() -> (String, ShellKind) {
     }
 }
 
-/// 终端面板（画板 61）的交互 shell 参数：PowerShell 去掉启动横幅，其余不加。
+/// 终端面板（画板 61）的交互 shell 参数：PowerShell 去掉启动横幅；POSIX 传 `-l` 作为登录 shell 加载用户环境。
 pub fn interactive_args(kind: ShellKind) -> Vec<String> {
     match kind {
         ShellKind::PowerShell | ShellKind::Pwsh => vec!["-NoLogo".to_string()],
-        ShellKind::Cmd | ShellKind::Posix => Vec::new(),
+        ShellKind::Cmd => Vec::new(),
+        ShellKind::Posix => vec!["-l".to_string()],
     }
 }
 
@@ -329,6 +333,9 @@ mod tests {
         assert_eq!(ShellKind::of_program(r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"), ShellKind::PowerShell);
         assert_eq!(ShellKind::of_program("cmd.exe"), ShellKind::Cmd);
         assert_eq!(ShellKind::of_program("/bin/bash"), ShellKind::Posix);
+        assert_eq!(interactive_args(ShellKind::Posix), vec!["-l".to_string()]);
+        assert_eq!(interactive_args(ShellKind::Pwsh), vec!["-NoLogo".to_string()]);
+        assert!(interactive_args(ShellKind::Cmd).is_empty());
     }
 
     #[cfg(windows)]

@@ -7,7 +7,10 @@
 // 二、三列头两行的行高：分割线是横穿整窗的，侧栏搜索行与右栏标签条取了 `Controls.input`（32）、
 //     顶栏与会话头取条高（36），两条分割线就各错开 4px。这条在静态图上更难看出来，同样钉住。
 
+import 'package:acp_agent_client/app/workbench_controller.dart';
+import 'package:acp_agent_client/app/workbench_screen.dart';
 import 'package:acp_agent_client/theme/tokens.dart' as t;
+import 'package:acp_agent_client/ui/shell/app_logo.dart';
 import 'package:acp_agent_client/ui/shell/right_panel.dart';
 import 'package:acp_agent_client/ui/shell/shell_common.dart';
 import 'package:acp_agent_client/ui/shell/sidebar.dart';
@@ -15,9 +18,11 @@ import 'package:acp_agent_client/ui/shell/session_header.dart';
 import 'package:acp_agent_client/ui/shell/topbar.dart';
 import 'package:acp_agent_client/ui/transcript/card_chrome.dart';
 import 'package:acp_agent_client/ui/transcript/icons.dart';
+import 'package:flutter/material.dart' show MaterialApp;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../app/fake_core.dart';
 import '../gallery_harness.dart';
 
 void main() {
@@ -179,6 +184,94 @@ void main() {
         reason: '标题要在 trailing 之前省略掉',
       );
       expect(tester.getTopRight(find.byKey(trailing)).dx, closeTo(expected, 0.5), reason: 'trailing 仍旧贴右');
+    });
+  });
+
+  group('macOS 原生红绿灯避让与窗口三键隐藏（R9）', () {
+    testWidgets('SidebarTitleBar 与 TopBar 按 leadingInset 左移，且窄侧栏下不溢出', (tester) async {
+      await tester.runAsync(loadGalleryFonts);
+      await pump(
+        tester,
+        const SidebarTitleBar(leadingInset: t.Geometry.macosTrafficLightInset),
+        width: t.Geometry.sidebarWidth,
+        height: t.Geometry.barHeight,
+      );
+      expect(
+        tester.getTopLeft(find.byType(AppLogo)).dx,
+        closeTo(t.Spacing.s12 + t.Geometry.macosTrafficLightInset, 0.5),
+      );
+      expect(tester.takeException(), isNull);
+
+      // 最窄侧栏宽度（180）下带 72px 红绿灯避让也不得溢出。
+      await pump(
+        tester,
+        SidebarTitleBar(
+          leadingInset: t.Geometry.macosTrafficLightInset,
+          onCycleTheme: () {},
+        ),
+        width: t.Geometry.sidebarMinWidth,
+        height: t.Geometry.barHeight,
+      );
+      expect(tester.takeException(), isNull);
+
+      await pump(
+        tester,
+        const TopBar(
+          projectName: 'AcpAgentClient',
+          branch: 'round-09',
+          sidebarCollapsed: true,
+          windowControls: false,
+          leadingInset: t.Geometry.macosTrafficLightInset,
+        ),
+        width: 700,
+        height: t.Geometry.barHeight,
+      );
+      expect(find.byType(WindowControls), findsNothing);
+      final toggleLeft = tester
+          .getTopLeft(find.byWidgetPredicate((w) => w is AcpIcon && w.body == AcpIcons.panelLeft))
+          .dx;
+      expect(toggleLeft, greaterThanOrEqualTo(t.Spacing.s8 + t.Geometry.macosTrafficLightInset));
+    });
+
+    testWidgets('WorkbenchScreen 在 macOS 下隐藏三键并在侧栏展开/收起间切换红绿灯避让', (tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.runAsync(loadGalleryFonts);
+
+      final c = WorkbenchController(source: DataSource.bridge, bridge: FakeCore());
+      addTearDown(c.dispose);
+      await c.start();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: WorkbenchScreen(controller: c, macOS: true),
+        ),
+      );
+      await tester.pump();
+
+      // 侧栏展开：WindowControls 不出现；红绿灯避让加在 SidebarTitleBar 上，TopBar 不加。
+      expect(find.byType(WindowControls), findsNothing);
+      expect(
+        tester.widget<SidebarTitleBar>(find.byType(SidebarTitleBar)).leadingInset,
+        t.Geometry.macosTrafficLightInset,
+      );
+      expect(tester.widget<TopBar>(find.byType(TopBar)).leadingInset, 0);
+
+      // 打开右栏：右栏标签条同样不出现 WindowControls。
+      c.shell.openTab(ShellTab.files);
+      await tester.pump();
+      expect(find.byType(RightPanel), findsOneWidget);
+      expect(find.byType(WindowControls), findsNothing);
+
+      // 收起侧栏：红绿灯避让切到 TopBar 左侧。
+      c.shell.toggleSidebar();
+      await tester.pump();
+      expect(find.byType(SidebarTitleBar), findsNothing);
+      expect(
+        tester.widget<TopBar>(find.byType(TopBar)).leadingInset,
+        t.Geometry.macosTrafficLightInset,
+      );
     });
   });
 }

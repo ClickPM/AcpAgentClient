@@ -59,9 +59,10 @@ impl DirWatcher {
             .watch(root, RecursiveMode::Recursive)
             .map_err(|e| FsError::Io(format!("notify watch {}: {e}", root.display())))?;
         let root_owned = root.to_path_buf();
+        let canon_root = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
         std::thread::Builder::new()
             .name(format!("fs-watch {}", root.display()))
-            .spawn(move || debounce_loop(&root_owned, rx, on_changes))
+            .spawn(move || debounce_loop(&root_owned, &canon_root, rx, on_changes))
             .map_err(|e| FsError::Io(format!("watch thread: {e}")))?;
         Ok(Self { root: root.to_path_buf(), _watcher: watcher })
     }
@@ -72,7 +73,12 @@ impl DirWatcher {
 }
 
 /// 收原始事件、按 [`DEBOUNCE`] 归并、回调。通道关闭（watcher 被 drop）或回调说不要了就退出。
-fn debounce_loop(root: &Path, rx: mpsc::Receiver<notify::Result<notify::Event>>, on_changes: impl Fn(Changes) -> bool) {
+fn debounce_loop(
+    root: &Path,
+    canon_root: &Path,
+    rx: mpsc::Receiver<notify::Result<notify::Event>>,
+    on_changes: impl Fn(Changes) -> bool,
+) {
     loop {
         // 阻塞等第一条。
         let first = match rx.recv() {
@@ -81,7 +87,7 @@ fn debounce_loop(root: &Path, rx: mpsc::Receiver<notify::Result<notify::Event>>,
         };
         let mut batch = Changes::default();
         let mut dirs = BTreeSet::new();
-        fold(root, first, &mut dirs, &mut batch);
+        fold(root, canon_root, first, &mut dirs, &mut batch);
         // 去抖窗口内继续收。
         let deadline = std::time::Instant::now() + DEBOUNCE;
         loop {
@@ -90,7 +96,7 @@ fn debounce_loop(root: &Path, rx: mpsc::Receiver<notify::Result<notify::Event>>,
                 break;
             }
             match rx.recv_timeout(left) {
-                Ok(ev) => fold(root, ev, &mut dirs, &mut batch),
+                Ok(ev) => fold(root, canon_root, ev, &mut dirs, &mut batch),
                 Err(mpsc::RecvTimeoutError::Timeout) => break,
                 Err(mpsc::RecvTimeoutError::Disconnected) => break,
             }
@@ -103,13 +109,27 @@ fn debounce_loop(root: &Path, rx: mpsc::Receiver<notify::Result<notify::Event>>,
 }
 
 /// 把一条原始事件折进批：每条路径取父目录；`.git` 之下只打 git 标志；其他 [`IGNORED_DIRS`] 之下的整条跳过。
-fn fold(root: &Path, event: notify::Result<notify::Event>, dirs: &mut BTreeSet<PathBuf>, batch: &mut Changes) {
+/// macOS 的 FSEvents 会把 `/var/...`、`/tmp/...` 解析成 `/private/var/...`：若 `path` 落在 `canon_root` 下则先折回 `root`。
+fn fold(
+    root: &Path,
+    canon_root: &Path,
+    event: notify::Result<notify::Event>,
+    dirs: &mut BTreeSet<PathBuf>,
+    batch: &mut Changes,
+) {
     let Ok(event) = event else {
         // 监视器自身的错误（例如缓冲溢出）：保守起见让前端整棵重列。
         dirs.insert(root.to_path_buf());
         return;
     };
-    for path in event.paths {
+    for raw_path in event.paths {
+        let path = if !raw_path.starts_with(root)
+            && let Ok(rel) = raw_path.strip_prefix(canon_root)
+        {
+            root.join(rel)
+        } else {
+            raw_path
+        };
         match classify(root, &path, path.is_dir()) {
             Class::Git => batch.git = true,
             Class::Ignored => {}

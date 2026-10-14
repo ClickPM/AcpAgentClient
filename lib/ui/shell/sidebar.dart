@@ -109,6 +109,7 @@ class Sidebar extends StatelessWidget {
     this.deleteAnchor,
     this.confirmingDeleteId,
     this.dragArea,
+    this.leadingInset = 0,
     this.runningIds = const <String>{},
     this.unreadIds = const <String>{},
     this.awaiting = const <String, TranscriptEntry>{},
@@ -163,6 +164,9 @@ class Sidebar extends StatelessWidget {
   /// 无边框窗口的拖拽层（docs/design.md § 9），转交给 [SidebarTitleBar]；内容由组合根给。
   final Widget? dragArea;
 
+  /// macOS 侧栏展开时左上角原生红绿灯的安全避让边距（[t.Geometry.macosTrafficLightInset]）；默认 0。
+  final double leadingInset;
+
   /// 画板 06：有在途 prompt 的会话（出扫掠亮点线）与跑完还没被看过的会话（出绿点）。
   /// 这两个是**高频变动**的运行时态，所以不烘进 [SidebarSession]（它只随本地索引重投影）。
   final Set<String> runningIds;
@@ -189,7 +193,13 @@ class Sidebar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          SidebarTitleBar(dragArea: dragArea, themeChoice: themeChoice, dark: dark, onCycleTheme: onCycleTheme),
+          SidebarTitleBar(
+            dragArea: dragArea,
+            leadingInset: leadingInset,
+            themeChoice: themeChoice,
+            dark: dark,
+            onCycleTheme: onCycleTheme,
+          ),
           SidebarSearchField(
             controller: searchController,
             focusNode: searchFocusNode,
@@ -464,6 +474,7 @@ class SidebarTitleBar extends StatelessWidget {
     super.key,
     this.title = 'Agent ACP Client',
     this.dragArea,
+    this.leadingInset = 0,
     this.themeChoice = t.Theming.defaultChoice,
     this.dark = false,
     this.onCycleTheme,
@@ -474,6 +485,9 @@ class SidebarTitleBar extends StatelessWidget {
   /// 无边框窗口的拖拽层（docs/design.md § 9）：这条也是顶栏那一行的一段（画板 01–04 左半），
   /// 要能拖窗口、双击最大化。和 `TopBar.dragArea` 同一种装配 —— 铺在容器**里面**、内容行**下面**。
   final Widget? dragArea;
+
+  /// macOS 左上角原生红绿灯的安全避让边距（[t.Geometry.macosTrafficLightInset]）；默认 0。
+  final double leadingInset;
 
   /// 当前的主题选择（决定按钮画太阳、月亮还是显示器）。
   final t.ThemeChoice themeChoice;
@@ -510,19 +524,22 @@ class SidebarTitleBar extends StatelessWidget {
         children: <Widget>[
           if (dragArea != null) Positioned.fill(child: dragArea!),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s12),
+            padding: EdgeInsets.only(left: t.Spacing.s12 + leadingInset, right: t.Spacing.s12),
             child: Row(
               children: <Widget>[
                 // logo 与标题文字上没有任何可点的东西，[IgnorePointer] 让它们把 pointer 漏给下层拖拽层
                 // （`RenderParagraph.hitTestSelf` 恒为 true，不挡住就拖不动标题那一段）。
                 // 主题按钮要收 pointer，所以留在这一层之外。
-                IgnorePointer(
-                  child: Row(
-                    children: <Widget>[
-                      AppLogo(),
-                      const SizedBox(width: t.Spacing.s8),
-                      Text(title, style: CardText.strong),
-                    ],
+                Flexible(
+                  child: IgnorePointer(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        AppLogo(),
+                        const SizedBox(width: t.Spacing.s8),
+                        Flexible(child: Text(title, style: CardText.strong, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                      ],
+                    ),
                   ),
                 ),
                 const Spacer(),

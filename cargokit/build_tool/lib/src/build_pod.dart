@@ -61,6 +61,15 @@ class BuildPod {
     if (staticLibs.isNotEmpty) {
       final finalTargetFile = path.join(outputDir, "lib$libName.a");
       performLipo(finalTargetFile, staticLibs.map((e) => e.path));
+      if (dynamicLibs.isNotEmpty) {
+        final dylibFile = path.join(outputDir, "lib$libName.dylib");
+        performLipo(dylibFile, dynamicLibs.map((e) => e.path));
+        runCommand("install_name_tool", [
+          '-id',
+          '@rpath/lib$libName.dylib',
+          dylibFile,
+        ]);
+      }
     } else {
       // Otherwise try to replace bundle dylib with our dylib
       final bundlePaths = [

@@ -9,6 +9,7 @@ DEST="$ROOT/vendor/upstream"
 CHECK=0
 [ "${1:-}" = "--check" ] && CHECK=1
 mkdir -p "$DEST"
+PYTHON_BIN="$(command -v python3 || command -v python)"
 fail=0
 while read -r name url sha; do
   dir="$DEST/$name"
@@ -36,5 +37,5 @@ while read -r name url sha; do
     git -C "$dir" -c advice.detachedHead=false checkout -q FETCH_HEAD
     echo "DONE    $name"
   fi
-done < <(python -c "import json,sys; d=json.load(open(sys.argv[1],encoding='utf-8')); [print(u['name'],u['url'],u['commit']) for u in d['upstream']]" "$PINS" | tr -d '\r')
+done < <("$PYTHON_BIN" -c "import json,sys; d=json.load(open(sys.argv[1],encoding='utf-8')); [print(u['name'],u['url'],u['commit']) for u in d['upstream']]" "$PINS" | tr -d '\r')
 exit $fail

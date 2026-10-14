@@ -3,8 +3,11 @@
 //! R3 落 `list_dir` / `search` 与 git；R4 落 `fs/*` 回调、`read_file`、`notify` 与 `git status`。
 //! 写文件一律「临时文件 + rename」（AGENTS.md 规则 7）。
 
+use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::path::{Path, PathBuf};
+#[cfg(not(windows))]
+use std::sync::OnceLock;
 
 use serde::Serialize;
 
@@ -45,6 +48,130 @@ impl fmt::Display for FsError {
 impl std::error::Error for FsError {}
 
 pub type Result<T> = std::result::Result<T, FsError>;
+
+/// macOS 从 Finder / Dock 启动 `.app` 时进程 `PATH` 只有 `/usr/bin:/bin:/usr/sbin:/sbin`，
+/// Homebrew（`/opt/homebrew/bin`、`/usr/local/bin`）、cargo（`~/.cargo/bin`）与用户登录 shell 配置里的
+/// `node` / `npm` / `git` / 全局 agent 都不在其中。
+///
+/// 这里不调用 `std::env::set_var`（Rust 2024 下是 `unsafe`，违反规则 6），而是按：
+/// 当前进程 `PATH` → 登录 shell 的 `PATH`（`$SHELL -l -c 'printenv PATH'`，单次缓存、2s 超时）→ 标准兜底目录
+/// 去重合并出完整 `PATH`，供 `git`、`registry` 与 `acp-core` 解析命令并注入子进程环境。
+pub fn effective_path() -> OsString {
+    #[cfg(windows)]
+    {
+        std::env::var_os("PATH").unwrap_or_default()
+    }
+    #[cfg(not(windows))]
+    {
+        static LOGIN_PATH: OnceLock<Option<OsString>> = OnceLock::new();
+        let current = std::env::var_os("PATH");
+        let login = LOGIN_PATH.get_or_init(probe_login_shell_path).as_deref();
+        let home = std::env::var_os("HOME");
+        merge_path_entries(current.as_deref(), login, home.as_deref())
+    }
+}
+
+/// 合并当前 `PATH`、登录 shell `PATH` 与 macOS / Unix 常见工具目录（保序去重）。
+pub fn merge_path_entries(current: Option<&OsStr>, login: Option<&OsStr>, home: Option<&OsStr>) -> OsString {
+    let mut dirs: Vec<PathBuf> = Vec::new();
+    let mut push_unique = |p: PathBuf| {
+        if !p.as_os_str().is_empty() && !dirs.contains(&p) {
+            dirs.push(p);
+        }
+    };
+    if let Some(c) = current {
+        for d in std::env::split_paths(c) {
+            push_unique(d);
+        }
+    }
+    if let Some(l) = login {
+        for d in std::env::split_paths(l) {
+            push_unique(d);
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        for std_dir in ["/opt/homebrew/bin", "/opt/homebrew/sbin", "/usr/local/bin", "/usr/local/sbin"] {
+            push_unique(PathBuf::from(std_dir));
+        }
+        if let Some(h) = home.filter(|h| !h.is_empty()) {
+            let home_dir = PathBuf::from(h);
+            push_unique(home_dir.join(".cargo").join("bin"));
+            push_unique(home_dir.join(".local").join("bin"));
+        }
+    }
+    #[cfg(windows)]
+    let _ = home;
+    std::env::join_paths(&dirs).unwrap_or_else(|_| current.unwrap_or_default().to_os_string())
+}
+
+#[cfg(not(windows))]
+fn probe_login_shell_path() -> Option<OsString> {
+    use std::io::Read;
+    use std::os::unix::process::CommandExt;
+    use std::process::{Command, Stdio};
+    use std::sync::mpsc;
+    use std::time::{Duration, Instant};
+
+    let shell = std::env::var("SHELL")
+        .ok()
+        .filter(|s| !s.trim().is_empty() && Path::new(s).is_file())
+        .unwrap_or_else(|| {
+            if Path::new("/bin/zsh").is_file() {
+                "/bin/zsh".to_string()
+            } else {
+                "/bin/sh".to_string()
+            }
+        });
+    let mut cmd = Command::new(&shell);
+    cmd.args(["-l", "-c", "printenv PATH"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .process_group(0);
+    let mut child = cmd.spawn().ok()?;
+    let pid = child.id();
+    let stdout = child.stdout.take()?;
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let mut out = String::new();
+        let mut reader = stdout;
+        let _ = reader.read_to_string(&mut out);
+        let _ = tx.send(out);
+    });
+
+    let deadline = Instant::now() + Duration::from_secs(2);
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(s)) => break Some(s),
+            Ok(None) => {
+                if Instant::now() >= deadline {
+                    break None;
+                }
+                std::thread::sleep(Duration::from_millis(15));
+            }
+            Err(_) => break None,
+        }
+    };
+    let Some(status) = status else {
+        let neg_pgid = format!("-{pid}");
+        let _ = Command::new("/bin/kill")
+            .args(["-KILL", "--", &neg_pgid])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+        let _ = child.kill();
+        let _ = child.wait();
+        return None;
+    };
+    if !status.success() {
+        return None;
+    }
+    let out = rx.recv_timeout(Duration::from_millis(200)).ok()?;
+    let last_line = out.lines().rev().map(str::trim).find(|l| !l.is_empty())?;
+    Some(OsString::from(last_line))
+}
 
 /// 会话工作目录的边界检查：路径必须是绝对路径、位于 `cwd` 之内，且不含 `..`
 /// （`starts_with` 是按分量的词法比较，`<cwd>/../other` 也以 `<cwd>` 开头；审查 finding，2026-09-15）。
@@ -839,5 +966,23 @@ mod tests {
         assert!(matches!(read_file(&dir, &dir.join("scripts")), Err(FsError::InvalidParams(_))));
         assert!(matches!(read_file(&dir, Path::new("relative.md")), Err(FsError::OutsideWorkspace(_))));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn merge_path_entries_deduplicates_and_adds_fallbacks() {
+        let cur = OsStr::new("/usr/bin:/bin");
+        let login = OsStr::new("/opt/homebrew/bin:/usr/bin:/custom/bin");
+        let home = OsStr::new("/Users/tester");
+        let merged = merge_path_entries(Some(cur), Some(login), Some(home));
+        let dirs: Vec<PathBuf> = std::env::split_paths(&merged).collect();
+        assert_eq!(dirs.iter().filter(|p| p.as_path() == Path::new("/usr/bin")).count(), 1);
+        assert!(dirs.contains(&PathBuf::from("/custom/bin")));
+        #[cfg(not(windows))]
+        {
+            assert!(dirs.contains(&PathBuf::from("/opt/homebrew/bin")));
+            assert!(dirs.contains(&PathBuf::from("/usr/local/bin")));
+            assert!(dirs.contains(&PathBuf::from("/Users/tester/.cargo/bin")));
+            assert!(dirs.contains(&PathBuf::from("/Users/tester/.local/bin")));
+        }
     }
 }

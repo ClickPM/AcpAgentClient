@@ -31,6 +31,7 @@ class TopBar extends StatelessWidget {
     this.projectAnchor,
     this.branchAnchor,
     this.dragArea,
+    this.leadingInset = 0,
     this.runningTotal = 0,
     this.awaitingTotal = 0,
     this.activeWorkspaces = 0,
@@ -81,6 +82,9 @@ class TopBar extends StatelessWidget {
   /// 子节点先于 `hitTestSelf` 参与命中，所以放进来就能拿到空白处的事件；控件在更上层，照常先吃掉自己的。
   final Widget? dragArea;
 
+  /// macOS 侧栏收起时左上角原生红绿灯的安全避让边距（[t.Geometry.macosTrafficLightInset]）；默认 0。
+  final double leadingInset;
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -100,7 +104,7 @@ class TopBar extends StatelessWidget {
 
   Widget _bar() {
     return Padding(
-      padding: const EdgeInsets.only(left: t.Spacing.s8),
+      padding: EdgeInsets.only(left: t.Spacing.s8 + leadingInset),
       child: Row(
         children: <Widget>[
           AcpTooltip(message: 'Session-sidebar', child: _ToggleButton(collapsed: sidebarCollapsed, onTap: onToggleSidebar)),

@@ -5,6 +5,9 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart' show ExternalLibrary;
 
 import '../bridge/api.dart' as api;
 import '../bridge/frb_generated.dart';
@@ -124,11 +127,23 @@ class CoreBridge implements CoreCommands {
 
   static CoreBridge? _instance;
 
-  /// 加载 cdylib（进程内一次）。
+  /// 加载 cdylib（进程内一次）。macOS App Bundle 下优先加载 `Contents/Frameworks/libacp_bridge.dylib`。
   static Future<CoreBridge> load() async {
     if (_instance != null) return _instance!;
-    await RustLib.init();
+    await RustLib.init(externalLibrary: _macosBundledDylib());
     return _instance = CoreBridge._();
+  }
+
+  static ExternalLibrary? _macosBundledDylib() {
+    if (!Platform.isMacOS) return null;
+    try {
+      final contents = File(Platform.resolvedExecutable).parent.parent.path;
+      final dylib = File('$contents/Frameworks/libacp_bridge.dylib');
+      if (dylib.existsSync()) return ExternalLibrary.open(dylib.path);
+    } on Object {
+      // 回退给 RustLib 默认加载逻辑。
+    }
+    return null;
   }
 
   final StreamController<CoreEventRecord> _events = StreamController<CoreEventRecord>.broadcast();

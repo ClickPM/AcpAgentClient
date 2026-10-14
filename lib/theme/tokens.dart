@@ -810,6 +810,9 @@ abstract final class Geometry {
   /// 01–04：窗口控制三键的格宽（点击热区，图标仍是 [IconSizes.toolbar]）。
   static const double windowButtonWidth = 44;
 
+  /// R9：macOS 左上角系统原生 traffic lights（红绿灯）的安全避让左边距。
+  static const double macosTrafficLightInset = 72;
+
   /// 03：右栏展开时的宽度。
   static const double rightPanelWidth = 580;
 

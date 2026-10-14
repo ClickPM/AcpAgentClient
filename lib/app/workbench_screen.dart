@@ -5,6 +5,7 @@
 // 顶栏里的按钮与芯片在上层先吃掉点击，只有空白处才落到 Listener 上、去调 `startDragging`。
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/gestures.dart' show kPrimaryButton;
@@ -53,13 +54,13 @@ import 'window_controls.dart';
 import 'workbench_controller.dart';
 
 class WorkbenchScreen extends StatefulWidget {
-  const WorkbenchScreen({super.key, required this.controller, this.appearance});
+  const WorkbenchScreen({super.key, required this.controller, this.appearance, this.macOS});
 
   final WorkbenchController controller;
-
-  /// 外观偏好（字体 = 画板 70「外观」，主题 = 画板 07）。gallery 与单测里可以不给：
-  /// 设置页的字体小节不出现，侧栏的主题按钮也不出现。
   final AppearanceController? appearance;
+
+  /// 是否按 macOS 窗口样式渲染（隐藏右上角三键、左上角留原生红绿灯避让区）；缺省取 [Platform.isMacOS]。
+  final bool? macOS;
 
   @override
   State<WorkbenchScreen> createState() => _WorkbenchScreenState();
@@ -278,9 +279,9 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       runningIds: activity.running,
       unreadIds: c.session.unreadSessionIds,
       awaiting: activity.awaiting,
-      // 侧栏标题条与顶栏是同一行：那一段也要能拖窗口、双击最大化。
+      // 侧栏标题条与顶栏是同一行：那一段也要能拖窗口、双击最大化；macOS 下侧栏展开时左上角避让红绿灯。
       dragArea: _dragArea(),
-      // 画板 07：标题条右端的浅色 / 深色 / 跟随系统三档切换。没有外观控制器（gallery / 单测）就不画这个按钮。
+      leadingInset: _isMacOS ? t.Geometry.macosTrafficLightInset : 0,
       themeChoice: widget.appearance?.themeChoice ?? t.Theming.defaultChoice,
       dark: widget.appearance?.theme == t.AppTheme.dark,
       onCycleTheme: widget.appearance?.cycleTheme,
@@ -292,14 +293,14 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     final title = c.session.sidebarSessions.where((s) => s.id == id).map((s) => s.title).firstOrNull ?? '';
     c.session.deleteAnchor.show(
       (_) => DeleteSessionConfirm(title: title, onCancel: c.session.cancelDelete, onDelete: () => c.session.deleteSession(id)),
-      // 点弹层之外关掉也要清「正在确认」，否则那一行的行内动作（锚点所在）会一直挂着（画板 04 的悬浮态）。
       onDismiss: c.session.cancelDelete,
     );
   }
 
   // ---------------------------------------------------------------- 顶栏（画板 01–04）
 
-  bool get _windowControlsInTopBar => !c.shell.rightPanelOpen;
+  bool get _isMacOS => widget.macOS ?? Platform.isMacOS;
+  bool get _windowControlsInTopBar => !_isMacOS && !c.shell.rightPanelOpen;
 
   Widget _topBar({bool windowControls = true}) {
     final activity = c.session.activity;
@@ -307,7 +308,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       projectName: c.workspace.project?.name ?? '—',
       branch: c.workspace.branchAreaVisible ? c.workspace.branch : null,
       sidebarCollapsed: c.shell.sidebarCollapsed,
-      windowControls: windowControls,
+      windowControls: !_isMacOS && windowControls,
       onToggleSidebar: c.shell.toggleSidebar,
       onProject: _openProjectPopover,
       onBranch: _openBranchPopover,
@@ -317,7 +318,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       projectAnchor: c.workspace.projectAnchor,
       branchAnchor: c.workspace.branchAnchor,
       dragArea: _dragArea(),
-      // 画板 08 C / 09 B：全部工作区的在跑 / 等你处理会话合计。
+      leadingInset: _isMacOS && c.shell.sidebarCollapsed ? t.Geometry.macosTrafficLightInset : 0,
       runningTotal: activity.runningTotal,
       awaitingTotal: activity.awaitingTotal,
       activeWorkspaces: activity.workspaceCount,
@@ -904,8 +905,7 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         onSave: c.agents.saveCustomAgent,
         onRemove: c.agents.remove,
         onDownloadNode: c.agents.downloadNode,
-        // 「打开」：目录在资源管理器里开，日志文件用系统默认程序开（都经 url_launcher 的 file: URI）。
-        onOpenPath: (path) => launchUrl(Uri.file(path, windows: true)),
+        onOpenPath: (path) => launchUrl(Uri.file(path, windows: Platform.isWindows)),
         onCopyPath: (path) => Clipboard.setData(ClipboardData(text: path)),
         appearance: widget.appearance,
         onOpenUrl: (url) => launchUrl(Uri.parse(url)),
@@ -914,19 +914,17 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
 
   Widget _rightPanel() {
     final active = c.shell.activePanel!;
-    // 画板 05 C 组：标签互切时内容区复用 A 组的入场；标签条本身、分隔线、栏宽都不动。
-    // `PanelTab` 自带 == / hashCode，直接当触发器。
     final body = _panelBody(active);
     return RightPanel(
       tabs: c.shell.panelTabs,
       active: active,
+      windowControls: !_isMacOS,
       onSelect: c.shell.selectPanel,
       onCloseTab: c.shell.closePanel,
       onMinimize: AppWindow.minimize,
       onMaximize: AppWindow.toggleMaximize,
       onCloseWindow: AppWindow.close,
       body: body == null ? null : MotionEnter(epoch: active, child: body),
-      // 右栏展开时窗口控制在标签条上：那一段同样是顶栏那一行。
       dragArea: _dragArea(),
     );
   }

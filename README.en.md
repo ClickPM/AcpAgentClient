@@ -52,9 +52,9 @@ Every registry entry can be installed (43 at the time of the screenshot). These 
 
 npx-based agents need Node ≥ 22 on the system. Without it, the app downloads its own managed Node.
 
-User data lives in `%APPDATA%\AcpAgentClient\` (`settings.json`, the session index, installed agents, logs). Installing and uninstalling never touch it.
+User data lives in `%APPDATA%\AcpAgentClient\` on Windows and `~/Library/Application Support/AcpAgentClient/` on macOS (`settings.json`, the session index, installed agents, logs). Installing and uninstalling never touch it.
 
-**There are no macOS or Linux builds yet**, see "Status" below.
+**macOS source runner and packaging scripts are included (R9)**; Linux builds are not available yet, see "Status" below.
 
 ### Getting started
 
@@ -80,6 +80,17 @@ powershell -File scripts/package.ps1           # zip and installer → dist/
 ```
 
 Output goes to `build/windows/x64/runner/Release/`.
+
+On macOS (requires full Xcode, Rust stable, Flutter stable, and Node ≥ 22):
+
+```bash
+bash scripts/fetch-upstream.sh          # first-time fill of vendor/upstream/ (--check to verify)
+bash scripts/validate.sh                # build + tests + contract checks (--quick runs static checks only)
+bash scripts/build-macos.sh --smoke     # flutter build macos --release + headless smoke test
+bash scripts/package-macos.sh           # package .zip and .dmg → dist/
+```
+
+macOS output goes to `build/macos/Build/Products/Release/acp_agent_client.app`.
 
 If the project path contains non-ASCII characters or spaces, use `scripts/build.ps1` only: a bare `flutter build windows` mangles such paths. More prerequisites and local pitfalls are under "本地开发" (local development) in [`AGENTS.md`](AGENTS.md) and in [`docs/agent-notes/`](docs/agent-notes/README.md). There is a one-line index of the scripts in [`scripts/README.md`](scripts/README.md) and a test layout guide in [`test/README.md`](test/README.md).
 

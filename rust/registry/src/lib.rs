@@ -277,27 +277,31 @@ pub fn sanitize_path_component(input: &str) -> String {
 #[cfg(windows)]
 pub const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-/// 建一条不弹窗、三路管道的子进程命令。
+/// 建一条不弹窗、三路管道的子进程命令（Unix 下独立进程组以支持 `kill_tree` 整树回收，并注入补齐后的 `PATH`）。
 pub fn command(program: impl AsRef<std::ffi::OsStr>) -> tokio::process::Command {
     let mut cmd = tokio::process::Command::new(program);
-    cmd.stdin(std::process::Stdio::null())
+    cmd.env("PATH", fs::effective_path())
+        .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .kill_on_drop(true);
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
+    #[cfg(unix)]
+    cmd.process_group(0);
     cmd
 }
 
-/// 裸程序名 → PATH 里带扩展名的路径（Windows 按 PATHEXT；`npm` / `node` / `tar` 都靠它）。找不到原样返回。
+/// 裸程序名 → PATH 里带扩展名的路径（Windows 按 PATHEXT；macOS / Unix 用补齐后的 `PATH`；`npm` / `node` / `tar` 都靠它）。找不到原样返回。
 pub fn resolve_program(program: &str) -> PathBuf {
     let path = Path::new(program);
     if path.is_absolute() || path.components().count() > 1 {
         return path.to_path_buf();
     }
-    let Some(path_var) = std::env::var_os("PATH") else {
+    let path_var = fs::effective_path();
+    if path_var.is_empty() {
         return path.to_path_buf();
-    };
+    }
     let candidates: Vec<String> = if !cfg!(windows) || path.extension().is_some() {
         vec![program.to_string()]
     } else {

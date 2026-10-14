@@ -156,7 +156,8 @@ class WorkspaceState extends ChangeNotifier with GuardedNotifier {
     while (p.length > 1 && p.endsWith('/')) {
       p = p.substring(0, p.length - 1);
     }
-    return Platform.isWindows ? p.toLowerCase() : p;
+    final isWinPath = Platform.isWindows || RegExp(r'^[A-Za-z]:(?:/|$)').hasMatch(p);
+    return isWinPath ? p.toLowerCase() : p;
   }
 
   // ---------------------------------------------------------------- 分支与规则
