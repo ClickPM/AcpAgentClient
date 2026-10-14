@@ -87,7 +87,10 @@ if [ "$SMOKE" = 1 ]; then
     "fake": {
       "type": "custom",
       "command": "node",
-      "args": ["$ROOT/test/fake-agent/fake-agent.mjs"]
+      "args": ["$ROOT/test/fake-agent/fake-agent.mjs"],
+      "env": {
+        "FAKE_AGENT_AUTHED": "1"
+      }
     }
   }
 }

@@ -54,7 +54,7 @@
 
 1. [x] `scripts/fetch-upstream.sh --check` 全绿
 2. [x] `scripts/validate.sh` 静态门与全量编译测试全绿（`cargo build --workspace`、`cargo test --workspace`、`cargo clippy --workspace --all-targets -- -D warnings`、`cargo tree --workspace` 无 `gpui`、`flutter analyze --no-fatal-infos`、`flutter test` 全绿）
-3. [x] `macos/Runner/*.swift` 通过 `swiftc -typecheck`（对齐 macOS SDK 与 `FlutterMacOS.framework`），且 `macos/Scripts/bundle_rust_and_fonts.sh` 实跑产出 `Contents/Frameworks/libacp_bridge.dylib`（`@rpath/libacp_bridge.dylib`）
+3. [x] `bash scripts/package-macos.sh`（含 `flutter build macos --release`、`ACP_SMOKE_REPORT` 无头往返自检、`-t lib/main_headless.dart` 完整对话往返自检、`.zip` 与 `.dmg` 打包）全绿
 4. [x] 独立代码审查通过，无未处理的阻塞性问题
 
 ## 实测记录
@@ -79,10 +79,15 @@
    - settings: 20 passed; 0 failed
    - clippy: 0 warnings
 
-3. Swift 原生层类型检查与 Cargokit dylib 打包实测：
-   - swiftc -typecheck macos/Runner/MainFlutterWindow.swift macos/Runner/AppDelegate.swift -> 0 errors
-   - bash macos/Scripts/bundle_rust_and_fonts.sh -> 产出 Contents/Frameworks/libacp_bridge.dylib (install_name: @rpath/libacp_bridge.dylib)
-   -注：本机当前仅安装 CommandLineTools（未装完整 Xcode.app），flutter build macos --release 待安装 Xcode.app 后由 scripts/build-macos.sh --smoke 执行。
+3. macOS Release 构建、无头自检与打包（Xcode 27.0 Build 27A266a）：
+   bash scripts/package-macos.sh
+   - Built build/macos/Build/Products/Release/acp_agent_client.app (102.7MB)
+   - OK build/macos/Build/Products/Release/acp_agent_client.app/Contents/MacOS/acp_agent_client (895984 bytes)
+   - OK build/macos/Build/Products/Release/acp_agent_client.app/Contents/Frameworks/libacp_bridge.dylib (30722192 bytes)
+   - ACP_SMOKE OK build/smoke-report.json ("ok": true, "coreVersion": "1.5.2", "droppedEvents": 0)
+   - [r3] report → build/headless-smoke.json (ok=true) -> OK headless round trip (-t lib/main_headless.dart)
+   - OK zip dist/AcpAgentClient-1.5.2-macos-arm64.zip (42042813 bytes)
+   - OK dmg dist/AcpAgentClient-1.5.2-macos-arm64.dmg (47387210 bytes)
 ```
 
 ## 偏离与取舍
