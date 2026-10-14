@@ -10,8 +10,8 @@ CHECK=0
 [ "${1:-}" = "--check" ] && CHECK=1
 mkdir -p "$DEST"
 PYTHON_BIN=""
-for cand in python python3; do
-  if command -v "$cand" >/dev/null 2>&1 && "$cand" -c "import json,sys" >/dev/null 2>&1; then
+for cand in python3 python; do
+  if command -v "$cand" >/dev/null 2>&1 && "$cand" -c "import json,sys; assert sys.version_info[0]>=3" >/dev/null 2>&1; then
     PYTHON_BIN="$(command -v "$cand")"
     break
   fi

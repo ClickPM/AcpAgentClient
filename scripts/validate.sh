@@ -12,7 +12,17 @@ if [ "${1:-}" = "--quick" ] || [ "${1:-}" = "-Quick" ]; then
   QUICK=1
 fi
 
-PYTHON_BIN="$(command -v python3 || command -v python)"
+PYTHON_BIN=""
+for cand in python3 python; do
+  if command -v "$cand" >/dev/null 2>&1 && "$cand" -c "import json,sys; assert sys.version_info[0]>=3" >/dev/null 2>&1; then
+    PYTHON_BIN="$(command -v "$cand")"
+    break
+  fi
+done
+if [ -z "$PYTHON_BIN" ]; then
+  echo "error: no working Python 3 interpreter found" >&2
+  exit 1
+fi
 
 echo "---- fetch-upstream --check (规则 4)"
 bash "$ROOT/scripts/fetch-upstream.sh" --check

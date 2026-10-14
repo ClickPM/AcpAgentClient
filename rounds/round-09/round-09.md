@@ -98,6 +98,8 @@
   2. `[P1] rust/fs/src/lib.rs:974-975 按平台构造 PATH 测试输入`：**采纳整改**。`merge_path_entries_deduplicates_and_adds_fallbacks` 改用 `std::env::join_paths` 构造跨平台测试输入，消除 Windows 下 `;` 分隔符导致的断言失败。
   3. `[P1] rust/fs/src/lib.rs:171 在 stdout 超时时也清理登录 shell 进程组`：**采纳整改**。在 `probe_login_shell_path` 等待子进程返回后（无论正常退出或超时）统一向进程组 `-{pid}` 发送 `-KILL`，确保 `.zprofile` 派生的后台子进程关闭继承的 stdout 管道且不留孤儿进程。
   4. `[P2] rust/acp-core/src/core.rs:390-395 补充共享子进程拉起改动的 Windows 实测`：**采纳整改**。将 `git.rs`、`registry/src/lib.rs`、`acp-core/src/command.rs`、`acp-core/src/agent.rs`、`acp-core/src/core.rs` 中的 GUI `PATH` 注入与解析严格限定在 `#[cfg(unix)]` / `#[cfg(not(windows))]` 下，使 Windows 端子进程拉起代码路径保持与 `main` 完全一致（零行为变更）。
-- **第 2 轮（全量 `a809f4607cff06e477a83fa7c1532e052e2bad9f..b5f4fd398a6f740821445017c83234625e57900d`）**：产物 `.claude/reviews/20261014-000013-codex-review.out.md`，共 2 条 findings（2 P1）：
-  1. `[P1] scripts/fetch-upstream.sh:12 验证 Python 可运行后再选择解释器`：**采纳整改**。依次探测 `python`、`python3` 并实跑 `"$cand" -c "import json,sys"` 校验可用性，避免 Windows Git Bash 下命中 Microsoft Store `python3` 占位器；同时改为先赋值 `UPSTREAMS` 变量（退出码受 `set -e` 保护）再喂给 `while` 循环，杜绝 process substitution 吞掉子进程失败。
+- **第 2 轮（全量 `a809f4607cff06e477a83fa7c1532e052e2bad9f..350cbf475bc9fcd9464264d16ee157d61b521fbf`）**：产物 `.claude/reviews/20261014-000013-codex-review.out.md`，共 2 条 findings（2 P1）：
+  1. `[P1] scripts/fetch-upstream.sh:12 验证 Python 可运行后再选择解释器`：**采纳整改**。依次探测候选解释器并校验可用性，避免 Windows Git Bash 下命中 Microsoft Store `python3` 占位器；同时改为先赋值 `UPSTREAMS` 变量（退出码受 `set -e` 保护）再喂给 `while` 循环，杜绝 process substitution 吞掉子进程失败。
   2. `[P1] macos/Scripts/bundle_rust_and_fonts.sh:34-35 删除不完整的 framework 兜底目录`：**采纳整改**。删除 `Contents/Frameworks/acp_bridge.framework` 软链目录（避免 `codesign` 校验嵌套 `.framework` bundle 结构时失败），统一由 `CoreBridge.load()` 加载 `Contents/Frameworks/libacp_bridge.dylib`。
+- **第 3 轮（增量 `350cbf475bc9fcd9464264d16ee157d61b521fbf..20ee23d2d21585f6966fbd27d102e757dcb2ff98`）**：产物 `.claude/reviews/20261014-000403-codex-review.out.md`，共 1 条 finding（1 P2）：
+  1. `[P2] scripts/fetch-upstream.sh:13-16 选择解释器前验证 Python 3 版本`：**采纳整改**。在 `scripts/fetch-upstream.sh` 与 `scripts/validate.sh` 的解释器探测条件中加入 `assert sys.version_info[0]>=3` 并优先检测 `python3`，排除 Python 2。
