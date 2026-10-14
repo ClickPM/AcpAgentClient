@@ -9,7 +9,22 @@ DEST="$ROOT/vendor/upstream"
 CHECK=0
 [ "${1:-}" = "--check" ] && CHECK=1
 mkdir -p "$DEST"
-PYTHON_BIN="$(command -v python3 || command -v python)"
+PYTHON_BIN=""
+for cand in python python3; do
+  if command -v "$cand" >/dev/null 2>&1 && "$cand" -c "import json,sys" >/dev/null 2>&1; then
+    PYTHON_BIN="$(command -v "$cand")"
+    break
+  fi
+done
+if [ -z "$PYTHON_BIN" ]; then
+  echo "error: no working python/python3 interpreter found" >&2
+  exit 1
+fi
+UPSTREAMS="$("$PYTHON_BIN" -c "import json,sys; d=json.load(open(sys.argv[1],encoding='utf-8')); [print(u['name'],u['url'],u['commit']) for u in d['upstream']]" "$PINS" | tr -d '\r')"
+if [ -z "$UPSTREAMS" ]; then
+  echo "error: no upstream entries read from $PINS" >&2
+  exit 1
+fi
 fail=0
 while read -r name url sha; do
   dir="$DEST/$name"
@@ -37,5 +52,5 @@ while read -r name url sha; do
     git -C "$dir" -c advice.detachedHead=false checkout -q FETCH_HEAD
     echo "DONE    $name"
   fi
-done < <("$PYTHON_BIN" -c "import json,sys; d=json.load(open(sys.argv[1],encoding='utf-8')); [print(u['name'],u['url'],u['commit']) for u in d['upstream']]" "$PINS" | tr -d '\r')
+done <<< "$UPSTREAMS"
 exit $fail

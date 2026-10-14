@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Xcode Run Script Phase（R9）：
 # 1. 经仓库内 `cargokit/build_pod.sh`（→ `cargokit/run_build_tool.sh`）按当前 CONFIGURATION / ARCHS 编译 `rust/bridge`（`acp_bridge`），
-#    将产物 `libacp_bridge.dylib` 打入 App Bundle 的 `Contents/Frameworks/`，并建立 `acp_bridge.framework/acp_bridge` 软链兜底；
+#    将产物 `libacp_bridge.dylib` 打入 App Bundle 的 `Contents/Frameworks/`；
 # 2. 对齐 `windows/CMakeLists.txt` 的可选字体安装规则：当 `assets/fonts/optional/` 下存在 `.ttf` / `.otf` 时，
 #    随构建拷入 App Bundle 的 `Contents/Resources/fonts/`。
 set -euo pipefail
@@ -28,11 +28,6 @@ FRAMEWORKS_DIR="${BUILT_PRODUCTS_DIR}/${FRAMEWORKS_FOLDER_PATH}"
 mkdir -p "$FRAMEWORKS_DIR"
 cp -f "$DYLIB_SRC" "$FRAMEWORKS_DIR/libacp_bridge.dylib"
 chmod 755 "$FRAMEWORKS_DIR/libacp_bridge.dylib"
-
-# 同时提供 `acp_bridge.framework/acp_bridge -> ../libacp_bridge.dylib`，使裸调 `RustLib.init()` 的默认 loader 与
-# `CoreBridge.load()` 的显式路径在 Debug / Profile / Release 下都能直接加载。
-mkdir -p "$FRAMEWORKS_DIR/acp_bridge.framework"
-ln -sfn "../libacp_bridge.dylib" "$FRAMEWORKS_DIR/acp_bridge.framework/acp_bridge"
 
 if [ "${CODE_SIGNING_ALLOWED:-NO}" = "YES" ] || [ -n "${EXPANDED_CODE_SIGN_IDENTITY:-}" ]; then
   SIGN_ID="${EXPANDED_CODE_SIGN_IDENTITY:--}"
