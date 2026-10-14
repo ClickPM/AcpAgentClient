@@ -108,4 +108,5 @@
   2. `[P1] macos/Scripts/bundle_rust_and_fonts.sh:34-35 删除不完整的 framework 兜底目录`：**采纳整改**。删除 `Contents/Frameworks/acp_bridge.framework` 软链目录（避免 `codesign` 校验嵌套 `.framework` bundle 结构时失败），统一由 `CoreBridge.load()` 加载 `Contents/Frameworks/libacp_bridge.dylib`。
 - **第 3 轮（增量 `350cbf475bc9fcd9464264d16ee157d61b521fbf..20ee23d2d21585f6966fbd27d102e757dcb2ff98`）**：产物 `.claude/reviews/20261014-000403-codex-review.out.md`，共 1 条 finding（1 P2）：
   1. `[P2] scripts/fetch-upstream.sh:13-16 选择解释器前验证 Python 3 版本`：**采纳整改**。在 `scripts/fetch-upstream.sh` 与 `scripts/validate.sh` 的解释器探测条件中加入 `assert sys.version_info[0]>=3` 并优先检测 `python3`，排除 Python 2。
-- **第 4 轮（增量 `20ee23d2d21585f6966fbd27d102e757dcb2ff98..18dc3e0aeb33a03c524f92eb9cb36d79fbbecff1`）**：产物 `.claude/reviews/20261014-000612-codex-review.out.md`，**0 条 findings（审查收口）**。
+- **第 4 轮（增量 `20ee23d2d21585f6966fbd27d102e757dcb2ff98..18dc3e0aeb33a03c524f92eb9cb36d79fbbecff1`）**：产物 `.claude/reviews/20261014-000612-codex-review.out.md`，0 条 findings。
+- **第 5 轮（增量 `18dc3e0aeb33a03c524f92eb9cb36d79fbbecff1..0f0b10b24f1e4c66ed982ead2911a52043b3cdcb`，Xcode 27.0 打包实测后）**：产物 `.claude/reviews/20261014-004920-codex-review.out.md`，**0 条 findings（审查收口）**。
