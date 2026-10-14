@@ -153,19 +153,21 @@ fn probe_login_shell_path() -> Option<OsString> {
             Err(_) => break None,
         }
     };
-    let Some(status) = status else {
-        let neg_pgid = format!("-{pid}");
-        let _ = Command::new("/bin/kill")
-            .args(["-KILL", "--", &neg_pgid])
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
+    // 无论正常退出还是超时，都清理整个进程组 `-{pid}`：防止 `.zprofile` 拉起的后台子进程继续持有
+    // stdout 管道导致读线程阻塞不 EOF，或残留孤儿进程（审查 P1）。
+    let neg_pgid = format!("-{pid}");
+    let _ = Command::new("/bin/kill")
+        .args(["-KILL", "--", &neg_pgid])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+    if status.is_none() {
         let _ = child.kill();
         let _ = child.wait();
         return None;
-    };
-    if !status.success() {
+    }
+    if !status.is_some_and(|s| s.success()) {
         return None;
     }
     let out = rx.recv_timeout(Duration::from_millis(200)).ok()?;
@@ -970,10 +972,10 @@ mod tests {
 
     #[test]
     fn merge_path_entries_deduplicates_and_adds_fallbacks() {
-        let cur = OsStr::new("/usr/bin:/bin");
-        let login = OsStr::new("/opt/homebrew/bin:/usr/bin:/custom/bin");
+        let cur = std::env::join_paths(["/usr/bin", "/bin"]).expect("join cur");
+        let login = std::env::join_paths(["/opt/homebrew/bin", "/usr/bin", "/custom/bin"]).expect("join login");
         let home = OsStr::new("/Users/tester");
-        let merged = merge_path_entries(Some(cur), Some(login), Some(home));
+        let merged = merge_path_entries(Some(&cur), Some(&login), Some(home));
         let dirs: Vec<PathBuf> = std::env::split_paths(&merged).collect();
         assert_eq!(dirs.iter().filter(|p| p.as_path() == Path::new("/usr/bin")).count(), 1);
         assert!(dirs.contains(&PathBuf::from("/custom/bin")));

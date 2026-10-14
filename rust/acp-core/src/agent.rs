@@ -545,8 +545,14 @@ impl Shared {
                 }
                 shared.creating_terminals.fetch_add(1, Ordering::SeqCst);
             }
-            let mut env: Vec<(String, String)> = vec![("PATH".to_string(), fs::effective_path().to_string_lossy().into_owned())];
-            env.extend(request.env.into_iter().map(|v| (v.name, v.value)));
+            #[cfg(unix)]
+            let env: Vec<(String, String)> = {
+                let mut e = vec![("PATH".to_string(), fs::effective_path().to_string_lossy().into_owned())];
+                e.extend(request.env.into_iter().map(|v| (v.name, v.value)));
+                e
+            };
+            #[cfg(not(unix))]
+            let env: Vec<(String, String)> = request.env.into_iter().map(|v| (v.name, v.value)).collect();
             let terminals = shared.terminals.clone();
             let (command, args, limit) = (request.command, request.args, request.output_byte_limit);
             let spawned = tokio::task::spawn_blocking(move || {

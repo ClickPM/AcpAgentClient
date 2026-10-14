@@ -110,12 +110,13 @@ fn candidate_names(program: &str) -> Vec<String> {
         .collect()
 }
 
-/// 三路管道、kill_on_drop、无控制台窗口（Unix 下独立进程组 `process_group(0)`）。`cwd` 是 agent 进程的工作目录（第一个会话的项目目录）。
+/// 三路管道、kill_on_drop、无控制台窗口（Unix 下注入补齐后的 `PATH` 并设独立进程组 `process_group(0)`）。`cwd` 是 agent 进程的工作目录（第一个会话的项目目录）。
 pub fn build_command(spec: &LaunchSpec, cwd: Option<&Path>) -> tokio::process::Command {
     let program = resolve_program(&spec.program);
     let mut cmd = tokio::process::Command::new(program);
-    cmd.env("PATH", fs::effective_path())
-        .args(&spec.args)
+    #[cfg(unix)]
+    cmd.env("PATH", fs::effective_path()).process_group(0);
+    cmd.args(&spec.args)
         .envs(&spec.env)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
@@ -126,8 +127,6 @@ pub fn build_command(spec: &LaunchSpec, cwd: Option<&Path>) -> tokio::process::C
     }
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
-    #[cfg(unix)]
-    cmd.process_group(0);
     cmd
 }
 

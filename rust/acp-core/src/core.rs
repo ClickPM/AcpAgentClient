@@ -387,12 +387,22 @@ impl Core {
             .ok_or_else(|| CoreError::InvalidArgument(format!("agent `{agent_id}` has no auth method `{method_id}`")))?;
         let spawn = terminal_auth::terminal_auth_spawn(&connection.launch, &method)
             .ok_or_else(|| CoreError::InvalidArgument(format!("auth method `{method_id}` is not a terminal method; use authenticate")))?;
+        #[cfg(unix)]
         let resolved_program = crate::command::resolve_program(&spawn.program).to_string_lossy().into_owned();
+        #[cfg(not(unix))]
+        let resolved_program = spawn.program.clone();
         let mut spec = pty::SpawnSpec::new(resolved_program);
         spec.args = spawn.args.clone();
-        let mut env: Vec<(String, String)> = vec![("PATH".to_string(), fs::effective_path().to_string_lossy().into_owned())];
-        env.extend(spawn.env.iter().cloned());
-        spec.env = env;
+        #[cfg(unix)]
+        {
+            let mut env: Vec<(String, String)> = vec![("PATH".to_string(), fs::effective_path().to_string_lossy().into_owned())];
+            env.extend(spawn.env.iter().cloned());
+            spec.env = env;
+        }
+        #[cfg(not(unix))]
+        {
+            spec.env = spawn.env.clone();
+        }
         spec.cwd = Some(cwd.clone());
         let terminal_id = self.terminals.spawn(spec, pty::TerminalSource::Auth)?;
         connection.shared().emit_state(
@@ -449,7 +459,10 @@ impl Core {
             let (program, kind) = pty::shell::default_shell();
             let mut spec = pty::SpawnSpec::new(program.clone());
             spec.args = pty::shell::interactive_args(kind);
-            spec.env = vec![("PATH".to_string(), fs::effective_path().to_string_lossy().into_owned())];
+            #[cfg(unix)]
+            {
+                spec.env = vec![("PATH".to_string(), fs::effective_path().to_string_lossy().into_owned())];
+            }
             spec.cwd = Some(cwd_for_spec);
             spec.cols = cols.max(1);
             spec.rows = rows.max(1);

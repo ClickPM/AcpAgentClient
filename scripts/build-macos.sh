@@ -78,16 +78,28 @@ if [ "$SMOKE" = 1 ]; then
     echo "== headless target check (-t lib/main_headless.dart)"
     flutter build macos "--$MODE" -t lib/main_headless.dart
     HEADLESS_OUT="$ROOT/build/headless-smoke.json"
-    HEADLESS_DATA="$(mktemp -d "${TMPDIR:-/tmp}/acp-headless-smoke.XXXXXX")"
+    HEADLESS_HOME="$(mktemp -d "${TMPDIR:-/tmp}/acp-headless-home.XXXXXX")"
+    HEADLESS_DATA="$HEADLESS_HOME/Library/Application Support/AcpAgentClient"
+    mkdir -p "$HEADLESS_DATA"
+    cat > "$HEADLESS_DATA/settings.json" <<EOF
+{
+  "agent_servers": {
+    "fake": {
+      "type": "custom",
+      "command": "node",
+      "args": ["$ROOT/test/fake-agent/fake-agent.mjs"]
+    }
+  }
+}
+EOF
     rm -f "$HEADLESS_OUT"
-    ACP_HEADLESS_MODE="r3" \
-      ACP_HEADLESS_OUT="$HEADLESS_OUT" \
-      ACP_HEADLESS_CWD="$ROOT" \
-      ACP_HEADLESS_DATA_DIR="$HEADLESS_DATA" \
-      ACP_HEADLESS_AGENT_CMD="node" \
-      ACP_HEADLESS_AGENT_ARGS="$ROOT/test/fake-agent/fake-agent.mjs" \
+    HOME="$HEADLESS_HOME" \
+      ACP_R3_REPORT="$HEADLESS_OUT" \
+      ACP_R3_AGENT="fake" \
+      ACP_R3_CWD="$ROOT" \
+      ACP_R3_PROMPT="smoke" \
       "$EXE"
-    rm -rf "$HEADLESS_DATA"
+    rm -rf "$HEADLESS_HOME"
     if [ ! -f "$HEADLESS_OUT" ]; then
       echo "headless run produced no report: $HEADLESS_OUT" >&2
       exit 1

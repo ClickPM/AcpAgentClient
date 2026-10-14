@@ -122,18 +122,16 @@ struct Output {
     stderr: String,
 }
 
-/// 按补齐后的 `PATH` 查找 `git` 可执行文件；找不到时退回裸名 `"git"` 交由 `Command` 处理。
+/// macOS / Unix 下按补齐后的 `PATH` 查找 `git` 可执行文件；找不到时退回裸名 `"git"` 交由 `Command` 处理。
+#[cfg(not(windows))]
 fn resolve_git(path_var: &std::ffi::OsStr) -> PathBuf {
-    let candidates: &[&str] = if cfg!(windows) { &["git.exe", "git.cmd", "git"] } else { &["git"] };
     for dir in std::env::split_paths(path_var) {
         if dir.as_os_str().is_empty() {
             continue;
         }
-        for name in candidates {
-            let p = dir.join(name);
-            if p.is_file() {
-                return p;
-            }
+        let p = dir.join("git");
+        if p.is_file() {
+            return p;
         }
     }
     PathBuf::from("git")
@@ -141,11 +139,19 @@ fn resolve_git(path_var: &std::ffi::OsStr) -> PathBuf {
 
 /// 跑一条 git 命令。`Ok(None)` = 本机没有 `git`。
 fn git(cwd: &Path, args: &[&str]) -> Result<Option<Output>> {
-    let path_var = crate::effective_path();
-    let mut command = Command::new(resolve_git(&path_var));
-    command.env("PATH", &path_var);
     #[cfg(windows)]
-    command.creation_flags(CREATE_NO_WINDOW);
+    let mut command = {
+        let mut c = Command::new("git");
+        c.creation_flags(CREATE_NO_WINDOW);
+        c
+    };
+    #[cfg(not(windows))]
+    let mut command = {
+        let path_var = crate::effective_path();
+        let mut c = Command::new(resolve_git(&path_var));
+        c.env("PATH", &path_var);
+        c
+    };
     // `core.quotepath=false`：否则含中文的路径在 diff / status 里是 `"è¯´..."` 这种八进制转义，
     // 用户看不懂，塞进 prompt 的 Branch Diff 也读不出来（R3 实测）。只对本次调用生效，不改用户配置（规则 7）。
     command.arg("-c").arg("core.quotepath=false");

@@ -280,15 +280,14 @@ pub const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 /// 建一条不弹窗、三路管道的子进程命令（Unix 下独立进程组以支持 `kill_tree` 整树回收，并注入补齐后的 `PATH`）。
 pub fn command(program: impl AsRef<std::ffi::OsStr>) -> tokio::process::Command {
     let mut cmd = tokio::process::Command::new(program);
-    cmd.env("PATH", fs::effective_path())
-        .stdin(std::process::Stdio::null())
+    cmd.stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .kill_on_drop(true);
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
     #[cfg(unix)]
-    cmd.process_group(0);
+    cmd.env("PATH", fs::effective_path()).process_group(0);
     cmd
 }
 

@@ -93,3 +93,8 @@
 ## 代码审查
 
 - **执行器由所有者指定：Codex CLI (`gpt-6.1-sol`, `reasoning: medium`, read-only)**
+- **第 1 轮（全量 `a809f4607cff06e477a83fa7c1532e052e2bad9f..6df643226c95a43c1ee292de76c9f4d4b8bd9457`）**：产物 `.claude/reviews/20261013-235210-codex-review.out.md`，共 4 条 findings（3 P1 / 1 P2）：
+  1. `[P1] scripts/build-macos.sh:83-89 使用无头入口实际识别的环境变量`：**采纳整改**。改为设置临时 `HOME` 下的 `settings.json` 并传入 `lib/main_headless.dart` 实际消费的 `ACP_R3_REPORT`、`ACP_R3_AGENT`、`ACP_R3_CWD`、`ACP_R3_PROMPT`。
+  2. `[P1] rust/fs/src/lib.rs:974-975 按平台构造 PATH 测试输入`：**采纳整改**。`merge_path_entries_deduplicates_and_adds_fallbacks` 改用 `std::env::join_paths` 构造跨平台测试输入，消除 Windows 下 `;` 分隔符导致的断言失败。
+  3. `[P1] rust/fs/src/lib.rs:171 在 stdout 超时时也清理登录 shell 进程组`：**采纳整改**。在 `probe_login_shell_path` 等待子进程返回后（无论正常退出或超时）统一向进程组 `-{pid}` 发送 `-KILL`，确保 `.zprofile` 派生的后台子进程关闭继承的 stdout 管道且不留孤儿进程。
+  4. `[P2] rust/acp-core/src/core.rs:390-395 补充共享子进程拉起改动的 Windows 实测`：**采纳整改**。将 `git.rs`、`registry/src/lib.rs`、`acp-core/src/command.rs`、`acp-core/src/agent.rs`、`acp-core/src/core.rs` 中的 GUI `PATH` 注入与解析严格限定在 `#[cfg(unix)]` / `#[cfg(not(windows))]` 下，使 Windows 端子进程拉起代码路径保持与 `main` 完全一致（零行为变更）。
