@@ -1,0 +1,167 @@
+# Round 10 — Agents 面板的进程与内存（v1.6.0）
+
+> 从 `rounds/TEMPLATE.md` 复制，依据所有者 2026-10-18 的诉求与裁定填写。硬性规则以 `AGENTS.md` 为准。
+
+> 状态：未开始（设计阶段：画板 54 已入库，待所有者过稿；**本轮暂不进入代码开发**，所有者指示 2026-10-18）
+
+- 分支：`round-10`（开工时从 `main` 开出）
+- 目标版本：**v1.6.0**（规则 11：`pubspec.yaml` 与 `rust/Cargo.toml` `[workspace.package]` 两处同改，sidecar 不跟）
+- 画板：54「Agents 面板 · 进程与内存」（`design/round-design/54-agent-processes.dc.html` / `.png`）；简报 `design/round-design/input/revision-09.md`
+
+## 背景与诉求
+
+所有者 2026-10-18 提出两条：
+
+1. 加一个 dashboard，看本应用（AAC）**及其子进程的总内存消耗**。
+2. 支持**按进程关闭活跃的 agent**：pi-acp、agy 等 agent 不声明 `sessionCapabilities.close`，侧栏的「挂起」（`session/close`，iteration-19）对它们不渲染；一旦拉起，除了「重载 agent」（它会重连）或退出应用，界面上没有办法把它停掉。
+
+现状核对（2026-10-18，`main@91cf8bb`）：
+
+- 结束 agent 的能力核心里**已经有**：`Core::agent_disconnect`（`rust/acp-core/src/core.rs:290`）→ `AgentConnection::disconnect`（`rust/acp-core/src/agent.rs:1232`）：关 stdin → 等 `DISCONNECT_GRACE`（3 s）→ `kill_tree`（Windows `taskkill /F /T /PID`，Unix 进程组 `-TERM` / `-KILL`）→ 再等 3 s 仍不退就 `finish(None)` 就地收尾并发 `exited`。桥与 Dart 侧也已有 `agentDisconnect`（`lib/app/core_bridge.dart:61`），但只被「重载 agent」（`lib/app/session_controller.dart:576`）与无头驱动调用，**UI 上没有入口**。
+- `exited` 之后的前端收尾**已经有**：清该 agent 的发送队列（`workbench_controller.dart:222`）、挂起的权限 / elicitation 标 `withdrawn`、该连接拥有的终端释放（`Shared::release_owned_terminals`）、会话按 iteration-09 的四态变「挂空」，再次打开时先挂回（`session/load` / `session/resume`）。
+- PID：agent 根进程 PID 在 `acp/agent_state: spawned` 里（`agent.rs` `connect`）；终端 PID 在 `pty::TerminalHandle.pid`。
+- **内存数据没有**：前端只能拿到宿主进程自身，子进程树与各进程内存要在 Rust 侧枚举。
+
+## 裁定（所有者 2026-10-18）
+
+| # | 问题 | 裁定 |
+|---|---|---|
+| 1 | 进程枚举与内存读取的实现 | **A：引入 `sysinfo` crate**，进规则 1 的 Rust 通用库白名单（见下「依赖说明」）。不走 PowerShell / `Get-CimInstance` 子进程（每次采样拉一个 powershell 冷启动 0.5–1 s）；不手写 Win32 FFI（规则 6 禁 `unsafe`） |
+| 2 | 内存口径 | **专用内存**（Windows：Private Bytes = 任务管理器「详细信息」页的「提交大小」）；合计按子进程求和，数字一律带「约」，口径名写在概览条上、悬停出整句 |
+| 3 | 放在哪 | **B：并进 Agents 面板（画板 50）**：标题行下加资源概览条，运行中的条目加运行行 / 进程树 / Stop。不新开右栏标签、不加顶栏徽标 |
+| 4 | 终端进程 | **只展示**：终端面板 shell 与 terminal auth 终端归「终端」段，不在这里给停止（停止仍在终端面板）。agent 经 `terminal/create` 开的终端归该 agent，随 Stop 一起结束（它本来就随连接结束而释放） |
+
+开工前另需所有者确认的两点（设计稿已按推荐画）：
+
+- **macOS 口径**：`sysinfo` 在 macOS 上 `virtual_memory()` 是 `pti_virtual_size`（虚拟地址空间，GB 级，没有参考意义），只有 `memory()` = 常驻内存（RSS）可用。推荐 macOS 显示**常驻内存合计**、概览条口径名写「常驻内存」；Windows 照裁定 2 用专用内存。
+- **Running 过滤**：画板 54 在 All / Installed / Not Installed 之间加了 `Running N`。推荐保留（运行中的 agent 散在长列表里不好找）；不要就从画板删掉再开工。
+
+## 目标
+
+Agents 面板上能看到本应用进程树的专用内存合计与按 agent 的分摊，并能对**任何**已连接的 agent（不论它声明了什么能力）一键结束其整棵进程树；结束后会话转录保留、再打开时照 iteration-09 挂回。可证伪：Windows 上连 pi-acp → 面板出现运行行与内存 → Stop → `tasklist` 里该 PID 及其子孙全部消失、侧栏会话变挂空、再发消息能重连并载回。
+
+## 前置
+
+- `scripts/fetch-upstream.ps1 -Check` 全绿（pins 不改）
+- 画板 54 所有者过稿（含上面两点确认）
+- 参照 agent：pi-acp（不声明 close，诉求原型）、claude-agent-acp（`.cmd` → node 多级子进程 + `terminal/create`）、dsh（内置条目）；fake-agent 做离线确定性用例
+
+## 依赖说明（规则 1）
+
+- crate：`sysinfo`（钉版本开工时取当时最新的 0.39.x，`rust-version` 1.95 ≤ 本仓 1.98.1）；`default-features = false, features = ["system"]`，不带 disk / network / component / user。
+- 理由：跨平台进程表（pid / parent / name / memory / start_time）在 Windows 上走 ToolHelp + `GetProcessMemoryInfo`（`PROCESS_MEMORY_COUNTERS_EX`：`memory()` = `WorkingSetSize`、`virtual_memory()` = `PrivateUsage`，源码 `src/windows/process.rs:324-325` 已核对），macOS 走 `proc_pidinfo`；`unsafe` 全在 crate 内部，我们的代码零 `unsafe`（规则 6 只约束本仓源码，validate 的 `unsafe` 字面扫描不覆盖依赖）。
+- 传递依赖：Windows 下 `windows` crate（已在 Cargo.lock 里，版本可能多一份）+ `ntapi`；macOS 下 `objc2-core-foundation` / `objc2-io-kit`；`libc`、`memchr`。均不含 gpui（规则 5 的 `cargo tree` 门照跑）。
+- 落点：只进 `rust/acp-core`（新模块），不进 `rust/bridge` 之外的其他 crate。
+- 同步：`AGENTS.md` 规则 1、`docs/requirements.md` § 8 的 Rust 允许清单各加一项「`sysinfo`（所有者裁定 2026-10-18：进程树与内存采样，画板 54）」。
+
+## 交付物
+
+### 设计（本轮设计阶段，已完成）
+- `design/round-design/54-agent-processes.dc.html` + `54-agent-processes.png`（1200 × 1830，page-4 `x 5360, y 0`）
+- `design/round-design/canvas.json` 补画板 54
+- `design/round-design/input/revision-09.md`（修订简报）
+- `design/README.md` 索引与变更记录
+
+### 契约（`docs/design.md` § 3，开工第一步先改文档）
+- 新命令 `process_snapshot` → JSON：
+  ```json
+  {
+    "metric": "private" | "resident",
+    "takenAt": 1760000000000,
+    "app":   {"pid": 1234, "bytes": 281432064},
+    "agents": [{"agentId": "claude-acp", "rootPid": 18324, "bytes": 641728512,
+                "startedAt": 1759995680000,
+                "processes": [{"pid": 18324, "parentPid": 1234, "name": "cmd.exe", "bytes": 1990656, "depth": 0}, ...],
+                "terminals": [{"terminalId": "term_3", "pid": 21004, "bytes": 57042944}]}],
+    "terminals": {"count": 2, "bytes": 96048742, "items": [{"terminalId": "...", "source": "local", "pid": 0, "bytes": 0}]},
+    "other": {"bytes": 0},
+    "total": 1288000000
+  }
+  ```
+  非 ACP 消息、仅用于渲染（与 `acp/terminal_output` 同类）。会话数、是否在跑等**前端已有**的信息不进快照。
+- **不新增**停止命令：Stop 直接用已有的 `agent_disconnect`。
+- `_meta` 零改动（规则 2）。
+
+### Rust
+- `rust/Cargo.toml` `[workspace.dependencies]` 加 `sysinfo`；`rust/acp-core/Cargo.toml` 引用
+- `rust/acp-core/src/process.rs`（新）：`ProcessSampler`（持一个 `sysinfo::System`，`refresh_processes_specifics(All, true, nothing().with_memory())`，复用实例避免每次全量重建）；从本进程 PID 建子孙树；按「agent 根 PID → 子树」「终端 PID → 子树」归属（规格表 B）；口径选择 `cfg(windows)` → `virtual_memory()`（PrivateUsage）、`cfg(not(windows))` → `memory()`（RSS）
+- `rust/acp-core/src/agent.rs`：`Shared` 记根 PID 与启动时间（现在只在 `spawned` 事件里发了一次，不留存）
+- `rust/pty/src/lib.rs`：暴露 `ids_with_pid()`（id / source / pid）供归属，不改既有行为
+- `rust/acp-core/src/core.rs`：`Core::process_snapshot()`，阻塞部分走 `blocking(...)`
+- `rust/bridge/src/api.rs` + `flutter_rust_bridge_codegen generate`（生成物入库）
+- 单测：进程树归属的纯函数用例（构造假进程表，不依赖真进程）；一条真进程用例（拉一个 `sh -c 'sleep'` / `cmd /c timeout` 子进程，断言它出现在本进程子树里且 bytes > 0）
+
+### Dart
+- `lib/app/core_bridge.dart`：`processSnapshot()`；`test/app/fake_core.dart` 同步
+- `lib/projection/process_snapshot.dart`（新，纯 Dart）：快照 → 概览条三段 + 每 agent 运行行数据
+- `lib/app/agents_state.dart`：采样定时器（`resource.sampleInterval` 2 s；仅 Agents 标签可见且窗口未最小化时跑，切走即停，失败停表等手动重试）、`stopAgent(id)` → `agentDisconnect`；停止中态。若 `agents_state.dart` 超 900 行门，拆 `lib/app/process_monitor.dart`，并在 `validate.ps1` / `validate.sh` 依赖方向门登记边（`process_monitor.dart → guarded.dart, core_bridge.dart`）
+- `lib/ui/registry/resource_bar.dart`（新）：概览条三态（正常 / 无 agent / 采样中 / 失败）
+- `lib/ui/registry/registry_entry.dart`：运行中芯片、运行行、进程树展开、Stop 按钮与停止中态；连接中态
+- `lib/ui/registry/registry_panel.dart`：概览条插在标题行与搜索行之间；`Running` 过滤
+- `lib/ui/registry/stop_agent_confirm.dart`（新）：B1 / B2 两态确认弹层（样式照画板 41 `DeleteSessionConfirm`）；无会话时不弹（B3）
+- `lib/app/workbench_screen.dart`：接线（当前 997 行，门 1000——**接线只能放在 `_registryPanel()` 里换参数**，放不下就先把 `_registryPanel()` 挪到 `lib/app/` 下的独立文件，不放宽门）
+- `lib/theme/tokens.dart`：新增 `Resource`（barHeight / legendSwatch / sampleInterval）与 `ProcessTree`（rowHeight / indent / pidWidth / bytesWidth）两组；颜色全部引用既有 token
+- `lib/gallery/boards/agent_boards.dart`：画板 54 对照（A / B / C 三段）
+- 测试：投影层用例（归属、合计、0 段不画、采样不可用降级）；`agents_state` 用例（标签可见才采样、切走停表、失败停表、Stop 调 `agentDisconnect`、停止中态在 `exited` 后撤掉）；确认弹层分流（无会话不弹 / 有会话 B1 / 有回合或等你处理 B2）
+
+### 文档
+- `docs/design.md` § 3（`process_snapshot`）、§ 1 进程模型旁注一句「Agents 面板可停止任一 agent 的进程树」
+- `AGENTS.md` 规则 1、`docs/requirements.md` § 8（`sysinfo`）
+- `ROUNDS.md` § 2 画板 54 行、§ 7 进度表 R10 行
+- `design/README.md` 画板 54 状态改「已实现（R10）」
+- 发版：`pubspec.yaml` / `rust/Cargo.toml` → 1.6.0；README「状态」加一行
+
+## 验收
+
+| # | 检查 | 命令 / 期望 |
+|---|---|---|
+| 1 | 钉版本 | `powershell -File scripts/fetch-upstream.ps1 -Check` 全绿 |
+| 2 | 全量门 | `powershell -File scripts/validate.ps1 -CargoTargetDir D:\cargo-target\AcpAgentClient-round-10` 全绿（含 `unsafe` 扫描、`cargo tree` 无 gpui、版本门 1.6.0、lib/app 行数门与依赖方向门、pubspec 白名单）；macOS 上 `scripts/validate.sh` 同样全绿 |
+| 3 | 依赖白名单落文档 | `AGENTS.md` 规则 1 与 `docs/requirements.md` § 8 都出现 `sysinfo`；`rust/acp-core/Cargo.toml` 里 `default-features = false` |
+| 4 | 口径正确（Windows，规则 9） | 连上 claude-agent-acp，`process_snapshot` 里该 agent 各进程 `bytes` 与 `Get-Process -Id <pid> \| Select PrivateMemorySize64` 逐个对比，偏差 ≤ 5%（采样时刻不同）；命令与输出记「本轮实测」 |
+| 5 | 归属正确 | 同一快照：`.cmd` 包装下 `cmd.exe → node.exe → …` 全部归该 agent；agent 经 `terminal/create` 开的终端归该 agent 的 `terminals`；终端面板 shell 归 `terminals`；`total` = 各段之和 |
+| 6 | Stop 结束整棵树（Windows，规则 9） | pi-acp 与 claude-agent-acp 各一次：Stop 前 `Get-CimInstance Win32_Process` 记下子树 PID 列表，Stop 后 10 s 内全部不存在；面板条目回到「已安装」、运行行撤掉；路径含中文与空格的工作区下同样通过 |
+| 7 | 会话收尾 | Stop 一个有会话、有排队消息、挂着权限请求的 agent：队列清空、权限卡标 withdrawn、侧栏会话变挂空且转录保留；再发消息 → 重连并 `session/load` 载回（pi-acp） |
+| 8 | 确认分流 | 单测覆盖：无会话直接停止（B3）、有会话弹 B1、有回合在跑或等你处理弹 B2；取消不发命令 |
+| 9 | 采样开销 | 面板打开 60 s，`acp_agent_client.exe` CPU 平均 < 1%（`Get-Counter '\Process(acp_agent_client)\% Processor Time'` 采 30 次取均值）；切到别的标签后 `process_snapshot` 不再被调用（流量 / 日志或单测断言） |
+| 10 | 画板对照 | gallery 渲出画板 54 的 A / B / C 三段，与 PNG 逐段对照；偏离记 `design/DIVERGENCE.md` |
+| 11 | 发布包 | `scripts/build.ps1 -Smoke` 通过；`scripts/package.ps1` + `scripts/verify-package.ps1` 四条 PASS |
+
+## 禁止
+
+- 默认三条：不改与本轮无关的页面样式（规则 3）；不加设计稿没有的功能（规则 3）；不在 `vendor/upstream/` 里改代码（规则 4）。
+- 不做「全部停止」、不做空闲自动停止、不做内存阈值告警、不做历史曲线（都不在画板 54 上；想要先进 BACKLOG 等裁定）。
+- 不在侧栏 / 顶栏 / 会话头加任何内存或停止入口（裁定 3）。
+- 终端只展示，不给停止（裁定 4）。
+- 不按 agent 名字或能力特判 Stop 的可用性（规则 2）：已连接即给。
+- 不新增停止命令、不改 `agent_disconnect` 的语义与宽限期；不引入 Windows Job Object（要的话另行裁定，见风险）。
+- 不手写 Win32 / libc FFI、不写 `unsafe`（规则 6）。
+- Stop 不改 settings、不动安装记录、不动 agent 自己的会话目录（规则 7）。
+
+## 风险与已知限制
+
+- **孤儿进程看不到也杀不掉**：根进程先退出时，孙进程的 parent 指向已不存在的 PID（Windows 不重挂父），从本进程往下建树挂不上，`taskkill /T` 也够不到。本轮不处理：概览条规格写明「不计入」。后续可选：`spawned` 时记录子孙 PID 集合做兜底，或用 Job Object（需裁定，且 `tokio::process` 没有现成接口）→ 收口时记 `rounds/BACKLOG.md`。
+- **PID 复用**：两次采样之间 PID 被系统复用会短暂归错；用 `start_time` 与 agent 启动时间比对，早于 agent 启动的进程不归给它。
+- **采样耗时**：`sysinfo` 在 Windows 上刷新全部进程约数十毫秒（进程数相关），放阻塞线程池；2 s 周期、只在面板可见时跑。验收 9 兜底。
+- **macOS 口径不一致**：常驻内存与专用内存不是同一个量，跨平台数字不可比；概览条上的口径名随平台变。
+- **`workbench_screen.dart` 余量只剩 3 行**：接线若放不下，按交付物里写的挪文件，不放宽门。
+
+## 代码审查
+
+<!-- 完成后回填。审查路由见 AGENTS.md「开发模式」与 docs/review-workflow.md：
+     ① cursor CLI + grok-4.7-high-fast 是唯一默认执行器 → ② 硬失败就**停下喊人**（不自动回落子代理）。
+     范围：前两轮全量（-Scope branch，即 main...HEAD），第 3 轮起只审上一轮整改 diff。 -->
+
+- 审查方式：
+- 审查器与模型：
+- 审查范围与基准提交：
+- findings 处理：
+- 结论：
+
+## 失败处理
+
+同一验收项针对性整改后连续 2 次验证仍不过 → 写 `rounds/round-10/BLOCKED.md`，停下呼人。禁止放宽验收标准自我通过。
+
+## 本轮实测
+
+<!-- 完成后回填：实际数字、踩的坑、与设计 / 计划的偏离及原因；子进程相关改动附 Windows 实测命令与输出（规则 9） -->

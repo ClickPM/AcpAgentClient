@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet"><style>body{margin:0;background:#fbfbfc}a{color:#4a59c9;text-decoration:none}table{border-collapse:collapse;width:100%}th{font-size:11px;font-weight:500;color:#62626e;text-align:left;padding:6px 8px;border-bottom:1px solid #e2e2e7;background:#f4f4f6;white-space:nowrap}td{font-size:12px;line-height:1.5;color:#33333d;padding:6px 8px;border-bottom:1px solid #e2e2e7;vertical-align:top}td.k{white-space:nowrap;color:#1e1e26}code{font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;background:#eeeef1;border-radius:3px;padding:0 4px}</style></helmet>
+<div data-screen-label="54" style="width:1200px;min-width:1200px;box-sizing:border-box;padding:24px;background:#fbfbfc;font-family:Geist,'Noto Sans SC',system-ui,sans-serif;font-size:13px;color:#33333d;display:flex;flex-direction:column;gap:20px">
+
+  <div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #e2e2e7;padding-bottom:10px">
+    <span style="font-size:15px;font-weight:500;color:#1e1e26">54 · Agents 面板 · 进程与内存</span>
+    <span style="font-size:11px;color:#8b8b96">数据来源：核心命令 process_snapshot（本机进程采样，非 ACP 消息）· 停止 = agent_disconnect（关 stdin → 等 3 s → 结束整棵进程树）</span>
+  </div>
+
+  <!-- ===== A 段：面板全貌 + 规格表 ===== -->
+  <div style="display:flex;gap:24px;align-items:flex-start">
+
+    <div style="width:678px;flex:none;display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e">A · Agents 面板：资源概览条 + 运行中条目（Claude 展开进程树，Pi 收起）</div>
+      <div style="box-sizing:border-box;border:1px solid #d3d3da;background:#fbfbfc;display:flex;flex-direction:column">
+
+        <!-- 标题行 + 资源概览条 + 搜索 / 过滤 -->
+        <div style="padding:16px 16px 12px;border-bottom:1px solid #e2e2e7;display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:baseline;gap:10px"><span style="font-size:15px;font-weight:500;color:#1e1e26">ACP Registry</span><span style="font-size:12px;color:#8b8b96">Agent Client Protocol 插件市场</span><span style="margin-left:auto;font-size:12px;color:#8b8b96;font-variant-numeric:tabular-nums">检查于 12 分钟前</span><span style="align-self:center;width:20px;height:20px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#62626e"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"></path></svg></span><span style="display:flex;align-items:center;gap:4px;font-size:12px;color:#4a59c9">Learn More<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></span></div>
+
+          <!-- 资源概览条（新增） -->
+          <div style="border:1px solid #e2e2e7;border-radius:6px;background:#f4f4f6;padding:10px 12px;display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:baseline;gap:8px">
+              <span style="font-size:12px;color:#62626e">本机内存</span>
+              <span style="font-size:15px;font-weight:500;color:#1e1e26;font-variant-numeric:tabular-nums">约 1.2 GB</span>
+              <span style="margin-left:auto;display:flex;align-items:center;gap:4px;font-size:11px;color:#8b8b96">专用内存 · 每 2 秒采样<span title="口径：进程的专用内存（Windows：Private Bytes，即任务管理器「详细信息」页的「提交大小」）。合计 = 本应用进程及其全部子进程。" style="display:inline-flex;color:#8b8b96"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="11" x2="12" y2="16"></line><line x1="12" y1="8" x2="12" y2="8.01"></line></svg></span></span>
+            </div>
+            <div style="height:4px;border-radius:2px;background:#e2e2e7;display:flex;overflow:hidden">
+              <span style="width:22.2%;background:#8b8b96"></span>
+              <span style="width:70.2%;background:#5566d8"></span>
+              <span style="width:7.6%;background:#d3d3da"></span>
+            </div>
+            <div style="display:flex;align-items:center;gap:16px;font-size:11px;color:#62626e;font-variant-numeric:tabular-nums">
+              <span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:2px;background:#8b8b96"></span>本应用 268.4 MB</span>
+              <span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:2px;background:#5566d8"></span>Agents · 2 个运行中 · 846.0 MB</span>
+              <span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:2px;background:#d3d3da"></span>终端 · 2 个 · 91.6 MB</span>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="flex:1;height:28px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:4px;background:#f4f4f6;border:1px solid #e2e2e7"><span style="display:inline-flex;color:#8b8b96"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.2" y2="16.2"></line></svg></span><span style="font-size:12px;color:#8b8b96">Search agents...</span></span>
+            <span style="display:flex;align-items:center;gap:2px">
+              <span style="height:24px;display:flex;align-items:center;gap:6px;padding:0 8px;border-radius:4px;background:rgba(30,30,38,.10);color:#4a59c9;font-size:12px;white-space:nowrap">All<span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px">12</span></span>
+              <span style="height:24px;display:flex;align-items:center;gap:6px;padding:0 8px;border-radius:4px;color:#62626e;font-size:12px;white-space:nowrap">Installed<span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">4</span></span>
+              <span style="height:24px;display:flex;align-items:center;gap:6px;padding:0 8px;border-radius:4px;color:#62626e;font-size:12px;white-space:nowrap">Running<span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">2</span></span>
+              <span style="height:24px;display:flex;align-items:center;gap:6px;padding:0 8px;border-radius:4px;color:#62626e;font-size:12px;white-space:nowrap">Not Installed<span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">8</span></span>
+            </span>
+          </div>
+        </div>
+
+        <!-- 行 1：Claude Agent · 运行中 · 展开进程树 -->
+        <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border-bottom:1px solid #e2e2e7">
+          <span style="width:28px;height:28px;flex:none;border:1px solid #d3d3da;border-radius:4px;display:flex;align-items:center;justify-content:center"><span style="width:10px;height:10px;background:#8b8b96;transform:rotate(45deg)"></span></span>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+            <div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:500;color:#1e1e26">Claude Agent</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">v0.78.2</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#477f40;background:#ecf3ea;border-radius:3px;padding:1px 5px">已安装</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#477f40;background:#ecf3ea;border-radius:3px;padding:1px 5px">已登录</span><span style="display:flex;align-items:center;gap:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#477f40;background:#ecf3ea;border-radius:3px;padding:1px 5px"><span style="width:6px;height:6px;border-radius:50%;background:#477f40"></span>运行中</span></div>
+            <div style="font-size:12px;line-height:1.5;color:#62626e">ACP wrapper for Anthropic's Claude. Frontier language models with computer use and advanced tool execution.</div>
+            <div style="display:flex;align-items:center;gap:12px"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">ID: claude-acp</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">源码仓库 ↗</span></div>
+            <!-- 运行行（新增） -->
+            <div style="display:flex;align-items:center;gap:6px;margin-top:2px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e;font-variant-numeric:tabular-nums">
+              <span style="display:inline-flex;color:#62626e"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+              <span>PID 18324</span><span style="color:#8b8b96">·</span><span>5 个进程</span><span style="color:#8b8b96">·</span><span style="color:#1e1e26">约 612.0 MB</span><span style="color:#8b8b96">·</span><span>已运行 1 小时 12 分</span><span style="color:#8b8b96">·</span><span>2 个会话</span>
+            </div>
+            <!-- 进程树（展开态，新增） -->
+            <div style="margin-top:4px;background:#f4f4f6;border:1px solid #e2e2e7;border-radius:4px;padding:6px 0;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#33333d;font-variant-numeric:tabular-nums">
+              <div style="display:flex;padding:0 10px 4px;color:#8b8b96"><span style="flex:1">进程</span><span style="width:64px;text-align:right">PID</span><span style="width:84px;text-align:right">专用内存</span></div>
+              <div style="display:flex;height:22px;align-items:center;padding:0 10px"><span style="flex:1">cmd.exe</span><span style="width:64px;text-align:right;color:#62626e">18324</span><span style="width:84px;text-align:right">1.9 MB</span></div>
+              <div style="display:flex;height:22px;align-items:center;padding:0 10px"><span style="flex:1;padding-left:16px"><span style="color:#8b8b96">└ </span>node.exe</span><span style="width:64px;text-align:right;color:#62626e">18410</span><span style="width:84px;text-align:right">382.6 MB</span></div>
+              <div style="display:flex;height:22px;align-items:center;padding:0 10px"><span style="flex:1;padding-left:32px"><span style="color:#8b8b96">└ </span>node.exe</span><span style="width:64px;text-align:right;color:#62626e">19022</span><span style="width:84px;text-align:right">168.3 MB</span></div>
+              <div style="display:flex;height:22px;align-items:center;padding:0 10px"><span style="flex:1;padding-left:48px"><span style="color:#8b8b96">└ </span>bash.exe</span><span style="width:64px;text-align:right;color:#62626e">20112</span><span style="width:84px;text-align:right">4.8 MB</span></div>
+              <div style="display:flex;height:22px;align-items:center;padding:0 10px"><span style="flex:1">pwsh.exe <span style="color:#8b8b96">· agent 终端 term_3</span></span><span style="width:64px;text-align:right;color:#62626e">21004</span><span style="width:84px;text-align:right">54.4 MB</span></div>
+            </div>
+          </div>
+          <span style="display:flex;align-items:center;gap:6px">
+            <span style="height:28px;display:flex;align-items:center;gap:6px;padding:0 10px;border-radius:4px;color:#33333d;font-size:13px;white-space:nowrap;background:rgba(30,30,38,.06)"><span style="width:10px;height:10px;border-radius:2px;background:#bc4e39"></span>Stop</span>
+            <span style="height:28px;display:flex;align-items:center;gap:6px;padding:0 10px;border-radius:4px;color:#bc4e39;font-size:13px;white-space:nowrap"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>Remove</span>
+          </span>
+        </div>
+
+        <!-- 行 2：Pi · 运行中 · 收起 -->
+        <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border-bottom:1px solid #e2e2e7">
+          <span style="width:28px;height:28px;flex:none;border:1px solid #d3d3da;border-radius:4px;display:flex;align-items:center;justify-content:center"><span style="width:10px;height:10px;background:#8b8b96;transform:rotate(45deg)"></span></span>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+            <div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:500;color:#1e1e26">pi ACP</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">v0.6.1</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#477f40;background:#ecf3ea;border-radius:3px;padding:1px 5px">已安装</span><span style="display:flex;align-items:center;gap:4px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#477f40;background:#ecf3ea;border-radius:3px;padding:1px 5px"><span style="width:6px;height:6px;border-radius:50%;background:#477f40"></span>运行中</span></div>
+            <div style="font-size:12px;line-height:1.5;color:#62626e">ACP adapter for the pi coding agent.</div>
+            <div style="display:flex;align-items:center;gap:12px"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">ID: pi-acp</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">源码仓库 ↗</span></div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:2px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e;font-variant-numeric:tabular-nums">
+              <span style="display:inline-flex;color:#62626e"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></span>
+              <span>PID 22410</span><span style="color:#8b8b96">·</span><span>3 个进程</span><span style="color:#8b8b96">·</span><span style="color:#1e1e26">约 234.0 MB</span><span style="color:#8b8b96">·</span><span>已运行 26 分</span><span style="color:#8b8b96">·</span><span>无会话</span>
+            </div>
+          </div>
+          <span style="display:flex;align-items:center;gap:6px">
+            <span style="height:28px;display:flex;align-items:center;gap:6px;padding:0 10px;border-radius:4px;color:#33333d;font-size:13px;white-space:nowrap"><span style="width:10px;height:10px;border-radius:2px;background:#bc4e39"></span>Stop</span>
+            <span style="height:28px;display:flex;align-items:center;gap:6px;padding:0 10px;border-radius:4px;color:#bc4e39;font-size:13px;white-space:nowrap"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>Remove</span>
+          </span>
+        </div>
+
+        <!-- 行 3：Codex · 已安装未运行（与画板 50 一致，无运行行） -->
+        <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border-bottom:1px solid #e2e2e7">
+          <span style="width:28px;height:28px;flex:none;border:1px solid #d3d3da;border-radius:4px;display:flex;align-items:center;justify-content:center"><span style="width:10px;height:10px;background:#8b8b96;transform:rotate(45deg)"></span></span>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+            <div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:500;color:#1e1e26">Codex</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">v1.12.0</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#477f40;background:#ecf3ea;border-radius:3px;padding:1px 5px">已安装</span></div>
+            <div style="font-size:12px;line-height:1.5;color:#62626e">ACP adapter for OpenAI's coding assistant with reasoning, editing, and terminal integration.</div>
+            <div style="display:flex;align-items:center;gap:12px"><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">ID: codex-acp</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96">源码仓库 ↗</span></div>
+          </div>
+          <span style="height:28px;display:flex;align-items:center;gap:6px;padding:0 10px;border-radius:4px;color:#bc4e39;font-size:13px;white-space:nowrap"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>Remove</span>
+        </div>
+
+        <!-- 行 4：DSH · 内置 · 连接中 -->
+        <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px">
+          <span style="width:28px;height:28px;flex:none;border:1px solid #d3d3da;border-radius:4px;display:flex;align-items:center;justify-content:center"><span style="width:10px;height:10px;background:#8b8b96;transform:rotate(45deg)"></span></span>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+            <div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:500;color:#1e1e26">DSH ACP Agent</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">v1.3.2</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#477f40;background:#ecf3ea;border-radius:3px;padding:1px 5px">已安装</span></div>
+            <div style="font-size:12px;line-height:1.5;color:#62626e">VariFlight DSH intelligent coding assistant and ACP protocol language server integration.</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:2px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5566d8" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.55"></path></svg><span>连接中…</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右侧规格表 -->
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e">规格表 A · 资源概览条</div>
+        <table>
+          <tr><th>项</th><th>规则</th></tr>
+          <tr><td class="k">位置</td><td>标题行与搜索行之间，只在 Agents 标签里出现；不进侧栏、顶栏、会话头</td></tr>
+          <tr><td class="k">合计</td><td>本应用 + Agents + 终端 = 本应用进程与它的全部子孙进程。数字一律带「约」</td></tr>
+          <tr><td class="k">口径</td><td>Windows：专用内存（Private Bytes，即任务管理器「详细信息」页的「提交大小」）。macOS：常驻内存（见任务卡）。右上角写口径名，<code>info</code> 图标悬停出整句</td></tr>
+          <tr><td class="k">分段条</td><td>本应用 <code>Neutral.placeholder</code> · Agents <code>Accent.base</code> · 终端 <code>Neutral.border</code>；轨道 <code>Neutral.borderSubtle</code>；按字节比例分，0 的段不画</td></tr>
+          <tr><td class="k">采样</td><td>Agents 标签可见、窗口未最小化时每 2 s 一次；打开即采一次；切走即停。数字原地更新，不做动画</td></tr>
+          <tr><td class="k">单位</td><td>沿用 <code>formatBytes</code>（一位小数，≥ 1 GB 进 GB）</td></tr>
+        </table>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e">规格表 B · 进程归属</div>
+        <table>
+          <tr><th>进程</th><th>归到</th></tr>
+          <tr><td class="k">agent 根进程及其子孙</td><td>该 agent 行</td></tr>
+          <tr><td class="k">agent 经 terminal/create 开的终端</td><td>该 agent 行；进程树里标「agent 终端 &lt;terminalId&gt;」，顶层显示（它是本应用的子进程，不在 agent 子树里）</td></tr>
+          <tr><td class="k">终端面板 shell、terminal auth 终端</td><td>「终端」段，<b>只展示</b>，这里不给停止（停止在终端面板）</td></tr>
+          <tr><td class="k">其余子孙（git 等短命进程）+ 宿主进程本身</td><td>「本应用」段</td></tr>
+          <tr><td class="k">已脱离进程树的孤儿</td><td>不计入、看不到（根进程先退出、孙进程被重新挂父；见任务卡风险）</td></tr>
+        </table>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e">规格表 C · 条目上的运行行与 Stop</div>
+        <table>
+          <tr><th>条件</th><th>表现</th></tr>
+          <tr><td class="k">已连接</td><td>名字行加 <code>运行中</code> 芯片（success）；描述下多一行运行行：PID · 进程数 · 约内存 · 已运行时长 · 会话数；右侧 Stop（在 Update / Remove 左边）。<b>与 agent 能力声明无关</b>，任何 agent 都给</td></tr>
+          <tr><td class="k">运行行展开</td><td>点运行行的 chevron 展开进程树（名字 / PID / 专用内存，缩进 16 px 一级）；展开态只在本次运行内记住</td></tr>
+          <tr><td class="k">连接中</td><td>运行行换成 spinner + 「连接中…」，不出 Stop</td></tr>
+          <tr><td class="k">未连接</td><td>与画板 50 / 51 / 53 完全一致，无运行行</td></tr>
+          <tr><td class="k">Running 过滤</td><td>过滤行在 Installed 与 Not Installed 之间加 <code>Running N</code>，N = 已连接的 agent 数</td></tr>
+          <tr><td class="k">采样不可用</td><td>运行行只留「PID 18324」，进程数与内存省略，进程树不可展开</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== B 段：停止流程 ===== -->
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e">B · 停止流程（确认弹层锚在 Stop 按钮下方，右对齐；样式同画板 41 的删除确认）</div>
+    <div style="display:flex;gap:24px;align-items:flex-start">
+
+      <!-- B1 有会话 -->
+      <div style="width:360px;display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:12px;color:#62626e">B1 · 有会话挂在这个 agent 上</div>
+        <div style="background:#ffffff;border:1px solid #e2e2e7;border-radius:6px;box-shadow:0 4px 12px rgba(28,28,35,.10);padding:4px;width:280px">
+          <div style="padding:8px;display:flex;flex-direction:column;gap:10px">
+            <div style="font-size:13px;font-weight:500;color:#1e1e26">停止 Claude Agent？</div>
+            <div style="font-size:12px;line-height:1.5;color:#62626e">结束它的全部 5 个进程（约 612.0 MB）。挂在它上面的 2 个会话会断开，转录保留；再次打开会话时重新连接并载回。</div>
+            <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">
+              <span style="height:28px;display:flex;align-items:center;padding:0 10px;border-radius:4px;font-size:13px;color:#33333d">取消</span>
+              <span style="height:28px;display:flex;align-items:center;padding:0 10px;border-radius:4px;font-size:13px;color:#bc4e39">停止</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- B2 有回合在跑 / 等你处理 -->
+      <div style="width:360px;display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:12px;color:#62626e">B2 · 有回合在跑，或有会话在等你处理（画板 09 口径）</div>
+        <div style="background:#ffffff;border:1px solid #e2e2e7;border-radius:6px;box-shadow:0 4px 12px rgba(28,28,35,.10);padding:4px;width:280px">
+          <div style="padding:8px;display:flex;flex-direction:column;gap:10px">
+            <div style="font-size:13px;font-weight:500;color:#1e1e26">停止 Claude Agent？</div>
+            <div style="display:flex;gap:6px;align-items:flex-start;background:#f7f2e2;border-radius:4px;padding:6px 8px;font-size:12px;line-height:1.5;color:#8a6f12">
+              <svg style="flex:none;margin-top:3px" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+              <span>1 个会话正在运行回合，1 个会话在等你授权。停止会中断回合，未回答的请求作废，排队的消息清空。</span>
+            </div>
+            <div style="font-size:12px;line-height:1.5;color:#62626e">结束它的全部 5 个进程（约 612.0 MB）。挂在它上面的 2 个会话会断开，转录保留；再次打开会话时重新连接并载回。</div>
+            <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">
+              <span style="height:28px;display:flex;align-items:center;padding:0 10px;border-radius:4px;font-size:13px;color:#33333d">取消</span>
+              <span style="height:28px;display:flex;align-items:center;padding:0 10px;border-radius:4px;font-size:13px;color:#bc4e39">仍然停止</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- B3 停止中 -->
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:12px;color:#62626e">B3 · 停止中（无会话时点 Stop 直接进这一态，不弹确认）</div>
+        <div style="border:1px solid #e2e2e7;border-radius:6px;background:#fbfbfc;overflow:hidden">
+          <div style="display:flex;align-items:flex-start;gap:12px;padding:12px">
+            <span style="width:28px;height:28px;flex:none;border:1px solid #d3d3da;border-radius:4px;display:flex;align-items:center;justify-content:center"><span style="width:10px;height:10px;background:#8b8b96;transform:rotate(45deg)"></span></span>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+              <div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:500;color:#1e1e26">pi ACP</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">v0.6.1</span><span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#477f40;background:#ecf3ea;border-radius:3px;padding:1px 5px">已安装</span></div>
+              <div style="display:flex;align-items:center;gap:6px;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#62626e">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5566d8" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.55"></path></svg><span>正在停止…</span>
+              </div>
+              <div style="font-size:11px;color:#8b8b96">先请 agent 自行退出，3 秒后仍在就结束整棵进程树</div>
+            </div>
+            <span style="height:28px;display:flex;align-items:center;gap:6px;padding:0 10px;border-radius:4px;color:#33333d;font-size:13px;white-space:nowrap;opacity:.5"><span style="width:10px;height:10px;border-radius:2px;background:#bc4e39"></span>Stop</span>
+          </div>
+        </div>
+        <div style="font-size:11px;line-height:1.6;color:#8b8b96">停止完成后条目回到「已安装」态（运行行与 <code>运行中</code> 芯片撤掉）。失败时走通用 toast（错误原文），条目回到运行态。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== C 段：资源概览条的其他态 ===== -->
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e">C · 资源概览条的其他态（宽度随面板，此处按 360 px 示意）</div>
+    <div style="display:flex;gap:24px;align-items:flex-start">
+
+      <div style="width:360px;display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:12px;color:#62626e">C1 · 没有 agent 在运行</div>
+        <div style="border:1px solid #e2e2e7;border-radius:6px;background:#f4f4f6;padding:10px 12px;display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:12px;color:#62626e">本机内存</span><span style="font-size:15px;font-weight:500;color:#1e1e26;font-variant-numeric:tabular-nums">约 271.2 MB</span><span style="margin-left:auto;font-size:11px;color:#8b8b96">专用内存 · 每 2 秒采样</span></div>
+          <div style="height:4px;border-radius:2px;background:#e2e2e7;display:flex;overflow:hidden"><span style="width:100%;background:#8b8b96"></span></div>
+          <div style="display:flex;align-items:center;gap:16px;font-size:11px;color:#62626e;font-variant-numeric:tabular-nums">
+            <span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:2px;background:#8b8b96"></span>本应用 271.2 MB</span>
+            <span style="display:flex;align-items:center;gap:6px;color:#8b8b96"><span style="width:8px;height:8px;border-radius:2px;background:#5566d8"></span>Agents · 无运行</span>
+          </div>
+        </div>
+        <div style="font-size:11px;color:#8b8b96">终端数为 0 时整段图例省略；Agents 段恒显示</div>
+      </div>
+
+      <div style="width:360px;display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:12px;color:#62626e">C2 · 首次采样中</div>
+        <div style="border:1px solid #e2e2e7;border-radius:6px;background:#f4f4f6;padding:10px 12px;display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:12px;color:#62626e">本机内存</span><span style="font-size:15px;font-weight:500;color:#8b8b96">—</span><span style="margin-left:auto;display:flex;align-items:center;gap:4px;font-size:11px;color:#8b8b96"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5566d8" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.55"></path></svg>采样中…</span></div>
+          <div style="height:4px;border-radius:2px;background:#e2e2e7"></div>
+          <div style="font-size:11px;color:#8b8b96">&nbsp;</div>
+        </div>
+        <div style="font-size:11px;color:#8b8b96">图例行留高不留字，采到后不跳布局</div>
+      </div>
+
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:12px;color:#62626e">C3 · 采样失败</div>
+        <div style="border:1px solid #e2e2e7;border-radius:6px;background:#f4f4f6;padding:10px 12px;display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:12px;color:#62626e">本机内存</span><span style="font-size:15px;font-weight:500;color:#8b8b96">—</span><span style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11px;color:#62626e">无法读取进程信息<span style="display:inline-flex;color:#62626e"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"></path></svg></span></span></div>
+          <div style="height:4px;border-radius:2px;background:#e2e2e7"></div>
+          <div style="font-size:11px;color:#8b8b96">原因写进日志；Stop 不受影响</div>
+        </div>
+        <div style="font-size:11px;color:#8b8b96">失败后停掉定时器，点刷新图标再试一次</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== D 段：新增 token ===== -->
+  <div style="display:flex;gap:24px;align-items:flex-start">
+    <div style="width:560px;display:flex;flex-direction:column;gap:6px">
+      <div style="font-size:11px;font-weight:500;letter-spacing:.06em;color:#62626e">本画板新增 token（只有几何；颜色全部复用画板 00 / 07）</div>
+      <table>
+        <tr><th>token</th><th>值</th><th>用途</th></tr>
+        <tr><td class="k"><code>resource.barHeight</code></td><td>4</td><td>分段条高度（圆角取一半）</td></tr>
+        <tr><td class="k"><code>resource.legendSwatch</code></td><td>8</td><td>图例色块边长（圆角 <code>Radii.chip</code>）</td></tr>
+        <tr><td class="k"><code>resource.sampleInterval</code></td><td>2 s</td><td>采样周期</td></tr>
+        <tr><td class="k"><code>processTree.rowHeight</code></td><td>22</td><td>进程树行高</td></tr>
+        <tr><td class="k"><code>processTree.indent</code></td><td>16</td><td>每级缩进</td></tr>
+        <tr><td class="k"><code>processTree.pidWidth</code> / <code>bytesWidth</code></td><td>64 / 84</td><td>右侧两列定宽（等宽数字右对齐）</td></tr>
+      </table>
+    </div>
+    <div style="flex:1;min-width:0;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:#8b8b96;line-height:1.7;padding-top:20px">注：画板 50 / 51 / 53 不改，本画板定义的是叠加在它们之上的运行态。深色按画板 07 逐项对位，不另画。Stop 的图标是画板 23 停止方块的同款（10 px、<code>Semantic.error</code>、<code>Radii.chip</code>），按钮本身是 ghost 中性色，与红色的 Remove 区分；行内按钮顺序：Stop · Update · Remove（或 登录 · Remove）。确认弹层宽 <code>Geometry.menuWidth</code>（280）。停止不改任何 settings 与安装记录，只结束进程；不提供「全部停止」、不做空闲自动停止。</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1200,&quot;height&quot;:1830}}"></script>
+</body>
+</html>

@@ -433,6 +433,15 @@
       "h": 700
     },
     {
+      "file": "54-agent-processes.dc.html",
+      "title": "Agents 面板 · 进程与内存",
+      "page": "page-4",
+      "x": 5360,
+      "y": 0,
+      "w": 1200,
+      "h": 1830
+    },
+    {
       "file": "60-files-panel.dc.html",
       "title": "文件面板",
       "page": "page-4",

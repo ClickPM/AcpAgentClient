@@ -71,6 +71,7 @@
 | 51 | Registry 条目状态 | agent 管理 | round-design | `design/round-design/51-registry-states.dc.html` | `design/round-design/51-registry-states.png` | — | 已实现（R5） | — |
 | 52 | agent 认证 | agent 管理 | round-design | `design/round-design/52-auth.dc.html` | `design/round-design/52-auth.png` | — | 已实现（R5） | — |
 | 53 | Registry 升级态 | agent 管理 | round-design | `design/round-design/53-registry-upgrade.dc.html` | `design/round-design/53-registry-upgrade.png` | https://claude.ai/design/p/3add6fd9-05b9-4cbd-9892-dec110c50983?file=53-registry-upgrade.dc.html | 已实现（board-53，`registry-upgrade` 分支，2026-09-23；binary 升级说明行见 DIVERGENCE 第 30 条） | — |
+| 54 | Agents 面板 · 进程与内存 | agent 管理 | round-design | `design/round-design/54-agent-processes.dc.html` | `design/round-design/54-agent-processes.png` | — | 待实现（R10，v1.6.0） | 新增 `resource.*`（barHeight / legendSwatch / sampleInterval）与 `processTree.*`（rowHeight / indent / pidWidth / bytesWidth）两组几何；颜色全部复用 |
 | 60 | 文件面板 | 文件面板 | round-design | `design/round-design/60-files-panel.dc.html` | `design/round-design/60-files-panel.png` | — | 已实现（R4） | — |
 | 61 | 终端面板 | 文件面板（右栏） | round-design | `design/round-design/61-terminal-panel.dc.html` | `design/round-design/61-terminal-panel.png` | — | 已实现（R4） | — |
 | 70 | 设置 | 设置（2026-09-17 起是右栏的一个标签） | round-design | `design/round-design/70-settings.dc.html` | `design/round-design/70-settings.png` | — | 已实现（R5）· 2026-09-17 改为右栏标签（画板本身未改）· 2026-09-22 新增「转录」分组（已实现，随画板 08） | — |
@@ -79,6 +80,8 @@
 状态取值：`待实现` / `已实现（R<N>）` / `已废弃`。
 
 ## 变更记录（入库后对 `.dc.html` 的改动，PNG 已用 `scripts/render-design.ps1` 重渲染）
+
+- 2026-10-18 新增画板 54「Agents 面板 · 进程与内存」（1200 × 1830，page-4 放在画板 53 右边 `x 5360`）。起因是所有者两条诉求：看本应用及其子进程的总内存；能停掉任何正在跑的 agent（pi-acp、agy 等不声明 `sessionCapabilities.close`，侧栏「挂起」对它们不出现）。裁定：`sysinfo` 采样、专用内存口径、并进 Agents 面板（不新开标签）、终端只展示。画板画了 A 资源概览条 + 运行中条目（运行行 / 进程树 / Stop）+ 规格表三张、B 停止流程三态（有会话确认 / 有回合在跑或等你处理的警示确认 / 停止中）、C 概览条三态（无 agent / 首次采样 / 采样失败）。画板 50 / 51 / 53 不改。**本稿由主会话直接写 `.dc.html` 入库，未经 Claude Design 画布**，画布 URL 空着。新增 6 个几何 token，颜色零新增。简报 `design/round-design/input/revision-09.md`，任务卡 `rounds/round-10/round-10.md`。
 
 - 2026-10-10 新增画板 46「侧栏置顶区与首 Query 悬浮规范」（1440 × 960，page-3 放在画板 45 右边 `x 7600`）。起因是所有者指示：
   ① 侧栏会话增加 pin/unpin 功能（公共同一个按钮，悬浮于会话行首位快捷操作），并开辟独立的 PINNED 分区。History 中非活跃会话被置顶后归入 PINNED 分区；置顶会话若处于活跃连接状态，则优先展示在 ACTIVE 区保持在线状态统一；置顶状态做持久化（`sessions.json` 新增 `isPinned: bool`, `pinnedAt: int?`）。
