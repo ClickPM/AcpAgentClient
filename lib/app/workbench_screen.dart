@@ -1,8 +1,6 @@
+// dart format off
 // 组合根的 widget 装配（R3 接线阶段）：只把 `lib/ui/` 的画板 widget 摆进壳、接上
 // [WorkbenchController] 的数据与回调，不改任何布局与 token（AGENTS.md 规则 3）。
-//
-// 无边框窗口的拖拽（docs/design.md § 9）：顶栏叠一层在**底下**的 Listener，
-// 顶栏里的按钮与芯片在上层先吃掉点击，只有空白处才落到 Listener 上、去调 `startDragging`。
 
 import 'dart:async';
 import 'dart:io';
@@ -24,7 +22,6 @@ import '../ui/popovers/composer_popovers.dart';
 import '../ui/popovers/session_timeline.dart';
 import '../ui/popovers/topbar_popovers.dart';
 import '../ui/registry/auth_page.dart';
-import '../ui/registry/registry_entry.dart';
 import '../ui/registry/registry_panel.dart';
 import '../ui/settings/settings_page.dart';
 import '../ui/shell/agent_state_bar.dart';
@@ -54,7 +51,12 @@ import 'window_controls.dart';
 import 'workbench_controller.dart';
 
 class WorkbenchScreen extends StatefulWidget {
-  const WorkbenchScreen({super.key, required this.controller, this.appearance, this.macOS});
+  const WorkbenchScreen({
+    super.key,
+    required this.controller,
+    this.appearance,
+    this.macOS,
+  });
 
   final WorkbenchController controller;
   final AppearanceController? appearance;
@@ -87,7 +89,10 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   String? _focusedEntryId;
 
   /// 画板 43 的时间线跳转（惰性列表里的单向步进，见 [TranscriptJump]）。
-  late final TranscriptJump _jump = TranscriptJump(controller: _transcript, rows: _rows);
+  late final TranscriptJump _jump = TranscriptJump(
+    controller: _transcript,
+    rows: _rows,
+  );
 
   /// 画板 08 B 的滚动锚点：折 / 展（手动点摘要行，或 stop_reason 到达时自动折叠）前后，
   /// 让这一轮的结论停在原地。见 [TranscriptFoldAnchor]。
@@ -100,8 +105,13 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   /// 转录的行列表。**必须与 `TranscriptList` 算出来的那一份一致**——跳转是按行定位的，
   /// 折叠态（画板 08 B）把折叠块里的条目整批拿掉，两边口径不同就会跳错位。
   List<TranscriptRow> _rows() {
-    final List<TranscriptEntry> entries = c.session.store?.entries ?? const <TranscriptEntry>[];
-    return buildRows(entries, folds: foldsOf(entries), collapsed: c.folds.isCollapsed);
+    final List<TranscriptEntry> entries =
+        c.session.store?.entries ?? const <TranscriptEntry>[];
+    return buildRows(
+      entries,
+      folds: foldsOf(entries),
+      collapsed: c.folds.isCollapsed,
+    );
   }
 
   WorkbenchController get c => widget.controller;
@@ -256,7 +266,6 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       now: DateTime.now(),
       query: c.session.search,
       selectedId: c.session.sessionId,
-      // 会话头那支笔就地改（下面的 [SessionHeader]），别同时把侧栏这一行也切成输入框。
       renamingId: c.session.renamingInHeader ? null : c.session.renamingSessionId,
       renameController: c.session.rename,
       renameFocusNode: c.session.renameFocus,
@@ -275,11 +284,9 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       onTab: c.shell.toggleNavTab,
       deleteAnchor: c.session.deleteAnchor,
       confirmingDeleteId: c.session.confirmingDeleteId,
-      // 画板 06 / 09：在跑的出扫掠亮点线，跑完没看的出绿点，挂着权限 / 表单请求的出「待授权 / 待输入」。
       runningIds: activity.running,
       unreadIds: c.session.unreadSessionIds,
       awaiting: activity.awaiting,
-      // 侧栏标题条与顶栏是同一行：那一段也要能拖窗口、双击最大化；macOS 下侧栏展开时左上角避让红绿灯。
       dragArea: _dragArea(),
       leadingInset: _isMacOS ? t.Geometry.macosTrafficLightInset : 0,
       themeChoice: widget.appearance?.themeChoice ?? t.Theming.defaultChoice,
@@ -331,14 +338,14 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   /// 必须是 opaque（translucent 的 `hitTest` 返回 false，命中链断在这里），且必须交给各自的条放进它们自己的容器里
   /// ——垫在外面会被那层 BoxDecoration 挡掉（审查 finding P2；回归由 test/ui/topbar_drag_test.dart 钉住）。
   Widget _dragArea() => Listener(
-        behavior: HitTestBehavior.opaque,
-        // 只认左键：右键 / 中键按下也会走 onPointerDown，转成 `WM_NCLBUTTONDOWN` 会莫名其妙开始拖窗口，
-        // 还会被 runner 侧的双击判定算成一次点击。
-        onPointerDown: (event) {
-          if (event.buttons != kPrimaryButton) return;
-          unawaited(AppWindow.startDragging());
-        },
-      );
+    behavior: HitTestBehavior.opaque,
+    // 只认左键：右键 / 中键按下也会走 onPointerDown，转成 `WM_NCLBUTTONDOWN` 会莫名其妙开始拖窗口，
+    // 还会被 runner 侧的双击判定算成一次点击。
+    onPointerDown: (event) {
+      if (event.buttons != kPrimaryButton) return;
+      unawaited(AppWindow.startDragging());
+    },
+  );
 
   void _openProjectPopover() {
     c.workspace.projectAnchor.toggle((_) => ListenableBuilder(
@@ -355,7 +362,6 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
               searchController: c.workspace.projectSearch,
               searchFocusNode: c.workspace.projectSearchFocus,
               query: c.workspace.projectSearch.text,
-              // 画板 08 C / 09 B：每一行的在跑 / 等你处理会话数。归一化那条规则只有 `WorkspaceState.normalizeCwd` 一份。
               runningOf: (p) => activity.runningByWorkspace[WorkspaceState.normalizeCwd(p.path)] ?? 0,
               awaitingOf: (p) => activity.awaitingByWorkspace[WorkspaceState.normalizeCwd(p.path)] ?? 0,
               onQueryChanged: (_) => c.refresh(),
@@ -392,45 +398,49 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   // ---------------------------------------------------------------- 中栏（画板 01 / 02 / 03）
 
   Widget _workbenchColumn() => WorkbenchColumn(
-        topBar: _topBar(windowControls: _windowControlsInTopBar),
-        sessionHeader: SessionHeader(
-          title: c.session.sessionTitle,
-          hasAgent: c.session.hasAgent,
-          // 等待期（重载 agent / 新建会话）借用同一只 spinner（画板 05 B 组阶段 ①：不新增元素）。
-          running: c.session.isRunning || c.session.waitingForAgent,
-          // 标题与转录区同起同止（画板 05 A 组）。
-          transitionEpoch: c.session.sessionEpoch,
-          canRename: c.session.hasSession,
-          canReload: c.session.hasSession,
-          menuSelected: c.shell.rightPanelOpen,
-          iconSvg: c.session.agentIconSvg,
-          renaming: c.session.renamingInHeader && c.session.renamingSessionId == c.session.sessionId,
-          renameController: c.session.rename,
-          renameFocusNode: c.session.renameFocus,
-          onRename: c.session.sessionId == null ? null : () => c.session.startRename(c.session.sessionId!, inHeader: true),
-          onCommitRename: c.session.commitRename,
-          onCancelRename: c.session.cancelRename,
-          onNewSession: _openNewSessionPopover,
-          onReload: c.session.reloadAgent,
-          canTimeline: c.session.hasSession,
-          timelineSelected: c.session.timelineAnchor.isShowing,
-          onTimeline: _openTimelinePopover,
-          onMenu: _openSessionMenu,
-          newSessionAnchor: c.session.newSessionAnchor,
-          timelineAnchor: c.session.timelineAnchor,
-          menuAnchor: c.session.sessionMenuAnchor,
-        ),
-        body: _toastLayer(_body()),
-        composer: _composer(),
-      );
+    topBar: _topBar(windowControls: _windowControlsInTopBar),
+    sessionHeader: SessionHeader(
+      title: c.session.sessionTitle,
+      hasAgent: c.session.hasAgent,
+      // 等待期（重载 agent / 新建会话）借用同一只 spinner（画板 05 B 组阶段 ①：不新增元素）。
+      running: c.session.isRunning || c.session.waitingForAgent,
+      // 标题与转录区同起同止（画板 05 A 组）。
+      transitionEpoch: c.session.sessionEpoch,
+      canRename: c.session.hasSession,
+      canReload: c.session.hasSession,
+      menuSelected: c.shell.rightPanelOpen,
+      iconSvg: c.session.agentIconSvg,
+      renaming:
+          c.session.renamingInHeader &&
+          c.session.renamingSessionId == c.session.sessionId,
+      renameController: c.session.rename,
+      renameFocusNode: c.session.renameFocus,
+      onRename: c.session.sessionId == null
+          ? null
+          : () => c.session.startRename(c.session.sessionId!, inHeader: true),
+      onCommitRename: c.session.commitRename,
+      onCancelRename: c.session.cancelRename,
+      onNewSession: _openNewSessionPopover,
+      onReload: c.session.reloadAgent,
+      canTimeline: c.session.hasSession,
+      timelineSelected: c.session.timelineAnchor.isShowing,
+      onTimeline: _openTimelinePopover,
+      onMenu: _openSessionMenu,
+      newSessionAnchor: c.session.newSessionAnchor,
+      timelineAnchor: c.session.timelineAnchor,
+      menuAnchor: c.session.sessionMenuAnchor,
+    ),
+    body: _toastLayer(_body()),
+    composer: _composer(),
+  );
 
   /// 壳级提示（设计稿之外的增补，所有者 2026-09-23）：「会话正在加载中」与各处的错误，叠在正文区顶上（会话头正下方）。
   /// 叠在 [_body] 外面：等待期的变暗与挡点击只管正文，提示条不跟着变暗。
   Widget _toastLayer(Widget child) => ToastLayer(
-        toasts: c.toasts.visible(loadingSession: c.session.loadingSession),
-        onDismiss: c.toasts.dismiss,
-        child: child,
-      );
+    toasts: c.toasts.visible(loadingSession: c.session.loadingSession),
+    onDismiss: c.toasts.dismiss,
+    child: child,
+  );
 
   /// 画板 05 的 A 组（会话内容整块替换的入场）与 B 组（等待期：重载 agent、新建会话）都落在中栏这一块。
   ///
@@ -440,7 +450,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   /// 把卡片的展开态与滚动位置一起丢掉，代价远大于收益。
   Widget _body() {
     // 新会话空态自己按 motion.stagger 错开三层（画板 05 A 组的错开规则），那一下**代替**整体入场。
-    final staggered = c.session.hasAgent && (c.session.store?.entries.isEmpty ?? true);
+    final staggered =
+        c.session.hasAgent && (c.session.store?.entries.isEmpty ?? true);
     final Widget content = IgnorePointer(
       ignoring: c.session.waitingForAgent,
       child: AnimatedOpacity(
@@ -450,7 +461,9 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         child: _bodyContent(),
       ),
     );
-    return staggered ? content : MotionEnter(epoch: c.session.sessionEpoch, child: content);
+    return staggered
+        ? content
+        : MotionEnter(epoch: c.session.sessionEpoch, child: content);
   }
 
   Widget _bodyContent() {
@@ -490,7 +503,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
               // 画板 18 的 Go to File 与 21 的行点击：落右栏文件面板并定位到行。
               onGoToFile: (path, line) => c.shell.goToFile(path, line: line),
               onRestore: (message) => c.turn.restore(message),
-              onRegenerate: (message, text) => c.turn.restore(message, newText: text),
+              onRegenerate: (message, text) =>
+                  c.turn.restore(message, newText: text),
               onAnswerPermission: c.turn.answerPermission,
               onAnswerElicitation: c.turn.answerElicitation,
               // 画板 23 的停止方块：terminal_kill。
@@ -505,7 +519,6 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     );
   }
 
-  /// 画板 34：连接状态条与丢弃告警（会话头下）。
   List<Widget> _stateBars() {
     final connection = c.session.connection;
     return <Widget>[
@@ -558,9 +571,18 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       options: <ComposerOption>[
         for (final o in c.turn.composerOptions)
           if (o.type == 'boolean')
-            ComposerOption(label: o.name ?? o.id ?? '', on: o.currentValue == true, onToggle: () => c.turn.toggleConfigBoolean(o.id ?? '', o.currentValue != true))
+            ComposerOption(
+              label: o.name ?? o.id ?? '',
+              on: o.currentValue == true,
+              onToggle: () => c.turn.toggleConfigBoolean(o.id ?? '', o.currentValue != true),
+            )
           else
-            ComposerOption(label: configCurrentName(o), anchor: c.composer.configAnchor(o.id ?? ''), onTap: () => _openSelectPopover(o.id ?? ''), maxWidth: o.category == 'model' ? t.Geometry.composerModelMaxWidth : null),
+            ComposerOption(
+              label: configCurrentName(o),
+              anchor: c.composer.configAnchor(o.id ?? ''),
+              onTap: () => _openSelectPopover(o.id ?? ''),
+              maxWidth: o.category == 'model' ? t.Geometry.composerModelMaxWidth : null,
+            ),
       ],
       attachments: c.composer.pendingImages,
       onRemoveAttachment: c.composer.removePendingBlock,
@@ -570,7 +592,8 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       onInlineMenuPick: c.composer.pickInlineMenuSelection,
       onInlineMenuDismiss: c.composer.closeInlineMenu,
       docks: <Widget>[
-        if (plan != null) PlanCard(plan, initiallyCollapsed: true, cwd: store?.cwd, onDismiss: () => store?.dismissPlan(plan.planId)),
+        if (plan != null)
+          PlanCard(plan, initiallyCollapsed: true, cwd: store?.cwd, onDismiss: () => store?.dismissPlan(plan.planId)),
         ?AwaitingDock.forPending(
           pending,
           toolCall: pending is PermissionEntry && pending.toolCallId != null ? store?.toolCalls[pending.toolCallId!] : null,
@@ -615,51 +638,56 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
 
   void _scrollToBottom() {
     if (!_transcript.hasClients) return;
-    _transcript.animateTo(_transcript.position.maxScrollExtent, duration: t.Motion.base, curve: t.Motion.curve);
+    _transcript.animateTo(
+      _transcript.position.maxScrollExtent,
+      duration: t.Motion.base,
+      curve: t.Motion.curve,
+    );
   }
 
-  /// 按 configOption 的 id 开那一格的 select 弹层（画板 40）：模型那格带搜索框与行首图标占位，其余都是窄弹层。
   void _openSelectPopover(String id) {
     final option = c.turn.optionById(id);
     if (option == null) return;
     final searchable = option.category == 'model';
     c.composer.hideConfigPopovers();
-    c.composer.configAnchor(id).showAbove((_) => ListenableBuilder(
-          listenable: c,
-          builder: (context, _) {
-            // `set_config_option` 的响应是全量替换，所以每次 rebuild 都按 id 重新取当前那一份。
-            final current = c.turn.optionById(id);
-            if (current == null) return const SizedBox.shrink();
-            return ConfigSelectPopover(
-              option: current,
-              title: searchable ? null : current.name,
-              searchController: searchable ? c.composer.modelSearch : null,
-              searchFocusNode: searchable ? c.composer.modelSearchFocus : null,
-              query: searchable ? c.composer.modelSearch.text : '',
-              showLeadingMark: searchable,
-              width: searchable ? t.Geometry.menuWidthWide : t.Geometry.menuWidthNarrow,
-              onQueryChanged: (_) => c.refresh(),
-              onSelect: (value) => c.turn.selectConfigValue(current.id ?? '', value),
-            );
-          },
-        ));
+    c.composer.configAnchor(id).showAbove(
+          (_) => ListenableBuilder(
+            listenable: c,
+            builder: (context, _) {
+              final current = c.turn.optionById(id);
+              if (current == null) return const SizedBox.shrink();
+              return ConfigSelectPopover(
+                option: current,
+                title: searchable ? null : current.name,
+                searchController: searchable ? c.composer.modelSearch : null,
+                searchFocusNode: searchable ? c.composer.modelSearchFocus : null,
+                query: searchable ? c.composer.modelSearch.text : '',
+                showLeadingMark: searchable,
+                width: searchable ? t.Geometry.menuWidthWide : t.Geometry.menuWidthNarrow,
+                onQueryChanged: (_) => c.refresh(),
+                onSelect: (value) => c.turn.selectConfigValue(current.id ?? '', value),
+              );
+            },
+          ),
+        );
   }
 
   void _openUsagePopover() {
-    c.composer.usageAnchor.showAbove((_) => ListenableBuilder(
-          listenable: c,
-          builder: (context, _) => UsagePopover(
-            usage: c.session.store?.usage,
-            rulesCount: c.workspace.rulesCount,
-            onOpenRules: () {
-              c.composer.usageAnchor.hide();
-              c.shell.openTab(ShellTab.files);
-            },
-          ),
-        ));
+    c.composer.usageAnchor.showAbove(
+      (_) => ListenableBuilder(
+        listenable: c,
+        builder: (context, _) => UsagePopover(
+          usage: c.session.store?.usage,
+          rulesCount: c.workspace.rulesCount,
+          onOpenRules: () {
+            c.composer.usageAnchor.hide();
+            c.shell.openTab(ShellTab.files);
+          },
+        ),
+      ),
+    );
   }
 
-  /// Follow 是客户端本地开关（画板 40 的提示）：点一下切换，开的那一下顺带把提示浮出来。
   void _toggleFollow() {
     c.shell.toggleFollow();
     if (c.shell.follow) {
@@ -670,13 +698,15 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   }
 
   void _openPlusPopover() {
-    c.composer.plusAnchor.showAbove((_) => PlusPopover(
-          imageEnabled: c.session.canPromptImage,
-          onFiles: _addFiles,
-          onSessions: _addSession,
-          onImage: _addImage,
-          onBranchDiff: _addBranchDiff,
-        ));
+    c.composer.plusAnchor.showAbove(
+      (_) => PlusPopover(
+        imageEnabled: c.session.canPromptImage,
+        onFiles: _addFiles,
+        onSessions: _addSession,
+        onImage: _addImage,
+        onBranchDiff: _addBranchDiff,
+      ),
+    );
   }
 
   Future<void> _addFiles() async {
@@ -689,8 +719,6 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     const group = XTypeGroup(label: 'images', extensions: <String>['png', 'jpg', 'jpeg', 'gif', 'webp']);
     final file = await openFile(acceptedTypeGroups: <XTypeGroup>[group]);
     if (file == null) return;
-    // 大小门与 base64 编码都在 ComposerState 里（超了不编码、记 composer.lastError）：这里一处都不写
-    // lastError，门做在这边就是新的分层（BACKLOG 定的落点）。
     c.composer.addImageBytes(await file.readAsBytes(), file.mimeType ?? imageMimeOf(file.path), path: file.path);
   }
 
@@ -720,29 +748,18 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
         listenable: c,
         builder: (context, _) => NewSessionAgentPopover(agents: c.agents.installed, onSelect: c.session.newSession),
       ),
-      // 右对齐：+ 就贴在窗口右边缘上（会话头右侧 padding 只有 8），左对齐的话 240 宽的弹层整块甩出屏外，
-      // 只剩最左边一条（所有者手测 2026-09-17「选择框被截断」）。
       targetAnchor: Alignment.bottomRight,
       followerAnchor: Alignment.topRight,
     );
   }
 
-  /// 会话头 ≡：右栏开关（画板 03 是右栏展开的选中态）。
-  /// 画板 41 里同一个 ≡ 又是会话菜单，两张画板对它的语义冲突；**所有者裁定 2026-09-16：≡ 保持右栏开关，
-  /// 会话菜单要另开入口得先改设计稿**。所以 R6 只接通菜单的动作（`resumeSession` / `closeSession` /
-  /// `deleteSession` 与能力裁剪都在组合根里、有单测覆盖）。
-  /// 现有入口：删除走侧栏的删除图标（画板 04）；Close 走侧栏 Active 行的「挂起」（iteration-19，同一套
-  /// `closeSession`，传那一行的 id）；Resume 仍没有入口——侧栏点开一条会话本来就是 load / resume 自动选一条
-  /// （`ensureLoaded`，画板 45 的 History 区点击），它的用途被覆盖了（BACKLOG P1 结论）。
+  /// 会话头 ≡：右栏开关（所有者裁定 2026-09-16：≡ 保持右栏开关）。
   void _openSessionMenu() {
     c.shell.toggleRightPanel();
   }
 
   // ---------------------------------------------------------------- 会话时间线（画板 43）
 
-  /// 会话头 history：开 / 关时间线弹层。右边缘对齐按钮右边缘（按钮贴着中栏右侧，向左展开才落得进窗口）。
-  /// 开着的时候再点这个按钮其实到不了这里：弹层那层透明遮罩先吃掉点击并关掉它（与画板 41 的 ≡ / `+` 一样），
-  /// 「再点一次关」是这么实现的。这里的 [PopoverHandle.isShowing] 分支只是兜底。
   void _openTimelinePopover() {
     final store = c.session.store;
     if (store == null) return;
@@ -753,7 +770,6 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
     }
     c.session.timelineAnchor.show(
       (_) => ListenableBuilder(
-        // 弹层开着时这一轮还在跑：轮列表跟着转录长。
         listenable: store,
         builder: (context, _) => SessionTimelinePopover(
           turns: buildTimeline(store.entries),
@@ -765,17 +781,13 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       ),
       targetAnchor: Alignment.bottomRight,
       followerAnchor: Alignment.topRight,
-      // 点外面 / Esc 关掉时按钮的选中容器要跟着撤（句柄自己不通知组合根）。
       onDismiss: () {
         if (mounted) setState(() {});
       },
     );
-    // 按钮的选中容器要当帧出现（画板 05 D 组：0ms，不等弹层）。
     setState(() {});
   }
 
-  /// 画板 43：跳到某个转录条目，落点是「目标块顶边对齐转录区顶部内边距」，不做滚动动画。
-  /// 惰性列表里目标行多半还没建出来，怎么一步步挪过去见 [TranscriptJump]。
   void _jumpToEntry(String entryId, {required bool focus}) {
     final store = c.session.store;
     if (store == null) return;
@@ -784,26 +796,15 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
       if (e is! TurnEntry && e.id == entryId) target = e;
     }
     if (target == null) return;
-    // 画板 08 B：目标落在折叠块里就先展开那一轮——折着的时候它根本没有行，跳过去没有落点。
-    // 展开按「展开态记忆」照常记住。
     final TurnFold? fold = foldContaining(foldsOf(store.entries).values, target);
     final bool expanded = fold != null && c.folds.expand(fold);
-    // 时间线跳转自己定落点：折叠锚点一律让路——它订阅着 `folds`，刚才那下 `expand` 的通知会把它武装一次
-    // （帧后把结论拽回原地、跳转再把目标拉回来，两个 jumpTo 打架）；上一次折 / 展量不到锚点时它起的找回
-    // 跳转也可能还在逐帧 jumpTo，不管这次有没有翻面都得停掉（cursor 复审 P3，2026-09-22）。
     _foldAnchor.cancel();
-    // 跳到旧内容 = 用户自己翻上去，跟随底部要停掉，否则下一条流式块又把视口拽回最底下。
     _stick = false;
     setState(() => _focusedEntryId = focus ? entryId : null);
     if (!expanded) {
       _jump.start(entryId);
       return;
     }
-    // **刚展开的这一帧不能就地开跳**（发布前审查 high，2026-09-22）：`expand` 只是 notifyListeners，
-    // 列表要下一帧才按展开后的行重建，而 `TranscriptJump.start` 是当帧同步走一次 `_step` 的。
-    // 那一下 `rows()` 已经是展开后的行号，sliver 的 firstChild / lastChild 却还是折叠前的布局；
-    // 新行号一旦落进这段过期区间，`_step` 就去问目标行的 RenderObject —— 它这一帧还没建出来，
-    // 于是 `cancel()`，`_schedule` 又因为 `_target == null` 不再登记下一帧：回合展开了，滚动却原地不动。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _jump.start(entryId);
     });
@@ -814,62 +815,59 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   // ---------------------------------------------------------------- Agents 面板与认证页（画板 50 / 51 / 52）
 
   Widget _registryPanel() => RegistryPanel(
-        entries: c.agents.visibleEntries,
-        searchController: c.agents.search,
-        searchFocusNode: c.agents.searchFocus,
-        query: c.agents.query,
-        filter: c.agents.filter,
-        installedCount: c.agents.registry.installedCount,
-        notInstalledCount: c.agents.registry.notInstalledCount,
-        node: c.agents.registry.node,
-        nodeProgress: c.agents.registry.nodeProgress,
-        fetchError: c.agents.registry.fetchError,
-        fetching: c.agents.registry.fetching,
-        fetchedAt: c.agents.registry.fetchedAt,
-        showLogFor: c.agents.showLog,
-        onSearchChanged: c.agents.setQuery,
-        onFilter: c.agents.setFilter,
-        onLearnMore: () => _openExternal(registryLearnMoreUrl),
-        onRefresh: c.agents.checkForUpdates,
-        onDownloadNode: c.agents.downloadNode,
-        actionsFor: (entry) => RegistryEntryActions(
-          onInstall: () => c.agents.install(entry.id),
-          onUpdate: () => c.agents.upgrade(entry.id),
-          onRetry: () => c.agents.retry(entry.id),
-          onCancel: () => c.agents.cancelInstall(entry.id),
-          onRemove: () => c.agents.remove(entry.id),
-          onLogin: () => c.auth.open(entry.id),
-          onViewLog: () => c.agents.toggleInstallLog(entry.id),
-          onOpenRepository: () {
-            final url = entry.repository ?? entry.website;
-            if (url != null) _openExternal(url);
-          },
-        ),
-      );
+    entries: c.agents.visibleEntries,
+    searchController: c.agents.search,
+    searchFocusNode: c.agents.searchFocus,
+    query: c.agents.query,
+    filter: c.agents.filter,
+    installedCount: c.agents.registry.installedCount,
+    runningCount: c.agents.runningCount,
+    notInstalledCount: c.agents.registry.notInstalledCount,
+    node: c.agents.registry.node,
+    nodeProgress: c.agents.registry.nodeProgress,
+    fetchError: c.agents.registry.fetchError,
+    fetching: c.agents.registry.fetching,
+    fetchedAt: c.agents.registry.fetchedAt,
+    showLogFor: c.agents.showLog,
+    snapshot: c.agents.processSnapshot,
+    sampleError: c.agents.processSampleError,
+    onRetrySample: c.agents.retryProcessSample,
+    runtimeFor: c.agents.runtimeOf,
+    onSearchChanged: c.agents.setQuery,
+    onFilter: c.agents.setFilter,
+    onLearnMore: () => _openExternal(registryLearnMoreUrl),
+    onRefresh: c.agents.checkForUpdates,
+    onDownloadNode: c.agents.downloadNode,
+    actionsFor: (entry) => c.agents.actionsFor(
+      entry,
+      onLogin: () => c.auth.open(entry.id),
+      onOpenUrl: _openExternal,
+    ),
+  );
 
   Widget _authPage() => AuthPage(
-        agentName: c.auth.agentName,
-        authMethods: c.auth.methods,
-        message: c.auth.connection?.authMessage,
-        selectedMethodId: c.auth.methodId,
-        phase: c.auth.phase,
-        terminalLabel: c.auth.terminalLabel,
-        terminalBuffer: c.auth.terminalBuffer,
-        error: c.auth.error,
-        requestScope: c.auth.elicitations,
-        onSelectMethod: c.auth.selectMethod,
-        onStart: c.auth.start,
-        onCancel: c.auth.cancel,
-        onRetry: c.auth.retry,
-        onChangeMethod: c.auth.changeMethod,
-        onStopTerminal: c.auth.stopTerminal,
-        onTerminalInput: c.auth.terminalInput,
-        onOpenUrl: (e) async {
-          final url = await c.auth.acceptUrl(e);
-          if (url != null) await _openExternal(url);
-        },
-        onCancelElicitation: c.auth.cancelElicitation,
-      );
+    agentName: c.auth.agentName,
+    authMethods: c.auth.methods,
+    message: c.auth.connection?.authMessage,
+    selectedMethodId: c.auth.methodId,
+    phase: c.auth.phase,
+    terminalLabel: c.auth.terminalLabel,
+    terminalBuffer: c.auth.terminalBuffer,
+    error: c.auth.error,
+    requestScope: c.auth.elicitations,
+    onSelectMethod: c.auth.selectMethod,
+    onStart: c.auth.start,
+    onCancel: c.auth.cancel,
+    onRetry: c.auth.retry,
+    onChangeMethod: c.auth.changeMethod,
+    onStopTerminal: c.auth.stopTerminal,
+    onTerminalInput: c.auth.terminalInput,
+    onOpenUrl: (e) async {
+      final url = await c.auth.acceptUrl(e);
+      if (url != null) await _openExternal(url);
+    },
+    onCancelElicitation: c.auth.cancelElicitation,
+  );
 
   Future<void> _openExternal(String href) async {
     final uri = Uri.tryParse(href);
@@ -978,20 +976,22 @@ class _WorkbenchScreenState extends State<WorkbenchScreen> {
   }
 
   Widget _trafficColumn() => Container(
-        color: t.Surface.canvas,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            _topBar(windowControls: _windowControlsInTopBar),
-            Expanded(
-              child: _toastLayer(TrafficPage(
-                store: c.traffic,
-                filterController: c.shell.trafficFilter,
-                filterFocusNode: c.shell.trafficFilterFocus,
-                stderrAgentId: c.session.agentId,
-              )),
+    color: t.Surface.canvas,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        _topBar(windowControls: _windowControlsInTopBar),
+        Expanded(
+          child: _toastLayer(
+            TrafficPage(
+              store: c.traffic,
+              filterController: c.shell.trafficFilter,
+              filterFocusNode: c.shell.trafficFilterFocus,
+              stderrAgentId: c.session.agentId,
             ),
-          ],
+          ),
         ),
-      );
+      ],
+    ),
+  );
 }

@@ -85,7 +85,8 @@ where
 }
 
 fn parse_json(name: &str, text: &str) -> Result<Value, BridgeError> {
-    serde_json::from_str(text).map_err(|e| BridgeError::new("invalid_argument", format!("{name}: not valid JSON: {e}")))
+    serde_json::from_str(text)
+        .map_err(|e| BridgeError::new("invalid_argument", format!("{name}: not valid JSON: {e}")))
 }
 
 #[frb(init)]
@@ -145,20 +146,44 @@ pub async fn session_new(agent_id: String, cwd: String) -> Result<String, Bridge
 /// `session/list`（R6）：`cwd` 给了就按工作目录过滤（必须是绝对路径），`cursor` 是上一页返回的 `nextCursor`。
 /// 返回 ListSessionsResponse 原样 JSON：`{sessions: [{sessionId, cwd, title?, updatedAt?, …}], nextCursor?}`。
 /// 侧栏不直接消费它——本地索引是侧栏的事实来源，这条只用来校对存在性与补标题（docs/design.md § 3 末条）。
-pub async fn session_list(agent_id: String, cwd: Option<String>, cursor: Option<String>) -> Result<String, BridgeError> {
-    on_core(|core| async move { core.session_list(&agent_id, cwd.map(PathBuf::from), cursor).await }).await
+pub async fn session_list(
+    agent_id: String,
+    cwd: Option<String>,
+    cursor: Option<String>,
+) -> Result<String, BridgeError> {
+    on_core(|core| async move {
+        core.session_list(&agent_id, cwd.map(PathBuf::from), cursor)
+            .await
+    })
+    .await
 }
 
 /// `session/load`（R6）：agent 用 `session/update` 把整段历史重放完本命令才返回，所以返回时
 /// `acp/session_update` 已经把历史全推给前端了（前端在整段重放里只刷新一次，见 lib/app/workbench_controller.dart）。
 /// 返回 LoadSessionResponse 原样 JSON（`{modes?, configOptions?}`）。agent 没声明 `loadSession` 时由前端不给入口。
-pub async fn session_load(agent_id: String, session_id: String, cwd: String) -> Result<String, BridgeError> {
-    on_core(|core| async move { core.session_load(&agent_id, &session_id, PathBuf::from(cwd)).await }).await
+pub async fn session_load(
+    agent_id: String,
+    session_id: String,
+    cwd: String,
+) -> Result<String, BridgeError> {
+    on_core(|core| async move {
+        core.session_load(&agent_id, &session_id, PathBuf::from(cwd))
+            .await
+    })
+    .await
 }
 
 /// `session/resume`（R6）：只恢复上下文，**不**重放历史。返回 ResumeSessionResponse 原样 JSON。
-pub async fn session_resume(agent_id: String, session_id: String, cwd: String) -> Result<String, BridgeError> {
-    on_core(|core| async move { core.session_resume(&agent_id, &session_id, PathBuf::from(cwd)).await }).await
+pub async fn session_resume(
+    agent_id: String,
+    session_id: String,
+    cwd: String,
+) -> Result<String, BridgeError> {
+    on_core(|core| async move {
+        core.session_resume(&agent_id, &session_id, PathBuf::from(cwd))
+            .await
+    })
+    .await
 }
 
 /// `session/close`（R6）：等价于先 cancel 再释放。发请求之前核心先把这个会话挂起的 `session/request_permission`
@@ -176,7 +201,11 @@ pub async fn session_delete(agent_id: String, session_id: String) -> Result<Stri
 
 /// `session/prompt`。`prompt` 是 `ContentBlock[]` 的 JSON 字符串；本轮的 `session/update` 经事件流推出，
 /// 本函数在回合结束时返回 PromptResponse 原样 JSON（stopReason + usage）。
-pub async fn session_prompt(agent_id: String, session_id: String, prompt: String) -> Result<String, BridgeError> {
+pub async fn session_prompt(
+    agent_id: String,
+    session_id: String,
+    prompt: String,
+) -> Result<String, BridgeError> {
     let prompt = parse_json("prompt", &prompt)?;
     on_core(|core| async move { core.session_prompt(&agent_id, &session_id, prompt).await }).await
 }
@@ -188,8 +217,16 @@ pub async fn session_cancel(agent_id: String, session_id: String) -> Result<Stri
 }
 
 /// `session/set_mode`（老 agent 的回退；configOptions 优先）。
-pub async fn session_set_mode(agent_id: String, session_id: String, mode_id: String) -> Result<String, BridgeError> {
-    on_core(|core| async move { core.session_set_mode(&agent_id, &session_id, &mode_id).await }).await
+pub async fn session_set_mode(
+    agent_id: String,
+    session_id: String,
+    mode_id: String,
+) -> Result<String, BridgeError> {
+    on_core(|core| async move {
+        core.session_set_mode(&agent_id, &session_id, &mode_id)
+            .await
+    })
+    .await
 }
 
 /// `session/set_config_option`。`value` 是 `SessionConfigOptionValue` 的 JSON（`{"type":"select","value":"x"}` /
@@ -201,12 +238,20 @@ pub async fn session_set_config_option(
     value: String,
 ) -> Result<String, BridgeError> {
     let value = parse_json("value", &value)?;
-    on_core(|core| async move { core.session_set_config_option(&agent_id, &session_id, &config_id, value).await }).await
+    on_core(|core| async move {
+        core.session_set_config_option(&agent_id, &session_id, &config_id, value)
+            .await
+    })
+    .await
 }
 
 /// 回应 `acp/client_request`（`session/request_permission` / `elicitation/create`）。`request_id` 原样回传事件里的值，
 /// `response` 是对应 Response 的 JSON 字符串。
-pub async fn acp_respond(agent_id: String, request_id: String, response: String) -> Result<String, BridgeError> {
+pub async fn acp_respond(
+    agent_id: String,
+    request_id: String,
+    response: String,
+) -> Result<String, BridgeError> {
     let response = parse_json("response", &response)?;
     on_core(|core| async move { core.acp_respond(&agent_id, &request_id, response) }).await
 }
@@ -220,8 +265,16 @@ pub async fn authenticate(agent_id: String, method_id: String) -> Result<String,
 
 /// terminal 型认证：在可见终端（pty）里跑方法给的命令，输出经 `acp/terminal_output`（source = auth）推出，
 /// 键盘输入走 `terminal_write`；进程退出后核心自动重试 `session/new`。返回 `{terminalId, exitStatus, session}`。
-pub async fn terminal_auth_run(agent_id: String, method_id: String, cwd: String) -> Result<String, BridgeError> {
-    on_core(|core| async move { core.terminal_auth_run(&agent_id, &method_id, PathBuf::from(cwd)).await }).await
+pub async fn terminal_auth_run(
+    agent_id: String,
+    method_id: String,
+    cwd: String,
+) -> Result<String, BridgeError> {
+    on_core(|core| async move {
+        core.terminal_auth_run(&agent_id, &method_id, PathBuf::from(cwd))
+            .await
+    })
+    .await
 }
 
 /// 往终端写键盘输入（UTF-8 文本原样写进 pty）。R4 的本地 shell 四命令之一，terminal auth 需要它所以 R1 先出。
@@ -238,7 +291,11 @@ pub async fn terminal_open(cwd: String, cols: u16, rows: u16) -> Result<String, 
 }
 
 /// 视口尺寸变化（xterm 报出的列 × 行）。
-pub async fn terminal_resize(terminal_id: String, cols: u16, rows: u16) -> Result<String, BridgeError> {
+pub async fn terminal_resize(
+    terminal_id: String,
+    cols: u16,
+    rows: u16,
+) -> Result<String, BridgeError> {
     on_core(|core| async move { core.terminal_resize(&terminal_id, cols, rows) }).await
 }
 
@@ -282,6 +339,14 @@ pub async fn agent_settings_remove(agent_id: String) -> Result<String, BridgeErr
 /// 开发期排查：每个已连接 agent 的 droppedUpdates / 退出状态 / 挂起请求。
 pub async fn agents_status() -> Result<String, BridgeError> {
     on_core(|core| async move { Ok(core.agents_status()) }).await
+}
+
+/// 进程面板（R10，画板 54）：`{metric, takenAt, app: {pid, bytes}, agents: [{agentId, rootPid, bytes, startedAt,
+/// processes: [{pid, parentPid, name, bytes, depth}], terminals: [{terminalId, pid, name, bytes}]}],
+/// terminals: {count, bytes, items: [{terminalId, source, pid, name, bytes}]}, other: {bytes}, total}`。
+/// 非 ACP 消息、仅用于渲染；停止 agent 复用 `agent_disconnect`。
+pub async fn process_snapshot() -> Result<String, BridgeError> {
+    on_core(|core| async move { core.process_snapshot().await }).await
 }
 
 // ---- registry 与受管 Node（R5；docs/design.md § 3「registry、Node 与设置」，§ 6）
@@ -338,18 +403,27 @@ pub async fn node_download() -> Result<String, BridgeError> {
 /// 列一层目录。`root` 是当前项目目录，`path` 必须在它之内（越界报 `fs`）。
 /// 返回 `{path, entries: [{name, path, parent, isDir, size}]}`，目录在前、各自按名排序。
 pub async fn fs_list_dir(root: String, path: String) -> Result<String, BridgeError> {
-    on_core(|core| async move { core.fs_list_dir(PathBuf::from(root), PathBuf::from(path)).await }).await
+    on_core(|core| async move {
+        core.fs_list_dir(PathBuf::from(root), PathBuf::from(path))
+            .await
+    })
+    .await
 }
 
 /// 按名字子串搜索（`@` 提及）。返回 `{files, directories, truncated}`；`query` 为空时不遍历、直接回空。
 pub async fn fs_search(root: String, query: String, limit: u32) -> Result<String, BridgeError> {
-    on_core(|core| async move { core.fs_search(PathBuf::from(root), query, limit as usize).await }).await
+    on_core(|core| async move {
+        core.fs_search(PathBuf::from(root), query, limit as usize)
+            .await
+    })
+    .await
 }
 
 /// 查看器读文件（画板 60，R4）：`{path, text, size, lines, binary, truncated}`；超过 2 MiB 只给前一段并标 `truncated`，
 /// 含 NUL 的按二进制处理（`text` 为空）。`path` 必须在 `root` 之内。
 pub async fn fs_read(root: String, path: String) -> Result<String, BridgeError> {
-    on_core(|core| async move { core.fs_read(PathBuf::from(root), PathBuf::from(path)).await }).await
+    on_core(|core| async move { core.fs_read(PathBuf::from(root), PathBuf::from(path)).await })
+        .await
 }
 
 /// 监视项目目录（R4）：流命令——每批去抖后的变化推一条 `{root, dirs: [绝对路径…], git}`（`dirs` 是内容变了的目录，
@@ -357,7 +431,9 @@ pub async fn fs_read(root: String, path: String) -> Result<String, BridgeError> 
 #[frb(sync)]
 pub fn fs_watch(root: String, sink: StreamSink<String>) -> Result<(), BridgeError> {
     guarded(|| {
-        core()?.fs_watch(PathBuf::from(root), move |payload| sink.add(payload).is_ok())?;
+        core()?.fs_watch(PathBuf::from(root), move |payload| {
+            sink.add(payload).is_ok()
+        })?;
         Ok(())
     })
 }
@@ -422,7 +498,10 @@ pub async fn session_index_upsert(entry: String) -> Result<String, BridgeError> 
 }
 
 /// 移除一条会话索引；返回全量列表。向 agent 发 `session/delete` 是 R6 的事。
-pub async fn session_index_remove(agent_id: String, session_id: String) -> Result<String, BridgeError> {
+pub async fn session_index_remove(
+    agent_id: String,
+    session_id: String,
+) -> Result<String, BridgeError> {
     on_core(|core| async move { core.session_index_remove(&agent_id, &session_id) }).await
 }
 

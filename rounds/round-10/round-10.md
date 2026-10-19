@@ -2,7 +2,7 @@
 
 > 从 `rounds/TEMPLATE.md` 复制，依据所有者 2026-10-18 的诉求与裁定填写。硬性规则以 `AGENTS.md` 为准。
 
-> 状态：未开始（设计阶段：画板 54 已入库，待所有者过稿；**本轮暂不进入代码开发**，所有者指示 2026-10-18）
+> 状态：实现与自动化验证完成，待真实 agent / 性能 / 跨平台及打包验收；2026-10-19 所有者指示开始开发。未提交、未合并、未发布。
 
 - 分支：`round-10`（开工时从 `main` 开出）
 - 目标版本：**v1.6.0**（规则 11：`pubspec.yaml` 与 `rust/Cargo.toml` `[workspace.package]` 两处同改，sidecar 不跟）
@@ -152,11 +152,11 @@ Agents 面板上能看到本应用进程树的专用内存合计与按 agent 的
      ① cursor CLI + grok-4.7-high-fast 是唯一默认执行器 → ② 硬失败就**停下喊人**（不自动回落子代理）。
      范围：前两轮全量（-Scope branch，即 main...HEAD），第 3 轮起只审上一轮整改 diff。 -->
 
-- 审查方式：
-- 审查器与模型：
-- 审查范围与基准提交：
-- findings 处理：
-- 结论：
+- 审查方式：所有者指定只读子代理（替代默认执行器）。
+- 审查器与模型：ChatGPT 订阅 `openai-subscribed/gpt-6.1-sol`；所有者要求 medium，工具无独立 reasoning 参数，未能强制核验。session `d5180e13-11e3-461d-abbb-a710b0d408eb`。
+- 审查范围与基准提交：前两轮均为 `db815ecd977ad6bf6f1f094cc168acf51e68744c` 后全部未提交改动及新增文件。
+- findings 处理：首轮 high 1 / P2 3，全部整改并补回归：旧 Stop 完成误伤重连、切标签积压采样、升级态遗漏 Stop、认证态采样失败遗漏 Stop。
+- 结论：第二轮全量复审 0 findings；不代表尚未执行的实测验收通过。
 
 ## 失败处理
 
@@ -164,4 +164,13 @@ Agents 面板上能看到本应用进程树的专用内存合计与按 agent 的
 
 ## 本轮实测
 
-<!-- 完成后回填：实际数字、踩的坑、与设计 / 计划的偏离及原因；子进程相关改动附 Windows 实测命令与输出（规则 9） -->
+### 2026-10-19 主会话验证
+
+- Dart worker：`cliproxy/gemini-4-argon-high`（非 AI Studio）。Rust worker：Sonnet 5.5 反复断连后按所有者指示切至 `cliproxy/claude-opus-5-5-high`。构建测试均由主会话运行。
+- `flutter_rust_bridge_codegen generate` 成功，生成物已更新。
+- `powershell -File scripts/validate.ps1 -CargoTargetDir "D:/cargo-target/AcpAgentClient-round-10"`：`VALIDATE OK`，Flutter 683 项通过；Rust workspace build / test / clippy、无 gpui 与静态门全部通过。日志 `build/r10-validate.log`（本地产物）。
+- `powershell -File scripts/build.ps1 -Smoke -CargoTargetDir "D:/cargo-target/AcpAgentClient-round-10"`：exit 0，`OK smoke round trip`，`coreVersion: 1.6.0`、`droppedEvents: 0`。日志 `build/r10-build.log`；Windows release 产物在 `build/windows/x64/runner/Release/`。
+- Rust 10 条进程采样用例含 Windows 真实子进程；新增 Dart 回归覆盖采样可见性、停止分流、重连代际及升级/认证态 Stop。
+- Gallery 54 已渲染到 `build/gallery/54-agent-processes.png`；它是 A/B/C 组件样张，未包含设计稿规格表，不能视为整张 PNG 像素一致。
+- `analysis_options.yaml` 排除本地 `ai-output/**`，避免历史临时 Dart 文件阻塞全库 analyze。
+- 待完成：验收 4–7 的真实 pi/Claude 内存对照、整树 Stop、中文空格目录及重连；验收 9 的 60 秒 CPU 数字；macOS validate；验收 11 的 package / verify-package。这些项目未宣称通过。

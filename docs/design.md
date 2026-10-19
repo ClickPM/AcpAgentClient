@@ -23,7 +23,7 @@ Flutter 宿主进程（Dart）
          └── zed-agent-acp        sidecar（GPL；headless gpui + Zed NativeAgent；随主程序打包；核心内建条目）
 ```
 
-规则：主进程（Flutter 宿主及其加载的 Rust cdylib）里没有 gpui；所有 agent，包括 Zed 内置 agent，都是子进程；前端与核心之间只传 ACP 形状的数据。
+规则：主进程（Flutter 宿主及其加载的 Rust cdylib）里没有 gpui；所有 agent，包括 Zed 内置 agent，都是子进程（Agents 面板可停止任一 agent 的进程树）；前端与核心之间只传 ACP 形状的数据。
 
 **为什么是进程内 cdylib 而不是独立 `acp-host.exe`**（所有者裁定 2026-09-12，方案 A）：单进程、打包简单；§ 3 的 payload 本来就是 JSON 字符串，跨 FFI 边界只传 `String`，frb 绑定面极小（裁定时估十来个命令 + 5 个事件流；2026-09-22 实际是 57 个命令 + 6 条事件流，仍只跨边界传 `String`），不需要为 ACP 类型做 Dart 镜像。将来若要改独立进程，Dart 侧解析层不动，只换传输。
 
@@ -68,7 +68,7 @@ Flutter 宿主进程（Dart）
 - 文件面板与 git：`fs_list_dir`、`fs_read`（查看器：`{path, text, size, lines, binary, truncated}`，超 2 MiB 只给前一段）、`fs_watch` / `fs_unwatch`（R4：`fs_watch` 是**流命令**——frb 的 `StreamSink`，每批去抖后的变化推一条 `{root, dirs: [绝对路径…], git}`，`dirs` 是内容变了的目录、`git` = `.git` 之下有变化；取消流即停，不另开事件通道）、`fs_search`、`git_status`（文件树徽章：`{available, isRepo, root, entries: [{path, badge, code}]}`）、`git_branches`、`git_switch`、`git_create_branch`、`git_diff`（Branch Diff 上下文）
 - 本地 shell 与终端控制（终端面板）：`terminal_open`（`{terminalId, cwd, program}`，系统默认 shell）、`terminal_write`、`terminal_resize`、`terminal_close`（kill + 释放）、`terminal_kill`（R4：只结束进程不释放 = `terminal/kill` 语义；画板 23 的停止方块对 agent 建的终端也用它）；输出走 `acp/terminal_output`（`terminal_write` 在 R1 先出：terminal auth 的可见终端要接键盘输入）
 - 退出收尾：`core_shutdown`（R4：释放全部终端、断开全部 agent、停掉目录监视；Dart 在 `AppLifecycleListener.onExitRequested` 里等它回来再放行。「全部 agent」含还在握手的 `agent_connect`：中止握手、结束进程树，等它们落定才返回；收尾开始后的 `agent_connect` 回 `cancelled`，iteration-03 第 7 项）
-- 开发期排查：`agents_status`（每个已连接 agent 的 `droppedUpdates` / 退出状态 / 挂起请求；R1，无头实跑与 `acp-smoke` 用）、`ping`（R0 往返自检，`build.ps1 -Smoke` 与 `verify-package.ps1` 用）、`dropped_event_count`（Dart 未订阅或流已关时未送达的事件计数）
+- 开发期排查与进程采样：`process_snapshot`（R10，画板 54：本应用进程树的内存采样与按 agent / 终端归属 `{metric, takenAt, app, agents, terminals, other, total}`，非 ACP 消息、仅用于渲染；停止 agent 复用 `agent_disconnect`）、`agents_status`（每个已连接 agent 的 `droppedUpdates` / 退出状态 / 挂起请求；R1，无头实跑与 `acp-smoke` 用）、`ping`（R0 往返自检，`build.ps1 -Smoke` 与 `verify-package.ps1` 用）、`dropped_event_count`（Dart 未订阅或流已关时未送达的事件计数）
 - 项目与本地索引：`workspace_recent`、`workspace_open`、`session_index_list/upsert/remove`（会话索引：agentId + sessionId + 标题 + cwd + 时间 + 消息计数）
 - 窗口 UI 状态：`ui_state_get`、`ui_state_set`（合并写；载荷 `{sidebarWidth?, rightPanelWidth?, filesTreeWidth?, filesTreeCollapsed?}`，缺省与夹取范围都在前端 token，核心不存第二份）
 - 偏好（`settings.json` 的两段，§ 10）：`appearance_get` / `appearance_set`（`appearance` 段：`theme` 与四个字体轴，R7.6 / 画板 07）、`transcript_prefs_get` / `transcript_prefs_set`（`transcript` 段：`collapse_finished_turns`，画板 08 / 画板 70「转录」分组）；两者都是整段替换，字段一律可缺省、缺省值只在前端写一份

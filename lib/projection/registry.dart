@@ -46,7 +46,11 @@ enum AuthStatus {
 
 /// custom 型条目的拉起参数（settings.json 的 `command` / `args` / `env`）。
 class CustomCommand {
-  const CustomCommand({required this.command, this.args = const <String>[], this.env = const <String, String>{}});
+  const CustomCommand({
+    required this.command,
+    this.args = const <String>[],
+    this.env = const <String, String>{},
+  });
 
   final String command;
   final List<String> args;
@@ -90,26 +94,37 @@ class InstallProgress {
   final double? bytesPerSecond;
   final double? etaSeconds;
 
-  bool get isTerminal => step == 'done' || step == 'failed' || step == 'cancelled';
+  bool get isTerminal =>
+      step == 'done' || step == 'failed' || step == 'cancelled';
   bool get isFailed => step == 'failed';
   bool get isRunning => !isTerminal;
 
-  double? get fraction => (done != null && total != null && total! > 0) ? (done! / total!).clamp(0, 1).toDouble() : null;
+  double? get fraction => (done != null && total != null && total! > 0)
+      ? (done! / total!).clamp(0, 1).toDouble()
+      : null;
 
   /// npx 型的三步（画板 51）。
-  static const List<String> npxSteps = <String>['resolve', 'write_settings', 'handshake'];
+  static const List<String> npxSteps = <String>[
+    'resolve',
+    'write_settings',
+    'handshake',
+  ];
 
   /// npx 型升级的两步（画板 53）：settings 条目升级前就在，没有 write_settings。
   static const List<String> npxUpgradeSteps = <String>['resolve', 'handshake'];
 
   /// binary 型的三步（画板 51；升级同这三步，画板 53 注）。
-  static const List<String> binarySteps = <String>['download', 'verify', 'extract'];
+  static const List<String> binarySteps = <String>[
+    'download',
+    'verify',
+    'extract',
+  ];
 
   List<String> get steps => switch (kind) {
-        'binary' => binarySteps,
-        'npx' => upgrade ? npxUpgradeSteps : npxSteps,
-        _ => const <String>['node_download', 'node_extract'],
-      };
+    'binary' => binarySteps,
+    'npx' => upgrade ? npxUpgradeSteps : npxSteps,
+    _ => const <String>['node_download', 'node_extract'],
+  };
 
   /// 某一步的状态：done / active / pending（done 态按步序推断：当前步之前的都算完成）。
   StepState stateOf(String name) {
@@ -199,45 +214,58 @@ class RegistryEntryData {
   bool get isUpgradeFailed => installed && !isCustom && isFailed;
 
   /// 有新版本（画板 50 / 53）。
-  bool get hasUpdate => installed && !isCustom && (updateAvailable ?? '').isNotEmpty;
+  bool get hasUpdate =>
+      installed && !isCustom && (updateAvailable ?? '').isNotEmpty;
 
   /// 名字旁的版本号：已安装的是本机装着的版本（安装记录的 registry 版本），没装的是 registry 当前版本（画板 50 注）。
-  String get displayVersion => installed && (installedVersion ?? '').isNotEmpty ? installedVersion! : version;
+  String get displayVersion => installed && (installedVersion ?? '').isNotEmpty
+      ? installedVersion!
+      : version;
 
   /// 升级的目标版本（「旧 → 新」的新）：registry 当前版本。
-  String get upgradeTarget => (updateAvailable ?? '').isNotEmpty ? updateAvailable! : version;
-  bool get isUnsupported => kind == DistributionKind.uvx || kind == DistributionKind.none || !supported;
+  String get upgradeTarget =>
+      (updateAvailable ?? '').isNotEmpty ? updateAvailable! : version;
+  bool get isUnsupported =>
+      kind == DistributionKind.uvx ||
+      kind == DistributionKind.none ||
+      !supported;
   bool get needsAuth => installed && authStatus == AuthStatus.needsAuth;
   bool get loggedIn => installed && authStatus == AuthStatus.authenticated;
 
-  RegistryEntryData copyWith({InstallProgress? progress, bool clearProgress = false, String? failure, bool clearFailure = false}) =>
-      RegistryEntryData(
-        id: id,
-        name: name,
-        version: version,
-        description: description,
-        repository: repository,
-        website: website,
-        iconSvg: iconSvg,
-        kind: kind,
-        supported: supported,
-        packageSpec: packageSpec,
-        installed: installed,
-        builtin: builtin,
-        installedVersion: installedVersion,
-        authStatus: authStatus,
-        custom: custom,
-        launch: launch,
-        progress: clearProgress ? null : (progress ?? this.progress),
-        failure: clearFailure ? null : (failure ?? this.failure),
-        updateAvailable: updateAvailable,
-        reloadPending: reloadPending,
-      );
+  RegistryEntryData copyWith({
+    InstallProgress? progress,
+    bool clearProgress = false,
+    String? failure,
+    bool clearFailure = false,
+  }) => RegistryEntryData(
+    id: id,
+    name: name,
+    version: version,
+    description: description,
+    repository: repository,
+    website: website,
+    iconSvg: iconSvg,
+    kind: kind,
+    supported: supported,
+    packageSpec: packageSpec,
+    installed: installed,
+    builtin: builtin,
+    installedVersion: installedVersion,
+    authStatus: authStatus,
+    custom: custom,
+    launch: launch,
+    progress: clearProgress ? null : (progress ?? this.progress),
+    failure: clearFailure ? null : (failure ?? this.failure),
+    updateAvailable: updateAvailable,
+    reloadPending: reloadPending,
+  );
 
   /// `registry_list` 的一条。
   factory RegistryEntryData.fromJson(JsonMap json) {
     final installed = json['installed'];
-    final installedMap = installed is Map ? installed.cast<String, dynamic>() : null;
+    final installedMap = installed is Map
+        ? installed.cast<String, dynamic>()
+        : null;
     final custom = json['custom'];
     final customMap = custom is Map ? custom.cast<String, dynamic>() : null;
     return RegistryEntryData(
@@ -259,21 +287,34 @@ class RegistryEntryData {
           ? null
           : CustomCommand(
               command: customMap['command'] as String? ?? '',
-              args: customMap['args'] is List ? (customMap['args'] as List).map((e) => e.toString()).toList() : const <String>[],
+              args: customMap['args'] is List
+                  ? (customMap['args'] as List)
+                        .map((e) => e.toString())
+                        .toList()
+                  : const <String>[],
               env: customMap['env'] is Map
-                  ? (customMap['env'] as Map).map((k, v) => MapEntry(k.toString(), v.toString()))
+                  ? (customMap['env'] as Map).map(
+                      (k, v) => MapEntry(k.toString(), v.toString()),
+                    )
                   : const <String, String>{},
             ),
       launch: installedMap == null || installedMap['command'] is! String
           ? null
           : CustomCommand(
               command: installedMap['command'] as String,
-              args: installedMap['args'] is List ? (installedMap['args'] as List).map((e) => e.toString()).toList() : const <String>[],
+              args: installedMap['args'] is List
+                  ? (installedMap['args'] as List)
+                        .map((e) => e.toString())
+                        .toList()
+                  : const <String>[],
               env: installedMap['env'] is Map
-                  ? (installedMap['env'] as Map).map((k, v) => MapEntry(k.toString(), v.toString()))
+                  ? (installedMap['env'] as Map).map(
+                      (k, v) => MapEntry(k.toString(), v.toString()),
+                    )
                   : const <String, String>{},
             ),
-      failure: installedMap?['lastError'] as String? ?? json['lastError'] as String?,
+      failure:
+          installedMap?['lastError'] as String? ?? json['lastError'] as String?,
       updateAvailable: json['updateAvailable'] as String?,
       reloadPending: json['reloadPending'] as String?,
     );
@@ -289,7 +330,12 @@ class NodeInfo {
 }
 
 class NodeStatus {
-  const NodeStatus({this.system, this.managed, this.minVersion = '22.0.0', this.systemError});
+  const NodeStatus({
+    this.system,
+    this.managed,
+    this.minVersion = '22.0.0',
+    this.systemError,
+  });
 
   final NodeInfo? system;
   final NodeInfo? managed;
@@ -302,7 +348,8 @@ class NodeStatus {
   bool get usable => system != null || managed != null;
 
   factory NodeStatus.fromJson(JsonMap json) {
-    NodeInfo? info(Object? v) => v is Map && v['version'] is String && v['path'] is String
+    NodeInfo? info(Object? v) =>
+        v is Map && v['version'] is String && v['path'] is String
         ? NodeInfo(version: v['version'] as String, path: v['path'] as String)
         : null;
     return NodeStatus(
@@ -314,8 +361,8 @@ class NodeStatus {
   }
 }
 
-/// 面板过滤（画板 50 的 All / Installed / Not Installed）。
-enum RegistryFilter { all, installed, notInstalled }
+/// 面板过滤（画板 50 / 54 的 All / Installed / Running / Not Installed）。
+enum RegistryFilter { all, installed, running, notInstalled }
 
 class RegistryState extends ChangeNotifier {
   List<RegistryEntryData> entries = const <RegistryEntryData>[];
@@ -332,13 +379,26 @@ class RegistryState extends ChangeNotifier {
   int get installedCount => entries.where((e) => e.installed).length;
   int get notInstalledCount => entries.length - installedCount;
 
-  /// 按过滤与搜索（名字 / id / 描述子串，大小写不敏感）。
-  List<RegistryEntryData> visible(RegistryFilter filter, String query) {
+  /// 按过滤与搜索（名字 / id / 描述子串，大小写不敏感）。[runningIds] 为当前已连接的 agent id 集合（画板 54）。
+  List<RegistryEntryData> visible(
+    RegistryFilter filter,
+    String query, {
+    Set<String> runningIds = const <String>{},
+  }) {
     final q = query.trim().toLowerCase();
+    bool matchesFilter(RegistryEntryData e) => switch (filter) {
+      RegistryFilter.all => true,
+      RegistryFilter.installed => e.installed,
+      RegistryFilter.running => runningIds.contains(e.id),
+      RegistryFilter.notInstalled => !e.installed,
+    };
     return <RegistryEntryData>[
       for (final e in entries)
-        if ((filter == RegistryFilter.all || (filter == RegistryFilter.installed) == e.installed) &&
-            (q.isEmpty || e.name.toLowerCase().contains(q) || e.id.toLowerCase().contains(q) || e.description.toLowerCase().contains(q)))
+        if (matchesFilter(e) &&
+            (q.isEmpty ||
+                e.name.toLowerCase().contains(q) ||
+                e.id.toLowerCase().contains(q) ||
+                e.description.toLowerCase().contains(q)))
           e,
     ];
   }
@@ -356,14 +416,20 @@ class RegistryState extends ChangeNotifier {
     entries = <RegistryEntryData>[
       if (raw is List)
         for (final a in raw)
-          if (a is Map) _withProgress(RegistryEntryData.fromJson(a.cast<String, dynamic>())),
+          if (a is Map)
+            _withProgress(
+              RegistryEntryData.fromJson(a.cast<String, dynamic>()),
+            ),
     ];
     fetching = json['fetching'] == true;
     fetchError = json['fetchError'] as String?;
     final at = json['fetchedAt'];
-    fetchedAt = at is num ? DateTime.fromMillisecondsSinceEpoch(at.toInt()) : null;
+    fetchedAt = at is num
+        ? DateTime.fromMillisecondsSinceEpoch(at.toInt())
+        : null;
     final node = json['node'];
-    if (node is Map) this.node = NodeStatus.fromJson(node.cast<String, dynamic>());
+    if (node is Map)
+      this.node = NodeStatus.fromJson(node.cast<String, dynamic>());
     notifyListeners();
   }
 
@@ -375,7 +441,10 @@ class RegistryState extends ChangeNotifier {
   RegistryEntryData _withProgress(RegistryEntryData e) {
     final p = _progress[e.id];
     if (p == null) return e;
-    return e.copyWith(progress: p.isTerminal && !p.isFailed ? null : p, failure: p.isFailed ? p.error : null);
+    return e.copyWith(
+      progress: p.isTerminal && !p.isFailed ? null : p,
+      failure: p.isFailed ? p.error : null,
+    );
   }
 
   /// `registry/progress`：`{agentId, kind, step, done?, total?, detail?, error?}`。返回落到的条目 id（受管 Node 为 null）。
@@ -387,12 +456,16 @@ class RegistryState extends ChangeNotifier {
     final total = json['total'] is num ? json['total'] as num : null;
     double? rate;
     double? eta;
-    if (previous != null && previous.step == json['step'] && previous.done != null && done != null) {
+    if (previous != null &&
+        previous.step == json['step'] &&
+        previous.done != null &&
+        done != null) {
       final dt = at.difference(previous.at).inMilliseconds / 1000.0;
       if (dt > 0 && done > previous.done!) {
         rate = (done - previous.done!) / dt;
         // 按最近两次采样的速率算，再和上一次的估计做一次平滑（画板 51 的数字不该每帧乱跳）。
-        if (previous.bytesPerSecond != null) rate = (rate + previous.bytesPerSecond!) / 2;
+        if (previous.bytesPerSecond != null)
+          rate = (rate + previous.bytesPerSecond!) / 2;
         if (total != null && rate > 0) eta = (total - done) / rate;
       } else if (previous.bytesPerSecond != null) {
         rate = previous.bytesPerSecond;
@@ -412,7 +485,9 @@ class RegistryState extends ChangeNotifier {
       upgrade: json['upgrade'] == true,
     );
     if (agentId == null) {
-      nodeProgress = progress.isTerminal && !progress.isFailed ? null : progress;
+      nodeProgress = progress.isTerminal && !progress.isFailed
+          ? null
+          : progress;
     } else {
       if (progress.step == 'done' || progress.step == 'cancelled') {
         _progress.remove(agentId);
@@ -424,7 +499,11 @@ class RegistryState extends ChangeNotifier {
           if (e.id == agentId)
             (progress.step == 'done' || progress.step == 'cancelled')
                 ? e.copyWith(clearProgress: true, clearFailure: true)
-                : e.copyWith(progress: progress, failure: progress.isFailed ? progress.error : null, clearFailure: !progress.isFailed)
+                : e.copyWith(
+                    progress: progress,
+                    failure: progress.isFailed ? progress.error : null,
+                    clearFailure: !progress.isFailed,
+                  )
           else
             e,
       ];
@@ -434,19 +513,22 @@ class RegistryState extends ChangeNotifier {
   }
 
   JsonMap debugSnapshot() => <String, dynamic>{
-        'entries': <String, dynamic>{
-          for (final e in entries)
-            e.id: <String, dynamic>{
-              'installed': e.installed,
-              'kind': e.kind.wire,
-              'auth': e.authStatus.wire,
-              'progress': e.progress?.step,
-              'failure': e.failure,
-              'updateAvailable': e.updateAvailable,
-              'reloadPending': e.reloadPending,
-            },
+    'entries': <String, dynamic>{
+      for (final e in entries)
+        e.id: <String, dynamic>{
+          'installed': e.installed,
+          'kind': e.kind.wire,
+          'auth': e.authStatus.wire,
+          'progress': e.progress?.step,
+          'failure': e.failure,
+          'updateAvailable': e.updateAvailable,
+          'reloadPending': e.reloadPending,
         },
-        'node': <String, dynamic>{'system': node.system?.version, 'managed': node.managed?.version},
-        'fetchError': fetchError,
-      };
+    },
+    'node': <String, dynamic>{
+      'system': node.system?.version,
+      'managed': node.managed?.version,
+    },
+    'fetchError': fetchError,
+  };
 }

@@ -1,8 +1,6 @@
+// dart format off
 // 当前会话与会话生命周期（R7.5 从 workbench_controller.dart 拆出）：当前 agent / 会话与派生态（画板 01 的两个空态、
 // 会话头标题、输入框可用性、画板 34 的状态条）、agent 能力（R6）、侧栏列表与搜索（画板 04）、画板 06 / 09 的活动指示、
-// 新建 / 重载 / 点选 / `session/load` / resume / close / delete / `session/list` 校对（R6）、改名与删除确认（画板 41）、
-// 本地索引的写回。协议状态仍在 `lib/projection/`（规则 2），这里只是「唯一知道桥的人」里管会话的那一段。
-// 会话挂在哪条 agent 连接上（四态、挂回、`session/load`、关闭态）在混入的 `session_attach.dart`（iteration-09 拆出）。
 //
 // 依赖方向（任务卡附录 B）：读本地索引走 [index]、已装 agent 与 registry 走 [agents]、当前项目走 [workspace]；
 // 反向的四件事（切回工作台页、判断是否在工作台页、右栏切到 Agents 标签、进认证页）由组合根经回调接线。
@@ -732,9 +730,9 @@ class SessionController extends ChangeNotifier with GuardedNotifier, SessionAtta
     });
   }
 
-  /// 删除 / 改名 / 挂载用的 agentId：优先本地索引里记的那个，退到当前连接。
+  /// 删除 / 改名 / 挂载用的 agentId：优先本地索引或内存 store 里记的那个，退到当前连接。
   @override
-  String ownerOf(String sessionId) => _sessionAgent[sessionId] ?? agentId ?? '';
+  String ownerOf(String sessionId) => _sessionAgent[sessionId] ?? sessions.maybe(sessionId)?.agentId ?? agentId ?? '';
 
   /// 这条会话的 cwd：本地索引里登记的，没有就退到内存里那份转录的。
   @override

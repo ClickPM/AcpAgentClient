@@ -10,13 +10,16 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::future::Future;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicI64, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1 as acp;
-use agent_client_protocol::{Agent, Client, ConnectTo, ConnectionTo, Lines, Responder, UntypedMessage, is_incoming_transport_closed};
+use agent_client_protocol::{
+    Agent, Client, ConnectTo, ConnectionTo, Lines, Responder, UntypedMessage,
+    is_incoming_transport_closed,
+};
 use registry::{CancelToken, RegistryError};
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -108,11 +111,16 @@ pub struct Shared {
     owned_terminals: Mutex<HashSet<String>>,
     /// `terminal/create` 已经占了名额、还在拉起的个数（[`MAX_TERMINALS_PER_CONNECTION`]）；只在持 `owned_terminals` 锁时改。
     creating_terminals: AtomicUsize,
+    /// agent 根进程的 PID（0 = 没有子进程）与拉起时刻（Unix 毫秒，0 = 未记）：进程面板（R10）按它们归属进程树。
+    root_pid: AtomicU32,
+    started_at: AtomicI64,
 }
 
 impl std::fmt::Debug for Shared {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Shared").field("agent_id", &self.agent_id).finish_non_exhaustive()
+        f.debug_struct("Shared")
+            .field("agent_id", &self.agent_id)
+            .finish_non_exhaustive()
     }
 }
 
@@ -124,7 +132,12 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 }
 
 impl Shared {
-    fn new(agent_id: String, sink: Arc<dyn EventSink>, has_process: bool, terminals: Arc<pty::TerminalManager>) -> Self {
+    fn new(
+        agent_id: String,
+        sink: Arc<dyn EventSink>,
+        has_process: bool,
+        terminals: Arc<pty::TerminalManager>,
+    ) -> Self {
         Self {
             agent_id,
             sink,
@@ -139,6 +152,29 @@ impl Shared {
             terminals,
             owned_terminals: Mutex::new(HashSet::new()),
             creating_terminals: AtomicUsize::new(0),
+            root_pid: AtomicU32::new(0),
+            started_at: AtomicI64::new(0),
+        }
+    }
+
+    fn record_process(&self, pid: Option<u32>, started_at: i64) {
+        self.root_pid.store(pid.unwrap_or(0), Ordering::Relaxed);
+        self.started_at.store(started_at, Ordering::Relaxed);
+    }
+
+    /// agent 根进程的 PID（测试传输没有子进程，回 `None`）。
+    pub fn root_pid(&self) -> Option<u32> {
+        match self.root_pid.load(Ordering::Relaxed) {
+            0 => None,
+            pid => Some(pid),
+        }
+    }
+
+    /// 子进程拉起时刻（Unix 毫秒）；没有子进程时回 `None`。
+    pub fn started_at(&self) -> Option<i64> {
+        match self.started_at.load(Ordering::Relaxed) {
+            0 => None,
+            at => Some(at),
         }
     }
 
@@ -282,7 +318,9 @@ impl Shared {
     }
 
     fn is_cancel_pending(&self, session_id: &str) -> bool {
-        lock(&self.sessions).get(session_id).is_some_and(|s| s.cancel_pending)
+        lock(&self.sessions)
+            .get(session_id)
+            .is_some_and(|s| s.cancel_pending)
     }
 
     fn take_pending(&self, request_id: &str) -> Option<Pending> {
@@ -328,7 +366,13 @@ impl Shared {
 
     // ---- agent → client 请求（handler 在 SDK dispatch 循环里跑，只入队 + 发事件）
 
-    fn enqueue(&self, method: &str, session_id: Option<String>, params: Value, responder: Responder<Value>) {
+    fn enqueue(
+        &self,
+        method: &str,
+        session_id: Option<String>,
+        params: Value,
+        responder: Responder<Value>,
+    ) {
         let request_id = responder.id().to_string();
         lock(&self.pending).insert(
             request_id.clone(),
@@ -357,10 +401,17 @@ impl Shared {
         let session_id = request.session_id.0.to_string();
         if self.is_cancel_pending(&session_id) {
             // 发出 cancel 后挂起的权限请求 MUST 回 cancelled（docs/acp-projection.md § 3.1）。
-            return responder.respond(acp::RequestPermissionResponse::new(acp::RequestPermissionOutcome::Cancelled));
+            return responder.respond(acp::RequestPermissionResponse::new(
+                acp::RequestPermissionOutcome::Cancelled,
+            ));
         }
         let params = serde_json::to_value(&request)?;
-        self.enqueue(METHOD_REQUEST_PERMISSION, Some(session_id), params, responder.erase_to_json());
+        self.enqueue(
+            METHOD_REQUEST_PERMISSION,
+            Some(session_id),
+            params,
+            responder.erase_to_json(),
+        );
         Ok(())
     }
 
@@ -371,7 +422,10 @@ impl Shared {
     ) -> std::result::Result<(), acp::Error> {
         let params = serde_json::to_value(&request)?;
         // sessionScope 带 sessionId；requestScope 没有（认证阶段），队列里 session 为空。
-        let session_id = params.get("sessionId").and_then(Value::as_str).map(str::to_string);
+        let session_id = params
+            .get("sessionId")
+            .and_then(Value::as_str)
+            .map(str::to_string);
         // 与 `on_permission` 同一条规矩（审查 finding，2026-09-22）：cancel 期里到达的请求就地回掉，不进前端队列。
         // 规范只对权限请求写了 MUST（acp-projection.md § 3.1），但 elicitation 核心**不代答**——
         // 前端在发 cancel / close / delete 时是照着当时的队列快照逐条回的，这之后才到的那条没人认领：
@@ -380,9 +434,16 @@ impl Shared {
         if let Some(sid) = &session_id
             && self.is_cancel_pending(sid)
         {
-            return responder.respond(acp::CreateElicitationResponse::new(acp::ElicitationAction::Cancel));
+            return responder.respond(acp::CreateElicitationResponse::new(
+                acp::ElicitationAction::Cancel,
+            ));
         }
-        self.enqueue(METHOD_ELICITATION_CREATE, session_id, params, responder.erase_to_json());
+        self.enqueue(
+            METHOD_ELICITATION_CREATE,
+            session_id,
+            params,
+            responder.erase_to_json(),
+        );
         Ok(())
     }
 
@@ -392,18 +453,23 @@ impl Shared {
     fn on_notification(&self, notification: UntypedMessage) {
         let (method, params) = notification.into_parts();
         match method.as_str() {
-            METHOD_SESSION_UPDATE => match serde_json::from_value::<acp::SessionNotification>(params) {
-                Ok(parsed) => match serde_json::to_value(&parsed) {
-                    Ok(mut payload) => {
-                        if let Value::Object(map) = &mut payload {
-                            map.insert("agentId".to_string(), Value::String(self.agent_id.clone()));
+            METHOD_SESSION_UPDATE => {
+                match serde_json::from_value::<acp::SessionNotification>(params) {
+                    Ok(parsed) => match serde_json::to_value(&parsed) {
+                        Ok(mut payload) => {
+                            if let Value::Object(map) = &mut payload {
+                                map.insert(
+                                    "agentId".to_string(),
+                                    Value::String(self.agent_id.clone()),
+                                );
+                            }
+                            self.emit(EventChannel::SessionUpdate, payload);
                         }
-                        self.emit(EventChannel::SessionUpdate, payload);
-                    }
+                        Err(e) => self.drop_update(&e.to_string()),
+                    },
                     Err(e) => self.drop_update(&e.to_string()),
-                },
-                Err(e) => self.drop_update(&e.to_string()),
-            },
+                }
+            }
             METHOD_CANCEL_REQUEST => {
                 if let Some(id) = params.get("requestId") {
                     let key = serde_json::from_value::<acp::RequestId>(id.clone())
@@ -412,7 +478,9 @@ impl Shared {
                     if let Some(pending) = self.take_pending(&key) {
                         // agent 撤回了自己的请求：仍要给它一个 JSON-RPC 响应（-32800 request cancelled，照 Zed），
                         // 否则它若还在等这条请求就挂死；SDK 的 drop guard 只在 batch 目的地补槽（第 2 轮审查 finding）。
-                        let _ = pending.responder.respond_with_error(acp::Error::request_cancelled());
+                        let _ = pending
+                            .responder
+                            .respond_with_error(acp::Error::request_cancelled());
                         // `requestId` 归一化成与队列键同形的字符串（协议原样可能是数字），前端直接比对（审查 finding）。
                         let mut params = params;
                         if let Value::Object(map) = &mut params {
@@ -453,13 +521,20 @@ impl Shared {
     // ---- fs/* 与 terminal/* 回调（R4；docs/design.md § 7）。handler 里只起任务，文件 / 子进程 / 阻塞等待都在任务里做，
     //      不占 SDK 的 dispatch 循环。sessionId 不认识 → invalid params；路径越界 / 文件不存在 / 行号越界按 fs 的错误映射。
 
-    fn session_cwd_or_error(&self, session_id: &acp::SessionId) -> std::result::Result<PathBuf, acp::Error> {
+    fn session_cwd_or_error(
+        &self,
+        session_id: &acp::SessionId,
+    ) -> std::result::Result<PathBuf, acp::Error> {
         let id = session_id.0.to_string();
         self.session_cwd(&id)
             .ok_or_else(|| acp::Error::invalid_params().data(format!("unknown session {id}")))
     }
 
-    fn on_read_text_file(self: &Arc<Self>, request: acp::ReadTextFileRequest, responder: Responder<acp::ReadTextFileResponse>) {
+    fn on_read_text_file(
+        self: &Arc<Self>,
+        request: acp::ReadTextFileRequest,
+        responder: Responder<acp::ReadTextFileResponse>,
+    ) {
         let shared = self.clone();
         tokio::spawn(async move {
             let cwd = match shared.session_cwd_or_error(&request.session_id) {
@@ -471,7 +546,9 @@ impl Shared {
             };
             let path = request.path.clone();
             let (line, limit) = (request.line, request.limit);
-            let result = tokio::task::spawn_blocking(move || fs::read_text_file(&cwd, &path, line, limit)).await;
+            let result =
+                tokio::task::spawn_blocking(move || fs::read_text_file(&cwd, &path, line, limit))
+                    .await;
             match result {
                 Ok(Ok(content)) => {
                     let _ = responder.respond(acp::ReadTextFileResponse::new(content));
@@ -480,13 +557,18 @@ impl Shared {
                     let _ = responder.respond_with_error(fs_error(e, &request.path));
                 }
                 Err(join) => {
-                    let _ = responder.respond_with_error(acp::Error::internal_error().data(join.to_string()));
+                    let _ = responder
+                        .respond_with_error(acp::Error::internal_error().data(join.to_string()));
                 }
             }
         });
     }
 
-    fn on_write_text_file(self: &Arc<Self>, request: acp::WriteTextFileRequest, responder: Responder<acp::WriteTextFileResponse>) {
+    fn on_write_text_file(
+        self: &Arc<Self>,
+        request: acp::WriteTextFileRequest,
+        responder: Responder<acp::WriteTextFileResponse>,
+    ) {
         let shared = self.clone();
         tokio::spawn(async move {
             let cwd = match shared.session_cwd_or_error(&request.session_id) {
@@ -498,7 +580,9 @@ impl Shared {
             };
             let path = request.path.clone();
             let content = request.content;
-            let result = tokio::task::spawn_blocking(move || fs::write_text_file(&cwd, &path, &content)).await;
+            let result =
+                tokio::task::spawn_blocking(move || fs::write_text_file(&cwd, &path, &content))
+                    .await;
             match result {
                 Ok(Ok(())) => {
                     let _ = responder.respond(acp::WriteTextFileResponse::default());
@@ -507,13 +591,18 @@ impl Shared {
                     let _ = responder.respond_with_error(fs_error(e, &request.path));
                 }
                 Err(join) => {
-                    let _ = responder.respond_with_error(acp::Error::internal_error().data(join.to_string()));
+                    let _ = responder
+                        .respond_with_error(acp::Error::internal_error().data(join.to_string()));
                 }
             }
         });
     }
 
-    fn on_create_terminal(self: &Arc<Self>, request: acp::CreateTerminalRequest, responder: Responder<acp::CreateTerminalResponse>) {
+    fn on_create_terminal(
+        self: &Arc<Self>,
+        request: acp::CreateTerminalRequest,
+        responder: Responder<acp::CreateTerminalResponse>,
+    ) {
         let shared = self.clone();
         tokio::spawn(async move {
             let session_cwd = match shared.session_cwd_or_error(&request.session_id) {
@@ -526,7 +615,10 @@ impl Shared {
             // `cwd` 缺省是会话目录；给了就得是绝对路径（规范）。
             let cwd = match request.cwd {
                 Some(p) if !p.is_absolute() => {
-                    let _ = responder.respond_with_error(acp::Error::invalid_params().data(format!("cwd must be absolute: {}", p.display())));
+                    let _ = responder.respond_with_error(
+                        acp::Error::invalid_params()
+                            .data(format!("cwd must be absolute: {}", p.display())),
+                    );
                     return;
                 }
                 Some(p) => p,
@@ -535,7 +627,9 @@ impl Shared {
             // 先占名额再拉起：超限直接回错，不拉进程（拉起来再杀，命令已经跑了一截）；并发的 create 也越不过上限。
             {
                 let owned = lock(&shared.owned_terminals);
-                if owned.len() + shared.creating_terminals.load(Ordering::SeqCst) >= MAX_TERMINALS_PER_CONNECTION {
+                if owned.len() + shared.creating_terminals.load(Ordering::SeqCst)
+                    >= MAX_TERMINALS_PER_CONNECTION
+                {
                     drop(owned);
                     let _ = responder.respond_with_error(acp::Error::internal_error().data(format!(
                         "too many terminals: this connection already holds {MAX_TERMINALS_PER_CONNECTION}; \
@@ -547,16 +641,27 @@ impl Shared {
             }
             #[cfg(unix)]
             let env: Vec<(String, String)> = {
-                let mut e = vec![("PATH".to_string(), fs::effective_path().to_string_lossy().into_owned())];
+                let mut e = vec![(
+                    "PATH".to_string(),
+                    fs::effective_path().to_string_lossy().into_owned(),
+                )];
                 e.extend(request.env.into_iter().map(|v| (v.name, v.value)));
                 e
             };
             #[cfg(not(unix))]
-            let env: Vec<(String, String)> = request.env.into_iter().map(|v| (v.name, v.value)).collect();
+            let env: Vec<(String, String)> =
+                request.env.into_iter().map(|v| (v.name, v.value)).collect();
             let terminals = shared.terminals.clone();
             let (command, args, limit) = (request.command, request.args, request.output_byte_limit);
             let spawned = tokio::task::spawn_blocking(move || {
-                terminals.spawn_shell_command(&command, &args, env, Some(cwd), limit, pty::TerminalSource::Agent)
+                terminals.spawn_shell_command(
+                    &command,
+                    &args,
+                    env,
+                    Some(cwd),
+                    limit,
+                    pty::TerminalSource::Agent,
+                )
             })
             .await;
             // 名额换成登记（或撤掉）与上面的判断在同一把锁下：两者之间别的 create 不会多看出一个空位。
@@ -578,24 +683,31 @@ impl Shared {
                     if !registered {
                         let _ = shared.terminals.release(&id);
                         let _ = responder.respond_with_error(
-                            acp::Error::internal_error().data("agent connection closed while creating the terminal"),
+                            acp::Error::internal_error()
+                                .data("agent connection closed while creating the terminal"),
                         );
                         return;
                     }
-                    let _ = responder.respond(acp::CreateTerminalResponse::new(acp::TerminalId::new(id)));
+                    let _ = responder
+                        .respond(acp::CreateTerminalResponse::new(acp::TerminalId::new(id)));
                 }
                 Ok(Err(e)) => {
-                    let _ = responder.respond_with_error(acp::Error::internal_error().data(e.to_string()));
+                    let _ = responder
+                        .respond_with_error(acp::Error::internal_error().data(e.to_string()));
                 }
                 Err(join) => {
-                    let _ = responder.respond_with_error(acp::Error::internal_error().data(join.to_string()));
+                    let _ = responder
+                        .respond_with_error(acp::Error::internal_error().data(join.to_string()));
                 }
             }
         });
     }
 
     /// agent 只许碰自己建的终端；release 过的 id 也算不认识（规范：release 后 id 失效）。
-    fn owned_terminal(&self, terminal_id: &acp::TerminalId) -> std::result::Result<String, acp::Error> {
+    fn owned_terminal(
+        &self,
+        terminal_id: &acp::TerminalId,
+    ) -> std::result::Result<String, acp::Error> {
         let id = terminal_id.0.to_string();
         if lock(&self.owned_terminals).contains(&id) {
             Ok(id)
@@ -604,7 +716,11 @@ impl Shared {
         }
     }
 
-    fn on_terminal_output(self: &Arc<Self>, request: acp::TerminalOutputRequest, responder: Responder<acp::TerminalOutputResponse>) {
+    fn on_terminal_output(
+        self: &Arc<Self>,
+        request: acp::TerminalOutputRequest,
+        responder: Responder<acp::TerminalOutputResponse>,
+    ) {
         let shared = self.clone();
         tokio::spawn(async move {
             let id = match shared.owned_terminal(&request.terminal_id) {
@@ -625,10 +741,12 @@ impl Shared {
                     let _ = responder.respond(response);
                 }
                 Ok(Err(e)) => {
-                    let _ = responder.respond_with_error(acp::Error::internal_error().data(e.to_string()));
+                    let _ = responder
+                        .respond_with_error(acp::Error::internal_error().data(e.to_string()));
                 }
                 Err(join) => {
-                    let _ = responder.respond_with_error(acp::Error::internal_error().data(join.to_string()));
+                    let _ = responder
+                        .respond_with_error(acp::Error::internal_error().data(join.to_string()));
                 }
             }
         });
@@ -658,16 +776,22 @@ impl Shared {
             };
             match status {
                 Ok(status) => {
-                    let _ = responder.respond(acp::WaitForTerminalExitResponse::new(exit_status(&status)));
+                    let _ = responder
+                        .respond(acp::WaitForTerminalExitResponse::new(exit_status(&status)));
                 }
                 Err(e) => {
-                    let _ = responder.respond_with_error(acp::Error::internal_error().data(e.to_string()));
+                    let _ = responder
+                        .respond_with_error(acp::Error::internal_error().data(e.to_string()));
                 }
             }
         });
     }
 
-    fn on_kill_terminal(self: &Arc<Self>, request: acp::KillTerminalRequest, responder: Responder<acp::KillTerminalResponse>) {
+    fn on_kill_terminal(
+        self: &Arc<Self>,
+        request: acp::KillTerminalRequest,
+        responder: Responder<acp::KillTerminalResponse>,
+    ) {
         let shared = self.clone();
         tokio::spawn(async move {
             let id = match shared.owned_terminal(&request.terminal_id) {
@@ -684,16 +808,22 @@ impl Shared {
                     let _ = responder.respond(acp::KillTerminalResponse::default());
                 }
                 Ok(Err(e)) => {
-                    let _ = responder.respond_with_error(acp::Error::internal_error().data(e.to_string()));
+                    let _ = responder
+                        .respond_with_error(acp::Error::internal_error().data(e.to_string()));
                 }
                 Err(join) => {
-                    let _ = responder.respond_with_error(acp::Error::internal_error().data(join.to_string()));
+                    let _ = responder
+                        .respond_with_error(acp::Error::internal_error().data(join.to_string()));
                 }
             }
         });
     }
 
-    fn on_release_terminal(self: &Arc<Self>, request: acp::ReleaseTerminalRequest, responder: Responder<acp::ReleaseTerminalResponse>) {
+    fn on_release_terminal(
+        self: &Arc<Self>,
+        request: acp::ReleaseTerminalRequest,
+        responder: Responder<acp::ReleaseTerminalResponse>,
+    ) {
         let shared = self.clone();
         tokio::spawn(async move {
             let id = match shared.owned_terminal(&request.terminal_id) {
@@ -711,10 +841,12 @@ impl Shared {
                     let _ = responder.respond(acp::ReleaseTerminalResponse::default());
                 }
                 Ok(Err(e)) => {
-                    let _ = responder.respond_with_error(acp::Error::internal_error().data(e.to_string()));
+                    let _ = responder
+                        .respond_with_error(acp::Error::internal_error().data(e.to_string()));
                 }
                 Err(join) => {
-                    let _ = responder.respond_with_error(acp::Error::internal_error().data(join.to_string()));
+                    let _ = responder
+                        .respond_with_error(acp::Error::internal_error().data(join.to_string()));
                 }
             }
         });
@@ -724,24 +856,34 @@ impl Shared {
 /// 等终端退出而不占 tokio 阻塞池线程（BACKLOG P0，2026-09-24）：原先 `spawn_blocking` + 条件变量死等，
 /// 跑不完的终端每个钉住一条阻塞线程，而这个池子与文件面板、git、agent 的 fs 回调、`terminal/kill` 共用，攒多了全排队。
 /// 现在由 pty 的等待线程在退出那一下回调送来状态，这边只挂一个 oneshot。
-pub(crate) async fn wait_terminal_exit(terminals: &pty::TerminalManager, id: &str) -> pty::Result<pty::ExitStatus> {
+pub(crate) async fn wait_terminal_exit(
+    terminals: &pty::TerminalManager,
+    id: &str,
+) -> pty::Result<pty::ExitStatus> {
     let (tx, rx) = oneshot::channel();
     terminals.on_exit(id, move |status| {
         let _ = tx.send(status.clone());
     })?;
-    rx.await.map_err(|_| pty::PtyError::Io(format!("{id}: terminal dropped before it exited")))
+    rx.await
+        .map_err(|_| pty::PtyError::Io(format!("{id}: terminal dropped before it exited")))
 }
 
 /// `pty::ExitStatus` → 协议的 `TerminalExitStatus`。
 fn exit_status(status: &pty::ExitStatus) -> acp::TerminalExitStatus {
-    acp::TerminalExitStatus::new().exit_code(status.exit_code).signal(status.signal.clone())
+    acp::TerminalExitStatus::new()
+        .exit_code(status.exit_code)
+        .signal(status.signal.clone())
 }
 
 /// fs 的错误 → JSON-RPC 错误：不存在 `-32002`、越界 / 行号不合法 `-32602`、其余 `-32603`。
 fn fs_error(e: fs::FsError, path: &std::path::Path) -> acp::Error {
     match e {
-        fs::FsError::NotFound(_) => acp::Error::resource_not_found(Some(path.display().to_string())),
-        fs::FsError::OutsideWorkspace(_) | fs::FsError::InvalidParams(_) => acp::Error::invalid_params().data(e.to_string()),
+        fs::FsError::NotFound(_) => {
+            acp::Error::resource_not_found(Some(path.display().to_string()))
+        }
+        fs::FsError::OutsideWorkspace(_) | fs::FsError::InvalidParams(_) => {
+            acp::Error::invalid_params().data(e.to_string())
+        }
         other => acp::Error::internal_error().data(other.to_string()),
     }
 }
@@ -759,7 +901,9 @@ pub struct AgentConnection {
 
 impl std::fmt::Debug for AgentConnection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AgentConnection").field("agent_id", &self.shared.agent_id).finish_non_exhaustive()
+        f.debug_struct("AgentConnection")
+            .field("agent_id", &self.shared.agent_id)
+            .finish_non_exhaustive()
     }
 }
 
@@ -776,10 +920,22 @@ impl AgentConnection {
     ) -> Result<Arc<Self>> {
         let shared = Arc::new(Shared::new(agent_id, sink, true, terminals));
         let mut cmd = command::build_command(&launch, cwd.as_deref());
-        let mut child = cmd.spawn().map_err(|e| CoreError::Spawn(format!("{}: {e}", launch.program)))?;
-        let stdin = child.stdin.take().ok_or_else(|| CoreError::Spawn("stdin not piped".into()))?;
-        let stdout = child.stdout.take().ok_or_else(|| CoreError::Spawn("stdout not piped".into()))?;
-        let stderr = child.stderr.take().ok_or_else(|| CoreError::Spawn("stderr not piped".into()))?;
+        let mut child = cmd
+            .spawn()
+            .map_err(|e| CoreError::Spawn(format!("{}: {e}", launch.program)))?;
+        let stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| CoreError::Spawn("stdin not piped".into()))?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| CoreError::Spawn("stdout not piped".into()))?;
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| CoreError::Spawn("stderr not piped".into()))?;
+        shared.record_process(child.id(), crate::core::now_ms());
         shared.emit_state(
             "spawned",
             json!({
@@ -836,39 +992,51 @@ impl AgentConnection {
             .on_receive_request(
                 async move |request: acp::RequestPermissionRequest,
                             responder: Responder<acp::RequestPermissionResponse>,
-                            _cx: ConnectionTo<Agent>| { permission_shared.on_permission(request, responder) },
+                            _cx: ConnectionTo<Agent>| {
+                    permission_shared.on_permission(request, responder)
+                },
                 agent_client_protocol::on_receive_request!(),
             )
             .on_receive_request(
                 async move |request: acp::CreateElicitationRequest,
                             responder: Responder<acp::CreateElicitationResponse>,
-                            _cx: ConnectionTo<Agent>| { elicitation_shared.on_elicitation(request, responder) },
+                            _cx: ConnectionTo<Agent>| {
+                    elicitation_shared.on_elicitation(request, responder)
+                },
                 agent_client_protocol::on_receive_request!(),
             )
             // fs/* 与 terminal/*（R4）：handler 只起任务，立刻返回。
             .on_receive_request(
-                async move |request: acp::ReadTextFileRequest, responder: Responder<acp::ReadTextFileResponse>, _cx: ConnectionTo<Agent>| {
+                async move |request: acp::ReadTextFileRequest,
+                            responder: Responder<acp::ReadTextFileResponse>,
+                            _cx: ConnectionTo<Agent>| {
                     read_shared.on_read_text_file(request, responder);
                     Ok(())
                 },
                 agent_client_protocol::on_receive_request!(),
             )
             .on_receive_request(
-                async move |request: acp::WriteTextFileRequest, responder: Responder<acp::WriteTextFileResponse>, _cx: ConnectionTo<Agent>| {
+                async move |request: acp::WriteTextFileRequest,
+                            responder: Responder<acp::WriteTextFileResponse>,
+                            _cx: ConnectionTo<Agent>| {
                     write_shared.on_write_text_file(request, responder);
                     Ok(())
                 },
                 agent_client_protocol::on_receive_request!(),
             )
             .on_receive_request(
-                async move |request: acp::CreateTerminalRequest, responder: Responder<acp::CreateTerminalResponse>, _cx: ConnectionTo<Agent>| {
+                async move |request: acp::CreateTerminalRequest,
+                            responder: Responder<acp::CreateTerminalResponse>,
+                            _cx: ConnectionTo<Agent>| {
                     create_shared.on_create_terminal(request, responder);
                     Ok(())
                 },
                 agent_client_protocol::on_receive_request!(),
             )
             .on_receive_request(
-                async move |request: acp::TerminalOutputRequest, responder: Responder<acp::TerminalOutputResponse>, _cx: ConnectionTo<Agent>| {
+                async move |request: acp::TerminalOutputRequest,
+                            responder: Responder<acp::TerminalOutputResponse>,
+                            _cx: ConnectionTo<Agent>| {
                     output_shared.on_terminal_output(request, responder);
                     Ok(())
                 },
@@ -884,14 +1052,18 @@ impl AgentConnection {
                 agent_client_protocol::on_receive_request!(),
             )
             .on_receive_request(
-                async move |request: acp::KillTerminalRequest, responder: Responder<acp::KillTerminalResponse>, _cx: ConnectionTo<Agent>| {
+                async move |request: acp::KillTerminalRequest,
+                            responder: Responder<acp::KillTerminalResponse>,
+                            _cx: ConnectionTo<Agent>| {
                     kill_shared.on_kill_terminal(request, responder);
                     Ok(())
                 },
                 agent_client_protocol::on_receive_request!(),
             )
             .on_receive_request(
-                async move |request: acp::ReleaseTerminalRequest, responder: Responder<acp::ReleaseTerminalResponse>, _cx: ConnectionTo<Agent>| {
+                async move |request: acp::ReleaseTerminalRequest,
+                            responder: Responder<acp::ReleaseTerminalResponse>,
+                            _cx: ConnectionTo<Agent>| {
                     release_shared.on_release_terminal(request, responder);
                     Ok(())
                 },
@@ -954,7 +1126,10 @@ impl AgentConnection {
         };
         if response.protocol_version < ProtocolVersion::V1 {
             disconnect(&shared, &shutdown, &kill).await;
-            return Err(CoreError::Transport(format!("unsupported protocol version {:?}", response.protocol_version)));
+            return Err(CoreError::Transport(format!(
+                "unsupported protocol version {:?}",
+                response.protocol_version
+            )));
         }
         *lock(&shared.auth_methods) = response.auth_methods.clone();
         let initialize = serde_json::to_value(&response)?;
@@ -978,23 +1153,39 @@ impl AgentConnection {
     }
 
     pub fn auth_method(&self, method_id: &str) -> Option<acp::AuthMethod> {
-        self.shared.auth_methods().into_iter().find(|m| m.id().0.as_ref() == method_id)
+        self.shared
+            .auth_methods()
+            .into_iter()
+            .find(|m| m.id().0.as_ref() == method_id)
     }
 
     pub async fn session_new(&self, cwd: PathBuf) -> Result<Value> {
         let request = acp::NewSessionRequest::new(cwd.clone());
-        let response = race_exit(&self.shared, self.connection.send_request(request).block_task()).await?;
-        self.shared.record_session(response.session_id.0.as_ref(), cwd);
+        let response = race_exit(
+            &self.shared,
+            self.connection.send_request(request).block_task(),
+        )
+        .await?;
+        self.shared
+            .record_session(response.session_id.0.as_ref(), cwd);
         Ok(serde_json::to_value(&response)?)
     }
 
     /// `session/list`（`cwd` 过滤 + cursor 分页）。返回 `ListSessionsResponse` 原样 JSON
     /// （`{sessions: [{sessionId, cwd, title?, updatedAt?, …}], nextCursor?}`）。能力门在前端（规则 2 不特判）。
-    pub async fn session_list(&self, cwd: Option<PathBuf>, cursor: Option<String>) -> Result<Value> {
+    pub async fn session_list(
+        &self,
+        cwd: Option<PathBuf>,
+        cursor: Option<String>,
+    ) -> Result<Value> {
         let mut request = acp::ListSessionsRequest::new();
         request.cwd = cwd;
         request.cursor = cursor;
-        let response = race_exit(&self.shared, self.connection.send_request(request).block_task()).await?;
+        let response = race_exit(
+            &self.shared,
+            self.connection.send_request(request).block_task(),
+        )
+        .await?;
         Ok(serde_json::to_value(&response)?)
     }
 
@@ -1004,19 +1195,32 @@ impl AgentConnection {
         let request = acp::LoadSessionRequest::new(acp::SessionId::new(session_id), cwd.clone());
         // 重放期间到达的 `fs/*` / `terminal/*` 回调也要能过越界判定，所以 cwd 在**请求之前**就得记上；
         // 请求失败且这个会话本来不在账上时撤回，免得留一个能放行 fs 越界判定的陈旧条目。
-        self.attach_session(session_id, cwd, self.connection.send_request(request).block_task())
-            .await
+        self.attach_session(
+            session_id,
+            cwd,
+            self.connection.send_request(request).block_task(),
+        )
+        .await
     }
 
     /// `session/resume`：只恢复上下文，**MUST NOT** 重放（acp-projection.md § 5）。返回 `ResumeSessionResponse`。
     pub async fn session_resume(&self, session_id: &str, cwd: PathBuf) -> Result<Value> {
         let request = acp::ResumeSessionRequest::new(acp::SessionId::new(session_id), cwd.clone());
-        self.attach_session(session_id, cwd, self.connection.send_request(request).block_task())
-            .await
+        self.attach_session(
+            session_id,
+            cwd,
+            self.connection.send_request(request).block_task(),
+        )
+        .await
     }
 
     /// load / resume 共用：先记 cwd 再发请求，失败且原先不在账上就撤回。
-    async fn attach_session<T, F>(&self, session_id: &str, cwd: PathBuf, request: F) -> Result<Value>
+    async fn attach_session<T, F>(
+        &self,
+        session_id: &str,
+        cwd: PathBuf,
+        request: F,
+    ) -> Result<Value>
     where
         T: serde::Serialize,
         F: Future<Output = std::result::Result<T, acp::Error>>,
@@ -1047,7 +1251,11 @@ impl AgentConnection {
         self.shared.set_cancel_pending(session_id, true);
         let cancelled = self.cancel_pending_permissions(session_id)?;
         let request = acp::CloseSessionRequest::new(acp::SessionId::new(session_id));
-        let response = race_exit(&self.shared, self.connection.send_request(request).block_task()).await?;
+        let response = race_exit(
+            &self.shared,
+            self.connection.send_request(request).block_task(),
+        )
+        .await?;
         self.shared.forget_session(session_id);
         Ok(with_cancelled(serde_json::to_value(&response)?, cancelled))
     }
@@ -1058,19 +1266,28 @@ impl AgentConnection {
         self.shared.set_cancel_pending(session_id, true);
         let cancelled = self.cancel_pending_permissions(session_id)?;
         let request = acp::DeleteSessionRequest::new(acp::SessionId::new(session_id));
-        let response = race_exit(&self.shared, self.connection.send_request(request).block_task()).await?;
+        let response = race_exit(
+            &self.shared,
+            self.connection.send_request(request).block_task(),
+        )
+        .await?;
         self.shared.forget_session(session_id);
         Ok(with_cancelled(serde_json::to_value(&response)?, cancelled))
     }
 
     /// `prompt` 是 `ContentBlock[]` 的 JSON。返回 `PromptResponse`（stopReason + usage）。
     pub async fn session_prompt(&self, session_id: &str, prompt: Value) -> Result<Value> {
-        let blocks: Vec<acp::ContentBlock> = serde_json::from_value(prompt)
-            .map_err(|e| CoreError::InvalidArgument(format!("prompt must be a ContentBlock array: {e}")))?;
+        let blocks: Vec<acp::ContentBlock> = serde_json::from_value(prompt).map_err(|e| {
+            CoreError::InvalidArgument(format!("prompt must be a ContentBlock array: {e}"))
+        })?;
         // 回合开始先清 cancel 期：落在回合之外的 cancel（连点停止、收尾补发）不能把下一回合的权限请求静默回 cancelled（审查 finding）。
         self.shared.set_cancel_pending(session_id, false);
         let request = acp::PromptRequest::new(acp::SessionId::new(session_id), blocks);
-        let result = race_exit(&self.shared, self.connection.send_request(request).block_task()).await;
+        let result = race_exit(
+            &self.shared,
+            self.connection.send_request(request).block_task(),
+        )
+        .await;
         // 本轮结束（不论怎么结束），cancel 期结束。
         self.shared.set_cancel_pending(session_id, false);
         let response = result?;
@@ -1085,12 +1302,19 @@ impl AgentConnection {
             let mut pending = lock(&self.shared.pending);
             let ids: Vec<String> = pending
                 .iter()
-                .filter(|(_, p)| p.method == METHOD_REQUEST_PERMISSION && p.session_id.as_deref() == Some(session_id))
+                .filter(|(_, p)| {
+                    p.method == METHOD_REQUEST_PERMISSION
+                        && p.session_id.as_deref() == Some(session_id)
+                })
                 .map(|(id, _)| id.clone())
                 .collect();
-            ids.into_iter().filter_map(|id| pending.remove(&id)).collect()
+            ids.into_iter()
+                .filter_map(|id| pending.remove(&id))
+                .collect()
         };
-        let cancelled = serde_json::to_value(acp::RequestPermissionResponse::new(acp::RequestPermissionOutcome::Cancelled))?;
+        let cancelled = serde_json::to_value(acp::RequestPermissionResponse::new(
+            acp::RequestPermissionOutcome::Cancelled,
+        ))?;
         let mut auto_cancelled = Vec::new();
         for p in to_cancel {
             let id = p.responder.id().to_string();
@@ -1105,19 +1329,33 @@ impl AgentConnection {
         self.shared.set_cancel_pending(session_id, true);
         let auto_cancelled = self.cancel_pending_permissions(session_id)?;
         self.connection
-            .send_notification(acp::CancelNotification::new(acp::SessionId::new(session_id)))
+            .send_notification(acp::CancelNotification::new(acp::SessionId::new(
+                session_id,
+            )))
             .map_err(|e| CoreError::Transport(e.to_string()))?;
         Ok(json!({ "cancelledRequestIds": auto_cancelled }))
     }
 
     pub async fn session_set_mode(&self, session_id: &str, mode_id: &str) -> Result<Value> {
-        let request = acp::SetSessionModeRequest::new(acp::SessionId::new(session_id), acp::SessionModeId::new(mode_id));
-        let response = race_exit(&self.shared, self.connection.send_request(request).block_task()).await?;
+        let request = acp::SetSessionModeRequest::new(
+            acp::SessionId::new(session_id),
+            acp::SessionModeId::new(mode_id),
+        );
+        let response = race_exit(
+            &self.shared,
+            self.connection.send_request(request).block_task(),
+        )
+        .await?;
         Ok(serde_json::to_value(&response)?)
     }
 
     /// `value` 是 `SessionConfigOptionValue` 的 JSON（`{type, value}`；无 `type` 视为 select 的 value id）。
-    pub async fn session_set_config_option(&self, session_id: &str, config_id: &str, value: Value) -> Result<Value> {
+    pub async fn session_set_config_option(
+        &self,
+        session_id: &str,
+        config_id: &str,
+        value: Value,
+    ) -> Result<Value> {
         let mut params = json!({ "sessionId": session_id, "configId": config_id });
         if let Value::Object(target) = &mut params {
             match value {
@@ -1129,13 +1367,21 @@ impl AgentConnection {
         }
         let request: acp::SetSessionConfigOptionRequest = serde_json::from_value(params)
             .map_err(|e| CoreError::InvalidArgument(format!("config option value: {e}")))?;
-        let response = race_exit(&self.shared, self.connection.send_request(request).block_task()).await?;
+        let response = race_exit(
+            &self.shared,
+            self.connection.send_request(request).block_task(),
+        )
+        .await?;
         Ok(serde_json::to_value(&response)?)
     }
 
     pub async fn authenticate(&self, method_id: &str) -> Result<Value> {
         let request = acp::AuthenticateRequest::new(acp::AuthMethodId::new(method_id));
-        let response = race_exit(&self.shared, self.connection.send_request(request).block_task()).await?;
+        let response = race_exit(
+            &self.shared,
+            self.connection.send_request(request).block_task(),
+        )
+        .await?;
         Ok(serde_json::to_value(&response)?)
     }
 
@@ -1147,14 +1393,22 @@ impl AgentConnection {
             .ok_or_else(|| CoreError::UnknownRequest(request_id.to_string()))?;
         let method = pending.method.clone();
         let validation = match method.as_str() {
-            METHOD_REQUEST_PERMISSION => serde_json::from_value::<acp::RequestPermissionResponse>(response.clone()).map(|_| ()),
-            METHOD_ELICITATION_CREATE => serde_json::from_value::<acp::CreateElicitationResponse>(response.clone()).map(|_| ()),
+            METHOD_REQUEST_PERMISSION => {
+                serde_json::from_value::<acp::RequestPermissionResponse>(response.clone())
+                    .map(|_| ())
+            }
+            METHOD_ELICITATION_CREATE => {
+                serde_json::from_value::<acp::CreateElicitationResponse>(response.clone())
+                    .map(|_| ())
+            }
             _ => Ok(()),
         };
         if let Err(e) = validation {
             // 校验失败把请求放回队列，让前端改正后再回。
             lock(&self.shared.pending).insert(request_id.to_string(), pending);
-            return Err(CoreError::InvalidArgument(format!("{request_id}: response does not match {method}: {e}")));
+            return Err(CoreError::InvalidArgument(format!(
+                "{request_id}: response does not match {method}: {e}"
+            )));
         }
         pending
             .responder
@@ -1229,18 +1483,28 @@ fn map_acp_error(shared: &Shared, error: acp::Error) -> CoreError {
     }
 }
 
-async fn disconnect(shared: &Shared, shutdown: &Mutex<Option<oneshot::Sender<()>>>, kill: &Mutex<Option<oneshot::Sender<()>>>) {
+async fn disconnect(
+    shared: &Shared,
+    shutdown: &Mutex<Option<oneshot::Sender<()>>>,
+    kill: &Mutex<Option<oneshot::Sender<()>>>,
+) {
     if let Some(tx) = lock(shutdown).take() {
         let _ = tx.send(());
     }
     if shared.exit_info().is_some() {
         return;
     }
-    if tokio::time::timeout(DISCONNECT_GRACE, shared.wait_exit()).await.is_err() {
+    if tokio::time::timeout(DISCONNECT_GRACE, shared.wait_exit())
+        .await
+        .is_err()
+    {
         if let Some(kill) = lock(kill).take() {
             let _ = kill.send(());
         }
-        if tokio::time::timeout(DISCONNECT_GRACE, shared.wait_exit()).await.is_err() {
+        if tokio::time::timeout(DISCONNECT_GRACE, shared.wait_exit())
+            .await
+            .is_err()
+        {
             // kill 之后仍等不到退出（典型是 `.cmd` 包装的孙进程还攥着 stdout）：这条连接对核心已经结束，
             // 就地收尾 —— 清挂起表、放终端、发 `exited`。不收的话它会在**新连接**跑起来之后才迟到，前端按
             // agentId 认领，把新连接刚挂起的权限 / elicitation 请求全标成 withdrawn、agent 从此干等
@@ -1252,31 +1516,43 @@ async fn disconnect(shared: &Shared, shutdown: &Mutex<Option<oneshot::Sender<()>
 
 // ---- 传输：stdin / stdout 行 tap（转写 Zed acp.rs 的 tapped_incoming / tapped_outgoing）
 
-fn outgoing_sink(shared: Arc<Shared>, stdin: tokio::process::ChildStdin) -> impl futures::Sink<String, Error = std::io::Error> + Send + 'static {
-    futures::sink::unfold((stdin, shared), |(mut stdin, shared), line: String| async move {
-        shared.emit_traffic(Direction::Out, &line);
-        stdin.write_all(line.as_bytes()).await?;
-        stdin.write_all(b"\n").await?;
-        stdin.flush().await?;
-        Ok::<_, std::io::Error>((stdin, shared))
-    })
+fn outgoing_sink(
+    shared: Arc<Shared>,
+    stdin: tokio::process::ChildStdin,
+) -> impl futures::Sink<String, Error = std::io::Error> + Send + 'static {
+    futures::sink::unfold(
+        (stdin, shared),
+        |(mut stdin, shared), line: String| async move {
+            shared.emit_traffic(Direction::Out, &line);
+            stdin.write_all(line.as_bytes()).await?;
+            stdin.write_all(b"\n").await?;
+            stdin.flush().await?;
+            Ok::<_, std::io::Error>((stdin, shared))
+        },
+    )
 }
 
-fn incoming_stream(shared: Arc<Shared>, stdout: tokio::process::ChildStdout) -> impl futures::Stream<Item = std::io::Result<String>> + Send + 'static {
+fn incoming_stream(
+    shared: Arc<Shared>,
+    stdout: tokio::process::ChildStdout,
+) -> impl futures::Stream<Item = std::io::Result<String>> + Send + 'static {
     let lines = BufReader::new(stdout).lines();
-    futures::stream::unfold((lines, shared, false), |(mut lines, shared, failed)| async move {
-        if failed {
-            return None;
-        }
-        match lines.next_line().await {
-            Ok(Some(line)) => {
-                shared.emit_traffic(Direction::In, &line);
-                Some((Ok(line), (lines, shared, false)))
+    futures::stream::unfold(
+        (lines, shared, false),
+        |(mut lines, shared, failed)| async move {
+            if failed {
+                return None;
             }
-            Ok(None) => None,
-            Err(e) => Some((Err(e), (lines, shared, true))),
-        }
-    })
+            match lines.next_line().await {
+                Ok(Some(line)) => {
+                    shared.emit_traffic(Direction::In, &line);
+                    Some((Ok(line), (lines, shared, false)))
+                }
+                Ok(None) => None,
+                Err(e) => Some((Err(e), (lines, shared, true))),
+            }
+        },
+    )
 }
 
 /// stderr 单独一路：逐行进 traffic，并保留尾巴。
@@ -1301,7 +1577,11 @@ async fn stderr_task(shared: Arc<Shared>, stderr: tokio::process::ChildStderr) {
 }
 
 /// 等子进程退出（或收到 kill 信号后结束进程树），然后 `finish`。
-async fn exit_watcher(shared: Arc<Shared>, mut child: tokio::process::Child, kill_rx: oneshot::Receiver<()>) {
+async fn exit_watcher(
+    shared: Arc<Shared>,
+    mut child: tokio::process::Child,
+    kill_rx: oneshot::Receiver<()>,
+) {
     let waited = tokio::select! {
         status = child.wait() => Some(status),
         _ = kill_rx => None,

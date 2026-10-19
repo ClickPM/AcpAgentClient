@@ -22,7 +22,8 @@ enum ThemeChoice {
   AppTheme resolve(Brightness platform) => switch (this) {
     ThemeChoice.light => AppTheme.light,
     ThemeChoice.dark => AppTheme.dark,
-    ThemeChoice.system => platform == Brightness.dark ? AppTheme.dark : AppTheme.light,
+    ThemeChoice.system =>
+      platform == Brightness.dark ? AppTheme.dark : AppTheme.light,
   };
 
   /// 按钮点一下切到的下一档。
@@ -148,7 +149,11 @@ abstract final class Theming {
     info: Color(0xFF5566D8),
     infoSoft: Color(0xFFECEDFA),
     surfacePopover: Color(0xFFFFFFFF),
-    shadowPopover: BoxShadow(offset: Offset(0, 4), blurRadius: 12, color: Color.fromRGBO(28, 28, 35, 0.10)),
+    shadowPopover: BoxShadow(
+      offset: Offset(0, 4),
+      blurRadius: 12,
+      color: Color.fromRGBO(28, 28, 35, 0.10),
+    ),
     popoverTopHighlight: Color(0x00FFFFFF),
     overlayHover: Color.fromRGBO(30, 30, 38, 0.06),
     overlayActive: Color.fromRGBO(30, 30, 38, 0.10),
@@ -183,7 +188,11 @@ abstract final class Theming {
     infoSoft: Color(0xFF2A2F4D),
     // 比 panel 亮两档才浮得起来。
     surfacePopover: Color(0xFF2E2E37),
-    shadowPopover: BoxShadow(offset: Offset(0, 4), blurRadius: 12, color: Color.fromRGBO(0, 0, 0, 0.28)),
+    shadowPopover: BoxShadow(
+      offset: Offset(0, 4),
+      blurRadius: 12,
+      color: Color.fromRGBO(0, 0, 0, 0.28),
+    ),
     popoverTopHighlight: Color.fromRGBO(255, 255, 255, 0.08),
     overlayHover: Color.fromRGBO(255, 255, 255, 0.05),
     overlayActive: Color.fromRGBO(255, 255, 255, 0.09),
@@ -309,7 +318,10 @@ abstract final class Fonts {
   static const String defaultCjk = 'Noto Sans SC';
 
   /// 回退链尾的系统兜底，不随轴变。
-  static const List<String> systemCjkFallback = <String>['Microsoft YaHei UI', 'PingFang SC'];
+  static const List<String> systemCjkFallback = <String>[
+    'Microsoft YaHei UI',
+    'PingFang SC',
+  ];
 
   static String _sans = defaultSans;
   static String _mono = defaultMono;
@@ -335,7 +347,10 @@ abstract final class Fonts {
   ///
   /// 独立于 [cjkFallback]：等宽场景下中文宽度应当正好是拉丁的两倍，否则终端的字符网格会错位，
   /// 而界面场景不在乎这个。两条链因此分开，默认值相同但可以各自换。
-  static List<String> get codeCjkFallback => <String>[_codeCjk, ...systemCjkFallback];
+  static List<String> get codeCjkFallback => <String>[
+    _codeCjk,
+    ...systemCjkFallback,
+  ];
 
   static FontStyles _styles = FontStyles.build();
   static int _generation = 0;
@@ -362,12 +377,21 @@ abstract final class Fonts {
   ///
   /// 调用方负责触发重建（`lib/app/appearance_prefs.dart` 用 [ChangeNotifier]）——tokens 不持有 widget 树。
   /// 返回是否真的变了，没变就不必重建。
-  static bool apply({String? sans, String? mono, String? cjk, String? codeCjk}) {
+  static bool apply({
+    String? sans,
+    String? mono,
+    String? cjk,
+    String? codeCjk,
+  }) {
     final String nextSans = sans ?? _sans;
     final String nextMono = mono ?? _mono;
     final String nextCjk = cjk ?? _cjk;
     final String nextCodeCjk = codeCjk ?? _codeCjk;
-    if (nextSans == _sans && nextMono == _mono && nextCjk == _cjk && nextCodeCjk == _codeCjk) return false;
+    if (nextSans == _sans &&
+        nextMono == _mono &&
+        nextCjk == _cjk &&
+        nextCodeCjk == _codeCjk)
+      return false;
     _sans = nextSans;
     _mono = nextMono;
     _cjk = nextCjk;
@@ -377,7 +401,12 @@ abstract final class Fonts {
   }
 
   /// 四个轴回到随包默认（测试与「恢复默认」按钮用）。
-  static bool reset() => apply(sans: defaultSans, mono: defaultMono, cjk: defaultCjk, codeCjk: defaultCjk);
+  static bool reset() => apply(
+    sans: defaultSans,
+    mono: defaultMono,
+    cjk: defaultCjk,
+    codeCjk: defaultCjk,
+  );
 }
 
 /// 一套字体下的全部字阶实例，由 [Fonts.apply] 一次性重算并缓存。
@@ -509,8 +538,12 @@ class FontStyles {
 abstract final class Weights {
   static const FontWeight regular = FontWeight.w400;
   static const FontWeight medium = FontWeight.w500;
-  static const List<FontVariation> regularVariation = <FontVariation>[FontVariation('wght', 400)];
-  static const List<FontVariation> mediumVariation = <FontVariation>[FontVariation('wght', 500)];
+  static const List<FontVariation> regularVariation = <FontVariation>[
+    FontVariation('wght', 400),
+  ];
+  static const List<FontVariation> mediumVariation = <FontVariation>[
+    FontVariation('wght', 500),
+  ];
 }
 
 /// 行高：正文 1.5，控件 1.35 是 `TextStyle.height` 倍率；kbd 是 16px 的绝对行框高（带 Px 后缀，不能当 `height` 倍率用）。
@@ -567,7 +600,10 @@ abstract final class Spacing {
   static const double s24 = 24;
 
   /// space.chip 1px 5px：徽章内边距，唯一非 4px 网格例外。
-  static const EdgeInsets chip = EdgeInsets.symmetric(vertical: 1, horizontal: 5);
+  static const EdgeInsets chip = EdgeInsets.symmetric(
+    vertical: 1,
+    horizontal: 5,
+  );
 
   /// kbd 0 4px（配 [LineHeights.kbdPx] 的 16px 行框，不是 `height` 倍率）。
   static const EdgeInsets kbd = EdgeInsets.symmetric(horizontal: 4);
@@ -589,7 +625,8 @@ abstract final class Radii {
   static const BorderRadius card = BorderRadius.all(r6);
 
   /// radius.pill：轨道高度的一半。
-  static BorderRadius pill(double trackHeight) => BorderRadius.all(Radius.circular(trackHeight / 2));
+  static BorderRadius pill(double trackHeight) =>
+      BorderRadius.all(Radius.circular(trackHeight / 2));
 }
 
 /// 控件高度 24 / 28 / 32 与各自的水平内边距（画板 00「控件高度 · 按钮四态」）。
@@ -598,8 +635,12 @@ abstract final class Controls {
   static const double standard = 28;
   static const double input = 32;
 
-  static const EdgeInsets padCompact = EdgeInsets.symmetric(horizontal: Spacing.s8);
-  static const EdgeInsets padStandard = EdgeInsets.symmetric(horizontal: Spacing.s8);
+  static const EdgeInsets padCompact = EdgeInsets.symmetric(
+    horizontal: Spacing.s8,
+  );
+  static const EdgeInsets padStandard = EdgeInsets.symmetric(
+    horizontal: Spacing.s8,
+  );
   static const EdgeInsets padInput = EdgeInsets.symmetric(horizontal: 10);
 }
 
@@ -646,6 +687,7 @@ abstract final class Kbd {
   static const EdgeInsets padding = Spacing.kbd;
   static const BorderRadius radius = Radii.chip;
   static Color get border => Borders.base;
+
   /// 行框高 16px（绝对值）。
   static const double lineHeightPx = LineHeights.kbdPx;
 }
@@ -952,7 +994,10 @@ abstract final class Geometry {
   static const double tooltipMaxWidth = 240;
 
   /// 提示条的内边距。
-  static const EdgeInsets tooltipPadding = EdgeInsets.symmetric(horizontal: Spacing.s8, vertical: Spacing.s4);
+  static const EdgeInsets tooltipPadding = EdgeInsets.symmetric(
+    horizontal: Spacing.s8,
+    vertical: Spacing.s4,
+  );
 
   /// 提示条在 Overlay 里的落点。位置由布局代理现算（见 lib/ui/shell/tooltip.dart），但 `Offset(…)` 本身
   /// 是几何字面量、按规则 3 归 tokens.dart，widget 文件里不写——与 [Motion.offsetY] 同一个道理。
@@ -990,7 +1035,10 @@ abstract final class Timeline {
 /// 画板 08 B「回合折叠」的 token（画板自己列的「本画板新增 token」表；画板 00 未改，这组值只服务画板 08）。
 abstract final class Fold {
   /// `fold.row` padding 7/10：摘要行容器的内边距。7 不在 4px 网格上，与画板 11 用户气泡同一档。
-  static const EdgeInsets rowPadding = EdgeInsets.symmetric(vertical: 7, horizontal: 10);
+  static const EdgeInsets rowPadding = EdgeInsets.symmetric(
+    vertical: 7,
+    horizontal: 10,
+  );
 
   /// `fold.row` radius 6。
   static const BorderRadius radius = Radii.card;
@@ -1009,7 +1057,9 @@ abstract final class Fold {
   static const double lineGap = 2;
 
   /// 展开态标题行（chevron + 处理详情 + 灰色一行摘要）的上下内边距。
-  static const EdgeInsets headerPadding = EdgeInsets.symmetric(vertical: lineGap);
+  static const EdgeInsets headerPadding = EdgeInsets.symmetric(
+    vertical: lineGap,
+  );
 }
 
 /// 画板 08 C「在跑会话数徽标」的 token（同上：画板 00 未改，这组值只服务画板 08）。
@@ -1069,7 +1119,10 @@ abstract final class Toast {
   /// 单行时的高度（含上下内边距）：与画板 34 状态条的单行同高。
   static const double minHeight = Controls.input + Spacing.s8;
 
-  static const EdgeInsets padding = EdgeInsets.symmetric(horizontal: Spacing.s12, vertical: Spacing.s4);
+  static const EdgeInsets padding = EdgeInsets.symmetric(
+    horizontal: Spacing.s12,
+    vertical: Spacing.s4,
+  );
 
   /// 图标与文字、文字与关闭键、上下两条提示之间的间隙。
   static const double gap = Spacing.s8;
@@ -1084,7 +1137,9 @@ abstract final class SidebarSection {
   static const double headerHeight = Controls.standard;
 
   /// 分区内边距。
-  static const EdgeInsets headerPadding = EdgeInsets.symmetric(horizontal: Spacing.s12);
+  static const EdgeInsets headerPadding = EdgeInsets.symmetric(
+    horizontal: Spacing.s12,
+  );
 
   /// 分区头内元素间距（6px）。
   static const double labelGap = 6;
@@ -1094,7 +1149,12 @@ abstract final class SidebarSection {
 
   /// 在线绿点的辉光阴影（画板 45：深色下带 0 0 6px 辉光，浅色下无光晕；动态随当前主题走）。
   static List<BoxShadow>? get onlineGlow => Theming.isDark
-      ? <BoxShadow>[BoxShadow(color: Semantic.success.withValues(alpha: 0.45), blurRadius: 6)]
+      ? <BoxShadow>[
+          BoxShadow(
+            color: Semantic.success.withValues(alpha: 0.45),
+            blurRadius: 6,
+          ),
+        ]
       : null;
 
   /// 数量胶囊内边距（Spacing.chip 1px 5px）。
@@ -1104,10 +1164,18 @@ abstract final class SidebarSection {
   static const BorderRadius chipRadius = Radii.chip;
 
   /// 分割线外边距。
-  static const EdgeInsets dividerMargin = EdgeInsets.symmetric(horizontal: Spacing.s12, vertical: Spacing.s4);
+  static const EdgeInsets dividerMargin = EdgeInsets.symmetric(
+    horizontal: Spacing.s12,
+    vertical: Spacing.s4,
+  );
 
   /// Active 空态提示文字外边距。
-  static const EdgeInsets emptyHintPadding = EdgeInsets.only(left: Spacing.s12, right: Spacing.s12, top: Spacing.s4, bottom: Spacing.s8);
+  static const EdgeInsets emptyHintPadding = EdgeInsets.only(
+    left: Spacing.s12,
+    right: Spacing.s12,
+    top: Spacing.s4,
+    bottom: Spacing.s8,
+  );
 
   /// Chevron 图标尺寸（12px）。
   static const double chevronSize = 12;
@@ -1136,7 +1204,10 @@ abstract final class QueryPreview {
   static const int maxLines = 4;
 
   /// 卡片内边距：左右 12、上下 10。
-  static const EdgeInsets padding = EdgeInsets.symmetric(horizontal: Spacing.s12, vertical: 10);
+  static const EdgeInsets padding = EdgeInsets.symmetric(
+    horizontal: Spacing.s12,
+    vertical: 10,
+  );
 
   /// 标题图标与 `INITIAL QUERY` 的间距（源稿 `gap: 4px`）。
   static const double titleGap = Spacing.s4;
@@ -1160,3 +1231,70 @@ abstract final class QueryPreview {
   static Offset offset(double dx, double dy) => Offset(dx, dy);
 }
 
+/// 画板 54「Agents 面板 · 进程与内存」的资源概览条与停止流程几何 token（颜色全部复用画板 00 / 07）。
+abstract final class Resource {
+  /// `resource.barHeight` 4px：分段条高度（圆角取一半）。
+  static const double barHeight = 4;
+  static const BorderRadius barRadius = BorderRadius.all(Radius.circular(2));
+
+  /// `resource.legendSwatch` 8px：图例色块边长。
+  static const double legendSwatch = 8;
+
+  /// `resource.sampleInterval` 2s：采样周期。
+  static const Duration sampleInterval = Duration(seconds: 2);
+
+  /// 概览条容器内边距 `10px 12px`。
+  static const EdgeInsets padding = EdgeInsets.symmetric(
+    horizontal: Spacing.s12,
+    vertical: 10,
+  );
+
+  /// 图例色块与文字、运行行各项、Stop 按钮内图标与文字的间距 `6px`。
+  static const double gap = 6;
+
+  /// Stop 按钮内的红色停止方块边长 `10px`。
+  static const double stopSquare = 10;
+
+  /// 概览条与运行行里的小图标尺寸 `12px`（info / 刷新 / chevron / spinner）。
+  static const double iconSize = 12;
+
+  /// 运行行距离上方元信息行的顶边距 `2px`。
+  static const EdgeInsets runRowMargin = EdgeInsets.only(top: 2);
+
+  /// 停止确认弹层内部块间距 `10px`。
+  static const double confirmGap = 10;
+
+  /// B2 警告块内边距 `6px 8px` 与告警图标顶边对齐微调 `3px`。
+  static const EdgeInsets warningPadding = EdgeInsets.symmetric(
+    horizontal: Spacing.s8,
+    vertical: 6,
+  );
+  static const EdgeInsets warningIconPadding = EdgeInsets.only(top: 3);
+}
+
+/// 画板 54「进程树展开块」的几何 token。
+abstract final class ProcessTree {
+  /// `processTree.rowHeight` 22px：进程树行高。
+  static const double rowHeight = 22;
+
+  /// `processTree.indent` 16px：每级缩进。
+  static const double indent = 16;
+
+  /// `processTree.pidWidth` / `bytesWidth`：右侧两列定宽（等宽数字右对齐）。
+  static const double pidWidth = 64;
+  static const double bytesWidth = 84;
+
+  /// 进程树容器与运行行的顶边距 `4px`、上下内边距 `6px`、行左右内边距 `10px`、表头内边距 `0 10px 4px`。
+  static const EdgeInsets margin = EdgeInsets.only(top: Spacing.s4);
+  static const EdgeInsets padding = EdgeInsets.symmetric(vertical: 6);
+  static const EdgeInsets rowPadding = EdgeInsets.symmetric(horizontal: 10);
+  static const EdgeInsets headerBottom = EdgeInsets.only(
+    left: 10,
+    right: 10,
+    bottom: Spacing.s4,
+  );
+
+  /// 第 [depth] 层的左缩进（`depth * 16`）。
+  static EdgeInsets indentPadding(int depth) =>
+      EdgeInsets.only(left: indent * depth);
+}

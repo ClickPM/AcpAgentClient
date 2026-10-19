@@ -281,8 +281,7 @@ impl ExitCell {
 
 struct Handle {
     source: TerminalSource,
-    /// 子进程的 PID（Unix 下 `portable-pty` 以 `setsid` 拉起，`pid` 即进程组 ID `pgid`）。
-    #[cfg(unix)]
+    /// 子进程的 PID（Unix 下 `portable-pty` 以 `setsid` 拉起，`pid` 即进程组 ID `pgid`）；各平台都留存，进程面板（R10）按它归属。
     pid: Option<u32>,
     /// 子进程退出后由等待线程 take 掉：ConPTY 的读端要等伪终端关闭才会 EOF。
     master: Mutex<Option<Box<dyn MasterPty + Send>>>,
@@ -367,13 +366,11 @@ impl TerminalManager {
             .take_writer()
             .map_err(|e| PtyError::Io(e.to_string()))?;
         let killer = child.clone_killer();
-        #[cfg(unix)]
         let pid = child.process_id();
 
         let id = format!("term_{}", self.seq.fetch_add(1, Ordering::Relaxed) + 1);
         let handle = Arc::new(Handle {
             source,
-            #[cfg(unix)]
             pid,
             master: Mutex::new(Some(pair.master)),
             writer: Mutex::new(Some(writer)),
@@ -598,6 +595,15 @@ impl TerminalManager {
 
     pub fn ids(&self) -> Vec<String> {
         lock_or_recover(&self.terminals).keys().cloned().collect()
+    }
+
+    /// 尚未退出的终端：`(id, source, 根进程 PID)`（进程面板归属用；不改既有方法的行为）。
+    pub fn ids_with_pid(&self) -> Vec<(String, TerminalSource, Option<u32>)> {
+        lock_or_recover(&self.terminals)
+            .iter()
+            .filter(|(_, handle)| handle.exit.get().is_none())
+            .map(|(id, handle)| (id.clone(), handle.source, handle.pid))
+            .collect()
     }
 }
 

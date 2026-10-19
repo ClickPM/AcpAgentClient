@@ -17,6 +17,7 @@ fs.workspace = true
 pty.workspace = true
 settings.workspace = true
 registry.workspace = true
+sysinfo.workspace = true
 
 [lints]
 workspace = true

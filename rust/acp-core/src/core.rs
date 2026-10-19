@@ -48,6 +48,8 @@ pub struct Core {
     installs: Mutex<HashMap<String, Arc<CancelToken>>>,
     node_download: Mutex<Option<Arc<CancelToken>>>,
     log_path: PathBuf,
+    /// 进程面板的采样器（R10）：复用同一个 `sysinfo::System`。
+    process_sampler: Arc<crate::process::ProcessSampler>,
 }
 
 impl std::fmt::Debug for Core {
@@ -82,7 +84,8 @@ impl pty::TerminalSink for TerminalEvents {
             "source": source.as_str(),
             "bytes": BASE64_STANDARD.encode(bytes),
         });
-        self.sink.emit(EventChannel::TerminalOutput, payload.to_string());
+        self.sink
+            .emit(EventChannel::TerminalOutput, payload.to_string());
     }
 
     fn exited(&self, terminal_id: &str, source: pty::TerminalSource, status: &pty::ExitStatus) {
@@ -91,7 +94,8 @@ impl pty::TerminalSink for TerminalEvents {
             "source": source.as_str(),
             "exitStatus": exit_status_json(status),
         });
-        self.sink.emit(EventChannel::TerminalOutput, payload.to_string());
+        self.sink
+            .emit(EventChannel::TerminalOutput, payload.to_string());
     }
 }
 
@@ -118,7 +122,11 @@ impl Core {
             "core   {} {} ({}, {}/{}) data={}",
             crate::capabilities::CLIENT_NAME,
             env!("CARGO_PKG_VERSION"),
-            if cfg!(debug_assertions) { "debug" } else { "release" },
+            if cfg!(debug_assertions) {
+                "debug"
+            } else {
+                "release"
+            },
             std::env::consts::OS,
             std::env::consts::ARCH,
             data_dir.display(),
@@ -130,7 +138,9 @@ impl Core {
             .thread_stack_size(8 * 1024 * 1024)
             .enable_all()
             .build()?;
-        let terminals = Arc::new(pty::TerminalManager::new(Arc::new(TerminalEvents { sink: sink.clone() })));
+        let terminals = Arc::new(pty::TerminalManager::new(Arc::new(TerminalEvents {
+            sink: sink.clone(),
+        })));
         let registry_dirs = RegistryDirs::new(data_dir);
         let http = registry::download::client();
         let registry_index = registry::index::IndexStore::new(registry_dirs.clone(), http.clone());
@@ -153,6 +163,7 @@ impl Core {
             installs: Mutex::new(HashMap::new()),
             node_download: Mutex::new(None),
             log_path,
+            process_sampler: Arc::new(crate::process::ProcessSampler::new()),
         };
         core.announce_ready();
         Ok(core)
@@ -281,8 +292,15 @@ impl Core {
         if let Some(previous) = previous {
             previous.disconnect().await;
         }
-        let connection =
-            AgentConnection::connect(agent_id.to_string(), launch, cwd, self.sink.clone(), self.terminals.clone(), Some(&self.closing)).await?;
+        let connection = AgentConnection::connect(
+            agent_id.to_string(),
+            launch,
+            cwd,
+            self.sink.clone(),
+            self.terminals.clone(),
+            Some(&self.closing),
+        )
+        .await?;
         lock(&self.agents).insert(agent_id.to_string(), connection.clone());
         Ok(json!({ "agentId": agent_id, "initialize": connection.initialize }))
     }
@@ -292,18 +310,25 @@ impl Core {
             .remove(agent_id)
             .ok_or_else(|| CoreError::NotConnected(agent_id.to_string()))?;
         connection.disconnect().await;
-        Ok(json!({ "agentId": agent_id, "exit": connection.shared().exit_info().map(|e| json!({"code": e.code})) }))
+        Ok(
+            json!({ "agentId": agent_id, "exit": connection.shared().exit_info().map(|e| json!({"code": e.code})) }),
+        )
     }
 
     pub async fn session_new(&self, agent_id: &str, cwd: PathBuf) -> Result<Value> {
         if !cwd.is_absolute() {
-            return Err(CoreError::InvalidArgument(format!("cwd must be absolute: {}", cwd.display())));
+            return Err(CoreError::InvalidArgument(format!(
+                "cwd must be absolute: {}",
+                cwd.display()
+            )));
         }
         let result = self.agent(agent_id)?.session_new(cwd).await;
         // 认证状态是本地态（docs/design.md § 5 第 5 条）：成功 = 已登录，-32000 = 需要认证；只对 registry 型的安装记录生效。
         match &result {
             Ok(_) => self.record_auth_status(agent_id, AuthStatus::Authenticated),
-            Err(CoreError::AuthRequired { .. }) => self.record_auth_status(agent_id, AuthStatus::NeedsAuth),
+            Err(CoreError::AuthRequired { .. }) => {
+                self.record_auth_status(agent_id, AuthStatus::NeedsAuth)
+            }
             Err(_) => {}
         }
         result
@@ -311,23 +336,41 @@ impl Core {
 
     /// `session/list`（R6）：`cwd` 过滤（给了就必须是绝对路径）+ cursor 分页。侧栏不直接消费它——
     /// 本地索引才是侧栏的事实来源，这条只用来校对存在性与补标题（docs/design.md § 3 末条）。
-    pub async fn session_list(&self, agent_id: &str, cwd: Option<PathBuf>, cursor: Option<String>) -> Result<Value> {
+    pub async fn session_list(
+        &self,
+        agent_id: &str,
+        cwd: Option<PathBuf>,
+        cursor: Option<String>,
+    ) -> Result<Value> {
         if let Some(cwd) = &cwd
             && !cwd.is_absolute()
         {
-            return Err(CoreError::InvalidArgument(format!("cwd must be absolute: {}", cwd.display())));
+            return Err(CoreError::InvalidArgument(format!(
+                "cwd must be absolute: {}",
+                cwd.display()
+            )));
         }
         self.agent(agent_id)?.session_list(cwd, cursor).await
     }
 
     /// `session/load`（R6）：整段历史经 `acp/session_update` 重放完本命令才返回。
-    pub async fn session_load(&self, agent_id: &str, session_id: &str, cwd: PathBuf) -> Result<Value> {
+    pub async fn session_load(
+        &self,
+        agent_id: &str,
+        session_id: &str,
+        cwd: PathBuf,
+    ) -> Result<Value> {
         Self::require_absolute(&cwd)?;
         self.agent(agent_id)?.session_load(session_id, cwd).await
     }
 
     /// `session/resume`（R6）：只恢复上下文，不重放。
-    pub async fn session_resume(&self, agent_id: &str, session_id: &str, cwd: PathBuf) -> Result<Value> {
+    pub async fn session_resume(
+        &self,
+        agent_id: &str,
+        session_id: &str,
+        cwd: PathBuf,
+    ) -> Result<Value> {
         Self::require_absolute(&cwd)?;
         self.agent(agent_id)?.session_resume(session_id, cwd).await
     }
@@ -346,23 +389,46 @@ impl Core {
         if cwd.is_absolute() {
             Ok(())
         } else {
-            Err(CoreError::InvalidArgument(format!("cwd must be absolute: {}", cwd.display())))
+            Err(CoreError::InvalidArgument(format!(
+                "cwd must be absolute: {}",
+                cwd.display()
+            )))
         }
     }
 
-    pub async fn session_prompt(&self, agent_id: &str, session_id: &str, prompt: Value) -> Result<Value> {
-        self.agent(agent_id)?.session_prompt(session_id, prompt).await
+    pub async fn session_prompt(
+        &self,
+        agent_id: &str,
+        session_id: &str,
+        prompt: Value,
+    ) -> Result<Value> {
+        self.agent(agent_id)?
+            .session_prompt(session_id, prompt)
+            .await
     }
 
     pub fn session_cancel(&self, agent_id: &str, session_id: &str) -> Result<Value> {
         self.agent(agent_id)?.session_cancel(session_id)
     }
 
-    pub async fn session_set_mode(&self, agent_id: &str, session_id: &str, mode_id: &str) -> Result<Value> {
-        self.agent(agent_id)?.session_set_mode(session_id, mode_id).await
+    pub async fn session_set_mode(
+        &self,
+        agent_id: &str,
+        session_id: &str,
+        mode_id: &str,
+    ) -> Result<Value> {
+        self.agent(agent_id)?
+            .session_set_mode(session_id, mode_id)
+            .await
     }
 
-    pub async fn session_set_config_option(&self, agent_id: &str, session_id: &str, config_id: &str, value: Value) -> Result<Value> {
+    pub async fn session_set_config_option(
+        &self,
+        agent_id: &str,
+        session_id: &str,
+        config_id: &str,
+        value: Value,
+    ) -> Result<Value> {
         self.agent(agent_id)?
             .session_set_config_option(session_id, config_id, value)
             .await
@@ -380,22 +446,38 @@ impl Core {
 
     /// terminal 型认证：在 pty 里重拉同一个 agent 程序（附加方法的 args / env），等它退出，然后自动重试 `session/new`。
     /// 返回 `{terminalId, exitStatus, session}`；重试仍要认证时返回 `auth_required` 错误（事件已推出）。
-    pub async fn terminal_auth_run(&self, agent_id: &str, method_id: &str, cwd: PathBuf) -> Result<Value> {
+    pub async fn terminal_auth_run(
+        &self,
+        agent_id: &str,
+        method_id: &str,
+        cwd: PathBuf,
+    ) -> Result<Value> {
         let connection = self.agent(agent_id)?;
-        let method = connection
-            .auth_method(method_id)
-            .ok_or_else(|| CoreError::InvalidArgument(format!("agent `{agent_id}` has no auth method `{method_id}`")))?;
-        let spawn = terminal_auth::terminal_auth_spawn(&connection.launch, &method)
-            .ok_or_else(|| CoreError::InvalidArgument(format!("auth method `{method_id}` is not a terminal method; use authenticate")))?;
+        let method = connection.auth_method(method_id).ok_or_else(|| {
+            CoreError::InvalidArgument(format!(
+                "agent `{agent_id}` has no auth method `{method_id}`"
+            ))
+        })?;
+        let spawn =
+            terminal_auth::terminal_auth_spawn(&connection.launch, &method).ok_or_else(|| {
+                CoreError::InvalidArgument(format!(
+                    "auth method `{method_id}` is not a terminal method; use authenticate"
+                ))
+            })?;
         #[cfg(unix)]
-        let resolved_program = crate::command::resolve_program(&spawn.program).to_string_lossy().into_owned();
+        let resolved_program = crate::command::resolve_program(&spawn.program)
+            .to_string_lossy()
+            .into_owned();
         #[cfg(not(unix))]
         let resolved_program = spawn.program.clone();
         let mut spec = pty::SpawnSpec::new(resolved_program);
         spec.args = spawn.args.clone();
         #[cfg(unix)]
         {
-            let mut env: Vec<(String, String)> = vec![("PATH".to_string(), fs::effective_path().to_string_lossy().into_owned())];
+            let mut env: Vec<(String, String)> = vec![(
+                "PATH".to_string(),
+                fs::effective_path().to_string_lossy().into_owned(),
+            )];
             env.extend(spawn.env.iter().cloned());
             spec.env = env;
         }
@@ -421,7 +503,9 @@ impl Core {
         let session = connection.session_new(cwd).await;
         match &session {
             Ok(_) => self.record_auth_status(agent_id, AuthStatus::Authenticated),
-            Err(CoreError::AuthRequired { .. }) => self.record_auth_status(agent_id, AuthStatus::NeedsAuth),
+            Err(CoreError::AuthRequired { .. }) => {
+                self.record_auth_status(agent_id, AuthStatus::NeedsAuth)
+            }
             Err(_) => {}
         }
         let session = session?;
@@ -451,7 +535,10 @@ impl Core {
     /// （source = local）。返回 `{terminalId, cwd, program}`。
     pub async fn terminal_open(&self, cwd: PathBuf, cols: u16, rows: u16) -> Result<Value> {
         if !cwd.is_absolute() {
-            return Err(CoreError::InvalidArgument(format!("cwd must be absolute: {}", cwd.display())));
+            return Err(CoreError::InvalidArgument(format!(
+                "cwd must be absolute: {}",
+                cwd.display()
+            )));
         }
         let terminals = self.terminals.clone();
         let cwd_for_spec = cwd.clone();
@@ -461,12 +548,17 @@ impl Core {
             spec.args = pty::shell::interactive_args(kind);
             #[cfg(unix)]
             {
-                spec.env = vec![("PATH".to_string(), fs::effective_path().to_string_lossy().into_owned())];
+                spec.env = vec![(
+                    "PATH".to_string(),
+                    fs::effective_path().to_string_lossy().into_owned(),
+                )];
             }
             spec.cwd = Some(cwd_for_spec);
             spec.cols = cols.max(1);
             spec.rows = rows.max(1);
-            terminals.spawn(spec, pty::TerminalSource::Local).map(|id| (program, id))
+            terminals
+                .spawn(spec, pty::TerminalSource::Local)
+                .map(|id| (program, id))
         })
         .await
         .map_err(|e| CoreError::Pty(format!("spawn task failed: {e}")))??;
@@ -475,7 +567,8 @@ impl Core {
 
     /// 视口尺寸变化（xterm 报出的列 × 行）。
     pub fn terminal_resize(&self, terminal_id: &str, cols: u16, rows: u16) -> Result<Value> {
-        self.terminals.resize(terminal_id, rows.max(1), cols.max(1))?;
+        self.terminals
+            .resize(terminal_id, rows.max(1), cols.max(1))?;
         Ok(json!({ "terminalId": terminal_id, "cols": cols, "rows": rows }))
     }
 
@@ -521,7 +614,8 @@ impl Core {
 
     /// 清空连接表，每条连接起一个断开任务。
     fn disconnect_all(&self) -> Vec<tokio::task::JoinHandle<()>> {
-        let agents: Vec<Arc<AgentConnection>> = lock(&self.agents).drain().map(|(_, c)| c).collect();
+        let agents: Vec<Arc<AgentConnection>> =
+            lock(&self.agents).drain().map(|(_, c)| c).collect();
         agents
             .into_iter()
             .map(|connection| tokio::spawn(async move { connection.disconnect().await }))
@@ -545,25 +639,27 @@ impl Core {
         // 内置 agent 的 command / args 是按环境**合成**的，写进 settings.json 之后
         // 用户条目优先；设置页因此对它禁用「编辑」。这里再挡一道（审查 finding P2，2026-09-17）。
         // 用户自己在 settings.json 里手写过同名条目时不挡 —— 那条是他自己的，编辑照常。
-        if crate::builtin::rejects_settings_write(
-            agent_id,
-            self.settings.get(agent_id)?.is_some(),
-        ) {
+        if crate::builtin::rejects_settings_write(agent_id, self.settings.get(agent_id)?.is_some())
+        {
             return Err(CoreError::InvalidArgument(format!(
                 "`{agent_id}` 是内置 agent，它的拉起参数按环境合成，不写进 settings.json"
             )));
         }
-        let mut server: AgentServer =
-            serde_json::from_value(server).map_err(|e| CoreError::InvalidArgument(format!("agent server entry: {e}")))?;
+        let mut server: AgentServer = serde_json::from_value(server)
+            .map_err(|e| CoreError::InvalidArgument(format!("agent server entry: {e}")))?;
         // 设置页只编辑 command / args / env：来的条目没带 Zed 字段（`default_config_options` 等）时沿用旧条目的，
         // 别把从 Zed 导入的默认配置写空（审查 P2，2026-09-16）。
         if let AgentServer::Custom { extra, .. } = &mut server
             && extra.is_empty()
-            && let Some(AgentServer::Registry { extra: old, .. } | AgentServer::Custom { extra: old, .. }) = self.settings.get(agent_id)?
+            && let Some(
+                AgentServer::Registry { extra: old, .. } | AgentServer::Custom { extra: old, .. },
+            ) = self.settings.get(agent_id)?
         {
             *extra = old;
         }
-        Ok(serde_json::to_value(self.settings.upsert(agent_id, server)?)?)
+        Ok(serde_json::to_value(
+            self.settings.upsert(agent_id, server)?,
+        )?)
     }
 
     // ---- 工作区文件与 git（R3；docs/design.md § 3「文件面板与 git」）
@@ -588,7 +684,11 @@ impl Core {
 
     /// 监视项目目录（`fs_watch`，R4）：每批变化以 `{root, dirs: [绝对路径…], git}` 的 JSON 交给 `deliver`；
     /// `deliver` 返回 false（接收方已取消）时停止。同一 root 再次调用替换旧监视器。返回 `{root}`。
-    pub fn fs_watch(&self, root: PathBuf, deliver: impl Fn(String) -> bool + Send + 'static) -> Result<Value> {
+    pub fn fs_watch(
+        &self,
+        root: PathBuf,
+        deliver: impl Fn(String) -> bool + Send + 'static,
+    ) -> Result<Value> {
         let root_key = root.clone();
         let root_for_payload = root.to_string_lossy().into_owned();
         let watcher = fs::watch::DirWatcher::start(&root, move |changes| {
@@ -626,7 +726,12 @@ impl Core {
 
     /// `git switch -c <branch>`（`git_create_branch`）；返回切换后的分支列表。
     pub async fn git_create_branch(&self, cwd: PathBuf, branch: String) -> Result<Value> {
-        blocking(move || Ok(serde_json::to_value(fs::git::create_branch(&cwd, &branch)?)?)).await
+        blocking(move || {
+            Ok(serde_json::to_value(fs::git::create_branch(
+                &cwd, &branch,
+            )?)?)
+        })
+        .await
     }
 
     /// `git diff`（`git_diff`，输入框 `+` 的 Branch Diff）。
@@ -660,7 +765,9 @@ impl Core {
         let parsed: SessionEntry = serde_json::from_value(entry.clone())
             .map_err(|e| CoreError::InvalidArgument(format!("session index entry: {e}")))?;
         if parsed.agent_id.trim().is_empty() || parsed.session_id.trim().is_empty() {
-            return Err(CoreError::InvalidArgument("session index entry needs agentId and sessionId".into()));
+            return Err(CoreError::InvalidArgument(
+                "session index entry needs agentId and sessionId".into(),
+            ));
         }
         // 原样 JSON 一起送下去：置顶与首条指令靠「键在不在」决定留还是改，解析后的默认值分不出「没给」和「给了 false」。
         Ok(json!({ "sessions": serde_json::to_value(self.index.upsert_session(parsed, &entry)?)? }))
@@ -677,8 +784,8 @@ impl Core {
 
     /// 整段覆盖外观设置；返回落盘后的外观。family 名的形状校验在 settings crate 里（[`settings::Appearance::sanitized`]）。
     pub fn appearance_set(&self, patch: Value) -> Result<Value> {
-        let patch: settings::Appearance =
-            serde_json::from_value(patch).map_err(|e| CoreError::InvalidArgument(format!("appearance: {e}")))?;
+        let patch: settings::Appearance = serde_json::from_value(patch)
+            .map_err(|e| CoreError::InvalidArgument(format!("appearance: {e}")))?;
         Ok(serde_json::to_value(self.settings.set_appearance(patch)?)?)
     }
 
@@ -690,8 +797,8 @@ impl Core {
 
     /// 整段覆盖转录偏好；返回落盘后的值。
     pub fn transcript_prefs_set(&self, patch: Value) -> Result<Value> {
-        let patch: settings::Transcript =
-            serde_json::from_value(patch).map_err(|e| CoreError::InvalidArgument(format!("transcript: {e}")))?;
+        let patch: settings::Transcript = serde_json::from_value(patch)
+            .map_err(|e| CoreError::InvalidArgument(format!("transcript: {e}")))?;
         Ok(serde_json::to_value(self.settings.set_transcript(patch)?)?)
     }
 
@@ -701,14 +808,16 @@ impl Core {
 
     /// 合并写窗口 UI 状态（`ui_state_set`）：只覆盖给到的字段；返回落盘后的全量状态。
     pub fn ui_state_set(&self, patch: Value) -> Result<Value> {
-        let patch: UiState =
-            serde_json::from_value(patch).map_err(|e| CoreError::InvalidArgument(format!("ui state: {e}")))?;
+        let patch: UiState = serde_json::from_value(patch)
+            .map_err(|e| CoreError::InvalidArgument(format!("ui state: {e}")))?;
         Ok(serde_json::to_value(self.ui_state.merge(patch)?)?)
     }
 
     /// 移除一条会话索引（`session_index_remove`）；返回全量列表。向 agent 发 `session/delete` 是 R6 的事。
     pub fn session_index_remove(&self, agent_id: &str, session_id: &str) -> Result<Value> {
-        Ok(json!({ "sessions": serde_json::to_value(self.index.remove_session(agent_id, session_id)?)? }))
+        Ok(
+            json!({ "sessions": serde_json::to_value(self.index.remove_session(agent_id, session_id)?)? }),
+        )
     }
 
     /// 连接表里每个 agent 的 `droppedUpdates` 与退出状态（开发期排查）。
@@ -727,6 +836,40 @@ impl Core {
             );
         }
         Value::Object(out)
+    }
+
+    /// 进程面板（R10，画板 54）：本应用进程树的内存采样与按 agent / 终端归属（docs/design.md § 3 `process_snapshot`）。
+    /// 只算未退出的 agent 与终端；刷新进程表是阻塞调用，放阻塞线程池。
+    pub async fn process_snapshot(&self) -> Result<Value> {
+        let connections: Vec<Arc<AgentConnection>> = lock(&self.agents).values().cloned().collect();
+        let mut agents: Vec<crate::process::AgentProbe> = connections
+            .iter()
+            .map(|c| c.shared())
+            .filter(|shared| shared.exit_info().is_none())
+            .map(|shared| crate::process::AgentProbe {
+                agent_id: shared.agent_id().to_string(),
+                root_pid: shared.root_pid(),
+                started_at: shared.started_at(),
+                terminal_ids: shared.owned_terminal_ids(),
+            })
+            .collect();
+        agents.sort_by(|a, b| a.agent_id.cmp(&b.agent_id));
+        let mut terminals: Vec<crate::process::TerminalProbe> = self
+            .terminals
+            .ids_with_pid()
+            .into_iter()
+            .map(|(terminal_id, source, pid)| crate::process::TerminalProbe {
+                terminal_id,
+                source,
+                pid,
+            })
+            .collect();
+        // `term_<n>`：先按长度再按字典序 = 按拉起顺序。
+        terminals.sort_by(|a, b| {
+            (a.terminal_id.len(), &a.terminal_id).cmp(&(b.terminal_id.len(), &b.terminal_id))
+        });
+        let sampler = self.process_sampler.clone();
+        blocking(move || Ok(sampler.snapshot(&agents, &terminals))).await
     }
 }
 
@@ -786,8 +929,14 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
         let first = text.lines().next().unwrap_or_default();
-        assert!(first.contains(env!("CARGO_PKG_VERSION")), "no version in banner: {first}");
-        assert!(first.contains(&dir.display().to_string()), "no data dir in banner: {first}");
+        assert!(
+            first.contains(env!("CARGO_PKG_VERSION")),
+            "no version in banner: {first}"
+        );
+        assert!(
+            first.contains(&dir.display().to_string()),
+            "no data dir in banner: {first}"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -798,27 +947,43 @@ mod tests {
         assert_eq!(err.code(), "invalid_data_dir");
     }
 
-
     #[test]
     fn unconfigured_or_unconnected_agent_errors() {
         let sink = Arc::new(RecordingSink::default());
         let dir = std::env::temp_dir().join(format!("acp-core-agents-{}", std::process::id()));
         let core = Core::new(&dir, sink).expect("core");
-        let err = core.runtime().block_on(core.agent_connect("nope", None)).expect_err("not configured");
+        let err = core
+            .runtime()
+            .block_on(core.agent_connect("nope", None))
+            .expect_err("not configured");
         assert_eq!(err.code(), "agent_not_configured");
         let err = core.session_cancel("nope", "s").expect_err("not connected");
         assert_eq!(err.code(), "not_connected");
         let settings = core
-            .agent_settings_set("x", json!({"type": "custom", "command": "agent.cmd", "args": ["--acp"]}))
+            .agent_settings_set(
+                "x",
+                json!({"type": "custom", "command": "agent.cmd", "args": ["--acp"]}),
+            )
             .expect("set");
         assert_eq!(settings["agent_servers"]["x"]["command"], "agent.cmd");
-        assert!(core.agent_settings_set("", json!({"type": "custom", "command": "a"})).is_err());
+        assert!(
+            core.agent_settings_set("", json!({"type": "custom", "command": "a"}))
+                .is_err()
+        );
         // 从 Zed 导入的 extra 字段：设置页只回写 command / args / env，旧条目的 default_config_options 要留下。
         core.agent_settings_set("z", json!({"type": "custom", "command": "z.cmd", "default_config_options": {"model": "fast"}}))
             .expect("set with extra");
-        let settings = core.agent_settings_set("z", json!({"type": "custom", "command": "z2.cmd", "args": ["--acp"]})).expect("edit");
+        let settings = core
+            .agent_settings_set(
+                "z",
+                json!({"type": "custom", "command": "z2.cmd", "args": ["--acp"]}),
+            )
+            .expect("edit");
         assert_eq!(settings["agent_servers"]["z"]["command"], "z2.cmd");
-        assert_eq!(settings["agent_servers"]["z"]["default_config_options"]["model"], "fast");
+        assert_eq!(
+            settings["agent_servers"]["z"]["default_config_options"]["model"],
+            "fast"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -850,8 +1015,11 @@ mod tests {
         } else {
             ("sh", json!(["-c", "exec sleep 30"]))
         };
-        core.agent_settings_set("mute", json!({"type": "custom", "command": command, "args": args}))
-            .expect("set");
+        core.agent_settings_set(
+            "mute",
+            json!({"type": "custom", "command": command, "args": args}),
+        )
+        .expect("set");
         let task = {
             let core = core.clone();
             async move { core.agent_connect("mute", None).await }
@@ -861,31 +1029,65 @@ mod tests {
         // 等到进程拉起：此刻它在等 `initialize` 的回应，连接表还是空的。
         let mut seen = Vec::new();
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
-        while !states_of(&sink, &mut seen, "mute").iter().any(|s| s == "spawned") {
-            assert!(std::time::Instant::now() < deadline, "agent never spawned: {seen:?}");
+        while !states_of(&sink, &mut seen, "mute")
+            .iter()
+            .any(|s| s == "spawned")
+        {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "agent never spawned: {seen:?}"
+            );
             std::thread::sleep(std::time::Duration::from_millis(20));
         }
 
         let started = std::time::Instant::now();
-        let summary = core.runtime().block_on(core.core_shutdown()).expect("shutdown");
+        let summary = core
+            .runtime()
+            .block_on(core.core_shutdown())
+            .expect("shutdown");
         let elapsed = started.elapsed();
         // 握手被中止：不等 `DISCONNECT_GRACE`，更不会等满那条 30 秒的命令。
-        assert!(elapsed < std::time::Duration::from_secs(10), "shutdown took {elapsed:?}");
+        assert!(
+            elapsed < std::time::Duration::from_secs(10),
+            "shutdown took {elapsed:?}"
+        );
         assert_eq!(summary["agents"], 0, "{summary}");
-        let err = core.runtime().block_on(connecting).expect("join").expect_err("handshake aborted");
+        let err = core
+            .runtime()
+            .block_on(connecting)
+            .expect("join")
+            .expect_err("handshake aborted");
         assert_eq!(err.code(), "cancelled");
         // `exited` 在唤醒等待者之后才发，给它一点时间。
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        while !states_of(&sink, &mut seen, "mute").iter().any(|s| s == "exited") {
-            assert!(std::time::Instant::now() < deadline, "agent never exited: {seen:?}");
+        while !states_of(&sink, &mut seen, "mute")
+            .iter()
+            .any(|s| s == "exited")
+        {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "agent never exited: {seen:?}"
+            );
             std::thread::sleep(std::time::Duration::from_millis(20));
         }
         // 收尾之后的连接一律拒绝，不再拉起进程。
-        let spawned_before = states_of(&sink, &mut seen, "mute").iter().filter(|s| *s == "spawned").count();
-        let err = core.runtime().block_on(core.agent_connect("mute", None)).expect_err("closing");
+        let spawned_before = states_of(&sink, &mut seen, "mute")
+            .iter()
+            .filter(|s| *s == "spawned")
+            .count();
+        let err = core
+            .runtime()
+            .block_on(core.agent_connect("mute", None))
+            .expect_err("closing");
         assert_eq!(err.code(), "cancelled");
-        let spawned_after = states_of(&sink, &mut seen, "mute").iter().filter(|s| *s == "spawned").count();
-        assert_eq!(spawned_after, spawned_before, "a connect after shutdown spawned a process");
+        let spawned_after = states_of(&sink, &mut seen, "mute")
+            .iter()
+            .filter(|s| *s == "spawned")
+            .count();
+        assert_eq!(
+            spawned_after, spawned_before,
+            "a connect after shutdown spawned a process"
+        );
         drop(core);
         let _ = std::fs::remove_dir_all(&dir);
     }

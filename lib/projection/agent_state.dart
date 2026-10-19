@@ -32,6 +32,7 @@ class AgentConnection {
   AgentConnection(this.agentId);
 
   final String agentId;
+  int generation = 0;
   AgentLifecycle state = AgentLifecycle.none;
   String? rawState;
   num? pid;
@@ -58,15 +59,21 @@ class AgentConnection {
   final List<String> stderrLines = <String>[];
 
   String? get agentName => _asMap(initialize?['agentInfo'])?['name'] as String?;
-  String? get agentTitle => _asMap(initialize?['agentInfo'])?['title'] as String?;
-  String? get agentVersion => _asMap(initialize?['agentInfo'])?['version'] as String?;
-  num? get protocolVersion => initialize?['protocolVersion'] is num ? initialize!['protocolVersion'] as num : null;
+  String? get agentTitle =>
+      _asMap(initialize?['agentInfo'])?['title'] as String?;
+  String? get agentVersion =>
+      _asMap(initialize?['agentInfo'])?['version'] as String?;
+  num? get protocolVersion => initialize?['protocolVersion'] is num
+      ? initialize!['protocolVersion'] as num
+      : null;
   JsonMap? get agentCapabilities => _asMap(initialize?['agentCapabilities']);
 
   /// 画板 34「fs / terminal / elicitation / plan / compaction」：把 agentCapabilities 的顶层键名列出来。
-  List<String> get capabilityNames => agentCapabilities?.keys.toList(growable: false) ?? const <String>[];
+  List<String> get capabilityNames =>
+      agentCapabilities?.keys.toList(growable: false) ?? const <String>[];
 
-  static JsonMap? _asMap(Object? v) => v is Map ? v.cast<String, dynamic>() : null;
+  static JsonMap? _asMap(Object? v) =>
+      v is Map ? v.cast<String, dynamic>() : null;
 }
 
 class AgentStateStore extends ChangeNotifier {
@@ -80,14 +87,17 @@ class AgentStateStore extends ChangeNotifier {
   AgentConnection? operator [](String agentId) => _byAgent[agentId];
   Iterable<AgentConnection> get all => _byAgent.values;
 
-  AgentConnection ensure(String agentId) => _byAgent.putIfAbsent(agentId, () => AgentConnection(agentId));
+  AgentConnection ensure(String agentId) =>
+      _byAgent.putIfAbsent(agentId, () => AgentConnection(agentId));
 
   /// `acp/agent_state` 事件 payload 原样。
   void apply(JsonMap payload) {
     final w = AgentStateWire(payload);
     final state = AgentLifecycle.parse(w.state);
     final agentId = w.agentId;
-    final c = agentId == null ? (core ??= AgentConnection('')) : ensure(agentId);
+    final c = agentId == null
+        ? (core ??= AgentConnection(''))
+        : ensure(agentId);
     c.rawState = w.state;
     if (w.droppedUpdates != null) c.droppedUpdates = w.droppedUpdates!.toInt();
     switch (w.state) {
@@ -96,15 +106,21 @@ class AgentStateStore extends ChangeNotifier {
         c.lastDropError = payload['error'] as String?;
       case 'spawned':
         c
+          ..generation = c.generation + 1
           ..state = state
           ..pid = payload['pid'] is num ? payload['pid'] as num : null
           ..program = payload['program'] as String?
-          ..args = payload['args'] is List ? (payload['args'] as List).map((e) => e.toString()).toList() : const <String>[]
+          ..args = payload['args'] is List
+              ? (payload['args'] as List).map((e) => e.toString()).toList()
+              : const <String>[]
           ..cwd = payload['cwd'] as String?;
       case 'initialized':
         c
+          ..generation = c.generation + 1
           ..state = state
-          ..initialize = payload['initialize'] is Map ? (payload['initialize'] as Map).cast<String, dynamic>() : null;
+          ..initialize = payload['initialize'] is Map
+              ? (payload['initialize'] as Map).cast<String, dynamic>()
+              : null;
         final methods = c.initialize?['authMethods'];
         if (methods is List) {
           c.authMethods = <JsonMap>[
@@ -131,6 +147,7 @@ class AgentStateStore extends ChangeNotifier {
           ..authenticatingLabel = payload['label'] as String?;
       case 'exited':
         c
+          ..generation = c.generation + 1
           ..state = state
           ..exitCode = payload['code'] is num ? payload['code'] as num : null
           ..signal = payload['signal'] as String?
@@ -144,7 +161,11 @@ class AgentStateStore extends ChangeNotifier {
 
   /// `initialize` 的响应（fixtures 回放 / R3 接线时从 agent_connect 结果补），等价于 `initialized` 事件。
   void applyInitializeResult(String agentId, JsonMap result) {
-    apply(<String, dynamic>{'agentId': agentId, 'state': 'initialized', 'initialize': result});
+    apply(<String, dynamic>{
+      'agentId': agentId,
+      'state': 'initialized',
+      'initialize': result,
+    });
   }
 
   void appendStderr(String agentId, String line) {
@@ -157,15 +178,15 @@ class AgentStateStore extends ChangeNotifier {
   }
 
   JsonMap debugSnapshot() => <String, dynamic>{
-        for (final c in _byAgent.values)
-          c.agentId: <String, dynamic>{
-            'state': c.state.name,
-            'pid': c.pid,
-            'agentName': c.agentName,
-            'authMethods': c.authMethods.length,
-            'exitCode': c.exitCode,
-            'droppedUpdates': c.droppedUpdates,
-            'stderrLines': List<String>.of(c.stderrLines),
-          },
-      };
+    for (final c in _byAgent.values)
+      c.agentId: <String, dynamic>{
+        'state': c.state.name,
+        'pid': c.pid,
+        'agentName': c.agentName,
+        'authMethods': c.authMethods.length,
+        'exitCode': c.exitCode,
+        'droppedUpdates': c.droppedUpdates,
+        'stderrLines': List<String>.of(c.stderrLines),
+      },
+  };
 }

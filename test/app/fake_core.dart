@@ -8,15 +8,18 @@ import 'package:acp_agent_client/projection/wire.dart';
 
 /// 记账用的假核心：只记调用，不做任何 IO。
 class FakeCore implements CoreCommands {
-  final List<(String requestId, JsonMap response)> responded = <(String, JsonMap)>[];
+  final List<(String requestId, JsonMap response)> responded =
+      <(String, JsonMap)>[];
 
   /// 回应发给了哪个 agent（与 [responded] 同序）：requestId 只在发请求的那条连接上有意义（iteration-12）。
-  final List<(String agentId, String requestId)> respondedTo = <(String, String)>[];
+  final List<(String agentId, String requestId)> respondedTo =
+      <(String, String)>[];
   final List<List<Object?>> prompts = <List<Object?>>[];
   int cancels = 0;
 
   /// `session/cancel` 打到了哪条会话（与 [cancels] 同步记）。
-  final List<(String agentId, String sessionId)> cancelledSessions = <(String, String)>[];
+  final List<(String agentId, String sessionId)> cancelledSessions =
+      <(String, String)>[];
 
   /// 拖分栏落盘（画板 04）：只记账，不碰文件。
   JsonMap uiState = <String, dynamic>{};
@@ -25,7 +28,8 @@ class FakeCore implements CoreCommands {
   Future<JsonMap> uiStateGet() async => uiState;
 
   @override
-  Future<JsonMap> uiStateSet(JsonMap patch) async => uiState = <String, dynamic>{...uiState, ...patch};
+  Future<JsonMap> uiStateSet(JsonMap patch) async =>
+      uiState = <String, dynamic>{...uiState, ...patch};
 
   /// 外观（四个字体轴 + 主题）：整段替换，不合并——前端一次给全。
   JsonMap appearance = <String, dynamic>{};
@@ -77,17 +81,26 @@ class FakeCore implements CoreCommands {
   }
 
   @override
-  Future<JsonMap> transcriptPrefsSet(JsonMap patch) async => transcriptPrefs = <String, dynamic>{...patch};
+  Future<JsonMap> transcriptPrefsSet(JsonMap patch) async =>
+      transcriptPrefs = <String, dynamic>{...patch};
 
   @override
-  Future<JsonMap> acpRespond(String agentId, String requestId, JsonMap response) async {
+  Future<JsonMap> acpRespond(
+    String agentId,
+    String requestId,
+    JsonMap response,
+  ) async {
     responded.add((requestId, response));
     respondedTo.add((agentId, requestId));
     return <String, dynamic>{};
   }
 
   @override
-  Future<JsonMap> sessionPrompt(String agentId, String sessionId, List<Object?> prompt) async {
+  Future<JsonMap> sessionPrompt(
+    String agentId,
+    String sessionId,
+    List<Object?> prompt,
+  ) async {
     prompts.add(prompt);
     return <String, dynamic>{'stopReason': 'end_turn'};
   }
@@ -100,52 +113,87 @@ class FakeCore implements CoreCommands {
   }
 
   /// 可注入的事件流（R5：`registry/progress` / `acp/client_request` / `acp/agent_state` 的接线测试往这里塞）。
-  final StreamController<CoreEventRecord> events = StreamController<CoreEventRecord>.broadcast();
+  final StreamController<CoreEventRecord> events =
+      StreamController<CoreEventRecord>.broadcast();
 
-  void emit(CoreEvent channel, JsonMap json) => events.add(CoreEventRecord(channel, '', json));
+  void emit(CoreEvent channel, JsonMap json) =>
+      events.add(CoreEventRecord(channel, '', json));
 
   @override
-  Stream<CoreEventRecord> on(CoreEvent channel) => events.stream.where((e) => e.channel == channel);
+  Stream<CoreEventRecord> on(CoreEvent channel) =>
+      events.stream.where((e) => e.channel == channel);
 
   @override
   Future<JsonMap> init(String dataDir) async => <String, dynamic>{};
 
   @override
-  Future<JsonMap> agentConnect(String agentId, {String? cwd}) async => <String, dynamic>{};
+  Future<JsonMap> agentConnect(String agentId, {String? cwd}) async =>
+      <String, dynamic>{};
+
+  final List<String> disconnectedAgents = <String>[];
+  Completer<void>? agentDisconnectGate;
+  Object? agentDisconnectError;
 
   @override
-  Future<JsonMap> agentDisconnect(String agentId) async => <String, dynamic>{};
+  Future<JsonMap> agentDisconnect(String agentId) async {
+    disconnectedAgents.add(agentId);
+    final Completer<void>? gate = agentDisconnectGate;
+    if (gate != null) await gate.future;
+    final Object? err = agentDisconnectError;
+    if (err != null) throw err;
+    return <String, dynamic>{};
+  }
 
   @override
-  Future<JsonMap> sessionNew(String agentId, String cwd) async => <String, dynamic>{'sessionId': 'sess_fake'};
+  Future<JsonMap> sessionNew(String agentId, String cwd) async =>
+      <String, dynamic>{'sessionId': 'sess_fake'};
 
   // ---- R6：会话生命周期。只记账；`sessionLoad` 可以由用例注入「重放」（往事件流里塞 session/update）。
-  final List<(String agentId, String? cwd, String? cursor)> listedSessions = <(String, String?, String?)>[];
-  final List<(String agentId, String sessionId, String cwd)> loadedSessions = <(String, String, String)>[];
-  final List<(String agentId, String sessionId, String cwd)> resumedSessions = <(String, String, String)>[];
-  final List<(String agentId, String sessionId)> closedSessions = <(String, String)>[];
-  final List<(String agentId, String sessionId)> deletedSessions = <(String, String)>[];
+  final List<(String agentId, String? cwd, String? cursor)> listedSessions =
+      <(String, String?, String?)>[];
+  final List<(String agentId, String sessionId, String cwd)> loadedSessions =
+      <(String, String, String)>[];
+  final List<(String agentId, String sessionId, String cwd)> resumedSessions =
+      <(String, String, String)>[];
+  final List<(String agentId, String sessionId)> closedSessions =
+      <(String, String)>[];
+  final List<(String agentId, String sessionId)> deletedSessions =
+      <(String, String)>[];
 
   /// `session/list` 的返回（用例按需覆盖；默认空）。多页时按 `cursor` 取。
-  JsonMap Function(String? cursor) sessionListResult = (_) => <String, dynamic>{'sessions': <Object?>[]};
+  JsonMap Function(String? cursor) sessionListResult = (_) => <String, dynamic>{
+    'sessions': <Object?>[],
+  };
 
   /// `session/load` 期间的重放：用例在这里往事件流里塞 `acp/session_update`，返回 LoadSessionResponse。
   Future<JsonMap> Function(String agentId, String sessionId)? onSessionLoad;
 
   @override
-  Future<JsonMap> sessionList(String agentId, {String? cwd, String? cursor}) async {
+  Future<JsonMap> sessionList(
+    String agentId, {
+    String? cwd,
+    String? cursor,
+  }) async {
     listedSessions.add((agentId, cwd, cursor));
     return sessionListResult(cursor);
   }
 
   @override
-  Future<JsonMap> sessionLoad(String agentId, String sessionId, String cwd) async {
+  Future<JsonMap> sessionLoad(
+    String agentId,
+    String sessionId,
+    String cwd,
+  ) async {
     loadedSessions.add((agentId, sessionId, cwd));
     return await onSessionLoad?.call(agentId, sessionId) ?? <String, dynamic>{};
   }
 
   @override
-  Future<JsonMap> sessionResume(String agentId, String sessionId, String cwd) async {
+  Future<JsonMap> sessionResume(
+    String agentId,
+    String sessionId,
+    String cwd,
+  ) async {
     resumedSessions.add((agentId, sessionId, cwd));
     return <String, dynamic>{};
   }
@@ -163,39 +211,65 @@ class FakeCore implements CoreCommands {
   }
 
   /// 三个下拉打出去的命令（断言「关掉的会话发不出去」要看这两份，光看 lastError 会假通过）。
-  final List<(String configId, JsonMap value)> configOptionCalls = <(String, JsonMap)>[];
+  final List<(String configId, JsonMap value)> configOptionCalls =
+      <(String, JsonMap)>[];
   final List<String> modeCalls = <String>[];
 
   @override
-  Future<JsonMap> sessionSetConfigOption(String agentId, String sessionId, String configId, JsonMap value) async {
+  Future<JsonMap> sessionSetConfigOption(
+    String agentId,
+    String sessionId,
+    String configId,
+    JsonMap value,
+  ) async {
     configOptionCalls.add((configId, value));
     return <String, dynamic>{'configOptions': <Object?>[]};
   }
 
   @override
-  Future<JsonMap> sessionSetMode(String agentId, String sessionId, String modeId) async {
+  Future<JsonMap> sessionSetMode(
+    String agentId,
+    String sessionId,
+    String modeId,
+  ) async {
     modeCalls.add(modeId);
     return <String, dynamic>{};
   }
 
   @override
-  Future<JsonMap> authenticate(String agentId, String methodId) async => <String, dynamic>{};
+  Future<JsonMap> authenticate(String agentId, String methodId) async =>
+      <String, dynamic>{};
 
   @override
-  Future<JsonMap> terminalAuthRun(String agentId, String methodId, String cwd) async =>
-      <String, dynamic>{'terminalId': 'term_fake', 'exitStatus': <String, dynamic>{'exitCode': 0}, 'session': <String, dynamic>{'sessionId': 'sess_fake'}};
+  Future<JsonMap> terminalAuthRun(
+    String agentId,
+    String methodId,
+    String cwd,
+  ) async => <String, dynamic>{
+    'terminalId': 'term_fake',
+    'exitStatus': <String, dynamic>{'exitCode': 0},
+    'session': <String, dynamic>{'sessionId': 'sess_fake'},
+  };
 
   @override
-  Future<JsonMap> agentSettingsGet() async => <String, dynamic>{'agent_servers': <String, dynamic>{}};
+  Future<JsonMap> agentSettingsGet() async => <String, dynamic>{
+    'agent_servers': <String, dynamic>{},
+  };
 
   @override
-  Future<JsonMap> agentSettingsSet(String agentId, JsonMap server) async => <String, dynamic>{'agent_servers': <String, dynamic>{}};
+  Future<JsonMap> agentSettingsSet(String agentId, JsonMap server) async =>
+      <String, dynamic>{'agent_servers': <String, dynamic>{}};
 
   @override
-  Future<JsonMap> agentSettingsRemove(String agentId) async => <String, dynamic>{'agent_servers': <String, dynamic>{}};
+  Future<JsonMap> agentSettingsRemove(String agentId) async =>
+      <String, dynamic>{'agent_servers': <String, dynamic>{}};
 
   /// registry 面板（R5）：默认空列表；用例按需覆盖。
-  JsonMap registry = <String, dynamic>{'agents': <Object?>[], 'fetching': false, 'node': <String, dynamic>{}};
+  JsonMap registry = <String, dynamic>{
+    'agents': <Object?>[],
+    'fetching': false,
+    'node': <String, dynamic>{},
+  };
 
   @override
   Future<JsonMap> registryList() async => registry;
@@ -204,13 +278,20 @@ class FakeCore implements CoreCommands {
   Future<JsonMap> registryRefresh({bool force = false}) async => registry;
 
   @override
-  Future<JsonMap> registryInstall(String agentId) async => <String, dynamic>{'agentId': agentId, 'started': true};
+  Future<JsonMap> registryInstall(String agentId) async => <String, dynamic>{
+    'agentId': agentId,
+    'started': true,
+  };
 
   @override
-  Future<JsonMap> registryUpdate(String agentId) async => <String, dynamic>{'agentId': agentId, 'started': true};
+  Future<JsonMap> registryUpdate(String agentId) async => <String, dynamic>{
+    'agentId': agentId,
+    'started': true,
+  };
 
   @override
-  Future<JsonMap> registryCancelInstall(String agentId) async => <String, dynamic>{'agentId': agentId, 'cancelled': true};
+  Future<JsonMap> registryCancelInstall(String agentId) async =>
+      <String, dynamic>{'agentId': agentId, 'cancelled': true};
 
   @override
   Future<JsonMap> registryRemove(String agentId) async => registry;
@@ -222,41 +303,58 @@ class FakeCore implements CoreCommands {
   Future<JsonMap> nodeDownload() async => <String, dynamic>{};
 
   @override
-  Future<JsonMap> fsListDir(String root, String path) async => <String, dynamic>{'entries': <Object?>[]};
+  Future<JsonMap> fsListDir(String root, String path) async =>
+      <String, dynamic>{'entries': <Object?>[]};
 
   @override
   Future<JsonMap> fsSearch(String root, String query, {int limit = 10}) async =>
       <String, dynamic>{'files': <Object?>[], 'directories': <Object?>[]};
 
   @override
-  Future<JsonMap> gitBranches(String cwd) async => <String, dynamic>{'available': false, 'isRepo': false};
+  Future<JsonMap> gitBranches(String cwd) async => <String, dynamic>{
+    'available': false,
+    'isRepo': false,
+  };
 
   @override
-  Future<JsonMap> gitSwitch(String cwd, String branch) async => <String, dynamic>{};
+  Future<JsonMap> gitSwitch(String cwd, String branch) async =>
+      <String, dynamic>{};
 
   @override
-  Future<JsonMap> gitCreateBranch(String cwd, String branch) async => <String, dynamic>{};
+  Future<JsonMap> gitCreateBranch(String cwd, String branch) async =>
+      <String, dynamic>{};
 
   @override
-  Future<JsonMap> gitDiff(String cwd, {String? base}) async => <String, dynamic>{'text': ''};
+  Future<JsonMap> gitDiff(String cwd, {String? base}) async =>
+      <String, dynamic>{'text': ''};
 
   @override
-  Future<JsonMap> workspaceRecent() async => <String, dynamic>{'projects': <Object?>[]};
+  Future<JsonMap> workspaceRecent() async => <String, dynamic>{
+    'projects': <Object?>[],
+  };
 
   @override
-  Future<JsonMap> workspaceOpen(String path) async => <String, dynamic>{'projects': <Object?>[]};
+  Future<JsonMap> workspaceOpen(String path) async => <String, dynamic>{
+    'projects': <Object?>[],
+  };
 
   /// 本地会话索引（`sessions.json` 的替身）：upsert / remove 真的改它，接线测试才能验「删完不再列出」。
   final List<JsonMap> sessionIndex = <JsonMap>[];
 
-  JsonMap get _indexResult => <String, dynamic>{'sessions': <Object?>[...sessionIndex]};
+  JsonMap get _indexResult => <String, dynamic>{
+    'sessions': <Object?>[...sessionIndex],
+  };
 
   @override
   Future<JsonMap> sessionIndexList() async => _indexResult;
 
   @override
   Future<JsonMap> sessionIndexUpsert(JsonMap entry) async {
-    final i = sessionIndex.indexWhere((e) => e['agentId'] == entry['agentId'] && e['sessionId'] == entry['sessionId']);
+    final i = sessionIndex.indexWhere(
+      (e) =>
+          e['agentId'] == entry['agentId'] &&
+          e['sessionId'] == entry['sessionId'],
+    );
     final merged = <String, dynamic>{'updatedAt': 0, 'createdAt': 0, ...entry};
     if (i < 0) {
       sessionIndex.add(merged);
@@ -275,7 +373,9 @@ class FakeCore implements CoreCommands {
       indexRemoveFailsOnce = false;
       throw const CoreCommandError('settings', 'sessions.json is locked');
     }
-    sessionIndex.removeWhere((e) => e['agentId'] == agentId && e['sessionId'] == sessionId);
+    sessionIndex.removeWhere(
+      (e) => e['agentId'] == agentId && e['sessionId'] == sessionId,
+    );
     return _indexResult;
   }
 
@@ -287,22 +387,43 @@ class FakeCore implements CoreCommands {
   int openedTerminals = 0;
 
   @override
-  Future<JsonMap> fsRead(String root, String path) async =>
-      <String, dynamic>{'path': path, 'text': '', 'size': 0, 'lines': 0, 'binary': false, 'truncated': false};
+  Future<JsonMap> fsRead(String root, String path) async => <String, dynamic>{
+    'path': path,
+    'text': '',
+    'size': 0,
+    'lines': 0,
+    'binary': false,
+    'truncated': false,
+  };
 
   @override
   Stream<JsonMap> fsWatch(String root) => const Stream<JsonMap>.empty();
 
   @override
-  Future<JsonMap> fsUnwatch(String root) async => <String, dynamic>{'root': root, 'removed': false};
+  Future<JsonMap> fsUnwatch(String root) async => <String, dynamic>{
+    'root': root,
+    'removed': false,
+  };
 
   @override
-  Future<JsonMap> gitStatus(String cwd) async => <String, dynamic>{'available': false, 'isRepo': false, 'entries': <Object?>[]};
+  Future<JsonMap> gitStatus(String cwd) async => <String, dynamic>{
+    'available': false,
+    'isRepo': false,
+    'entries': <Object?>[],
+  };
 
   @override
-  Future<JsonMap> terminalOpen(String cwd, {required int cols, required int rows}) async {
+  Future<JsonMap> terminalOpen(
+    String cwd, {
+    required int cols,
+    required int rows,
+  }) async {
     openedTerminals++;
-    return <String, dynamic>{'terminalId': 'term_fake_$openedTerminals', 'cwd': cwd, 'program': 'fake-shell'};
+    return <String, dynamic>{
+      'terminalId': 'term_fake_$openedTerminals',
+      'cwd': cwd,
+      'program': 'fake-shell',
+    };
   }
 
   @override
@@ -312,8 +433,15 @@ class FakeCore implements CoreCommands {
   }
 
   @override
-  Future<JsonMap> terminalResize(String terminalId, {required int cols, required int rows}) async =>
-      <String, dynamic>{'terminalId': terminalId, 'cols': cols, 'rows': rows};
+  Future<JsonMap> terminalResize(
+    String terminalId, {
+    required int cols,
+    required int rows,
+  }) async => <String, dynamic>{
+    'terminalId': terminalId,
+    'cols': cols,
+    'rows': rows,
+  };
 
   @override
   Future<JsonMap> terminalKill(String terminalId) async {
@@ -325,6 +453,35 @@ class FakeCore implements CoreCommands {
   Future<JsonMap> terminalClose(String terminalId) async {
     closedTerminals.add(terminalId);
     return <String, dynamic>{'terminalId': terminalId};
+  }
+
+  // ---- R10：进程树与内存采样（画板 54）
+  int processSnapshotCalls = 0;
+  Completer<void>? processSnapshotGate;
+  Object? processSnapshotError;
+  JsonMap? processSnapshotResult;
+
+  @override
+  Future<JsonMap> processSnapshot() async {
+    processSnapshotCalls++;
+    final Completer<void>? gate = processSnapshotGate;
+    if (gate != null) await gate.future;
+    final Object? err = processSnapshotError;
+    if (err != null) throw err;
+    return processSnapshotResult ??
+        <String, dynamic>{
+          'metric': 'private',
+          'takenAt': 0,
+          'app': <String, dynamic>{'pid': 1000, 'bytes': 271200000},
+          'agents': <Object?>[],
+          'terminals': <String, dynamic>{
+            'count': 0,
+            'bytes': 0,
+            'items': <Object?>[],
+          },
+          'other': <String, dynamic>{'bytes': 0},
+          'total': 271200000,
+        };
   }
 
   @override

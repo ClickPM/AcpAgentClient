@@ -5,6 +5,7 @@
 
 import 'package:flutter/widgets.dart';
 
+import '../../projection/process_snapshot.dart';
 import '../../projection/registry.dart';
 import '../../theme/tokens.dart' as t;
 import '../shell/shell_common.dart';
@@ -12,6 +13,7 @@ import '../shell/tooltip.dart';
 import '../transcript/card_chrome.dart';
 import '../transcript/icons.dart';
 import 'registry_entry.dart';
+import 'resource_bar.dart';
 
 /// 官方 registry 的说明页（画板 50 的 Learn More）。
 const String registryLearnMoreUrl = 'https://agentclientprotocol.com/registry';
@@ -19,7 +21,14 @@ const String registryLearnMoreUrl = 'https://agentclientprotocol.com/registry';
 /// 画板 50 的标题行（画板 53 顶部是它的「检查中」态）：标题 · 副标题 …… 检查于 N 分钟前 · 检查更新 · Learn More。
 /// 检查中：刷新按钮换成 spinner、时间换成「检查中…」；从没拉成功过（[fetchedAt] 为 null）不显示时间，只留刷新按钮。
 class RegistryPanelHeader extends StatelessWidget {
-  const RegistryPanelHeader({super.key, this.fetching = false, this.fetchedAt, this.now, this.onRefresh, this.onLearnMore});
+  const RegistryPanelHeader({
+    super.key,
+    this.fetching = false,
+    this.fetchedAt,
+    this.now,
+    this.onRefresh,
+    this.onLearnMore,
+  });
 
   final bool fetching;
   final DateTime? fetchedAt;
@@ -36,14 +45,23 @@ class RegistryPanelHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final at = fetchedAt;
-    final status = fetching ? '检查中…' : (at == null ? null : checkedAt(at, now ?? DateTime.now()));
+    final status = fetching
+        ? '检查中…'
+        : (at == null ? null : checkedAt(at, now ?? DateTime.now()));
     return Row(
       crossAxisAlignment: CrossAxisAlignment.baseline,
       textBaseline: TextBaseline.alphabetic,
       children: <Widget>[
         Text('ACP Registry', style: t.TextStyles.title),
         const SizedBox(width: t.Spacing.s8),
-        Expanded(child: Text('Agent Client Protocol 插件市场', style: t.TextStyles.secondary, maxLines: 1, overflow: TextOverflow.ellipsis)),
+        Expanded(
+          child: Text(
+            'Agent Client Protocol 插件市场',
+            style: t.TextStyles.secondary,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
         if (status != null) ...<Widget>[
           Text(status, style: t.TextStyles.secondary, maxLines: 1),
           const SizedBox(width: t.Spacing.s8),
@@ -53,7 +71,11 @@ class RegistryPanelHeader extends StatelessWidget {
         else
           AcpTooltip(
             message: '检查更新',
-            child: IconButtonGhost(icon: AcpIcons.rotateCw, onTap: onRefresh, size: t.Geometry.panelIconButton),
+            child: IconButtonGhost(
+              icon: AcpIcons.rotateCw,
+              onTap: onRefresh,
+              size: t.Geometry.panelIconButton,
+            ),
           ),
         const SizedBox(width: t.Spacing.s8),
         MouseRegion(
@@ -63,9 +85,16 @@ class RegistryPanelHeader extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                Text('Learn More', style: t.TextStyles.secondary.copyWith(color: t.Accent.text)),
+                Text(
+                  'Learn More',
+                  style: t.TextStyles.secondary.copyWith(color: t.Accent.text),
+                ),
                 const SizedBox(width: t.Spacing.s4),
-                AcpIcon(AcpIcons.externalLink, color: t.Accent.text, size: t.IconSizes.toolbar),
+                AcpIcon(
+                  AcpIcons.externalLink,
+                  color: t.Accent.text,
+                  size: t.IconSizes.toolbar,
+                ),
               ],
             ),
           ),
@@ -84,6 +113,7 @@ class RegistryPanel extends StatelessWidget {
     this.query = '',
     this.filter = RegistryFilter.all,
     this.installedCount = 0,
+    this.runningCount = 0,
     this.notInstalledCount = 0,
     this.node = const NodeStatus(),
     this.nodeProgress,
@@ -92,6 +122,10 @@ class RegistryPanel extends StatelessWidget {
     this.fetchedAt,
     this.now,
     this.showLogFor = const <String>{},
+    this.snapshot,
+    this.sampleError,
+    this.onRetrySample,
+    this.runtimeFor,
     this.onSearchChanged,
     this.onFilter,
     this.onLearnMore,
@@ -107,8 +141,9 @@ class RegistryPanel extends StatelessWidget {
   final String query;
   final RegistryFilter filter;
 
-  /// 三个计数（All = 两者之和）。
+  /// 四个过滤计数（All = installed + notInstalled；Running = 已连接的 agent 数）。
   final int installedCount;
+  final int runningCount;
   final int notInstalledCount;
   final NodeStatus node;
   final InstallProgress? nodeProgress;
@@ -123,6 +158,15 @@ class RegistryPanel extends StatelessWidget {
 
   /// 失败态展开了日志块的条目（画板 51「查看日志」切换）。
   final Set<String> showLogFor;
+
+  /// 画板 54：资源概览条的进程与内存采样快照、采样错误信息与失败重试回调。
+  final ProcessSnapshot? snapshot;
+  final String? sampleError;
+  final VoidCallback? onRetrySample;
+
+  /// 画板 54：每个条目的运行态（运行中 / 连接中 / 停止中 / 进程树展开）。
+  final AgentEntryRuntime? Function(RegistryEntryData entry)? runtimeFor;
+
   final ValueChanged<String>? onSearchChanged;
   final ValueChanged<RegistryFilter>? onFilter;
   final VoidCallback? onLearnMore;
@@ -147,75 +191,122 @@ class RegistryPanel extends StatelessWidget {
   }
 
   Widget _header() => Container(
-        padding: const EdgeInsets.only(left: t.Spacing.s16, right: t.Spacing.s16, top: t.Spacing.s16, bottom: t.Spacing.s12),
-        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width))),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
+    padding: const EdgeInsets.only(
+      left: t.Spacing.s16,
+      right: t.Spacing.s16,
+      top: t.Spacing.s16,
+      bottom: t.Spacing.s12,
+    ),
+    decoration: BoxDecoration(
+      border: Border(
+        bottom: BorderSide(color: t.Borders.subtle, width: t.Borders.width),
+      ),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        RegistryPanelHeader(
+          fetching: fetching,
+          fetchedAt: fetchedAt,
+          now: now,
+          onRefresh: onRefresh,
+          onLearnMore: onLearnMore,
+        ),
+        const SizedBox(height: t.Spacing.s12),
+        ResourceBar(
+          snapshot: snapshot,
+          error: sampleError,
+          onRetry: onRetrySample,
+        ),
+        const SizedBox(height: t.Spacing.s12),
+        Row(
           children: <Widget>[
-            RegistryPanelHeader(fetching: fetching, fetchedAt: fetchedAt, now: now, onRefresh: onRefresh, onLearnMore: onLearnMore),
-            const SizedBox(height: t.Spacing.s12),
-            Row(
-              children: <Widget>[
-                Expanded(child: _search()),
-                const SizedBox(width: t.Spacing.s12),
-                _filterChip('All', installedCount + notInstalledCount, RegistryFilter.all),
-                const SizedBox(width: t.Spacing.s4),
-                _filterChip('Installed', installedCount, RegistryFilter.installed),
-                const SizedBox(width: t.Spacing.s4),
-                _filterChip('Not Installed', notInstalledCount, RegistryFilter.notInstalled),
-              ],
+            Expanded(child: _search()),
+            const SizedBox(width: t.Spacing.s12),
+            _filterChip(
+              'All',
+              installedCount + notInstalledCount,
+              RegistryFilter.all,
             ),
-            if (fetchError != null) ...<Widget>[
-              const SizedBox(height: t.Spacing.s8),
-              Row(
-                children: <Widget>[
-                  AcpIcon(AcpIcons.alertTriangle, color: t.Semantic.warning, size: t.IconSizes.toolbar),
-                  const SizedBox(width: t.Spacing.s4),
-                  Expanded(
-                    child: Text(
-                      'registry 拉取失败，显示的是本地缓存：$fetchError',
-                      style: t.TextStyles.secondary.copyWith(color: t.Semantic.warning),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            const SizedBox(width: t.Spacing.s4),
+            _filterChip('Installed', installedCount, RegistryFilter.installed),
+            const SizedBox(width: t.Spacing.s4),
+            _filterChip('Running', runningCount, RegistryFilter.running),
+            const SizedBox(width: t.Spacing.s4),
+            _filterChip(
+              'Not Installed',
+              notInstalledCount,
+              RegistryFilter.notInstalled,
+            ),
           ],
         ),
-      );
-
-  /// 搜索框（h28 · panel 底 · subtle 边框 · radius 4）。
-  Widget _search() => Container(
-        height: t.Controls.standard,
-        decoration: BoxDecoration(
-          color: t.Neutral.panel,
-          border: Border.all(color: t.Borders.subtle, width: t.Borders.width),
-          borderRadius: t.Radii.control,
-        ),
-        padding: t.Controls.padStandard,
-        child: ValueListenableBuilder<TextEditingValue>(
-          valueListenable: searchController,
-          builder: (context, value, _) => Row(
+        if (fetchError != null) ...<Widget>[
+          const SizedBox(height: t.Spacing.s8),
+          Row(
             children: <Widget>[
-              AcpIcon(AcpIcons.search, color: value.text.isEmpty ? t.Neutral.placeholder : t.Neutral.muted, size: t.IconSizes.toolbar),
-              const SizedBox(width: t.Spacing.s8),
+              AcpIcon(
+                AcpIcons.alertTriangle,
+                color: t.Semantic.warning,
+                size: t.IconSizes.toolbar,
+              ),
+              const SizedBox(width: t.Spacing.s4),
               Expanded(
-                child: AcpTextField(
-                  controller: searchController,
-                  focusNode: searchFocusNode,
-                  style: t.TextStyles.secondary.copyWith(color: t.Neutral.text, height: t.LineHeights.control),
-                  placeholder: 'Search agents...',
-                  placeholderStyle: t.TextStyles.secondary.copyWith(color: t.Neutral.placeholder, height: t.LineHeights.control),
-                  onChanged: onSearchChanged,
+                child: Text(
+                  'registry 拉取失败，显示的是本地缓存：$fetchError',
+                  style: t.TextStyles.secondary.copyWith(
+                    color: t.Semantic.warning,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
-        ),
-      );
+        ],
+      ],
+    ),
+  );
+
+  /// 搜索框（h28 · panel 底 · subtle 边框 · radius 4）。
+  Widget _search() => Container(
+    height: t.Controls.standard,
+    decoration: BoxDecoration(
+      color: t.Neutral.panel,
+      border: Border.all(color: t.Borders.subtle, width: t.Borders.width),
+      borderRadius: t.Radii.control,
+    ),
+    padding: t.Controls.padStandard,
+    child: ValueListenableBuilder<TextEditingValue>(
+      valueListenable: searchController,
+      builder: (context, value, _) => Row(
+        children: <Widget>[
+          AcpIcon(
+            AcpIcons.search,
+            color: value.text.isEmpty ? t.Neutral.placeholder : t.Neutral.muted,
+            size: t.IconSizes.toolbar,
+          ),
+          const SizedBox(width: t.Spacing.s8),
+          Expanded(
+            child: AcpTextField(
+              controller: searchController,
+              focusNode: searchFocusNode,
+              style: t.TextStyles.secondary.copyWith(
+                color: t.Neutral.text,
+                height: t.LineHeights.control,
+              ),
+              placeholder: 'Search agents...',
+              placeholderStyle: t.TextStyles.secondary.copyWith(
+                color: t.Neutral.placeholder,
+                height: t.LineHeights.control,
+              ),
+              onChanged: onSearchChanged,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 
   Widget _filterChip(String label, int count, RegistryFilter value) {
     final selected = filter == value;
@@ -225,15 +316,28 @@ class RegistryPanel extends StatelessWidget {
         height: t.Controls.compact,
         padding: t.Controls.padCompact,
         decoration: BoxDecoration(
-          color: selected ? t.Overlays.selected : (hovered ? t.Overlays.hover : null),
+          color: selected
+              ? t.Overlays.selected
+              : (hovered ? t.Overlays.hover : null),
           borderRadius: t.Radii.control,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Text(label, style: t.TextStyles.secondary.copyWith(color: selected ? t.Accent.text : t.Neutral.muted, height: t.LineHeights.control)),
+            Text(
+              label,
+              style: t.TextStyles.secondary.copyWith(
+                color: selected ? t.Accent.text : t.Neutral.muted,
+                height: t.LineHeights.control,
+              ),
+            ),
             const SizedBox(width: t.Spacing.s4),
-            Text('$count', style: t.TextStyles.monoMeta.copyWith(color: selected ? t.Accent.text : t.Neutral.placeholder)),
+            Text(
+              '$count',
+              style: t.TextStyles.monoMeta.copyWith(
+                color: selected ? t.Accent.text : t.Neutral.placeholder,
+              ),
+            ),
           ],
         ),
       ),
@@ -245,7 +349,9 @@ class RegistryPanel extends StatelessWidget {
     if (entries.isEmpty && !showNode) {
       return Center(
         child: Text(
-          query.isNotEmpty ? '没有匹配的 agent' : (fetchError != null ? 'registry 没有缓存，联网后重试' : '暂无 agent'),
+          query.isNotEmpty
+              ? '没有匹配的 agent'
+              : (fetchError != null ? 'registry 没有缓存，联网后重试' : '暂无 agent'),
           style: t.TextStyles.secondary.copyWith(color: t.Neutral.placeholder),
         ),
       );
@@ -256,14 +362,26 @@ class RegistryPanel extends StatelessWidget {
         if (showNode) {
           if (i == 0) {
             return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: t.Spacing.s16, vertical: t.Spacing.s12),
-              child: ManagedNodePrompt(progress: nodeProgress, onDownload: onDownloadNode, minVersion: node.minVersion.split('.').first),
+              padding: const EdgeInsets.symmetric(
+                horizontal: t.Spacing.s16,
+                vertical: t.Spacing.s12,
+              ),
+              child: ManagedNodePrompt(
+                progress: nodeProgress,
+                onDownload: onDownloadNode,
+                minVersion: node.minVersion.split('.').first,
+              ),
             );
           }
           i -= 1;
         }
         final e = entries[i];
-        return RegistryEntryRow(e, actions: actionsFor?.call(e) ?? const RegistryEntryActions(), showLog: showLogFor.contains(e.id));
+        return RegistryEntryRow(
+          e,
+          actions: actionsFor?.call(e) ?? const RegistryEntryActions(),
+          runtime: runtimeFor?.call(e),
+          showLog: showLogFor.contains(e.id),
+        );
       },
     );
   }

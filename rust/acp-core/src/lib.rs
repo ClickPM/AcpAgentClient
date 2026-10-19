@@ -17,6 +17,7 @@ pub mod error;
 pub mod events;
 pub mod log;
 pub mod meta_keys;
+pub mod process;
 pub mod redact;
 pub mod registry_ops;
 pub mod terminal_auth;

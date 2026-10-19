@@ -1,20 +1,6 @@
+// dart format off
 // 组合根（R3 接线阶段起；R7.5 拆成组合根 + 8 个对象）：把 `lib/projection/` 的投影层、`lib/app/core_bridge.dart` 的桥命令
 // 与 `lib/ui/` 的画板 widget 串起来。widget 只拿数据与回调，不知道桥的存在（AGENTS.md 规则 3）。
-//
-// 本文件只剩接线与生命周期：投影层三件（sessions / batcher / traffic）、文件与终端面板、八个子对象的构造与回调接线、
-// `start()` 的启动顺序、六路核心事件的订阅与分发、批量刷新的调度、dispose / shutdown。状态与动作按画板分组在同目录的
-// `*State`（shell / workspace / agents / auth / composer）与协议驱动的两个 `*Controller`（session / turn）里，`SessionIndex`
-// 是本地索引的内存镜像；依赖方向见 rounds/round-7.5/round-7.5.md 附录 B——子对象之间只有单向依赖，反向一律走这里接的回调，
-// 没有子对象 import 本文件。screen / headless / test 直接访问子对象（`c.session.send()` 这样），这里不留转发门面。
-//
-// 数据源两种（ROUNDS § 3 R3）：
-//   bridge（默认）——真核心；fixtures（`--dart-define=DATA_SOURCE=fixtures`）——回放 `test/fixtures/`，
-//   所有会改动 agent 的命令都是 no-op，供 gallery 与不装 agent 时开发。
-//
-// 通知（R7.5 阶段 A）：八个子对象与 sessions / files / terminals 的通知全部转发到本对象，screen 仍用一个
-// ListenableBuilder 包整个壳；按区域订阅是阶段 B 的事，先量后动（任务卡裁定门第 4 项）。
-//
-// 不做 agent 特判（规则 2）：agent 名一律来自 settings.json 的键或 `initialize` 的 `agentInfo`。
 
 import 'dart:async';
 import 'dart:convert';
@@ -23,6 +9,7 @@ import 'dart:io';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
+import '../projection/agent_state.dart';
 import '../projection/batcher.dart';
 import '../projection/entries.dart';
 import '../projection/fixture_line.dart';
@@ -41,6 +28,7 @@ import 'files_state.dart';
 import 'guarded.dart';
 import 'local_terminals.dart';
 import 'paths.dart';
+import 'session_attach.dart';
 import 'session_index.dart';
 import 'shell_state.dart';
 import 'session_controller.dart';
@@ -55,7 +43,9 @@ enum DataSource {
 
   /// `--dart-define=DATA_SOURCE=fixtures`。
   static DataSource fromEnvironment() =>
-      const String.fromEnvironment('DATA_SOURCE') == 'fixtures' ? DataSource.fixtures : DataSource.bridge;
+      const String.fromEnvironment('DATA_SOURCE') == 'fixtures'
+      ? DataSource.fixtures
+      : DataSource.bridge;
 }
 
 class WorkbenchController extends ChangeNotifier with GuardedNotifier, WidgetsBindingObserver {
@@ -63,18 +53,16 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier, WidgetsBi
     _scheduler = scheduler ?? _scheduleOnFrame;
     _observesLifecycle = scheduler == null;
     if (_observesLifecycle) WidgetsBinding.instance.addObserver(this);
-    // 输入框草稿按会话归属：当前会话一变就换草稿（BACKLOG P0「切换 session 后未发送的提示词带入另一个会话」）。
-    // 听会话控制器本身而不是在各条切换路径上挂钩子：`sessionId` 的写入点有十来处（侧栏、新建、换项目、删除……）。
-    // 必须排在下面那条「转发到根」之前：同一次通知里先换草稿，工作台重绘时输入框已经是目标会话的。
     session.addListener(() => composer.followSession(session.sessionId));
     session.onForgetSession = composer.forgetDraft;
-    // 阶段 A：子对象的通知全部转发到根。在构造函数里接而不是 start() 里：不 start 也能用（单测这么用）。
+    for (final n in <ChangeNotifier>[shell, auth]) {
+      n.addListener(_syncAgentsPanel);
+    }
     for (final child in <ChangeNotifier>[shell, workspace, agents, auth, composer, turn, session, toasts]) {
       child.addListener(notifyListeners);
     }
     session.onClearQueue = turn.clearQueue;
     session.onClearAgentQueues = turn.clearQueuesForAgent;
-    // 错误的前台出口：谁的 `lastError` 写进一句，都落成一条 toast（BACKLOG「失败没有出口」）。
     for (final source in <GuardedNotifier>[this, shell, workspace, agents, auth, composer, turn, session, files, terminals]) {
       source.reportError = toasts.error;
     }
@@ -90,19 +78,11 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier, WidgetsBi
   int? _flushFrameId;
   void Function()? _pendingFrameFlush;
 
-  // ---- 投影层
   late final Sessions sessions = Sessions();
   late final UpdateBatcher batcher = UpdateBatcher(sessions, scheduler: _scheduler);
   final TrafficStore traffic = TrafficStore();
-
-  /// 回合折叠（画板 08 B）：全局开关 + 每个回合的展开态。**不转发到根**——折叠只影响转录列表，
-  /// 而 `TranscriptList` 自己听它；转发上来会让点一次摘要行重建整个工作台。
   late final TranscriptFolds folds = TranscriptFolds(bridge: bridge);
-
-  /// 壳级提示（toast，设计稿之外的增补，所有者 2026-09-23）：各对象 `lastError` 的前台出口 + 「会话正在加载中」。
   final Toasts toasts = Toasts();
-
-  /// 文件面板（画板 60）与终端面板（画板 61）的接线状态（R4）。
   late final FilesState files = FilesState(bridge: bridge);
   late final LocalTerminals terminals = LocalTerminals(bridge: bridge);
 
@@ -116,7 +96,8 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier, WidgetsBi
     cwd: () => workspace.project?.path,
     // 打开 Agents 标签时检查一次 registry 有没有新版本（画板 53；核心侧 1 小时节流，不 force）。
     onTabShown: (tab) {
-      if (tab == ShellTab.agents) unawaited(agents.refreshRegistry(network: true));
+      if (tab == ShellTab.agents)
+        unawaited(agents.refreshRegistry(network: true));
     },
     onWorkbenchShown: () {
       // 从流量页回到工作台，当前那条会话就又在眼前了：它的绿点一并撤掉（画板 06 的清除条件）。
@@ -133,12 +114,20 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier, WidgetsBi
     onProjectChanged: () => session.enterWorkspace(),
   );
 
-  /// 本地会话索引 `sessions.json` 的内存镜像（不是 notifier）：条目一变，会话控制器重投影侧栏。
   late final SessionIndex index = SessionIndex(bridge: bridge, onChanged: () => session.refreshSidebar());
 
-  /// 已装 agent 列表、registry 面板（画板 50 / 51）与设置面板（画板 70）。
+  /// 已装 agent 列表、registry 面板（画板 50 / 51 / 54）与设置面板（画板 70）。
   late final AgentsState agents = AgentsState(
     bridge: bridge,
+    sessions: sessions,
+    isSessionAttached: (id) => session.attachOf(id) == SessionAttach.attached,
+    sessionOwner: (id) => session.ownerOf(id),
+    onStopped: (id) {
+      if (sessions.agents[id]?.state != AgentLifecycle.exited) {
+        sessions.applyAgentState(<String, dynamic>{'agentId': id, 'state': 'exited'});
+      }
+      turn.clearQueuesForAgent(id);
+    },
     onRemoved: (id) {
       session.dropAgent(id);
       auth.closeIfAgent(id);
@@ -162,8 +151,10 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier, WidgetsBi
     },
     showWorkbench: () => shell.page = MainPage.workbench,
     onAuthenticated: (agent, cwd, adopted) async {
-      if (adopted == null) await session.createSession(agent, cwd);
-      else await session.adoptAuthSession(agent, cwd, adopted);
+      if (adopted == null)
+        await session.createSession(agent, cwd);
+      else
+        await session.adoptAuthSession(agent, cwd, adopted);
     },
   );
 
@@ -190,16 +181,10 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier, WidgetsBi
     openAuth: (agent, cwd) => auth.open(agent, retryCwd: cwd),
   );
 
-  /// 一轮对话：发送 / 取消 / 回应 / Restore、会话配置、停止方块、本地转录文本。轮读会话控制器，会话控制器不知道有轮。
   late final TurnController turn = TurnController(bridge: bridge, session: session, composer: composer);
-
-  /// agent 终端（`acp/terminal_output` source = agent / auth）的分块 UTF-8 解码：跨块的多字节字符不能逐块 `utf8.decode`。
   final Map<String, _ChunkedUtf8> _agentTerminalText = <String, _ChunkedUtf8>{};
-
-  /// 核心给的几个路径（画板 70）：`core_init` / `registry_list` 的 `paths`。
   String? dataDir;
   String? logPath;
-
   final List<StreamSubscription<CoreEventRecord>> _subs = <StreamSubscription<CoreEventRecord>>[];
 
   // ---------------------------------------------------------------- 生命周期
@@ -223,7 +208,7 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier, WidgetsBi
               final aid = json['agentId'] as String?;
               if (aid != null) turn.clearQueuesForAgent(aid);
             }
-            _onAgentReconnected(json);
+            agents.onAgentState(json);
           })),
       b.on(CoreEvent.terminalOutput).listen((e) => _enqueue(e, _onTerminalOutput)),
       b.on(CoreEvent.traffic).listen((e) {
@@ -259,13 +244,8 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier, WidgetsBi
     unawaited(agents.refreshRegistry(network: true));
   }
 
-  /// 画板 53「已升级 · 待重载」的撤销：那条旧连接重连（Reload Agent）或退出了，重读一次列表（不联网）把提示撤掉。
-  /// 只在确有待重载的条目时读，别的 agent 连接进出不白读。
-  void _onAgentReconnected(JsonMap json) {
-    final state = json['state'];
-    if (state != 'initialized' && state != 'exited') return;
-    final id = json['agentId'];
-    if (id is String && agents.registry.byId(id)?.reloadPending != null) unawaited(agents.refreshRegistry());
+  void _syncAgentsPanel() {
+    agents.setPanelVisible(shell.rightPanelOpen && shell.activePanel?.shell == ShellTab.agents && auth.agentId == null);
   }
 
   /// fixtures 数据源：把线上行喂进同一套投影层与流量面板，本地态给一份可用的假数据。
@@ -342,9 +322,12 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier, WidgetsBi
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // 已排上帧再最小化时，batcher 的 _scheduled 仍为 true，不会另排刷新。
-    // 把那一次刷新迁走（并撤销帧回调），否则即使新消息走微任务，旧队列也永远等帧。
-    if (state == AppLifecycleState.resumed || state == AppLifecycleState.inactive) return;
+    final minimized =
+        state != AppLifecycleState.resumed &&
+        state != AppLifecycleState.inactive;
+    agents.setWindowMinimized(minimized);
+    // 已排上帧再最小化时，batcher 的 _scheduled 仍为 true，把那一次刷新迁走（并撤销帧回调）。
+    if (!minimized) return;
     final flush = _pendingFrameFlush;
     _cancelFrameFlush();
     if (flush != null) _scheduleFlushMicrotask(flush);
@@ -358,7 +341,8 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier, WidgetsBi
   }
 
   /// 无头实跑用：微任务里刷，不依赖帧。
-  static void scheduleOnMicrotask(void Function() flush) => scheduleMicrotask(flush);
+  static void scheduleOnMicrotask(void Function() flush) =>
+      scheduleMicrotask(flush);
 
   @override
   void dispose() {
@@ -395,7 +379,11 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier, WidgetsBi
     }
     final id = json['terminalId'];
     if (id is! String) return;
-    sessions.applyTerminalOutputEvent(json, decode: (b64) => _agentTerminalText.putIfAbsent(id, _ChunkedUtf8.new).decode(b64));
+    sessions.applyTerminalOutputEvent(
+      json,
+      decode: (b64) =>
+          _agentTerminalText.putIfAbsent(id, _ChunkedUtf8.new).decode(b64),
+    );
     if (json['exitStatus'] is Map) _agentTerminalText.remove(id);
   }
 
@@ -428,7 +416,8 @@ class WorkbenchController extends ChangeNotifier with GuardedNotifier, WidgetsBi
 /// 一个终端的 base64 字节流 → 文本：分块 UTF-8 解码，跨块的多字节字符不会被切成 U+FFFD（R3 逐块 `utf8.decode` 的隐患）。
 class _ChunkedUtf8 {
   _ChunkedUtf8() {
-    _sink = const Utf8Decoder(allowMalformed: true).startChunkedConversion(StringConversionSink.fromStringSink(_out));
+    _sink = const Utf8Decoder(allowMalformed: true)
+        .startChunkedConversion(StringConversionSink.fromStringSink(_out));
   }
 
   final StringBuffer _out = StringBuffer();

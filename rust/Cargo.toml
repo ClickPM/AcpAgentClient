@@ -11,7 +11,7 @@ members = [
 ]
 
 [workspace.package]
-version = "1.5.2"
+version = "1.6.0"
 edition = "2024"
 rust-version = "1.98"
 license = "GPL-3.0-or-later"
@@ -33,6 +33,8 @@ notify = "8"
 # 规则 1 清单内（所有者裁定 2026-09-20）：`acp/terminal_output` 的字节编码。0.22 早已是 reqwest 那条线的传递依赖
 # （Cargo.lock 里本来就有），直接依赖它不新增编译单元；此前 acp-core 与 acp-smoke 各手写了一份编码 / 解码。
 base64 = "0.22"
+# 规则 1 清单内（所有者裁定 2026-10-18，画板 54）：Agents 面板的进程树与内存采样（rounds/round-10）。只要进程表，不带 disk / network / component / user。
+sysinfo = { version = "0.39", default-features = false, features = ["system"] }
 
 acp-core = { path = "acp-core" }
 registry = { path = "registry" }

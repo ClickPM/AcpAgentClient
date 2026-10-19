@@ -235,6 +235,13 @@ Future<String> agentSettingsRemove({required String agentId}) =>
 /// 开发期排查：每个已连接 agent 的 droppedUpdates / 退出状态 / 挂起请求。
 Future<String> agentsStatus() => RustLib.instance.api.crateApiAgentsStatus();
 
+/// 进程面板（R10，画板 54）：`{metric, takenAt, app: {pid, bytes}, agents: [{agentId, rootPid, bytes, startedAt,
+/// processes: [{pid, parentPid, name, bytes, depth}], terminals: [{terminalId, pid, name, bytes}]}],
+/// terminals: {count, bytes, items: [{terminalId, source, pid, name, bytes}]}, other: {bytes}, total}`。
+/// 非 ACP 消息、仅用于渲染；停止 agent 复用 `agent_disconnect`。
+Future<String> processSnapshot() =>
+    RustLib.instance.api.crateApiProcessSnapshot();
+
 /// registry 列表：`{agents: [{id, name, version, description, repository?, website?, iconSvg?, distribution, supported, package?,
 /// installed: {kind, version, installedVersion?, command, args, env, authStatus, agentInfo?, installedAt, previousVersion?} | null, installing,
 /// updateAvailable?（registry 当前版本，≠ 安装记录的 version 时才有）, reloadPending?（升级后仍在运行的旧连接的版本）, custom: {command, args, env} | null}],

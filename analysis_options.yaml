@@ -8,6 +8,8 @@ analyzer:
     - vendor/**
     - prototype/**
     - design/**
+    - macos/**
+    - ai-output/**
 
 linter:
   rules:

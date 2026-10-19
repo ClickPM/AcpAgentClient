@@ -7,7 +7,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart' show ExternalLibrary;
+import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
+    show ExternalLibrary;
 
 import '../bridge/api.dart' as api;
 import '../bridge/frb_generated.dart';
@@ -48,7 +49,8 @@ class CoreCommandError implements Exception {
 }
 
 /// 记进 `lastError` 的一行文案：核心错误带上短码，其余照 `toString()`。
-String describeError(Object e) => e is CoreCommandError ? '${e.code}: ${e.message}' : e.toString();
+String describeError(Object e) =>
+    e is CoreCommandError ? '${e.code}: ${e.message}' : e.toString();
 
 /// 组合根用到的核心接口（事件订阅 + 命令面）。抽出来是为了让 `lib/app/` 的接线能在
 /// `flutter test` 里用假实现驱动（cdylib 在 flutter_tester 里加载不了），真实实现只有 [CoreBridge]。
@@ -67,11 +69,28 @@ abstract interface class CoreCommands {
   Future<JsonMap> sessionResume(String agentId, String sessionId, String cwd);
   Future<JsonMap> sessionClose(String agentId, String sessionId);
   Future<JsonMap> sessionDelete(String agentId, String sessionId);
-  Future<JsonMap> sessionPrompt(String agentId, String sessionId, List<Object?> prompt);
+  Future<JsonMap> sessionPrompt(
+    String agentId,
+    String sessionId,
+    List<Object?> prompt,
+  );
   Future<JsonMap> sessionCancel(String agentId, String sessionId);
-  Future<JsonMap> sessionSetConfigOption(String agentId, String sessionId, String configId, JsonMap value);
-  Future<JsonMap> sessionSetMode(String agentId, String sessionId, String modeId);
-  Future<JsonMap> acpRespond(String agentId, String requestId, JsonMap response);
+  Future<JsonMap> sessionSetConfigOption(
+    String agentId,
+    String sessionId,
+    String configId,
+    JsonMap value,
+  );
+  Future<JsonMap> sessionSetMode(
+    String agentId,
+    String sessionId,
+    String modeId,
+  );
+  Future<JsonMap> acpRespond(
+    String agentId,
+    String requestId,
+    JsonMap response,
+  );
   Future<JsonMap> authenticate(String agentId, String methodId);
   Future<JsonMap> terminalAuthRun(String agentId, String methodId, String cwd);
   Future<JsonMap> terminalWrite(String terminalId, String data);
@@ -116,9 +135,18 @@ abstract interface class CoreCommands {
   Stream<JsonMap> fsWatch(String root);
   Future<JsonMap> fsUnwatch(String root);
   Future<JsonMap> gitStatus(String cwd);
-  Future<JsonMap> terminalOpen(String cwd, {required int cols, required int rows});
-  Future<JsonMap> terminalResize(String terminalId, {required int cols, required int rows});
+  Future<JsonMap> terminalOpen(
+    String cwd, {
+    required int cols,
+    required int rows,
+  });
+  Future<JsonMap> terminalResize(
+    String terminalId, {
+    required int cols,
+    required int rows,
+  });
   Future<JsonMap> terminalKill(String terminalId);
+  Future<JsonMap> processSnapshot();
   Future<JsonMap> coreShutdown();
 }
 
@@ -146,27 +174,38 @@ class CoreBridge implements CoreCommands {
     return null;
   }
 
-  final StreamController<CoreEventRecord> _events = StreamController<CoreEventRecord>.broadcast();
-  final List<StreamSubscription<String>> _subscriptions = <StreamSubscription<String>>[];
+  final StreamController<CoreEventRecord> _events =
+      StreamController<CoreEventRecord>.broadcast();
+  final List<StreamSubscription<String>> _subscriptions =
+      <StreamSubscription<String>>[];
   bool _subscribed = false;
 
   /// 全部事件（六条流合一，按到达顺序）。
   Stream<CoreEventRecord> get events => _events.stream;
 
   @override
-  Stream<CoreEventRecord> on(CoreEvent channel) => events.where((e) => e.channel == channel);
+  Stream<CoreEventRecord> on(CoreEvent channel) =>
+      events.where((e) => e.channel == channel);
 
   /// 先订阅再 init：核心在 init 时就会推 `core_ready`。
   void subscribe() {
     if (_subscribed) return;
     _subscribed = true;
     _subscriptions.addAll(<StreamSubscription<String>>[
-      api.sessionUpdateStream().listen((s) => _push(CoreEvent.sessionUpdate, s)),
-      api.clientRequestStream().listen((s) => _push(CoreEvent.clientRequest, s)),
+      api.sessionUpdateStream().listen(
+        (s) => _push(CoreEvent.sessionUpdate, s),
+      ),
+      api.clientRequestStream().listen(
+        (s) => _push(CoreEvent.clientRequest, s),
+      ),
       api.agentStateStream().listen((s) => _push(CoreEvent.agentState, s)),
-      api.terminalOutputStream().listen((s) => _push(CoreEvent.terminalOutput, s)),
+      api.terminalOutputStream().listen(
+        (s) => _push(CoreEvent.terminalOutput, s),
+      ),
       api.trafficStream().listen((s) => _push(CoreEvent.traffic, s)),
-      api.registryProgressStream().listen((s) => _push(CoreEvent.registryProgress, s)),
+      api.registryProgressStream().listen(
+        (s) => _push(CoreEvent.registryProgress, s),
+      ),
     ]);
   }
 
@@ -196,13 +235,16 @@ class CoreBridge implements CoreCommands {
   // ---- 命令（docs/design.md § 3。入参与返回都是 JSON 字符串，这里只做 decode）
 
   @override
-  Future<JsonMap> agentConnect(String agentId, {String? cwd}) => _run(() => api.agentConnect(agentId: agentId, cwd: cwd));
+  Future<JsonMap> agentConnect(String agentId, {String? cwd}) =>
+      _run(() => api.agentConnect(agentId: agentId, cwd: cwd));
 
   @override
-  Future<JsonMap> agentDisconnect(String agentId) => _run(() => api.agentDisconnect(agentId: agentId));
+  Future<JsonMap> agentDisconnect(String agentId) =>
+      _run(() => api.agentDisconnect(agentId: agentId));
 
   @override
-  Future<JsonMap> sessionNew(String agentId, String cwd) => _run(() => api.sessionNew(agentId: agentId, cwd: cwd));
+  Future<JsonMap> sessionNew(String agentId, String cwd) =>
+      _run(() => api.sessionNew(agentId: agentId, cwd: cwd));
 
   @override
   Future<JsonMap> sessionList(String agentId, {String? cwd, String? cursor}) =>
@@ -210,77 +252,138 @@ class CoreBridge implements CoreCommands {
 
   @override
   Future<JsonMap> sessionLoad(String agentId, String sessionId, String cwd) =>
-      _run(() => api.sessionLoad(agentId: agentId, sessionId: sessionId, cwd: cwd));
+      _run(
+        () => api.sessionLoad(agentId: agentId, sessionId: sessionId, cwd: cwd),
+      );
 
   @override
   Future<JsonMap> sessionResume(String agentId, String sessionId, String cwd) =>
-      _run(() => api.sessionResume(agentId: agentId, sessionId: sessionId, cwd: cwd));
+      _run(
+        () =>
+            api.sessionResume(agentId: agentId, sessionId: sessionId, cwd: cwd),
+      );
 
   @override
-  Future<JsonMap> sessionClose(String agentId, String sessionId) => _run(() => api.sessionClose(agentId: agentId, sessionId: sessionId));
+  Future<JsonMap> sessionClose(String agentId, String sessionId) =>
+      _run(() => api.sessionClose(agentId: agentId, sessionId: sessionId));
 
   @override
-  Future<JsonMap> sessionDelete(String agentId, String sessionId) => _run(() => api.sessionDelete(agentId: agentId, sessionId: sessionId));
+  Future<JsonMap> sessionDelete(String agentId, String sessionId) =>
+      _run(() => api.sessionDelete(agentId: agentId, sessionId: sessionId));
 
   @override
-  Future<JsonMap> sessionPrompt(String agentId, String sessionId, List<Object?> prompt) =>
-      _run(() => api.sessionPrompt(agentId: agentId, sessionId: sessionId, prompt: jsonEncode(prompt)));
+  Future<JsonMap> sessionPrompt(
+    String agentId,
+    String sessionId,
+    List<Object?> prompt,
+  ) => _run(
+    () => api.sessionPrompt(
+      agentId: agentId,
+      sessionId: sessionId,
+      prompt: jsonEncode(prompt),
+    ),
+  );
 
   @override
-  Future<JsonMap> sessionCancel(String agentId, String sessionId) => _run(() => api.sessionCancel(agentId: agentId, sessionId: sessionId));
+  Future<JsonMap> sessionCancel(String agentId, String sessionId) =>
+      _run(() => api.sessionCancel(agentId: agentId, sessionId: sessionId));
 
   @override
-  Future<JsonMap> sessionSetConfigOption(String agentId, String sessionId, String configId, JsonMap value) =>
-      _run(() => api.sessionSetConfigOption(agentId: agentId, sessionId: sessionId, configId: configId, value: jsonEncode(value)));
+  Future<JsonMap> sessionSetConfigOption(
+    String agentId,
+    String sessionId,
+    String configId,
+    JsonMap value,
+  ) => _run(
+    () => api.sessionSetConfigOption(
+      agentId: agentId,
+      sessionId: sessionId,
+      configId: configId,
+      value: jsonEncode(value),
+    ),
+  );
 
   @override
-  Future<JsonMap> sessionSetMode(String agentId, String sessionId, String modeId) =>
-      _run(() => api.sessionSetMode(agentId: agentId, sessionId: sessionId, modeId: modeId));
+  Future<JsonMap> sessionSetMode(
+    String agentId,
+    String sessionId,
+    String modeId,
+  ) => _run(
+    () => api.sessionSetMode(
+      agentId: agentId,
+      sessionId: sessionId,
+      modeId: modeId,
+    ),
+  );
 
   @override
-  Future<JsonMap> acpRespond(String agentId, String requestId, JsonMap response) =>
-      _run(() => api.acpRespond(agentId: agentId, requestId: requestId, response: jsonEncode(response)));
+  Future<JsonMap> acpRespond(
+    String agentId,
+    String requestId,
+    JsonMap response,
+  ) => _run(
+    () => api.acpRespond(
+      agentId: agentId,
+      requestId: requestId,
+      response: jsonEncode(response),
+    ),
+  );
 
   @override
-  Future<JsonMap> authenticate(String agentId, String methodId) => _run(() => api.authenticate(agentId: agentId, methodId: methodId));
+  Future<JsonMap> authenticate(String agentId, String methodId) =>
+      _run(() => api.authenticate(agentId: agentId, methodId: methodId));
 
   @override
-  Future<JsonMap> terminalAuthRun(String agentId, String methodId, String cwd) =>
-      _run(() => api.terminalAuthRun(agentId: agentId, methodId: methodId, cwd: cwd));
+  Future<JsonMap> terminalAuthRun(
+    String agentId,
+    String methodId,
+    String cwd,
+  ) => _run(
+    () => api.terminalAuthRun(agentId: agentId, methodId: methodId, cwd: cwd),
+  );
 
   @override
-  Future<JsonMap> terminalWrite(String terminalId, String data) => _run(() => api.terminalWrite(terminalId: terminalId, data: data));
+  Future<JsonMap> terminalWrite(String terminalId, String data) =>
+      _run(() => api.terminalWrite(terminalId: terminalId, data: data));
 
   @override
-  Future<JsonMap> terminalClose(String terminalId) => _run(() => api.terminalClose(terminalId: terminalId));
+  Future<JsonMap> terminalClose(String terminalId) =>
+      _run(() => api.terminalClose(terminalId: terminalId));
 
   @override
   Future<JsonMap> agentSettingsGet() => _run(api.agentSettingsGet);
 
   @override
-  Future<JsonMap> agentSettingsSet(String agentId, JsonMap server) =>
-      _run(() => api.agentSettingsSet(agentId: agentId, server: jsonEncode(server)));
+  Future<JsonMap> agentSettingsSet(String agentId, JsonMap server) => _run(
+    () => api.agentSettingsSet(agentId: agentId, server: jsonEncode(server)),
+  );
 
   @override
-  Future<JsonMap> agentSettingsRemove(String agentId) => _run(() => api.agentSettingsRemove(agentId: agentId));
+  Future<JsonMap> agentSettingsRemove(String agentId) =>
+      _run(() => api.agentSettingsRemove(agentId: agentId));
 
   @override
   Future<JsonMap> registryList() => _run(api.registryList);
 
   @override
-  Future<JsonMap> registryRefresh({bool force = false}) => _run(() => api.registryRefresh(force: force));
+  Future<JsonMap> registryRefresh({bool force = false}) =>
+      _run(() => api.registryRefresh(force: force));
 
   @override
-  Future<JsonMap> registryInstall(String agentId) => _run(() => api.registryInstall(agentId: agentId));
+  Future<JsonMap> registryInstall(String agentId) =>
+      _run(() => api.registryInstall(agentId: agentId));
 
   @override
-  Future<JsonMap> registryUpdate(String agentId) => _run(() => api.registryUpdate(agentId: agentId));
+  Future<JsonMap> registryUpdate(String agentId) =>
+      _run(() => api.registryUpdate(agentId: agentId));
 
   @override
-  Future<JsonMap> registryCancelInstall(String agentId) => _run(() => api.registryCancelInstall(agentId: agentId));
+  Future<JsonMap> registryCancelInstall(String agentId) =>
+      _run(() => api.registryCancelInstall(agentId: agentId));
 
   @override
-  Future<JsonMap> registryRemove(String agentId) => _run(() => api.registryRemove(agentId: agentId));
+  Future<JsonMap> registryRemove(String agentId) =>
+      _run(() => api.registryRemove(agentId: agentId));
 
   @override
   Future<JsonMap> nodeStatus() => _run(api.nodeStatus);
@@ -289,81 +392,108 @@ class CoreBridge implements CoreCommands {
   Future<JsonMap> nodeDownload() => _run(api.nodeDownload);
 
   @override
-  Future<JsonMap> fsListDir(String root, String path) => _run(() => api.fsListDir(root: root, path: path));
+  Future<JsonMap> fsListDir(String root, String path) =>
+      _run(() => api.fsListDir(root: root, path: path));
 
   @override
-  Future<JsonMap> fsSearch(String root, String query, {int limit = 10}) => _run(() => api.fsSearch(root: root, query: query, limit: limit));
+  Future<JsonMap> fsSearch(String root, String query, {int limit = 10}) =>
+      _run(() => api.fsSearch(root: root, query: query, limit: limit));
 
   @override
-  Future<JsonMap> gitBranches(String cwd) => _run(() => api.gitBranches(cwd: cwd));
+  Future<JsonMap> gitBranches(String cwd) =>
+      _run(() => api.gitBranches(cwd: cwd));
 
   @override
-  Future<JsonMap> gitSwitch(String cwd, String branch) => _run(() => api.gitSwitch(cwd: cwd, branch: branch));
+  Future<JsonMap> gitSwitch(String cwd, String branch) =>
+      _run(() => api.gitSwitch(cwd: cwd, branch: branch));
 
   @override
-  Future<JsonMap> gitCreateBranch(String cwd, String branch) => _run(() => api.gitCreateBranch(cwd: cwd, branch: branch));
+  Future<JsonMap> gitCreateBranch(String cwd, String branch) =>
+      _run(() => api.gitCreateBranch(cwd: cwd, branch: branch));
 
   @override
-  Future<JsonMap> gitDiff(String cwd, {String? base}) => _run(() => api.gitDiff(cwd: cwd, base: base));
+  Future<JsonMap> gitDiff(String cwd, {String? base}) =>
+      _run(() => api.gitDiff(cwd: cwd, base: base));
 
   @override
   Future<JsonMap> workspaceRecent() => _run(api.workspaceRecent);
 
   @override
-  Future<JsonMap> workspaceOpen(String path) => _run(() => api.workspaceOpen(path: path));
+  Future<JsonMap> workspaceOpen(String path) =>
+      _run(() => api.workspaceOpen(path: path));
 
   @override
   Future<JsonMap> sessionIndexList() => _run(api.sessionIndexList);
 
   @override
-  Future<JsonMap> sessionIndexUpsert(JsonMap entry) => _run(() => api.sessionIndexUpsert(entry: jsonEncode(entry)));
+  Future<JsonMap> sessionIndexUpsert(JsonMap entry) =>
+      _run(() => api.sessionIndexUpsert(entry: jsonEncode(entry)));
 
   @override
-  Future<JsonMap> sessionIndexRemove(String agentId, String sessionId) =>
-      _run(() => api.sessionIndexRemove(agentId: agentId, sessionId: sessionId));
+  Future<JsonMap> sessionIndexRemove(String agentId, String sessionId) => _run(
+    () => api.sessionIndexRemove(agentId: agentId, sessionId: sessionId),
+  );
 
   @override
   Future<JsonMap> appearanceGet() => _run(api.appearanceGet);
 
   @override
-  Future<JsonMap> appearanceSet(JsonMap patch) => _run(() => api.appearanceSet(patch: jsonEncode(patch)));
+  Future<JsonMap> appearanceSet(JsonMap patch) =>
+      _run(() => api.appearanceSet(patch: jsonEncode(patch)));
 
   @override
   Future<JsonMap> transcriptPrefsGet() => _run(api.transcriptPrefsGet);
 
   @override
-  Future<JsonMap> transcriptPrefsSet(JsonMap patch) => _run(() => api.transcriptPrefsSet(patch: jsonEncode(patch)));
+  Future<JsonMap> transcriptPrefsSet(JsonMap patch) =>
+      _run(() => api.transcriptPrefsSet(patch: jsonEncode(patch)));
 
   @override
   Future<JsonMap> uiStateGet() => _run(api.uiStateGet);
 
   @override
-  Future<JsonMap> uiStateSet(JsonMap patch) => _run(() => api.uiStateSet(patch: jsonEncode(patch)));
+  Future<JsonMap> uiStateSet(JsonMap patch) =>
+      _run(() => api.uiStateSet(patch: jsonEncode(patch)));
 
   // ---- R4：文件面板 / 终端 / 退出收尾
 
   @override
-  Future<JsonMap> fsRead(String root, String path) => _run(() => api.fsRead(root: root, path: path));
+  Future<JsonMap> fsRead(String root, String path) =>
+      _run(() => api.fsRead(root: root, path: path));
 
   @override
-  Stream<JsonMap> fsWatch(String root) => api.fsWatch(root: root).map(_decodeObject);
+  Stream<JsonMap> fsWatch(String root) =>
+      api.fsWatch(root: root).map(_decodeObject);
 
   @override
-  Future<JsonMap> fsUnwatch(String root) => _run(() => api.fsUnwatch(root: root));
+  Future<JsonMap> fsUnwatch(String root) =>
+      _run(() => api.fsUnwatch(root: root));
 
   @override
   Future<JsonMap> gitStatus(String cwd) => _run(() => api.gitStatus(cwd: cwd));
 
   @override
-  Future<JsonMap> terminalOpen(String cwd, {required int cols, required int rows}) =>
-      _run(() => api.terminalOpen(cwd: cwd, cols: cols, rows: rows));
+  Future<JsonMap> terminalOpen(
+    String cwd, {
+    required int cols,
+    required int rows,
+  }) => _run(() => api.terminalOpen(cwd: cwd, cols: cols, rows: rows));
 
   @override
-  Future<JsonMap> terminalResize(String terminalId, {required int cols, required int rows}) =>
-      _run(() => api.terminalResize(terminalId: terminalId, cols: cols, rows: rows));
+  Future<JsonMap> terminalResize(
+    String terminalId, {
+    required int cols,
+    required int rows,
+  }) => _run(
+    () => api.terminalResize(terminalId: terminalId, cols: cols, rows: rows),
+  );
 
   @override
-  Future<JsonMap> terminalKill(String terminalId) => _run(() => api.terminalKill(terminalId: terminalId));
+  Future<JsonMap> terminalKill(String terminalId) =>
+      _run(() => api.terminalKill(terminalId: terminalId));
+
+  @override
+  Future<JsonMap> processSnapshot() => _run(api.processSnapshot);
 
   @override
   Future<JsonMap> coreShutdown() => _run(api.coreShutdown);
