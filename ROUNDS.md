@@ -31,6 +31,7 @@
 | R7 | zed-agent-acp sidecar | （无新画板；41 新建会话列表出现 Zed Agent） | Zed 内置 agent | R3；建议在 R6 后 | XL |
 | R7.5 | 组合根拆分：`lib/app/workbench_controller.dart`（2645 行单类）拆成组合根 + 8 个对象，行为零变化，`lib/ui` / `lib/theme` / `lib/projection` 零 diff | —（无画板） | fake-agent（无头等价）+ dsh、claude-agent-acp 各一次真跑 | R7、画板 43、R7.6 已合入 main（5a001bf） | L |
 | R8 | 打包与发布：sidecar 版本解耦、Windows zip + 安装器、产物自动化验收（macOS 挪到后续一轮） | 01 状态 2（首次启动） | 全部 | R6、R7 | M |
+| R11 | Zed v1.25.2 派生来源与 SDK 3.3.0 升级；保持 ACP v1，吸收适用可靠性修复 | —（无新画板） | fake-agent + 五 agent | 当前 main；先完成 pins／契约同步 | L |
 
 体量只是相对量（S < M < L < XL），不是工时承诺。R7 只依赖 R1 与 R3，若 Zed 构建环境先就绪可提前，但冷编译 30–60 分钟且与主程序无耦合，默认放在 R6 之后。
 
@@ -379,6 +380,16 @@ widget 文件放 `lib/ui/<区域>/`，**默认一画板一文件**；同一卡�
 **契约变更**：无（CLAUDE.md 加规则 11 是开发约定，不是线上契约）。
 
 
+### R11 Zed v1.25.2 复用代码与 ACP v1 依赖升级
+
+**目标**：按所有者 2026-10-23 要求，在一个 round 内核对并同步 Zed `v1.25.2`（`d25fa01ccd788d812f236810b71af4feff6b2e38`）的现存派生代码；建议 SDK 升至该发布版的 `3.3.0`，线上协议保持 v1，明确不做 ACP v2。
+
+**交付物**：[`rounds/round-11/round-11.md`](rounds/round-11/round-11.md) 的版本方案、文件级实施顺序与验收；[`upstream-audit.md`](rounds/round-11/upstream-audit.md) 的 10 个本地文件映射、45 个相关提交处置及 tag 外排除项。计划阶段不修改生效 pins 与实现。
+
+**验收与边界**：有序会话创建、最后输出排空、裸 EOF／传输错误清理、载入释放、压缩／权限／终端 v1 回归、Windows 子进程实测、五 agent 矩阵、macOS 验证及独立审查；不恢复 sidecar／gpui，不新增 notices／subagents 能力或 UI。Node 24.22.1 是独立标注来源的安全补丁建议，Zed tag 本身为 24.21.0。
+
+**当前状态**：总体静态核查与计划完成，未开工升级；开工前先按规则 4 更新 pins、研究与 fetch，再改实现。版本／feature 差异详见任务卡，不机械复制 Zed 的 v2 编译开关。
+
 ## 4. 五 agent 全通矩阵（R6 收口）
 
 七步来自 `docs/requirements.md` § 必须 第 3 条。格子里写「首次打通的轮次」，R6 全部重跑一遍；R7 加 Zed 行（逐格证据在 `rounds/round-07/round-07.md`「本轮实测」）。
@@ -465,3 +476,4 @@ R6 的逐格证据（报告 JSON 路径、能力声明、重放 digest 比对、
 | send-queue（回合进行中的发送队列） | 已完成，2026-09-28 快进合入 `main` | `round-send-queue` | `8eff231`（画板 44 入库 + 画板 02 补入停靠态） | — | 8 轮 / cursor CLI `grok-4.7-high-fast`（第 1 轮全量 `main...HEAD`：6 条；第 2 轮 5 条；第 3–5 轮整改；第 6–7 轮理论极端假想所有者裁定属于设计取舍不予机制类整改；第 8 轮 **0 条**收口） | 任务卡 `rounds/round-send-queue/round-send-queue.md`；照 Zed 的 Queued Messages 状态机（依据 `docs/research.md` § 4.2）在客户端本地排队，只用标准 `session/prompt` / `session/cancel`，核心与桥零改动。所有者裁定 2026-09-24：**不做 steer**——不接各家 agent 的 `_session/steering` 私有扩展、不为 Zed sidecar 做 steer 适配，调研记录在 `docs/research.md` § 4.3；另有 a–h 八项开工前裁定已全部落地 |
 | R9（macOS 平台支持与打包） | 已完成，2026-10-14 快进合入 `main` | `round-09` | —（无新画板，偏离记 `design/DIVERGENCE.md` #42） | — | 5 轮 / Codex CLI `gpt-6.1-sol` `reasoning: medium`（所有者指定；第 1 轮全量 `main..HEAD`：4 条；第 2 轮全量：2 条；第 3 轮增量：1 条；第 4、5 轮 **0 条**收口） | 任务卡 `rounds/round-09/round-09.md`；生成并整理 `macos/` 原生宿主工程，接入仓库内 `cargokit` 构建 `libacp_bridge.dylib` 打入 `Contents/Frameworks/`，关闭 App Sandbox，Swift 原生层实现无边框透明标题栏 + 左上角原生红绿灯 + `acp/window`（拖拽、双击缩放、窗口控制、剪贴板文件 URL 与 BGRA 位图读取），Flutter 层隐藏三键并为红绿灯预留 `72px` 安全左边距、补齐 macOS 字体探测目录，Rust 核心补齐 macOS GUI 启动 `PATH`（登录 shell + 标准目录，零 `unsafe`）、Unix `process_group(0)` + `/bin/kill` 整树回收与终端登录 shell `-l` 参数，新增 `scripts/validate.sh` / `build-macos.sh` / `package-macos.sh` / `render-icon-macos.sh`，Xcode 27.0 实跑产出 `.app` / `.zip` / `.dmg` |
 | R10（Agents 面板的进程与内存，v1.6.0） | 设计阶段：画板 54 已入库，待所有者过稿；未开工（所有者指示 2026-10-18 先不进代码开发） | `round-10`（未开出） | 画板 54 入库提交（待提交） | — | — | 任务卡 `rounds/round-10/round-10.md`；简报 `design/round-design/input/revision-09.md`。裁定 2026-10-18：`sysinfo` 进白名单、专用内存口径、并进 Agents 面板、终端只展示；改 `docs/design.md` § 3（新命令 `process_snapshot`）并加依赖，所以走轮次 |
+| R11（Zed v1.25.2 复用代码与 ACP v1 依赖升级） | 总体核查与计划完成，2026-10-23；未开工升级 | `round-11`（待开出） | —（无新画板） | — | 未发起（当前仅计划） | 任务卡 `rounds/round-11/round-11.md`；核查表 `upstream-audit.md`。SDK 建议 3.3.0、schema 1.11.0；不启用 ACP v2／subagents，不恢复 sidecar；Node 24.22.1 单列安全补丁建议 |

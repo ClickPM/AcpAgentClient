@@ -1,5 +1,11 @@
 # AcpAgent Client
 
+> [!WARNING]
+> **⚠️ PROJECT ARCHIVED & DEPRECATED**
+> 
+> Due to frustration and dissatisfaction with the current state of the **ACP (Agent Client Protocol) ecosystem** (severe fragmentation, divergent upstream behaviors, and maintenance costs overwhelmingly exceeding actual product value), **this project and its GitHub predecessor (`gpui-pi`) have been permanently discontinued and archived.**
+> The repository remains available strictly for historical reference and research purposes. No further issues, PRs, or feature updates will be accepted. Thank you to everyone who followed and supported this project!
+
 [中文](README.md) | English
 
 > A good-looking multi-agent desktop client. Every agent connects over the [Agent Client Protocol (ACP)](https://agentclientprotocol.com/), and any agent in the official registry works right after you install it.

@@ -1,5 +1,11 @@
 # AcpAgent Client
 
+> [!WARNING]
+> **⚠️ 项目已停止维护 / ARCHIVED & DEPRECATED**
+> 
+> 出于对 **ACP（Agent Client Protocol）协议生态现状的不满与失望**（标准碎片化严重、各 upstream 实现微小差异大、维护与兼容成本远超业务价值），**本项目及 GitHub 前作（`gpui-pi`）均已彻底停止更新并归档**。
+> 本仓库代码仅保留作为历史研究与参考，不再接受任何 Issue、PR 或功能更新。感谢所有关注与支持过本项目的朋友！
+
 中文 | [English](README.en.md)
 
 > 一个好看的多 agent 桌面客户端：所有 agent 都经 [Agent Client Protocol（ACP）](https://agentclientprotocol.com/) 接入，官方 registry 里的 agent 装上即用。
